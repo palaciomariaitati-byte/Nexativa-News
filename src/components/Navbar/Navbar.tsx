@@ -10,15 +10,9 @@ export default function Navbar() {
 
   // Detect auth state
   useEffect(() => {
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (_event, session) => setSession(session)
-    );
-
-    // Initial session check
-    supabase.auth.getSession().then(({ data: { session } }) =>
-      setSession(session)
-    );
-
+    if (!supabase) return;
+    const { data: authListener } = supabase!.auth.onAuthStateChange((_event, session) => setSession(session));
+    supabase!.auth.getSession().then(({ data: { session } }) => setSession(session));
     return () => {
       authListener?.subscription?.unsubscribe();
     };

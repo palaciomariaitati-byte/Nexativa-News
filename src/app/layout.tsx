@@ -1,3 +1,10 @@
+/*
+ * Intellectual Property Rule:
+ * All code, designs, assets, and algorithms in this project must be original or
+ * fully open-source. It is strictly prohibited to use patented designs, commercial
+ * trademarks, registered logos, or closed-source algorithms.
+ */
+
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
