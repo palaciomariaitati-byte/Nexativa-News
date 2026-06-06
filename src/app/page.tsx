@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import React, { Suspense } from "react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import type { Article } from "@/lib/types";
+import type { Article, Product, Sponsor, StreamVideo } from "@/lib/types";
 import NewsTabs from "@/components/NewsTabs/NewsTabs";
 
 // -----------------------------------------------------------------
@@ -33,61 +33,71 @@ async function getPublishedArticles(category: string): Promise<Article[]> {
   }
 }
 
+async function getProducts(): Promise<Product[]> {
+  try {
+    const supabase = createServerSupabaseClient();
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) {
+      console.error("Supabase products query error:", error.message);
+      return [];
+    }
+    return (data ?? []) as Product[];
+  } catch (err) {
+    console.error("Failed to fetch products:", err);
+    return [];
+  }
+}
+
+async function getSponsors(): Promise<Sponsor[]> {
+  try {
+    const supabase = createServerSupabaseClient();
+    const { data, error } = await supabase
+      .from("sponsors")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) {
+      console.error("Supabase sponsors query error:", error.message);
+      return [];
+    }
+    return (data ?? []) as Sponsor[];
+  } catch (err) {
+    console.error("Failed to fetch sponsors:", err);
+    return [];
+  }
+}
+
+async function getActiveStream(): Promise<StreamVideo | null> {
+  try {
+    const supabase = createServerSupabaseClient();
+    const { data, error } = await supabase
+      .from("streams")
+      .select("*")
+      .eq("is_live", true)
+      .limit(1)
+      .maybeSingle();
+    if (error) {
+      console.error("Supabase streams query error:", error.message);
+      return null;
+    }
+    return data as StreamVideo | null;
+  } catch (err) {
+    console.error("Failed to fetch active stream:", err);
+    return null;
+  }
+}
+
 // -----------------------------------------------------------------
 // Mock data (static) — kept for non-news columns
 // -----------------------------------------------------------------
 const banners = [
   {
     id: 1,
-    image: "https://images.unsplash.com/photo-1622545609490-f0cfd674574d?auto=format&fit=crop&w=1200&q=80",
-    alt: "Banner Principal",
+    image: "/banner-nexativa.jpg",
+    alt: "Nexativa – Lo nuestro para el mundo",
     link: "#",
-  },
-];
-
-const products = [
-  {
-    id: 1,
-    name: "Camiseta básica",
-    price: "$9.99",
-    image: "https://images.unsplash.com/photo-1503341455253-b2e723bb3dbb?auto=format&fit=crop&w=400&q=80",
-  },
-  {
-    id: 2,
-    name: "Pantalón casual",
-    price: "$19.99",
-    image: "https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=400&q=80",
-  },
-  {
-    id: 3,
-    name: "Zapatos sport",
-    price: "$29.99",
-    image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=400&q=80",
-  },
-];
-
-const sponsors = [
-  {
-    id: 1,
-    name: "Café Local",
-    review: "Excelente atención y café artesanal.",
-    contacts: {
-      whatsapp: "https://wa.me/123456789",
-      instagram: "https://instagram.com/cafelocal",
-      facebook: "https://facebook.com/cafelocal",
-      tiktok: "https://tiktok.com/@cafelocal",
-      email: "mailto:info@cafelocal.com",
-    },
-    mapEmbed:
-      "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3162.123456789!2d-58.381592!3d-34.603722!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1s0x95bcc3c5c0c0c0c1%3A0x7f5d5d5d5d5d5d5d!2sCaf%C3%A9%20Local!5e0!3m2!1ses!2sar!4v1700000000000",
-  },
-];
-
-const videos = [
-  {
-    id: 1,
-    title: "Resumen de noticias del día",
-    url: "https://www.youtube.com/embed/dQw4w9WgXcQ",
   },
 ];
 
@@ -112,71 +122,91 @@ function Banner() {
   );
 }
 
-function ProductCard({ product }: { product: typeof products[0] }) {
+function ProductCard({ product }: { product: Product }) {
   return (
-    <div className="border rounded p-2 text-center">
-      <Image src={product.image} alt={product.name} width={200} height={200} className="mx-auto rounded" />
-      <h5 className="mt-2 font-medium text-black">{product.name}</h5>
-      <p className="text-red-600 font-bold">{product.price}</p>
-      <button className="mt-2 bg-black text-white px-3 py-1 rounded hover:bg-gray-800">
-        Comprar ahora
-      </button>
+    <div className="border rounded p-2 text-center flex flex-col h-full">
+      {product.image_url && (
+        <Image src={product.image_url} alt={product.title} width={200} height={200} className="mx-auto rounded object-cover h-40 w-full" />
+      )}
+      <h5 className="mt-2 font-medium text-black">{product.title}</h5>
+      {product.description && <p className="text-sm text-gray-500">{product.description}</p>}
+      <div className="mt-auto pt-2">
+        <p className="text-red-600 font-bold">${Number(product.price).toFixed(2)}</p>
+        {product.buy_url && (
+          <a href={product.buy_url} target="_blank" rel="noopener noreferrer" className="mt-2 block bg-black text-white px-3 py-1 rounded hover:bg-gray-800">
+            Comprar ahora
+          </a>
+        )}
+      </div>
     </div>
   );
 }
 
-function SponsorCard({ sponsor }: { sponsor: typeof sponsors[0] }) {
+function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
   return (
     <div className="border rounded p-2 space-y-2">
       <h4 className="font-semibold text-black">{sponsor.name}</h4>
-      <p className="text-sm text-gray-700">{sponsor.review}</p>
       <div className="flex flex-wrap gap-1">
-        <a href={sponsor.contacts.whatsapp} target="_blank" rel="noopener noreferrer" className="bg-green-600 text-white px-2 py-1 rounded text-xs">
-          WhatsApp
-        </a>
-        <a href={sponsor.contacts.instagram} target="_blank" rel="noopener noreferrer" className="bg-pink-600 text-white px-2 py-1 rounded text-xs">
-          Instagram
-        </a>
-        <a href={sponsor.contacts.facebook} target="_blank" rel="noopener noreferrer" className="bg-blue-800 text-white px-2 py-1 rounded text-xs">
-          Facebook
-        </a>
-        <a href={sponsor.contacts.tiktok} target="_blank" rel="noopener noreferrer" className="bg-black text-white px-2 py-1 rounded text-xs">
-          TikTok
-        </a>
-        <a href={sponsor.contacts.email} target="_blank" rel="noopener noreferrer" className="bg-red-600 text-white px-2 py-1 rounded text-xs">
-          Email
-        </a>
+        {sponsor.website_url && (
+          <a href={sponsor.website_url} target="_blank" rel="noopener noreferrer" className="bg-blue-600 text-white px-2 py-1 rounded text-xs">
+            Web
+          </a>
+        )}
+        {sponsor.instagram_url && (
+          <a href={sponsor.instagram_url} target="_blank" rel="noopener noreferrer" className="bg-pink-600 text-white px-2 py-1 rounded text-xs">
+            Instagram
+          </a>
+        )}
       </div>
-      <button className="w-full bg-black text-white px-2 py-1 rounded text-sm">Cerrar Trato</button>
-      <iframe
-        src={sponsor.mapEmbed}
-        width="100%"
-        height="150"
-        allowFullScreen
-        loading="lazy"
-        className="rounded"
-      ></iframe>
+      {sponsor.map_url && (
+        <iframe
+          src={sponsor.map_url}
+          width="100%"
+          height="150"
+          allowFullScreen
+          loading="lazy"
+          className="rounded"
+        ></iframe>
+      )}
     </div>
   );
 }
 
-function VideoSection() {
+function VideoSection({ stream }: { stream: StreamVideo | null }) {
+  if (!stream) {
+    return <p className="text-sm text-gray-500">No hay streaming activo en este momento.</p>;
+  }
+
+  // Helper to convert standard YouTube links to embed links
+  let embedUrl = stream.youtube_url;
+  try {
+    const urlObj = new URL(stream.youtube_url);
+    if (urlObj.hostname.includes("youtube.com") && urlObj.searchParams.has("v")) {
+      embedUrl = `https://www.youtube.com/embed/${urlObj.searchParams.get("v")}`;
+    } else if (urlObj.hostname === "youtu.be") {
+      embedUrl = `https://www.youtube.com/embed${urlObj.pathname}`;
+    }
+  } catch (e) {
+    // Ignore invalid URLs
+  }
+
   return (
     <div className="space-y-4">
-      {videos.map((v) => (
-        <div key={v.id} className="border rounded p-2">
-          <h5 className="font-semibold text-black mb-2">{v.title}</h5>
-          <div className="aspect-video">
-            <iframe
-              src={v.url}
-              title={v.title}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              className="w-full h-full rounded"
-            ></iframe>
-          </div>
+      <div className="border rounded p-2">
+        <h5 className="font-semibold text-black mb-2 flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
+          {stream.title}
+        </h5>
+        <div className="aspect-video">
+          <iframe
+            src={embedUrl}
+            title={stream.title}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            className="w-full h-full rounded"
+          ></iframe>
         </div>
-      ))}
+      </div>
     </div>
   );
 }
@@ -209,8 +239,13 @@ function NewsTabsSkeleton() {
 // Main page (Server Component — async, fetches data on the server)
 // -----------------------------------------------------------------
 export default async function HomePage() {
-  // Pre-fetch the default tab ("Nacional") on the server
-  const initialArticles = await getPublishedArticles("nacional");
+  // Fetch everything in parallel on the server
+  const [initialArticles, products, sponsors, activeStream] = await Promise.all([
+    getPublishedArticles("nacional"),
+    getProducts(),
+    getSponsors(),
+    getActiveStream(),
+  ]);
 
   return (
     <main className="p-4 bg-white text-black">
@@ -234,9 +269,13 @@ export default async function HomePage() {
         <section className="col-span-3">
           <h3 className="font-bold text-lg mb-2">Tienda</h3>
           <div className="grid grid-cols-1 gap-4">
-            {products.map((p) => (
-              <ProductCard key={p.id} product={p} />
-            ))}
+            {products.length > 0 ? (
+              products.map((p) => (
+                <ProductCard key={p.id} product={p} />
+              ))
+            ) : (
+              <p className="text-sm text-gray-500">No hay productos disponibles.</p>
+            )}
           </div>
         </section>
 
@@ -244,16 +283,20 @@ export default async function HomePage() {
         <section className="col-span-3">
           <h3 className="font-bold text-lg mb-2">Patrocinadores</h3>
           <div className="space-y-4">
-            {sponsors.map((s) => (
-              <SponsorCard key={s.id} sponsor={s} />
-            ))}
+            {sponsors.length > 0 ? (
+              sponsors.map((s) => (
+                <SponsorCard key={s.id} sponsor={s} />
+              ))
+            ) : (
+              <p className="text-sm text-gray-500">No hay patrocinadores disponibles.</p>
+            )}
           </div>
         </section>
 
         {/* ← Columna derecha – Streaming */}
         <section className="col-span-3">
           <h3 className="font-bold text-lg mb-2">Streaming</h3>
-          <VideoSection />
+          <VideoSection stream={activeStream} />
         </section>
       </div>
     </main>
