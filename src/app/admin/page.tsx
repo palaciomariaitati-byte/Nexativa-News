@@ -4,7 +4,7 @@ import LoginForm from '@/components/admin/LoginForm';
 import Dashboard from '@/components/admin/Dashboard';
 
 export default async function AdminPage() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const isAuth = cookieStore.get('admin_auth')?.value === 'true';
 
   if (!isAuth) {

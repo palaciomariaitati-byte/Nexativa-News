@@ -15,7 +15,8 @@ export async function adminLogin(password: string) {
     throw new Error('Invalid password');
   }
   // Set a signed httpOnly cookie to keep the session
-  cookies().set('admin_auth', 'true', {
+  const cookieStore = await cookies();
+  cookieStore.set('admin_auth', 'true', {
     httpOnly: true,
     path: '/admin',
     sameSite: 'lax',
@@ -26,21 +27,21 @@ export async function adminLogin(password: string) {
 
 // ----- CRUD Helpers (generic) -----
 export async function fetchAll<T>(table: string): Promise<T[]> {
-  const { data, error } = await supabaseAdmin.from<T>(table).select('*');
+  const { data, error } = await supabaseAdmin.from(table).select('*');
   if (error) throw error;
   return data;
 }
 
-export async function createRecord<T>(table: string, payload: T): Promise<T> {
-  const { data, error } = await supabaseAdmin.from<T>(table).insert(payload).single();
+export async function createRecord<T extends Record<string, any>>(table: string, payload: T): Promise<T> {
+  const { data, error } = await supabaseAdmin.from(table).insert(payload as any).single();
   if (error) throw error;
   return data;
 }
 
-export async function updateRecord<T>(table: string, id: string, payload: Partial<T>): Promise<T> {
+export async function updateRecord<T extends Record<string, any>>(table: string, id: string, payload: Partial<T>): Promise<T> {
   const { data, error } = await supabaseAdmin
-    .from<T>(table)
-    .update(payload)
+    .from(table)
+    .update(payload as any)
     .eq('id', id)
     .single();
   if (error) throw error;

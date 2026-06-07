@@ -7,6 +7,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Article, Product, Sponsor, StreamVideo } from "@/lib/types";
 import NewsTabs from "@/components/NewsTabs/NewsTabs";
 
+import VideoSection from "@/components/VideoSection";
 // -----------------------------------------------------------------
 // Server-side data fetching (runs once per request, no client JS)
 // -----------------------------------------------------------------
@@ -159,57 +160,23 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
         )}
       </div>
       {sponsor.map_url && (
-        <iframe
-          src={sponsor.map_url}
-          width="100%"
-          height="150"
-          allowFullScreen
-          loading="lazy"
-          className="rounded"
-        ></iframe>
+        <div className="hidden md:block">
+          <iframe
+            src={sponsor.map_url}
+            width="100%"
+            height="150"
+            allowFullScreen
+            loading="lazy"
+            className="rounded"
+          ></iframe>
+        </div>
       )}
     </div>
   );
 }
 
-function VideoSection({ stream }: { stream: StreamVideo | null }) {
-  if (!stream) {
-    return <p className="text-sm text-gray-500">No hay streaming activo en este momento.</p>;
-  }
 
-  // Helper to convert standard YouTube links to embed links
-  let embedUrl = stream.youtube_url;
-  try {
-    const urlObj = new URL(stream.youtube_url);
-    if (urlObj.hostname.includes("youtube.com") && urlObj.searchParams.has("v")) {
-      embedUrl = `https://www.youtube.com/embed/${urlObj.searchParams.get("v")}`;
-    } else if (urlObj.hostname === "youtu.be") {
-      embedUrl = `https://www.youtube.com/embed${urlObj.pathname}`;
-    }
-  } catch (e) {
-    // Ignore invalid URLs
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="border rounded p-2">
-        <h5 className="font-semibold text-black mb-2 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
-          {stream.title}
-        </h5>
-        <div className="aspect-video">
-          <iframe
-            src={embedUrl}
-            title={stream.title}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            className="w-full h-full rounded"
-          ></iframe>
-        </div>
-      </div>
-    </div>
-  );
-}
+  
 
 // Skeleton for the NewsTabs while loading on the server
 function NewsTabsSkeleton() {
@@ -253,9 +220,9 @@ export default async function HomePage() {
       <Banner />
 
       {/* 2️⃣ Grid layout – 4 columnas (12‑col grid) */}
-      <div className="grid grid-cols-12 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         {/* ← Columna izquierda – Prensa */}
-        <section className="col-span-3">
+        <section className="col-span-1">
           <h3 className="font-bold text-lg mb-2">Prensa</h3>
           <Suspense fallback={<NewsTabsSkeleton />}>
             <NewsTabs
@@ -266,7 +233,7 @@ export default async function HomePage() {
         </section>
 
         {/* ← Medio‑izquierda – Tienda */}
-        <section className="col-span-3">
+        <section className="col-span-1">
           <h3 className="font-bold text-lg mb-2">Tienda</h3>
           <div className="grid grid-cols-1 gap-4">
             {products.length > 0 ? (
@@ -280,7 +247,7 @@ export default async function HomePage() {
         </section>
 
         {/* ← Medio‑derecha – Patrocinadores */}
-        <section className="col-span-3">
+        <section className="col-span-1">
           <h3 className="font-bold text-lg mb-2">Patrocinadores</h3>
           <div className="space-y-4">
             {sponsors.length > 0 ? (
@@ -294,7 +261,7 @@ export default async function HomePage() {
         </section>
 
         {/* ← Columna derecha – Streaming */}
-        <section className="col-span-3">
+        <section className="col-span-1">
           <h3 className="font-bold text-lg mb-2">Streaming</h3>
           <VideoSection stream={activeStream} />
         </section>
