@@ -161,16 +161,8 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
         )}
       </div>
       {sponsor.map_url && (
-        <div className="hidden md:block">
-          <iframe
-            src={sponsor.map_url}
-            width="100%"
-            height="150"
-            allowFullScreen
-            loading="lazy"
-            className="rounded"
-          ></iframe>
-        </div>
+        {/* Placeholder for map */}
+        <p className="text-sm text-gray-500">Mapa no disponible temporalmente.</p>
       )}
     </div>
   );
