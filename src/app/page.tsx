@@ -126,16 +126,16 @@ function Banner() {
 
 function ProductCard({ product }: { product: Product }) {
   return (
-    <div className="border rounded p-2 text-center flex flex-col h-full">
+    <div className="border border-slate-200 rounded-2xl p-2 text-center flex flex-col h-full bg-white shadow-sm hover:shadow-md transition-shadow">
       {product.image_url && (
         <Image src={product.image_url} alt={product.title} width={200} height={200} className="mx-auto rounded object-cover h-40 w-full" />
       )}
-      <h5 className="mt-2 font-medium text-black">{product.title}</h5>
+      <h5 className="mt-2 font-medium text-slate-900">{product.title}</h5>
       {product.description && <p className="text-sm text-gray-500">{product.description}</p>}
       <div className="mt-auto pt-2">
-        <p className="text-red-600 font-bold">${Number(product.price).toFixed(2)}</p>
+        <p className="text-slate-900 font-bold">${Number(product.price).toFixed(2)}</p>
         {product.buy_url && (
-          <a href={product.buy_url} target="_blank" rel="noopener noreferrer" className="mt-2 block bg-black text-white px-3 py-1 rounded hover:bg-gray-800">
+          <a href={product.buy_url} target="_blank" rel="noopener noreferrer" className="mt-2 block bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded transition-colors">
             Comprar ahora
           </a>
         )}
@@ -146,22 +146,22 @@ function ProductCard({ product }: { product: Product }) {
 
 function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
   return (
-    <div className="border rounded p-2 space-y-2">
-      <h4 className="font-semibold text-black">{sponsor.name}</h4>
+    <div className="border border-slate-200 rounded-2xl p-2 space-y-2 bg-white shadow-sm hover:shadow-md transition-shadow">
+      <h4 className="font-semibold text-slate-900">{sponsor.name}</h4>
       <div className="flex flex-wrap gap-1">
         {sponsor.website_url && (
-          <a href={sponsor.website_url} target="_blank" rel="noopener noreferrer" className="bg-blue-600 text-white px-2 py-1 rounded text-xs">
+          <a href={sponsor.website_url} target="_blank" rel="noopener noreferrer" className="bg-slate-800 text-white px-2 py-1 rounded text-xs">
             Web
           </a>
         )}
         {sponsor.instagram_url && (
-          <a href={sponsor.instagram_url} target="_blank" rel="noopener noreferrer" className="bg-pink-600 text-white px-2 py-1 rounded text-xs">
+          <a href={sponsor.instagram_url} target="_blank" rel="noopener noreferrer" className="bg-slate-800 text-white px-2 py-1 rounded text-xs">
             Instagram
           </a>
         )}
       </div>
         {sponsor.map_url && (
-          <p className="text-sm text-gray-500">Mapa no disponible temporalmente.</p>
+          <p className="text-sm text-slate-500">Mapa no disponible temporalmente.</p>
         )}
     </div>
   );
@@ -207,15 +207,15 @@ export default async function HomePage() {
   ]);
 
   return (
-    <main className="p-4 bg-white text-black">
+    <main className="p-4 bg-slate-50 text-slate-900">
       {/* 1️⃣ Banner principal */}
       <Banner />
 
       {/* 2️⃣ Grid layout – 4 columnas (12‑col grid) */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
         {/* ← Columna izquierda – Prensa */}
         <section className="col-span-1">
-          <h3 className="font-bold text-lg mb-2">Prensa</h3>
+          <h3 className="text-slate-900 text-xl font-bold mb-2">Prensa</h3>
           <Suspense fallback={<NewsTabsSkeleton />}>
             <NewsTabs
               initialArticles={initialArticles}
@@ -226,7 +226,7 @@ export default async function HomePage() {
 
         {/* ← Medio‑izquierda – Tienda */}
         <section className="col-span-1">
-          <h3 className="font-bold text-lg mb-2">Tienda</h3>
+          <h3 className="text-slate-900 text-xl font-bold mb-2">Tienda</h3>
           <div className="grid grid-cols-1 gap-4">
             {products.length > 0 ? (
               products.map((p) => (
@@ -240,21 +240,22 @@ export default async function HomePage() {
 
         {/* ← Medio‑derecha – Patrocinadores */}
         <section className="col-span-1">
-          <h3 className="font-bold text-lg mb-2">Patrocinadores</h3>
-          <div className="space-y-4">
-            {sponsors.length > 0 ? (
-              sponsors.map((s) => (
-                <SponsorCard key={s.id} sponsor={s} />
-              ))
-            ) : (
-              <p className="text-sm text-gray-500">No hay patrocinadores disponibles.</p>
-            )}
-          </div>
-        </section>
+            <h3 className="text-slate-900 text-xl font-bold mb-2">Patrocinadores</h3>
+            <div className="w-full overflow-hidden whitespace-nowrap relative bg-slate-100 py-4">
+              <div className="flex space-x-6 animate-marquee">
+                {sponsors.map((s) => (
+                  <SponsorCard key={s.id} sponsor={s} />
+                ))}
+                {sponsors.map((s) => (
+                  <SponsorCard key={`${s.id}-clone`} sponsor={s} />
+                ))}
+              </div>
+            </div>
+          </section>
 
         {/* ← Columna derecha – Streaming */}
         <section className="col-span-1">
-          <h3 className="font-bold text-lg mb-2">Streaming</h3>
+          <h3 className="text-slate-900 text-xl font-bold mb-2">Streaming</h3>
           <VideoSection stream={activeStream} />
         </section>
       </div>
