@@ -5,3 +5,13 @@
   --color-brand-gold: #c5a059;
   --color-brand-dark: #121412;
 }
+
+/* Marquee animation */
+@keyframes marquee {
+  from { transform: translateX(100%); }
+  to { transform: translateX(-100%); }
+}
+
+.animate-marquee {
+  animation: marquee 20s linear infinite;
+}
