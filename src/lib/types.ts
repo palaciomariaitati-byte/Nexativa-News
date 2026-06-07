@@ -52,3 +52,10 @@ export interface StreamVideo {
   created_at: string;
 }
 
+export interface ProPartner {
+  id: string;
+  name: string;
+  logo_url: string | null;
+  website_url: string | null;
+  created_at: string;
+}
