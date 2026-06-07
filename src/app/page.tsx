@@ -6,6 +6,7 @@ import React, { Suspense } from "react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Article, Product, Sponsor, StreamVideo } from "@/lib/types";
 import NewsTabs from "@/components/NewsTabs/NewsTabs";
+import MarqueeHeader from "@/components/MarqueeHeader";
 
 import VideoSection from "@/components/VideoSection";
 import SubscriptionTiers from "@/components/SubscriptionTiers"
@@ -127,7 +128,7 @@ function Banner() {
 
 function ProductCard({ product }: { product: Product }) {
   return (
-    <div className="border border-slate-200 rounded-2xl p-2 text-center flex flex-col h-full bg-white shadow-sm hover:shadow-md transition-shadow">
+    <div className="border border-slate-200 rounded-2xl p-2 text-center flex flex-col h-full bg-white shadow-sm hover:shadow-md hover:bg-indigo-50 transition-colors transition-transform duration-200 transform hover:scale-105">
       {product.image_url && (
         <Image src={product.image_url} alt={product.title} width={200} height={200} className="mx-auto rounded object-cover h-40 w-full" />
       )}
@@ -214,7 +215,7 @@ export default async function HomePage() {
       <Banner />
 
       {/* 2️⃣ Grid layout – 4 columnas (12‑col grid) */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         {/* ← Columna izquierda – Prensa */}
         <section className="col-span-1">
           <h3 className="text-slate-900 text-xl font-bold mb-2">Prensa</h3>
@@ -242,20 +243,8 @@ export default async function HomePage() {
           </div>
         </section>
 
-        {/* ← Medio‑derecha – Patrocinadores */}
-        <section className="col-span-1">
-            <h3 className="text-slate-900 text-xl font-bold mb-2">Patrocinadores</h3>
-            <div className="w-full overflow-hidden whitespace-nowrap relative bg-slate-100 py-4">
-              <div className="flex space-x-6 animate-marquee">
-                {sponsors.map((s) => (
-                  <SponsorCard key={s.id} sponsor={s} />
-                ))}
-                {sponsors.map((s) => (
-                  <SponsorCard key={`${s.id}-clone`} sponsor={s} />
-                ))}
-              </div>
-            </div>
-          </section>
+        {/* Marquee Header inserted below Banner */}
+        <MarqueeHeader sponsors={sponsors} />
 
         {/* ← Columna derecha – Streaming */}
          <section className="col-span-1">
