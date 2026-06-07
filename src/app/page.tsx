@@ -8,7 +8,8 @@ import type { Article, Product, Sponsor, StreamVideo } from "@/lib/types";
 import NewsTabs from "@/components/NewsTabs/NewsTabs";
 
 import VideoSection from "@/components/VideoSection";
-import SubscriptionTiers from "@/components/SubscriptionTiers";
+import SubscriptionTiers from "@/components/SubscriptionTiers"
+import StickyVideo from "@/components/StickyVideo";
 // -----------------------------------------------------------------
 // Server-side data fetching (runs once per request, no client JS)
 // -----------------------------------------------------------------
@@ -206,6 +207,7 @@ export default async function HomePage() {
     getActiveStream(),
   ]);
 
+  // Sticky video logic moved to <StickyVideo /> client component
   return (
     <main className="p-4 bg-slate-50 text-slate-900">
       {/* 1️⃣ Banner principal */}
@@ -217,10 +219,12 @@ export default async function HomePage() {
         <section className="col-span-1">
           <h3 className="text-slate-900 text-xl font-bold mb-2">Prensa</h3>
           <Suspense fallback={<NewsTabsSkeleton />}>
-            <NewsTabs
-              initialArticles={initialArticles}
-              initialTab="Nacional"
-            />
+            <div className="flex overflow-x-auto snap-x snap-mandatory scrollbar-none space-x-4 pb-4">
+              <NewsTabs
+                initialArticles={initialArticles}
+                initialTab="Nacional"
+              />
+            </div>
           </Suspense>
         </section>
 
@@ -254,10 +258,10 @@ export default async function HomePage() {
           </section>
 
         {/* ← Columna derecha – Streaming */}
-        <section className="col-span-1">
-          <h3 className="text-slate-900 text-xl font-bold mb-2">Streaming</h3>
-          <VideoSection stream={activeStream} />
-        </section>
+         <section className="col-span-1">
+           <h3 className="text-slate-900 text-xl font-bold mb-2">Streaming</h3>
+           <StickyVideo stream={activeStream} />
+         </section>
       </div>
         <SubscriptionTiers />
     </main>
