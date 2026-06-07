@@ -8,6 +8,7 @@ import type { Article, Product, Sponsor, StreamVideo } from "@/lib/types";
 import NewsTabs from "@/components/NewsTabs/NewsTabs";
 
 import VideoSection from "@/components/VideoSection";
+import SubscriptionTiers from "@/components/SubscriptionTiers";
 // -----------------------------------------------------------------
 // Server-side data fetching (runs once per request, no client JS)
 // -----------------------------------------------------------------
@@ -266,6 +267,7 @@ export default async function HomePage() {
           <VideoSection stream={activeStream} />
         </section>
       </div>
+        <SubscriptionTiers />
     </main>
   );
 }
