@@ -160,10 +160,9 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
           </a>
         )}
       </div>
-      {sponsor.map_url && (
-        {/* Placeholder for map */}
-        <p className="text-sm text-gray-500">Mapa no disponible temporalmente.</p>
-      )}
+        {sponsor.map_url && (
+          <p className="text-sm text-gray-500">Mapa no disponible temporalmente.</p>
+        )}
     </div>
   );
 }
