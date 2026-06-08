@@ -9,9 +9,10 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-// import Navbar from "@/components/Navbar/Navbar"; // Removed in favor of custom premium nav
+import Navbar from "@/components/Navbar/Navbar";
 import Footer from "@/components/Footer/Footer";
 import WhatsAppWidget from "@/components/WhatsAppWidget";
+import ExternalNewsCarousel from "@/components/ExternalNewsCarousel";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -38,20 +39,12 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-white text-black">
-        <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-200">
-          <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
-            <h1 className="text-xl font-bold text-gray-900">Nexativa News</h1>
-            <ul className="flex space-x-4">
-              <li><a href="/" className="text-gray-700 hover:text-indigo-600 transition-colors">Inicio</a></li>
-              <li><a href="/news" className="text-gray-700 hover:text-indigo-600 transition-colors">Noticias</a></li>
-              <li><a href="/store" className="text-gray-700 hover:text-indigo-600 transition-colors">Tienda</a></li>
-            </ul>
-          </div>
-        </nav>
+      <body className="min-h-full flex flex-col">
+        <Navbar />
+        <ExternalNewsCarousel />
         <main className="flex-grow">{children}</main>
         <Footer />
-              <WhatsAppWidget />
+        <WhatsAppWidget />
       </body>
     </html>
   );

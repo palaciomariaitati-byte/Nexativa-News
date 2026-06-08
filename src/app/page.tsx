@@ -243,9 +243,6 @@ export default async function HomePage() {
           </div>
         </section>
 
-        {/* Marquee Header inserted below Banner */}
-        <MarqueeHeader sponsors={sponsors} />
-
         {/* ← Columna derecha – Streaming */}
          <section className="col-span-1">
            <h3 className="text-slate-900 text-xl font-bold mb-2">Streaming</h3>

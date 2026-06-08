@@ -33,43 +33,58 @@ export default function Navbar() {
     <>
       {/* Marquee of Pro Sponsors */}
       {sponsors.length > 0 && (
-        <div className="bg-gray-100 py-1 overflow-hidden whitespace-nowrap">
-          <div className="flex items-center space-x-4 animate-marquee">
+        <div className="bg-[var(--color-brand-accent)] text-black py-1.5 overflow-hidden whitespace-nowrap border-b border-yellow-600/50">
+          <div className="flex items-center space-x-6 animate-marquee">
             {sponsors.map((s) => (
-              <div key={s.id} className="flex items-center space-x-1">
+              <div key={s.id} className="flex items-center space-x-2 px-4">
                 {s.logo_url ? (
-                  <img src={s.logo_url} alt={s.name} className="h-5" />
+                  <img src={s.logo_url} alt={s.name} className="h-6 object-contain" />
                 ) : (
-                  <span className="text-sm font-medium">{s.name}</span>
+                  <span className="text-sm font-bold uppercase tracking-widest">{s.name}</span>
                 )}
+                <span className="text-black/30 mx-2">•</span>
+              </div>
+            ))}
+            {/* Duplicate for infinite effect */}
+            {sponsors.map((s) => (
+              <div key={s.id + "-clone"} className="flex items-center space-x-2 px-4">
+                {s.logo_url ? (
+                  <img src={s.logo_url} alt={s.name} className="h-6 object-contain" />
+                ) : (
+                  <span className="text-sm font-bold uppercase tracking-widest">{s.name}</span>
+                )}
+                <span className="text-black/30 mx-2">•</span>
               </div>
             ))}
           </div>
         </div>
       )}
-      <nav className="bg-white text-black border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <nav className="sticky top-0 z-50 glass-panel rounded-none border-t-0 border-x-0 border-b border-white/10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           {/* Logo centered */}
-          <div className="flex-1 flex justify-center">
-            <Link href="/" className="text-2xl font-serif tracking-wider">
-              Nexativa News
+          <div className="flex-1 flex items-center">
+            <Link href="/" className="text-3xl font-serif font-bold tracking-widest text-[var(--color-brand-accent)]">
+              NEXATIVA<span className="text-white font-light">NEWS</span>
             </Link>
           </div>
 
           {/* Navigation links */}
-          <div className="flex space-x-4">
-            <Link href="/" className="hover:underline">
+          <div className="flex items-center space-x-6">
+            <Link href="/" className="text-sm font-medium hover:text-[var(--color-brand-accent)] transition-colors uppercase tracking-widest">
               Inicio
             </Link>
-            <Link href="/categorias" className="hover:underline">
-              Categorías
+            <Link href="/news" className="text-sm font-medium hover:text-[var(--color-brand-accent)] transition-colors uppercase tracking-widest">
+              Noticias
+            </Link>
+            <Link href="/store" className="text-sm font-medium hover:text-[var(--color-brand-accent)] transition-colors uppercase tracking-widest">
+              Shop
             </Link>
             {session && (
               <Link
                 href="/dashboard"
-                className="bg-gray-200 hover:bg-gray-300 text-sm px-3 py-1 rounded"
+                className="bg-[var(--color-brand-accent)] text-black font-bold text-xs px-4 py-2 rounded-full uppercase tracking-widest hover:bg-[var(--color-brand-accent-hover)] transition-colors"
               >
-                Dashboard
+                Panel
               </Link>
             )}
           </div>

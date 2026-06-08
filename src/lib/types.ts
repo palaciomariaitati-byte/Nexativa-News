@@ -29,9 +29,11 @@ export interface Product {
   title: string;
   description: string | null;
   price: number;
+  stock: number;
   image_url: string | null;
   buy_url: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 export interface Sponsor {
@@ -40,22 +42,56 @@ export interface Sponsor {
   logo_url: string | null;
   website_url: string | null;
   instagram_url: string | null;
-  map_url: string | null;
+  is_pro: boolean;
   created_at: string;
 }
 
+export interface VideoQueueItem {
+  id: string;
+  title: string;
+  video_url: string;
+  type: 'youtube' | 'twitch' | 'custom';
+  status: 'playing' | 'queued' | 'finished';
+  position: number;
+  created_at: string;
+}
+
+// Deprecated (kept for backwards compatibility until refactored)
 export interface StreamVideo {
   id: string;
   title: string;
-  youtube_url: string;
+  youtube_url?: string;
+  video_url?: string;
   is_live: boolean;
   created_at: string;
 }
 
-export interface ProPartner {
+export interface Order {
   id: string;
-  name: string;
-  logo_url: string | null;
-  website_url: string | null;
+  customer_name: string;
+  customer_email: string | null;
+  customer_phone: string | null;
+  payment_method: string;
+  total_amount: number;
+  status: string;
   created_at: string;
+  updated_at: string;
+}
+
+export interface AccountingMovement {
+  id: string;
+  type: 'income' | 'expense';
+  amount: number;
+  description: string;
+  reference_id: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface Profile {
+  id: string;
+  username: string | null;
+  full_name: string | null;
+  role: 'admin' | 'operator' | 'redactor';
+  updated_at: string;
 }
