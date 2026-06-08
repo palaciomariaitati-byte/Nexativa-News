@@ -93,9 +93,9 @@ export default function NewsTabs({
   // Render
   // ----------------------------------------------------------------
   return (
-    <div className="rounded-xl border border-gray-200/60 bg-gradient-to-b from-gray-50/80 to-white shadow-sm overflow-hidden">
+    <div className="glass-panel overflow-hidden">
       {/* ---- Tab bar ---- */}
-      <div className="flex border-b border-gray-200/60 bg-gray-50/50">
+      <div className="flex border-b border-white/10 bg-black/20">
         {tabLabels.map((label) => (
           <button
             key={label}
@@ -106,8 +106,8 @@ export default function NewsTabs({
               transition-all duration-200 cursor-pointer
               ${
                 activeTab === label
-                  ? "bg-white text-gray-900 border-b-2 border-blue-600 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700 hover:bg-gray-100/60"
+                  ? "bg-[var(--color-brand-accent)] text-black border-b-2 border-white shadow-sm"
+                  : "text-gray-400 hover:text-white hover:bg-white/5"
               }
             `}
           >
@@ -178,22 +178,22 @@ export default function NewsTabs({
 
         {/* Article list */}
         {!loading && !error && articles.length > 0 && (
-          <ul className="space-y-1">
+          <ul className="space-y-2">
             {articles.map((article) => (
               <li
                 key={article.id}
-                className="group px-2 py-2.5 rounded-lg hover:bg-blue-50/50 transition-colors duration-150 border-b border-gray-100 last:border-0"
+                className="group px-3 py-3 rounded-xl hover:bg-white/5 transition-all duration-300 border border-transparent hover:border-white/10"
               >
-                <h4 className="font-semibold text-sm text-gray-900 group-hover:text-blue-700 transition-colors leading-snug">
+                <h4 className="font-bold text-sm text-gray-200 group-hover:text-[var(--color-brand-accent)] transition-colors leading-snug">
                   {article.title}
                 </h4>
                 {article.excerpt && (
-                  <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">
+                  <p className="text-xs text-gray-400 mt-2 line-clamp-2 leading-relaxed">
                     {article.excerpt}
                   </p>
                 )}
                 {article.created_at && (
-                  <time className="text-[11px] text-gray-300 mt-1 block">
+                  <time className="text-[11px] text-gray-500 mt-2 block">
                     {new Date(article.created_at).toLocaleDateString("es-AR", {
                       day: "numeric",
                       month: "short",

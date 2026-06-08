@@ -20,8 +20,8 @@ export default function Navbar() {
       .select("id, name, logo_url, is_pro")
       .then(({ data }) => {
         if (data) {
-          const pro = data.filter((s: any) => s.is_pro !== false);
-          setSponsors(pro);
+          // Include all sponsors in the marquee for visibility
+          setSponsors(data);
         }
       });
     return () => {

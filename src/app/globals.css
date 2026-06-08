@@ -28,7 +28,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .animate-marquee {
-  animation: marquee 30s linear infinite;
+  animation: marquee 60s linear infinite;
 }
 
 @keyframes marquee-slow {
@@ -37,7 +37,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .animate-marquee-slow {
-  animation: marquee-slow 40s linear infinite;
+  animation: marquee-slow 120s linear infinite;
   width: max-content;
 }
 

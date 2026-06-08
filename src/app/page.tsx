@@ -3,95 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import React, { Suspense } from "react";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
-import type { Article, Product, Sponsor, StreamVideo } from "@/lib/types";
-import NewsTabs from "@/components/NewsTabs/NewsTabs";
-import MarqueeHeader from "@/components/MarqueeHeader";
-
-import VideoSection from "@/components/VideoSection";
-import SubscriptionTiers from "@/components/SubscriptionTiers"
-import StickyVideo from "@/components/StickyVideo";
-// -----------------------------------------------------------------
-// Server-side data fetching (runs once per request, no client JS)
-// -----------------------------------------------------------------
-async function getPublishedArticles(category: string): Promise<Article[]> {
-  try {
-    const supabase = createServerSupabaseClient();
-    const { data, error } = await supabase
-      .from("articles")
-      .select("id, title, excerpt, image_url, category, created_at")
-      .eq("category", category)
-      .eq("status", "published")
-      .order("created_at", { ascending: false })
-      .limit(20);
-
-    if (error) {
-      console.error("Supabase query error:", error.message);
-      return [];
-    }
-
-    return (data ?? []) as Article[];
-  } catch (err) {
-    console.error("Failed to fetch articles:", err);
-    return [];
-  }
-}
-
-async function getProducts(): Promise<Product[]> {
-  try {
-    const supabase = createServerSupabaseClient();
-    const { data, error } = await supabase
-      .from("products")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (error) {
-      console.error("Supabase products query error:", error.message);
-      return [];
-    }
-    return (data ?? []) as Product[];
-  } catch (err) {
-    console.error("Failed to fetch products:", err);
-    return [];
-  }
-}
-
-async function getSponsors(): Promise<Sponsor[]> {
-  try {
-    const supabase = createServerSupabaseClient();
-    const { data, error } = await supabase
-      .from("sponsors")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (error) {
-      console.error("Supabase sponsors query error:", error.message);
-      return [];
-    }
-    return (data ?? []) as Sponsor[];
-  } catch (err) {
-    console.error("Failed to fetch sponsors:", err);
-    return [];
-  }
-}
-
-async function getActiveStream(): Promise<StreamVideo | null> {
-  try {
-    const supabase = createServerSupabaseClient();
-    const { data, error } = await supabase
-      .from("streams")
-      .select("*")
-      .eq("is_live", true)
-      .limit(1)
-      .maybeSingle();
-    if (error) {
-      console.error("Supabase streams query error:", error.message);
-      return null;
-    }
-    return data as StreamVideo | null;
-  } catch (err) {
-    console.error("Failed to fetch active stream:", err);
-    return null;
-  }
-}
+import { getPublishedArticles, getProducts, getSponsors, getActiveStream } from "@/lib/supabase/serverQueries";
 
 // -----------------------------------------------------------------
 // Mock data (static) — kept for non-news columns
@@ -110,7 +22,7 @@ const banners = [
 // -----------------------------------------------------------------
 function Banner() {
   return (
-    <section className="my-4">
+    <section className="w-full">
       {banners.map((b) => (
         <Link key={b.id} href={b.link}>
           <Image
@@ -128,17 +40,19 @@ function Banner() {
 
 function ProductCard({ product }: { product: Product }) {
   return (
-    <div className="border border-slate-200 rounded-2xl p-2 text-center flex flex-col h-full bg-white shadow-sm hover:shadow-md hover:bg-indigo-50 transition-colors transition-transform duration-200 transform hover:scale-105">
+    <div className="glass-panel p-4 flex flex-col h-full hover:-translate-y-1 hover:shadow-[0_0_20px_var(--color-brand-accent)] transition-all duration-300 group">
       {product.image_url && (
-        <Image src={product.image_url} alt={product.title} width={200} height={200} className="mx-auto rounded object-cover h-40 w-full" />
+        <div className="overflow-hidden rounded-xl h-40 w-full mb-3">
+          <Image src={product.image_url} alt={product.title} width={200} height={200} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+        </div>
       )}
-      <h5 className="mt-2 font-medium text-slate-900">{product.title}</h5>
-      {product.description && <p className="text-sm text-gray-500">{product.description}</p>}
-      <div className="mt-auto pt-2">
-        <p className="text-slate-900 font-bold">${Number(product.price).toFixed(2)}</p>
+      <h5 className="mt-2 font-bold text-gray-100 text-lg">{product.title}</h5>
+      {product.description && <p className="text-sm text-gray-400 mt-1">{product.description}</p>}
+      <div className="mt-auto pt-4 flex items-center justify-between">
+        <p className="text-[var(--color-brand-accent)] font-bold text-xl">${Number(product.price).toFixed(2)}</p>
         {product.buy_url && (
-          <a href={product.buy_url} target="_blank" rel="noopener noreferrer" className="mt-2 block bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded transition-colors">
-            Comprar ahora
+          <a href={product.buy_url} target="_blank" rel="noopener noreferrer" className="bg-[var(--color-brand-accent)] text-black font-bold px-4 py-2 rounded-lg hover:bg-white transition-colors">
+            Comprar
           </a>
         )}
       </div>
@@ -148,16 +62,16 @@ function ProductCard({ product }: { product: Product }) {
 
 function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
   return (
-    <div className="border border-slate-200 rounded-2xl p-2 space-y-2 bg-white shadow-sm hover:shadow-md transition-shadow">
-      <h4 className="font-semibold text-slate-900">{sponsor.name}</h4>
-      <div className="flex flex-wrap gap-1">
+    <div className="glass-panel p-3 space-y-2 hover:-translate-y-1 transition-transform group">
+      <h4 className="font-bold text-gray-100 group-hover:text-[var(--color-brand-accent)] transition-colors">{sponsor.name}</h4>
+      <div className="flex flex-wrap gap-2 mt-2">
         {sponsor.website_url && (
-          <a href={sponsor.website_url} target="_blank" rel="noopener noreferrer" className="bg-slate-800 text-white px-2 py-1 rounded text-xs">
-            Web
+          <a href={sponsor.website_url} target="_blank" rel="noopener noreferrer" className="bg-white/10 hover:bg-[var(--color-brand-accent)] hover:text-black text-white px-3 py-1 rounded-full text-xs transition-colors">
+            Sitio Web
           </a>
         )}
         {sponsor.instagram_url && (
-          <a href={sponsor.instagram_url} target="_blank" rel="noopener noreferrer" className="bg-slate-800 text-white px-2 py-1 rounded text-xs">
+          <a href={sponsor.instagram_url} target="_blank" rel="noopener noreferrer" className="bg-gradient-to-r from-purple-600 to-pink-500 hover:opacity-80 text-white px-3 py-1 rounded-full text-xs transition-opacity">
             Instagram
           </a>
         )}
@@ -172,20 +86,20 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
 // Skeleton for the NewsTabs while loading on the server
 function NewsTabsSkeleton() {
   return (
-    <div className="rounded-xl border border-gray-200/60 bg-gradient-to-b from-gray-50/80 to-white shadow-sm overflow-hidden animate-pulse">
-      <div className="flex border-b border-gray-200/60 bg-gray-50/50">
+    <div className="glass-panel overflow-hidden animate-pulse">
+      <div className="flex border-b border-white/10 bg-black/20">
         {["Nacional", "Internacional", "Local"].map((label) => (
-          <div key={label} className="flex-1 px-4 py-2.5 text-sm font-semibold text-gray-300 text-center">
+          <div key={label} className="flex-1 px-4 py-3 text-sm font-bold text-gray-500 text-center">
             {label}
           </div>
         ))}
       </div>
-      <div className="p-3 space-y-3">
+      <div className="p-4 space-y-4">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="space-y-2">
-            <div className="h-4 bg-gray-200 rounded w-3/4" />
-            <div className="h-3 bg-gray-100 rounded w-full" />
-            <div className="h-px bg-gray-100 mt-2" />
+          <div key={i} className="space-y-3">
+            <div className="h-5 bg-white/10 rounded w-3/4" />
+            <div className="h-4 bg-white/5 rounded w-full" />
+            <div className="h-px bg-white/10 mt-3" />
           </div>
         ))}
       </div>
@@ -207,17 +121,28 @@ export default async function HomePage() {
 
   // Sticky video logic moved to <StickyVideo /> client component
   return (
-    <main className="p-4 bg-slate-50 text-slate-900">
-      {/* 1️⃣ Banner principal */}
-      <Banner />
+    <main className="w-full flex flex-col items-center">
+      {/* 1️⃣ Banner principal (Full Width) */}
+      <div className="w-full max-w-[1920px]">
+        <Banner />
+      </div>
 
-      {/* 2️⃣ Grid layout – 4 columnas (12‑col grid) */}
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        {/* ← Columna izquierda – Prensa */}
-        <section className="col-span-1">
-          <h3 className="text-slate-900 text-xl font-bold mb-2">Prensa</h3>
+      <div className="w-full max-w-7xl px-4 lg:px-8 mt-8 space-y-16">
+        {/* 2️⃣ Streaming (Prominent at top) */}
+        <section className="w-full">
+          <h3 className="text-white text-2xl font-bold mb-4 border-b border-[var(--color-brand-accent)] pb-2 flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-red-600 animate-pulse"></span> En Vivo
+          </h3>
+          <div className="w-full max-w-4xl mx-auto">
+            <VideoSection />
+          </div>
+        </section>
+
+        {/* 3️⃣ Prensa (Horizontal Full Width) */}
+        <section className="w-full">
+          <h3 className="text-white text-2xl font-bold mb-4 border-b border-white/10 pb-2">Últimas Noticias</h3>
           <Suspense fallback={<NewsTabsSkeleton />}>
-            <div className="flex overflow-x-auto snap-x snap-mandatory scrollbar-none space-x-4 pb-4">
+            <div className="w-full">
               <NewsTabs
                 initialArticles={initialArticles}
                 initialTab="Nacional"
@@ -226,12 +151,15 @@ export default async function HomePage() {
           </Suspense>
         </section>
 
-        {/* ← Medio‑izquierda – Tienda */}
-        <section className="col-span-1">
-          <h3 className="text-slate-900 text-xl font-bold mb-2">Tienda</h3>
-          <div className="grid grid-cols-1 gap-4">
+        {/* 4️⃣ Tienda (Grid Full Width) */}
+        <section className="w-full">
+          <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-2">
+            <h3 className="text-white text-2xl font-bold">Nuestros Productos</h3>
+            <Link href="/store" className="text-[var(--color-brand-accent)] hover:text-white transition-colors font-bold text-sm">Ver Todo &rarr;</Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {products.length > 0 ? (
-              products.map((p) => (
+              products.slice(0, 4).map((p) => (
                 <ProductCard key={p.id} product={p} />
               ))
             ) : (
@@ -239,14 +167,25 @@ export default async function HomePage() {
             )}
           </div>
         </section>
-
-        {/* ← Columna derecha – Streaming */}
-         <section className="col-span-1">
-           <h3 className="text-slate-900 text-xl font-bold mb-2">Streaming</h3>
-           <VideoSection />
-         </section>
       </div>
+
+      {/* 5️⃣ Sponsors / Adhered Businesses */}
+      {sponsors.length > 0 && (
+        <div className="w-full max-w-7xl px-4 lg:px-8 mt-16">
+          <section className="w-full">
+            <h3 className="text-white text-2xl font-bold mb-6 text-center">Nuestros Comercios Adheridos</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {sponsors.map((sponsor) => (
+                <SponsorCard key={sponsor.id} sponsor={sponsor} />
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
+
+      <div className="w-full mt-16">
         <SubscriptionTiers />
+      </div>
     </main>
   );
 }

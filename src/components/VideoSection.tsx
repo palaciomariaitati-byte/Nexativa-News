@@ -12,6 +12,7 @@ export default function VideoSection() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showVideo, setShowVideo] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
     const fetchQueue = async () => {
@@ -29,16 +30,13 @@ export default function VideoSection() {
 
     fetchQueue();
 
-    // Set up realtime subscription to listen for queue changes
     const supabase = getSupabaseBrowserClient();
     const channel = supabase
       .channel("video_queue_changes")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "video_queue" },
-        () => {
-          fetchQueue(); // Refresh queue when changes occur
-        }
+        () => fetchQueue()
       )
       .subscribe();
 
@@ -47,34 +45,38 @@ export default function VideoSection() {
     };
   }, []);
 
-  if (loading) return null;
-  if (queue.length === 0) return null; // Don't show if there's no video in queue
-
   const currentVideo = queue[currentIndex];
 
-  // If we ran out of videos in the queue, we can loop back or stop
-  if (!currentVideo) {
-    return null;
-  }
-
   const handleVideoEnd = () => {
-    // Move to the next video in the queue
+    setIsPlaying(false);
     if (currentIndex + 1 < queue.length) {
       setCurrentIndex(currentIndex + 1);
     } else {
-      // Loop back to the first video
       setCurrentIndex(0);
     }
   };
 
-  const handleVideoError = () => {
-    console.error("Error playing video:", currentVideo.video_url);
-    handleVideoEnd(); // Skip to next on error
-  };
+  // Watchdog Timer: Si un video se queda cargando (pantalla negra) por 8 segundos y no arranca, lo salta.
+  // Esto arregla el problema de los videos bloqueados por YouTube (como A24) que se quedan pegados.
+  useEffect(() => {
+    if (!currentVideo) return;
+    setIsPlaying(false); // Reiniciamos estado al cambiar de video
+
+    const watchdog = setTimeout(() => {
+      if (!isPlaying) {
+        console.warn(`Watchdog: El video ${currentVideo.title} no arrancó en 8 segundos. Saltando al siguiente...`);
+        handleVideoEnd();
+      }
+    }, 8000);
+
+    return () => clearTimeout(watchdog);
+  }, [currentIndex, currentVideo]);
+
+  if (loading || queue.length === 0 || !currentVideo) return null;
 
   return (
     showVideo ? (
-      <div className="space-y-4 md:static fixed bottom-4 right-4 w-80 h-48 md:w-full md:h-auto bg-black border border-white/10 shadow-[0_0_20px_rgba(0,0,0,0.5)] rounded-lg overflow-hidden z-50">
+      <div className="space-y-4 w-full h-auto bg-black border border-white/10 shadow-[0_0_20px_rgba(0,0,0,0.5)] rounded-lg overflow-hidden relative">
         <button
           onClick={() => setShowVideo(false)}
           className="absolute top-1 right-1 text-white/50 hover:text-white bg-black/50 rounded-full w-6 h-6 flex items-center justify-center z-50"
@@ -98,15 +100,19 @@ export default function VideoSection() {
               url={currentVideo.video_url}
               playing={true}
               controls={true}
-              muted={true} // Obligatorio para que los navegadores permitan autoplay
+              muted={true}
               width="100%"
               height="100%"
+              onPlay={() => setIsPlaying(true)}
               onEnded={handleVideoEnd}
-              onError={handleVideoError}
+              onError={(e) => {
+                console.error("Error playing video:", currentVideo.video_url, e);
+                handleVideoEnd();
+              }}
               style={{ position: "absolute", top: 0, left: 0 }}
               config={{
                 youtube: {
-                  playerVars: { autoplay: 1, modestbranding: 1 }
+                  playerVars: { autoplay: 1, modestbranding: 1, mute: 1 }
                 }
               }}
             />
@@ -114,12 +120,15 @@ export default function VideoSection() {
         </div>
       </div>
     ) : (
-      <button 
-        onClick={() => setShowVideo(true)}
-        className="fixed bottom-4 right-4 bg-[var(--color-brand-accent)] text-black font-bold px-4 py-2 rounded-full shadow-lg z-50 hover:scale-105 transition-transform flex items-center gap-2"
-      >
-        ▶ Abrir Reproductor
-      </button>
+      <div className="flex flex-col items-center justify-center p-8 bg-black/40 border border-white/10 rounded-lg shadow-inner">
+        <p className="text-gray-400 text-sm mb-4">Transmisión minimizada</p>
+        <button 
+          onClick={() => setShowVideo(true)}
+          className="bg-[var(--color-brand-accent)] text-black font-bold px-6 py-3 rounded-full shadow-lg hover:scale-105 transition-transform flex items-center gap-2 w-full justify-center"
+        >
+          ▶ Abrir Reproductor
+        </button>
+      </div>
     )
   );
 }
