@@ -10,6 +10,7 @@ import MarqueeHeader from "@/components/MarqueeHeader";
 import VideoSection from "@/components/VideoSection";
 import SubscriptionTiers from "@/components/SubscriptionTiers";
 import StickyVideo from "@/components/StickyVideo";
+import SponsorsMarquee from "@/components/SponsorsMarquee";
 // -----------------------------------------------------------------
 // Mock data (static) — kept for non-news columns
 // -----------------------------------------------------------------
@@ -130,6 +131,11 @@ export default async function HomePage() {
       {/* 1️⃣ Banner principal (Full Width) */}
       <div className="w-full max-w-[1920px]">
         <Banner />
+      </div>
+
+      {/* 🌟 Cinta Animada de Patrocinadores (Pro) */}
+      <div className="w-full">
+        <SponsorsMarquee sponsors={sponsors} />
       </div>
 
       <div className="w-full max-w-7xl px-4 lg:px-8 mt-8 space-y-16">
