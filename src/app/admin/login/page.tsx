@@ -2,31 +2,26 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { adminLogin } from "../actions";
 
 export default function AdminLoginPage() {
-  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const supabase = getSupabaseBrowserClient();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (signInError) {
-      setError("Credenciales incorrectas. Intenta de nuevo.");
-      setLoading(false);
-    } else {
+    try {
+      await adminLogin(password);
       router.push("/admin");
+      router.refresh();
+    } catch (err: any) {
+      setError(err.message || "Credenciales incorrectas.");
+      setLoading(false);
     }
   };
 
@@ -48,19 +43,7 @@ export default function AdminLoginPage() {
           )}
           
           <div>
-            <label className="block text-sm font-medium text-white/70 mb-2 uppercase tracking-wide text-xs">Correo Electrónico</label>
-            <input
-              type="email"
-              required
-              className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)] transition-colors"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="tu@correo.com"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-white/70 mb-2 uppercase tracking-wide text-xs">Contraseña</label>
+            <label className="block text-sm font-medium text-white/70 mb-2 uppercase tracking-wide text-xs">Clave de Acceso</label>
             <input
               type="password"
               required
@@ -76,7 +59,7 @@ export default function AdminLoginPage() {
             disabled={loading}
             className="w-full bg-[var(--color-brand-accent)] hover:bg-[var(--color-brand-accent-hover)] text-black font-bold uppercase tracking-widest py-3 rounded-lg transition-colors disabled:opacity-50"
           >
-            {loading ? "Ingresando..." : "Ingresar"}
+            {loading ? "Ingresando..." : "Ingresar al Panel"}
           </button>
         </form>
       </div>

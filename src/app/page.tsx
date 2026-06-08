@@ -162,9 +162,6 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
           </a>
         )}
       </div>
-        {sponsor.map_url && (
-          <p className="text-sm text-slate-500">Mapa no disponible temporalmente.</p>
-        )}
     </div>
   );
 }
@@ -246,7 +243,7 @@ export default async function HomePage() {
         {/* ← Columna derecha – Streaming */}
          <section className="col-span-1">
            <h3 className="text-slate-900 text-xl font-bold mb-2">Streaming</h3>
-           <StickyVideo stream={activeStream} />
+           <VideoSection />
          </section>
       </div>
         <SubscriptionTiers />

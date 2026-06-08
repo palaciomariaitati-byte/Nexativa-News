@@ -80,7 +80,7 @@ export default function ExternalNewsCarousel() {
         Último Momento
       </div>
       <div className="flex-1 overflow-hidden relative">
-        <div className="flex space-x-8 animate-marquee pl-4">
+        <div className="flex space-x-12 animate-marquee-slow pl-4">
           {news.map((item, idx) => (
             <a
               key={idx}
@@ -89,11 +89,11 @@ export default function ExternalNewsCarousel() {
               rel="noopener noreferrer"
               className="flex items-center space-x-2 hover:text-[var(--color-brand-accent)] transition-colors"
             >
-              <span className="text-[var(--color-brand-accent)] font-bold text-xs uppercase tracking-wider">
+              <span className="text-[var(--color-brand-accent)] font-bold text-sm uppercase tracking-wider">
                 [{item.source}]
               </span>
-              <span className="text-sm">{item.title}</span>
-              <span className="text-white/30 mx-2">•</span>
+              <span className="text-xl font-medium">{item.title}</span>
+              <span className="text-white/30 mx-4">•</span>
             </a>
           ))}
           {/* Duplicated for infinite scroll effect */}
@@ -105,11 +105,11 @@ export default function ExternalNewsCarousel() {
               rel="noopener noreferrer"
               className="flex items-center space-x-2 hover:text-[var(--color-brand-accent)] transition-colors"
             >
-              <span className="text-[var(--color-brand-accent)] font-bold text-xs uppercase tracking-wider">
+              <span className="text-[var(--color-brand-accent)] font-bold text-sm uppercase tracking-wider">
                 [{item.source}]
               </span>
-              <span className="text-sm">{item.title}</span>
-              <span className="text-white/30 mx-2">•</span>
+              <span className="text-xl font-medium">{item.title}</span>
+              <span className="text-white/30 mx-4">•</span>
             </a>
           ))}
         </div>

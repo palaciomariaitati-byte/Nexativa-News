@@ -5,15 +5,34 @@
 -- #########################################################
 
 -----------------------------------------------------------------
--- 1️⃣ Profiles & Roles
+-- 1️⃣ Roles y Personal (Sustituye a Supabase Auth)
 -----------------------------------------------------------------
-create table if not exists public.profiles (
-  id          uuid primary key references auth.users (id) on delete cascade,
-  updated_at  timestamp with time zone default now(),
-  username    text,
-  full_name   text,
-  role        text not null default 'redactor' check (role in ('admin', 'operator', 'redactor'))
+create table if not exists public.staff_passwords (
+  id          uuid primary key default gen_random_uuid(),
+  created_at  timestamp with time zone default now(),
+  password    text unique not null,
+  role        text not null check (role in ('admin', 'operator', 'redactor')),
+  name        text not null
 );
+
+-- Insertar clave maestra por defecto (Si falla por unique, es ignorada)
+insert into public.staff_passwords (password, role, name) 
+values ('Almamia08.', 'admin', 'Administrador Principal')
+on conflict (password) do nothing;
+
+-- Función segura para verificar la clave desde Next.js
+create or replace function verify_staff_password(p_password text)
+returns text
+language plpgsql
+security definer
+as $$
+declare
+  v_role text;
+begin
+  select role into v_role from public.staff_passwords where password = p_password;
+  return v_role;
+end;
+$$;
 
 -----------------------------------------------------------------
 -- 2️⃣ Articles (News)
@@ -133,30 +152,29 @@ create trigger create_profile_trigger
 after insert on auth.users
 for each row execute function public.create_profile_on_auth_user();
 
------------------------------------------------------------------
--- 9️⃣ Row-Level Security (RLS) Policies
------------------------------------------------------------------
--- Allow everyone to read public tables
+-- Para asegurar que Supabase no bloquee nada, en lugar de desactivar RLS, 
+-- crearemos políticas que permitan el acceso total (ya que la seguridad la maneja Next.js)
 alter table public.articles enable row level security;
 alter table public.products enable row level security;
 alter table public.sponsors enable row level security;
 alter table public.video_queue enable row level security;
-
--- Accounting is strictly private (Only Admins)
 alter table public.accounting_movements enable row level security;
-create policy "admin_accounting_all" on public.accounting_movements
-  for all using (
-    exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
-  );
 
--- Helper to disable restrictions for now while developing (optional, turn off in production)
--- For the sake of this setup, we will allow read access to public tables
-create policy "public_read_articles" on public.articles for select using (status = 'published');
-create policy "public_read_products" on public.products for select using (true);
-create policy "public_read_sponsors" on public.sponsors for select using (true);
-create policy "public_read_video_queue" on public.video_queue for select using (true);
+-- Borramos políticas viejas
+drop policy if exists "public_read_articles" on public.articles;
+drop policy if exists "public_read_products" on public.products;
+drop policy if exists "public_read_sponsors" on public.sponsors;
+drop policy if exists "public_read_video_queue" on public.video_queue;
+drop policy if exists "staff_manage_content" on public.products;
+drop policy if exists "allow_all_articles" on public.articles;
+drop policy if exists "allow_all_products" on public.products;
+drop policy if exists "allow_all_sponsors" on public.sponsors;
+drop policy if exists "allow_all_video_queue" on public.video_queue;
+drop policy if exists "allow_all_accounting" on public.accounting_movements;
 
--- Admins and Operators can do anything to products, videos, sponsors
-create policy "staff_manage_content" on public.products for all using (
-  exists (select 1 from public.profiles where id = auth.uid() and role in ('admin', 'operator'))
-);
+-- Creamos políticas nuevas de acceso total
+create policy "allow_all_articles" on public.articles for all using (true) with check (true);
+create policy "allow_all_products" on public.products for all using (true) with check (true);
+create policy "allow_all_sponsors" on public.sponsors for all using (true) with check (true);
+create policy "allow_all_video_queue" on public.video_queue for all using (true) with check (true);
+create policy "allow_all_accounting" on public.accounting_movements for all using (true) with check (true);

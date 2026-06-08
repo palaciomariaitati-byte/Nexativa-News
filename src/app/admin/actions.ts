@@ -1,55 +1,73 @@
-// src/app/admin/actions.ts
+"use server";
 
-'use server';
+import { cookies } from "next/headers";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-import { cookies } from 'next/headers';
-import supabaseAdmin from '@/lib/supabase/admin';
-
-// ----- Authentication -----
+// ----- Authentication (Password Only) -----
 export async function adminLogin(password: string) {
-  const adminPass = process.env.NEXT_ADMIN_PASSWORD;
-  if (!adminPass) {
-    throw new Error('Missing NEXT_ADMIN_PASSWORD environment variable');
+  const supabase = createServerSupabaseClient();
+  
+  // Call our new custom secure function to verify the password
+  const { data: role, error } = await supabase.rpc("verify_staff_password", { p_password: password });
+  
+  if (error) {
+    throw new Error("Error del servidor: " + error.message);
   }
-  if (password !== adminPass) {
-    throw new Error('Invalid password');
+
+  if (!role) {
+    throw new Error("Clave de acceso incorrecta.");
   }
+
   // Set a signed httpOnly cookie to keep the session
   const cookieStore = await cookies();
-  cookieStore.set('admin_auth', 'true', {
+  cookieStore.set("staff_role", role, {
     httpOnly: true,
-    path: '/admin',
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    path: "/",
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
     maxAge: 60 * 60 * 24 * 7, // 1 week
   });
+  
+  return role;
 }
 
-// ----- CRUD Helpers (generic) -----
-export async function fetchAll<T>(table: string): Promise<T[]> {
-  const { data, error } = await supabaseAdmin.from(table).select('*');
-  if (error) throw error;
-  return data;
+export async function adminLogout() {
+  const cookieStore = await cookies();
+  cookieStore.delete("staff_role");
 }
 
-export async function createRecord<T extends Record<string, any>>(table: string, payload: T): Promise<T> {
-  const { data, error } = await supabaseAdmin.from(table).insert(payload as any).single();
-  if (error) throw error;
-  return data;
+export async function getStaffRole() {
+  const cookieStore = await cookies();
+  return cookieStore.get("staff_role")?.value || null;
 }
 
-export async function updateRecord<T extends Record<string, any>>(table: string, id: string, payload: Partial<T>): Promise<T> {
-  const { data, error } = await supabaseAdmin
-    .from(table)
-    .update(payload as any)
-    .eq('id', id)
-    .single();
-  if (error) throw error;
-  return data;
-}
+// ----- Staff Management -----
+export async function createStaffKey(name: string, password: string, role: string) {
+  const currentUserRole = await getStaffRole();
+  if (currentUserRole !== "admin") throw new Error("No autorizado");
 
-export async function deleteRecord(table: string, id: string) {
-  const { error } = await supabaseAdmin.from(table).delete().eq('id', id);
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase.from("staff_passwords").insert([{ name, password, role }]);
   if (error) throw error;
   return true;
+}
+
+export async function deleteStaffKey(id: string) {
+  const currentUserRole = await getStaffRole();
+  if (currentUserRole !== "admin") throw new Error("No autorizado");
+
+  const supabase = createServerSupabaseClient();
+  const { error } = await supabase.from("staff_passwords").delete().eq("id", id);
+  if (error) throw error;
+  return true;
+}
+
+export async function listStaffKeys() {
+  const currentUserRole = await getStaffRole();
+  if (currentUserRole !== "admin") throw new Error("No autorizado");
+
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase.from("staff_passwords").select("id, name, role, created_at").order("created_at", { ascending: false });
+  if (error) throw error;
+  return data;
 }
