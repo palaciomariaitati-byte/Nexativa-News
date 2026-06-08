@@ -4,7 +4,12 @@ import Image from "next/image";
 import Link from "next/link";
 import React, { Suspense } from "react";
 import { getPublishedArticles, getProducts, getSponsors, getActiveStream } from "@/lib/supabase/serverQueries";
-
+import type { Article, Product, Sponsor, StreamVideo } from "@/lib/types";
+import NewsTabs from "@/components/NewsTabs/NewsTabs";
+import MarqueeHeader from "@/components/MarqueeHeader";
+import VideoSection from "@/components/VideoSection";
+import SubscriptionTiers from "@/components/SubscriptionTiers";
+import StickyVideo from "@/components/StickyVideo";
 // -----------------------------------------------------------------
 // Mock data (static) — kept for non-news columns
 // -----------------------------------------------------------------
