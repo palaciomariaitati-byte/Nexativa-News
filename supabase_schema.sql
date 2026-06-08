@@ -57,9 +57,20 @@ create table if not exists public.sponsors (
   id            uuid primary key default gen_random_uuid(),
   name          text not null,
   logo_url      text,
+  banner_url    text,
   website_url   text,
   instagram_url text,
   is_pro        boolean default true,
+  created_at    timestamp with time zone default now()
+);
+
+-----------------------------------------------------------------
+-- 3.5️⃣ Sponsor Analytics (Estadísticas de Clics)
+-----------------------------------------------------------------
+create table if not exists public.sponsor_clicks (
+  id            uuid primary key default gen_random_uuid(),
+  sponsor_id    uuid references public.sponsors(id) on delete cascade,
+  click_type    text not null, -- 'website' or 'instagram'
   created_at    timestamp with time zone default now()
 );
 
@@ -159,6 +170,7 @@ alter table public.products enable row level security;
 alter table public.sponsors enable row level security;
 alter table public.video_queue enable row level security;
 alter table public.accounting_movements enable row level security;
+alter table public.sponsor_clicks enable row level security;
 
 -- Borramos políticas viejas
 drop policy if exists "public_read_articles" on public.articles;
@@ -178,3 +190,15 @@ create policy "allow_all_products" on public.products for all using (true) with 
 create policy "allow_all_sponsors" on public.sponsors for all using (true) with check (true);
 create policy "allow_all_video_queue" on public.video_queue for all using (true) with check (true);
 create policy "allow_all_accounting" on public.accounting_movements for all using (true) with check (true);
+create policy "allow_all_sponsor_clicks" on public.sponsor_clicks for all using (true) with check (true);
+
+-----------------------------------------------------------------
+-- 9?? Storage: Bucket for Uploads
+-----------------------------------------------------------------
+-- Debes ejecutar esto en el SQL Editor para crear el bucket de im�genes
+insert into storage.buckets (id, name, public) values ('uploads', 'uploads', true) on conflict do nothing;
+create policy "public_uploads" on storage.objects for select using ( bucket_id = 'uploads' );
+create policy "allow_uploads" on storage.objects for insert with check ( bucket_id = 'uploads' );
+create policy "allow_update" on storage.objects for update using ( bucket_id = 'uploads' );
+create policy "allow_delete" on storage.objects for delete using ( bucket_id = 'uploads' );
+

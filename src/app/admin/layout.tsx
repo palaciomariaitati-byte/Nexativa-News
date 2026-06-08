@@ -36,6 +36,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               <Link href="/admin/streaming" className={`px-4 py-2 rounded-lg text-sm transition-colors hover:bg-white/10`}>
                 Streaming / Videos
               </Link>
+              <Link href="/admin/sponsors" className={`px-4 py-2 rounded-lg text-sm transition-colors hover:bg-white/10`}>
+                Auspiciantes & Stats
+              </Link>
             </>
           )}
           {userRole === 'admin' && (

@@ -96,26 +96,31 @@ export default function VideoSection() {
           </div>
           
           <div className="aspect-video flex-1 w-full relative bg-black">
-            <ReactPlayer
-              url={currentVideo.video_url}
-              playing={true}
-              controls={true}
-              muted={true}
-              width="100%"
-              height="100%"
-              onPlay={() => setIsPlaying(true)}
-              onEnded={handleVideoEnd}
-              onError={(e) => {
-                console.error("Error playing video:", currentVideo.video_url, e);
-                handleVideoEnd();
-              }}
-              style={{ position: "absolute", top: 0, left: 0 }}
-              config={{
-                youtube: {
-                  playerVars: { autoplay: 1, modestbranding: 1, mute: 1 }
-                }
-              }}
-            />
+              <ReactPlayer
+                url={currentVideo.video_url}
+                playing={true}
+                controls={true}
+                muted={true}
+                width="100%"
+                height="100%"
+                onPlay={() => setIsPlaying(true)}
+                onEnded={handleVideoEnd}
+                onError={(e) => {
+                  console.error("Error playing video:", currentVideo.video_url, e);
+                  handleVideoEnd();
+                }}
+                style={{ position: "absolute", top: 0, left: 0 }}
+                config={{
+                  youtube: {
+                    playerVars: { 
+                      autoplay: 1, 
+                      modestbranding: 1, 
+                      mute: 1,
+                      origin: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
+                    }
+                  }
+                }}
+              />
           </div>
         </div>
       </div>

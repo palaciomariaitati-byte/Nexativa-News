@@ -67,17 +67,39 @@ function ProductCard({ product }: { product: Product }) {
 }
 
 function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
+  // Use the tracking API as a bridge for links
+  const getTrackingUrl = (url: string, type: string) => {
+    return `/api/track-click?sponsor_id=${sponsor.id}&type=${type}&url=${encodeURIComponent(url)}`;
+  };
+
   return (
-    <div className="glass-panel p-3 space-y-2 hover:-translate-y-1 transition-transform group">
-      <h4 className="font-bold text-gray-100 group-hover:text-[var(--color-brand-accent)] transition-colors">{sponsor.name}</h4>
-      <div className="flex flex-wrap gap-2 mt-2">
+    <div className="glass-panel p-3 space-y-2 hover:-translate-y-1 transition-transform group flex flex-col items-center">
+      {sponsor.banner_url ? (
+        <img 
+          src={sponsor.banner_url} 
+          alt={sponsor.name} 
+          className="w-full h-40 object-cover rounded-md mb-2 shadow-md"
+        />
+      ) : sponsor.logo_url ? (
+        <img 
+          src={sponsor.logo_url} 
+          alt={sponsor.name} 
+          className="w-full h-32 object-contain rounded-md mb-2 bg-white/5 shadow-md p-2"
+        />
+      ) : null}
+      
+      <h4 className="font-bold text-gray-100 group-hover:text-[var(--color-brand-accent)] transition-colors text-center w-full">
+        {sponsor.name}
+      </h4>
+      
+      <div className="flex flex-wrap justify-center gap-2 mt-2 w-full">
         {sponsor.website_url && (
-          <a href={sponsor.website_url} target="_blank" rel="noopener noreferrer" className="bg-white/10 hover:bg-[var(--color-brand-accent)] hover:text-black text-white px-3 py-1 rounded-full text-xs transition-colors">
+          <a href={getTrackingUrl(sponsor.website_url, 'website')} target="_blank" rel="noopener noreferrer" className="bg-white/10 hover:bg-[var(--color-brand-accent)] hover:text-black text-white px-3 py-1 rounded-full text-xs transition-colors">
             Sitio Web
           </a>
         )}
         {sponsor.instagram_url && (
-          <a href={sponsor.instagram_url} target="_blank" rel="noopener noreferrer" className="bg-gradient-to-r from-purple-600 to-pink-500 hover:opacity-80 text-white px-3 py-1 rounded-full text-xs transition-opacity">
+          <a href={getTrackingUrl(sponsor.instagram_url, 'instagram')} target="_blank" rel="noopener noreferrer" className="bg-gradient-to-r from-purple-600 to-pink-500 hover:opacity-80 text-white px-3 py-1 rounded-full text-xs transition-opacity">
             Instagram
           </a>
         )}
@@ -182,15 +204,21 @@ export default async function HomePage() {
 
       {/* 5️⃣ Sponsors / Adhered Businesses */}
       {sponsors.length > 0 && (
-        <div className="w-full max-w-7xl px-4 lg:px-8 mt-16">
-          <section className="w-full">
-            <h3 className="text-white text-2xl font-bold mb-6 text-center">Nuestros Comercios Adheridos</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {sponsors.map((sponsor) => (
-                <SponsorCard key={sponsor.id} sponsor={sponsor} />
-              ))}
-            </div>
-          </section>
+        <div className="w-full max-w-7xl px-4 lg:px-8 mt-16 space-y-12">
+          {["Hotelería", "Turismo", "Gastronomía", "Servicios", "Otros"].map((cat) => {
+            const catSponsors = sponsors.filter((s) => (s.category || 'Servicios') === cat);
+            if (catSponsors.length === 0) return null;
+            return (
+              <section key={cat} id={`cat-${cat.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")}`} className="w-full scroll-mt-24">
+                <h3 className="text-white text-2xl font-bold mb-6 text-center border-b border-white/10 pb-4">{cat} Adheridos</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                  {catSponsors.map((sponsor) => (
+                    <SponsorCard key={sponsor.id} sponsor={sponsor} />
+                  ))}
+                </div>
+              </section>
+            );
+          })}
         </div>
       )}
 

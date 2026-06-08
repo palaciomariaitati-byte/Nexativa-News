@@ -39,7 +39,9 @@ export interface Product {
 export interface Sponsor {
   id: string;
   name: string;
-  logo_url: string | null;
+  logo_url: string;
+  banner_url: string | null;
+  category: string;
   website_url: string | null;
   instagram_url: string | null;
   is_pro: boolean;

@@ -71,3 +71,75 @@ export async function listStaffKeys() {
   if (error) throw error;
   return data;
 }
+
+// ----- Sponsors Management -----
+export async function uploadImage(file: File, folder: string) {
+  const supabase = createServerSupabaseClient();
+  const fileExt = file.name.split('.').pop();
+  const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+  const filePath = `${folder}/${fileName}`;
+
+  const { data, error } = await supabase.storage.from('uploads').upload(filePath, file, { cacheControl: '3600', upsert: false });
+  if (error) throw new Error('Error subiendo imagen: ' + error.message);
+  
+  const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(filePath);
+  return publicUrlData.publicUrl;
+}
+
+export async function createSponsor(formData: FormData) {
+  const role = await getStaffRole();
+  if (!role) throw new Error('No autorizado');
+
+  const name = formData.get('name') as string;
+  const category = formData.get('category') as string || 'Servicios';
+  const website_url = formData.get('website_url') as string;
+  const instagram_url = formData.get('instagram_url') as string;
+  const logoFile = formData.get('logo') as File | null;
+  const bannerFile = formData.get('banner') as File | null;
+
+  let logo_url = '';
+  let banner_url = '';
+
+  if (logoFile && logoFile.size > 0) logo_url = await uploadImage(logoFile, 'sponsors/logos');
+  if (bannerFile && bannerFile.size > 0) banner_url = await uploadImage(bannerFile, 'sponsors/banners');
+
+  const supabase = createServerSupabaseClient();
+  const { error } = await supabase.from('sponsors').insert([
+    { name, category, logo_url, banner_url, website_url, instagram_url }
+  ]);
+  if (error) throw new Error(error.message);
+  return true;
+}
+
+export async function updateSponsor(id: string, formData: FormData) {
+  const role = await getStaffRole();
+  if (!role) throw new Error('No autorizado');
+
+  const name = formData.get('name') as string;
+  const category = formData.get('category') as string || 'Servicios';
+  const website_url = formData.get('website_url') as string;
+  const instagram_url = formData.get('instagram_url') as string;
+  const logoFile = formData.get('logo') as File | null;
+  const bannerFile = formData.get('banner') as File | null;
+
+  const updateData: any = { name, category, website_url, instagram_url };
+
+  if (logoFile && logoFile.size > 0) updateData.logo_url = await uploadImage(logoFile, 'sponsors/logos');
+  if (bannerFile && bannerFile.size > 0) updateData.banner_url = await uploadImage(bannerFile, 'sponsors/banners');
+
+  const supabase = createServerSupabaseClient();
+  const { error } = await supabase.from('sponsors').update(updateData).eq('id', id);
+  if (error) throw new Error(error.message);
+  return true;
+}
+
+export async function deleteSponsor(id: string) {
+  const role = await getStaffRole();
+  if (!role) throw new Error('No autorizado');
+
+  const supabase = createServerSupabaseClient();
+  const { error } = await supabase.from('sponsors').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+  return true;
+}
+
