@@ -34,9 +34,9 @@ function Banner() {
           <Image
             src={b.image}
             alt={b.alt}
-            width={1200}
-            height={300}
-            className="w-full h-auto rounded-md object-cover"
+            width={1920}
+            height={600}
+            className="w-full h-[250px] md:h-[350px] lg:h-[450px] rounded-md object-cover object-center"
           />
         </Link>
       ))}
