@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 // Dynamically import react-player to avoid SSR issues
-const ReactPlayer = dynamic(() => import("react-player"), { ssr: false });
+const ReactPlayer = dynamic(() => import("react-player"), { ssr: false }) as any;
 
 export default function VideoSection() {
   const [queue, setQueue] = useState<any[]>([]);
