@@ -11,7 +11,6 @@ import "./globals.css";
 
 import Navbar from "@/components/Navbar/Navbar";
 import Footer from "@/components/Footer/Footer";
-import WhatsAppWidget from "@/components/WhatsAppWidget";
 import ExternalNewsCarousel from "@/components/ExternalNewsCarousel";
 import FloatingShortcuts from "@/components/FloatingShortcuts";
 
@@ -54,7 +53,6 @@ export default function RootLayout({
         <main className="flex-grow">{children}</main>
         <Footer />
         <FloatingShortcuts />
-        <WhatsAppWidget />
       </body>
     </html>
   );

@@ -17,8 +17,8 @@ export default function VideoSection() {
 
   useEffect(() => {
     const handleScroll = () => {
-      // Si scrollea más de 400px hacia abajo, lo hacemos flotar
-      setIsFloating(window.scrollY > 400);
+      // Si scrollea más de 900px hacia abajo, lo hacemos flotar (para que no salte enseguida)
+      setIsFloating(window.scrollY > 900);
     };
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
@@ -66,25 +66,11 @@ export default function VideoSection() {
     }
   };
 
-  useEffect(() => {
-    if (!currentVideo) return;
-    setIsPlaying(false);
-
-    const watchdog = setTimeout(() => {
-      if (!isPlaying) {
-        console.warn(`Watchdog: El video ${currentVideo.title} no arrancó en 8 segundos. Saltando al siguiente...`);
-        handleVideoEnd();
-      }
-    }, 8000);
-
-    return () => clearTimeout(watchdog);
-  }, [currentIndex, currentVideo]);
-
   if (loading || queue.length === 0 || !currentVideo) return null;
 
   const floatingClasses = isFloating 
     ? "fixed bottom-6 right-6 w-[300px] sm:w-[350px] z-[60] shadow-2xl scale-100" 
-    : "relative w-full max-w-4xl mx-auto z-10";
+    : "relative w-full max-w-3xl mx-auto z-10";
 
   return (
     showVideo ? (

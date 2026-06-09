@@ -11,6 +11,7 @@ import VideoSection from "@/components/VideoSection";
 import SubscriptionTiers from "@/components/SubscriptionTiers";
 import StickyVideo from "@/components/StickyVideo";
 import SponsorsMarquee from "@/components/SponsorsMarquee";
+import TopBusBar from "@/components/TopBusBar";
 // -----------------------------------------------------------------
 // Mock data (static) — kept for non-news columns
 // -----------------------------------------------------------------
@@ -169,6 +170,9 @@ export default async function HomePage() {
       <div className="w-full">
         <Banner />
       </div>
+
+      {/* 🚌 Barra Modo Bus (Atajos y Redes Sociales) */}
+      <TopBusBar />
 
       {/* 🌟 Cinta Animada de Patrocinadores (Pro) */}
       <div className="w-full mt-6">

@@ -11,6 +11,7 @@ export default function AdminSettingsPage() {
     tiktok: "",
     instagram: "",
     facebook: "",
+    youtube: "",
     email: "",
   });
 
@@ -105,6 +106,18 @@ export default function AdminSettingsPage() {
             onChange={handleChange}
             className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)]"
             placeholder="https://instagram.com/..."
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase">YouTube</label>
+          <input
+            type="url"
+            name="youtube"
+            value={settings.youtube}
+            onChange={handleChange}
+            className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)]"
+            placeholder="https://youtube.com/@..."
           />
         </div>
 
