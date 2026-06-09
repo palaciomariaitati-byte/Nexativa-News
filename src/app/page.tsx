@@ -71,8 +71,8 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
     return `/api/track-click?sponsor_id=${sponsor.id}&type=${type}&url=${encodeURIComponent(url)}`;
   };
 
-  return (
-    <div className="glass-panel p-3 space-y-2 hover:-translate-y-1 transition-transform group flex flex-col items-center min-w-[240px] sm:min-w-0 flex-shrink-0 snap-center border border-white/5">
+  const cardContent = (
+    <>
       {sponsor.banner_url ? (
         <img 
           src={sponsor.banner_url} 
@@ -91,7 +91,8 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
         {sponsor.name}
       </h4>
       
-      <div className="flex flex-wrap justify-center gap-2 mt-2 w-full">
+      {/* Botones de redes (solo visibles en PC para evitar clics accidentales al deslizar en el móvil) */}
+      <div className="hidden sm:flex flex-wrap justify-center gap-2 mt-2 w-full">
         {sponsor.website_url && (
           <a href={getTrackingUrl(sponsor.website_url, 'website')} target="_blank" rel="noopener noreferrer" className="bg-white/10 hover:bg-[var(--color-brand-accent)] hover:text-black text-white px-3 py-1 rounded-full text-xs transition-colors">
             Sitio Web
@@ -103,6 +104,24 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
           </a>
         )}
       </div>
+    </>
+  );
+
+  // En móvil, hacemos que toda la tarjeta sea clickeable hacia su sitio principal,
+  // para que siga siendo funcional sin necesidad de los botones chicos.
+  const mainLink = sponsor.website_url || sponsor.instagram_url;
+
+  if (mainLink) {
+    return (
+      <a href={getTrackingUrl(mainLink, 'card_click')} target="_blank" rel="noopener noreferrer" className="glass-panel p-3 space-y-2 hover:-translate-y-1 transition-transform group flex flex-col items-center min-w-[240px] sm:min-w-0 flex-shrink-0 snap-center border border-white/5 cursor-pointer">
+        {cardContent}
+      </a>
+    );
+  }
+
+  return (
+    <div className="glass-panel p-3 space-y-2 hover:-translate-y-1 transition-transform group flex flex-col items-center min-w-[240px] sm:min-w-0 flex-shrink-0 snap-center border border-white/5">
+      {cardContent}
     </div>
   );
 }
@@ -145,7 +164,7 @@ export default async function HomePage() {
 
   // Sticky video logic moved to <StickyVideo /> client component
   return (
-    <main className="w-full flex flex-col items-center pb-24">
+    <main className="w-full flex flex-col items-center pb-24 overflow-x-hidden">
       {/* 1️⃣ Banner principal */}
       <div className="w-full">
         <Banner />
