@@ -9,7 +9,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const userRole = await getStaffRole();
 
   if (!userRole) {
-    redirect('/login');
+    return <>{children}</>;
   }
 
   return (

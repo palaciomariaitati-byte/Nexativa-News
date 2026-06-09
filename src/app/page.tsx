@@ -21,22 +21,21 @@ const banners = [
     alt: "Nexativa – Lo nuestro para el mundo",
     link: "#",
   },
-];
-
-// -----------------------------------------------------------------
+];// -----------------------------------------------------------------
 // Helper components (Server Components — zero client JS)
 // -----------------------------------------------------------------
 function Banner() {
   return (
-    <section className="w-full">
+    <section className="w-full px-2 sm:px-4 lg:px-8 mt-4">
       {banners.map((b) => (
-        <Link key={b.id} href={b.link}>
+        <Link key={b.id} href={b.link} className="block w-full max-w-[1400px] mx-auto">
           <Image
             src={b.image}
             alt={b.alt}
             width={1920}
             height={600}
-            className="w-full h-[250px] md:h-[350px] lg:h-[450px] rounded-md object-cover object-center"
+            className="w-full h-auto object-contain rounded-xl shadow-2xl border border-white/5"
+            priority
           />
         </Link>
       ))}
@@ -46,14 +45,14 @@ function Banner() {
 
 function ProductCard({ product }: { product: Product }) {
   return (
-    <div className="glass-panel p-4 flex flex-col h-full hover:-translate-y-1 hover:shadow-[0_0_20px_var(--color-brand-accent)] transition-all duration-300 group">
+    <div className="glass-panel p-4 flex flex-col h-full hover:-translate-y-1 hover:shadow-[0_0_20px_var(--color-brand-accent)] transition-all duration-300 group min-w-[260px] sm:min-w-0 flex-shrink-0 snap-center">
       {product.image_url && (
         <div className="overflow-hidden rounded-xl h-40 w-full mb-3">
           <Image src={product.image_url} alt={product.title} width={200} height={200} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
         </div>
       )}
-      <h5 className="mt-2 font-bold text-gray-100 text-lg">{product.title}</h5>
-      {product.description && <p className="text-sm text-gray-400 mt-1">{product.description}</p>}
+      <h5 className="mt-2 font-bold text-gray-100 text-lg line-clamp-1">{product.title}</h5>
+      {product.description && <p className="text-sm text-gray-400 mt-1 line-clamp-2">{product.description}</p>}
       <div className="mt-auto pt-4 flex items-center justify-between">
         <p className="text-[var(--color-brand-accent)] font-bold text-xl">${Number(product.price).toFixed(2)}</p>
         {product.buy_url && (
@@ -73,22 +72,22 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
   };
 
   return (
-    <div className="glass-panel p-3 space-y-2 hover:-translate-y-1 transition-transform group flex flex-col items-center">
+    <div className="glass-panel p-3 space-y-2 hover:-translate-y-1 transition-transform group flex flex-col items-center min-w-[240px] sm:min-w-0 flex-shrink-0 snap-center border border-white/5">
       {sponsor.banner_url ? (
         <img 
           src={sponsor.banner_url} 
           alt={sponsor.name} 
-          className="w-full h-40 object-cover rounded-md mb-2 shadow-md"
+          className="w-full h-32 object-cover rounded-md mb-2 shadow-md"
         />
       ) : sponsor.logo_url ? (
         <img 
           src={sponsor.logo_url} 
           alt={sponsor.name} 
-          className="w-full h-32 object-contain rounded-md mb-2 bg-white/5 shadow-md p-2"
+          className="w-full h-24 object-contain rounded-md mb-2 bg-white/5 shadow-md p-2"
         />
       ) : null}
       
-      <h4 className="font-bold text-gray-100 group-hover:text-[var(--color-brand-accent)] transition-colors text-center w-full">
+      <h4 className="font-bold text-gray-100 group-hover:text-[var(--color-brand-accent)] transition-colors text-center w-full truncate">
         {sponsor.name}
       </h4>
       
@@ -107,9 +106,6 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
     </div>
   );
 }
-
-
-  
 
 // Skeleton for the NewsTabs while loading on the server
 function NewsTabsSkeleton() {
@@ -149,33 +145,33 @@ export default async function HomePage() {
 
   // Sticky video logic moved to <StickyVideo /> client component
   return (
-    <main className="w-full flex flex-col items-center">
-      {/* 1️⃣ Banner principal (Full Width) */}
-      <div className="w-full max-w-[1920px]">
+    <main className="w-full flex flex-col items-center pb-24">
+      {/* 1️⃣ Banner principal */}
+      <div className="w-full">
         <Banner />
       </div>
 
       {/* 🌟 Cinta Animada de Patrocinadores (Pro) */}
-      <div className="w-full">
+      <div className="w-full mt-6">
         <SponsorsMarquee sponsors={sponsors} />
       </div>
 
-      <div className="w-full max-w-7xl px-2 sm:px-4 lg:px-8 mt-8 space-y-16">
+      <div className="w-full max-w-7xl px-2 sm:px-4 lg:px-8 mt-12 space-y-16">
         {/* 2️⃣ Streaming (Prominent at top) */}
         <section className="w-full">
-          <h3 className="text-white text-2xl font-bold mb-4 border-b border-[var(--color-brand-accent)] pb-2 flex items-center gap-2">
+          <h3 className="text-white text-xl sm:text-2xl font-bold mb-4 border-b border-[var(--color-brand-accent)] pb-2 flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-red-600 animate-pulse"></span> En Vivo
           </h3>
-          <div className="w-full max-w-4xl mx-auto">
+          <div className="w-full max-w-4xl mx-auto rounded-2xl overflow-hidden shadow-2xl border border-white/10">
             <VideoSection />
           </div>
         </section>
 
         {/* 3️⃣ Prensa (Horizontal Full Width) */}
         <section className="w-full">
-          <h3 className="text-white text-2xl font-bold mb-4 border-b border-white/10 pb-2">Últimas Noticias</h3>
+          <h3 className="text-white text-xl sm:text-2xl font-bold mb-4 border-b border-white/10 pb-2">Últimas Noticias</h3>
           <Suspense fallback={<NewsTabsSkeleton />}>
-            <div className="w-full">
+            <div className="w-full max-w-[1200px] mx-auto">
               <NewsTabs
                 initialArticles={initialArticles}
                 initialTab="Nacional"
@@ -184,25 +180,25 @@ export default async function HomePage() {
           </Suspense>
         </section>
 
-        {/* 4️⃣ Tienda (Grid Full Width) */}
+        {/* 4️⃣ Tienda (Grid o Carrusel Horizontal Móvil) */}
         <section className="w-full">
           <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-2">
-            <h3 className="text-white text-2xl font-bold">Nuestros Productos</h3>
+            <h3 className="text-white text-xl sm:text-2xl font-bold">Nuestros Productos</h3>
             <Link href="/store" className="text-[var(--color-brand-accent)] hover:text-white transition-colors font-bold text-sm">Ver Todo &rarr;</Link>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          <div className="flex overflow-x-auto pb-4 gap-4 snap-x snap-mandatory hide-scrollbar sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:overflow-visible sm:pb-0">
             {products.length > 0 ? (
               products.slice(0, 4).map((p) => (
                 <ProductCard key={p.id} product={p} />
               ))
             ) : (
-              <p className="text-sm text-gray-500">No hay productos disponibles.</p>
+              <p className="text-sm text-gray-500 min-w-full">No hay productos disponibles.</p>
             )}
           </div>
         </section>
       </div>
 
-      {/* 5️⃣ Sponsors / Adhered Businesses */}
+      {/* 5️⃣ Sponsors / Adhered Businesses (Grid o Carrusel) */}
       {sponsors.length > 0 && (
         <div className="w-full max-w-7xl px-2 sm:px-4 lg:px-8 mt-16 space-y-12">
           {["Hotelería", "Turismo", "Gastronomía", "Servicios", "Otros"].map((cat) => {
@@ -210,8 +206,10 @@ export default async function HomePage() {
             if (catSponsors.length === 0) return null;
             return (
               <section key={cat} id={`cat-${cat.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")}`} className="w-full scroll-mt-24">
-                <h3 className="text-white text-2xl font-bold mb-6 text-center border-b border-white/10 pb-4">{cat} Adheridos</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-2">
+                  <h3 className="text-white text-xl sm:text-2xl font-bold">{cat}</h3>
+                </div>
+                <div className="flex overflow-x-auto pb-4 gap-4 snap-x snap-mandatory hide-scrollbar sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 sm:overflow-visible sm:pb-0">
                   {catSponsors.map((sponsor) => (
                     <SponsorCard key={sponsor.id} sponsor={sponsor} />
                   ))}
@@ -219,6 +217,7 @@ export default async function HomePage() {
               </section>
             );
           })}
+        </div>
         </div>
       )}
 
