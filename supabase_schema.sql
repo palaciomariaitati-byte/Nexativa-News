@@ -203,4 +203,6 @@ create policy "allow_update" on storage.objects for update using ( bucket_id = '
 create policy "allow_delete" on storage.objects for delete using ( bucket_id = 'uploads' );
 
 c r e a t e   t a b l e   i f   n o t   e x i s t s   p u b l i c . s e t t i n g s   (   k e y   t e x t   p r i m a r y   k e y ,   v a l u e   t e x t   n o t   n u l l   ) ;  
+ c r e a t e   p o l i c y   a l l o w _ a l l _ s e t t i n g s   o n   p u b l i c . s e t t i n g s   f o r   a l l   u s i n g   ( t r u e )   w i t h   c h e c k   ( t r u e ) ;  
+ a l t e r   t a b l e   p u b l i c . s e t t i n g s   e n a b l e   r o w   l e v e l   s e c u r i t y ;  
  
