@@ -118,7 +118,7 @@ export default function VideoSection() {
                 height="100%"
                 onPlay={() => setIsPlaying(true)}
                 onEnded={handleVideoEnd}
-                onError={(e) => {
+                onError={(e: any) => {
                   console.error("Error playing video:", currentVideo.video_url, e);
                   handleVideoEnd();
                 }}
