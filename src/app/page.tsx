@@ -218,7 +218,6 @@ export default async function HomePage() {
             );
           })}
         </div>
-        </div>
       )}
 
       <div className="w-full mt-16">
