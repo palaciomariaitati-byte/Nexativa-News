@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { Mail, Instagram } from 'lucide-react';
+import { Mail } from 'lucide-react';
 
 export default function FloatingSocials() {
   const [settings, setSettings] = useState({
@@ -60,6 +60,18 @@ export default function FloatingSocials() {
       >
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill="currentColor" className="w-6 h-6">
           <path d="M448,209.91a210.06,210.06,0,0,1-122.77-39.25V349.38A162.55,162.55,0,1,1,185,188.31V278.2a74.62,74.62,0,1,0,52.23,71.18V0l88,0a121.18,121.18,0,0,0,1.86,22.17h0A122.18,122.18,0,0,0,381,102.39a121.43,121.43,0,0,0,67,20.14Z"/>
+        </svg>
+      </a>
+
+      <a
+        href={facebookLink}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="bg-blue-600 text-white p-3 rounded-r-xl shadow-lg border border-white/10 hover:pr-6 hover:bg-blue-500 transition-all duration-300 flex items-center group"
+        aria-label="Facebook"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512" fill="currentColor" className="w-6 h-6">
+          <path d="M279.1 288l14.22-92.66h-88.91v-60.13c0-25.35 12.42-50.06 52.24-50.06h40.42V6.26S260.4 0 225.4 0c-73.22 0-121.1 44.38-121.1 124.7v70.62H22.89V288h81.39v224h100.2V288z"/>
         </svg>
       </a>
 
