@@ -46,7 +46,7 @@ function Banner() {
 
 function ProductCard({ product }: { product: Product }) {
   return (
-    <div className="glass-panel p-4 flex flex-col h-full hover:-translate-y-1 hover:shadow-[0_0_20px_var(--color-brand-accent)] transition-all duration-300 group min-w-[260px] sm:min-w-0 flex-shrink-0 snap-center">
+    <div className="glass-panel p-3 sm:p-4 flex flex-col h-full hover:-translate-y-1 hover:shadow-[0_0_20px_var(--color-brand-accent)] transition-all duration-300 group min-w-[200px] sm:min-w-0 flex-shrink-0 snap-center">
       {product.image_url && (
         <div className="overflow-hidden rounded-xl h-40 w-full mb-3">
           <Image src={product.image_url} alt={product.title} width={200} height={200} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
@@ -114,14 +114,14 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
 
   if (mainLink) {
     return (
-      <a href={getTrackingUrl(mainLink, 'card_click')} target="_blank" rel="noopener noreferrer" className="glass-panel p-3 space-y-2 hover:-translate-y-1 transition-transform group flex flex-col items-center min-w-[240px] sm:min-w-0 flex-shrink-0 snap-center border border-white/5 cursor-pointer">
+      <a href={getTrackingUrl(mainLink, 'card_click')} target="_blank" rel="noopener noreferrer" className="glass-panel p-3 space-y-2 hover:-translate-y-1 transition-transform group flex flex-col items-center min-w-[160px] sm:min-w-0 flex-shrink-0 snap-center border border-white/5 cursor-pointer">
         {cardContent}
       </a>
     );
   }
 
   return (
-    <div className="glass-panel p-3 space-y-2 hover:-translate-y-1 transition-transform group flex flex-col items-center min-w-[240px] sm:min-w-0 flex-shrink-0 snap-center border border-white/5">
+    <div className="glass-panel p-3 space-y-2 hover:-translate-y-1 transition-transform group flex flex-col items-center min-w-[160px] sm:min-w-0 flex-shrink-0 snap-center border border-white/5">
       {cardContent}
     </div>
   );
@@ -179,7 +179,7 @@ export default async function HomePage() {
         <SponsorsMarquee sponsors={sponsors} />
       </div>
 
-      <div className="w-full max-w-7xl px-2 sm:px-4 lg:px-8 mt-12 space-y-16">
+      <div className="w-full max-w-7xl px-2 sm:px-4 lg:px-8 mt-8 sm:mt-12 space-y-10 sm:space-y-16">
         {/* 2️⃣ Streaming (Prominent at top) */}
         <section className="w-full">
           <h3 className="text-white text-xl sm:text-2xl font-bold mb-4 border-b border-[var(--color-brand-accent)] pb-2 flex items-center gap-2">
@@ -223,7 +223,7 @@ export default async function HomePage() {
 
       {/* 5️⃣ Sponsors / Adhered Businesses (Grid o Carrusel) */}
       {sponsors.length > 0 && (
-        <div className="w-full max-w-7xl px-2 sm:px-4 lg:px-8 mt-16 space-y-12">
+        <div className="w-full max-w-7xl px-2 sm:px-4 lg:px-8 mt-10 sm:mt-16 space-y-8 sm:space-y-12">
           {["Hotelería", "Turismo", "Gastronomía", "Servicios", "Otros"].map((cat) => {
             const catSponsors = sponsors.filter((s) => (s.category || 'Servicios') === cat);
             if (catSponsors.length === 0) return null;

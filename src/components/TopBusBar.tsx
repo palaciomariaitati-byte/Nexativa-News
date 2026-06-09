@@ -48,34 +48,34 @@ export default function TopBusBar() {
 
   return (
     <div className="w-full max-w-[1400px] mx-auto px-2 sm:px-4 lg:px-8 mt-2 mb-4">
-      <div className="glass-panel w-full rounded-2xl flex flex-col md:flex-row items-center justify-between p-2 md:p-3 gap-4 border border-white/10 shadow-lg">
+      <div className="glass-panel w-full rounded-2xl flex flex-col md:flex-row items-center justify-between p-2 md:p-3 gap-3 border border-white/10 shadow-lg">
         
         {/* Atajos de Categorías (Izquierda) */}
-        <div className="flex flex-wrap items-center justify-center gap-2">
+        <div className="flex overflow-x-auto hide-scrollbar items-center justify-start md:justify-center gap-2 w-full md:w-auto pb-1 md:pb-0 snap-x">
           <button
             onClick={() => scrollToSection("cat-hoteleria")}
-            className="flex items-center gap-2 bg-black/40 hover:bg-[var(--color-brand-accent)] hover:text-black transition-colors text-white px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold border border-white/5"
+            className="flex items-center gap-2 bg-black/40 hover:bg-[var(--color-brand-accent)] hover:text-black transition-colors text-white px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold border border-white/5 flex-shrink-0 snap-center"
           >
             <Building2 className="w-4 h-4" />
             <span>Hotelería</span>
           </button>
           <button
             onClick={() => scrollToSection("cat-turismo")}
-            className="flex items-center gap-2 bg-black/40 hover:bg-[var(--color-brand-accent)] hover:text-black transition-colors text-white px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold border border-white/5"
+            className="flex items-center gap-2 bg-black/40 hover:bg-[var(--color-brand-accent)] hover:text-black transition-colors text-white px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold border border-white/5 flex-shrink-0 snap-center"
           >
             <Map className="w-4 h-4" />
             <span>Turismo</span>
           </button>
           <button
             onClick={() => scrollToSection("cat-gastronomia")}
-            className="flex items-center gap-2 bg-black/40 hover:bg-[var(--color-brand-accent)] hover:text-black transition-colors text-white px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold border border-white/5"
+            className="flex items-center gap-2 bg-black/40 hover:bg-[var(--color-brand-accent)] hover:text-black transition-colors text-white px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold border border-white/5 flex-shrink-0 snap-center"
           >
             <UtensilsCrossed className="w-4 h-4" />
             <span>Gastronomía</span>
           </button>
           <button
             onClick={() => scrollToSection("cat-servicios")}
-            className="flex items-center gap-2 bg-black/40 hover:bg-[var(--color-brand-accent)] hover:text-black transition-colors text-white px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold border border-white/5"
+            className="flex items-center gap-2 bg-black/40 hover:bg-[var(--color-brand-accent)] hover:text-black transition-colors text-white px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold border border-white/5 flex-shrink-0 snap-center"
           >
             <Briefcase className="w-4 h-4" />
             <span>Servicios</span>

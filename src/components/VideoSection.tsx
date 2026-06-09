@@ -97,9 +97,10 @@ export default function VideoSection() {
               {/* @ts-ignore */}
               <ReactPlayer
                 url={currentVideo.video_url}
-                playing={true}
-                controls={!isFloating} // Hide controls when floating to keep it clean
-                muted={true}
+                playing={false}
+                controls={true}
+                muted={false}
+                light={true}
                 width="100%"
                 height="100%"
                 onPlay={() => setIsPlaying(true)}
@@ -112,9 +113,8 @@ export default function VideoSection() {
                 config={({
                   youtube: {
                     playerVars: { 
-                      autoplay: 1, 
+                      autoplay: 0, 
                       modestbranding: 1, 
-                      mute: 1,
                       origin: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
                     }
                   }
