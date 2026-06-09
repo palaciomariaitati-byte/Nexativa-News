@@ -30,6 +30,12 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Nexativa News",
   description: "Portal de noticias modernista",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Nexativa",
+  },
 };
 
 export default function RootLayout({

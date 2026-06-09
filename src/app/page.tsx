@@ -160,7 +160,7 @@ export default async function HomePage() {
         <SponsorsMarquee sponsors={sponsors} />
       </div>
 
-      <div className="w-full max-w-7xl px-4 lg:px-8 mt-8 space-y-16">
+      <div className="w-full max-w-7xl px-2 sm:px-4 lg:px-8 mt-8 space-y-16">
         {/* 2️⃣ Streaming (Prominent at top) */}
         <section className="w-full">
           <h3 className="text-white text-2xl font-bold mb-4 border-b border-[var(--color-brand-accent)] pb-2 flex items-center gap-2">
@@ -204,7 +204,7 @@ export default async function HomePage() {
 
       {/* 5️⃣ Sponsors / Adhered Businesses */}
       {sponsors.length > 0 && (
-        <div className="w-full max-w-7xl px-4 lg:px-8 mt-16 space-y-12">
+        <div className="w-full max-w-7xl px-2 sm:px-4 lg:px-8 mt-16 space-y-12">
           {["Hotelería", "Turismo", "Gastronomía", "Servicios", "Otros"].map((cat) => {
             const catSponsors = sponsors.filter((s) => (s.category || 'Servicios') === cat);
             if (catSponsors.length === 0) return null;

@@ -1,0 +1,17 @@
+{
+  "name": "Nexativa News",
+  "short_name": "Nexativa",
+  "description": "Portal de Noticias de Nexativa",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B0F19",
+  "theme_color": "#0B0F19",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ]
+}
