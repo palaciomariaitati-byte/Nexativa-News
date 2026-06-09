@@ -1,5 +1,6 @@
 import React from "react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getStaffRole } from "./actions";
 import LogoutButton from "./LogoutButton"; // We will create this client component
 import GoBackButton from "./GoBackButton"; // Go back button component
@@ -8,7 +9,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const userRole = await getStaffRole();
 
   if (!userRole) {
-    return <>{children}</>;
+    redirect('/login');
   }
 
   return (
@@ -38,6 +39,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               </Link>
               <Link href="/admin/sponsors" className={`px-4 py-2 rounded-lg text-sm transition-colors hover:bg-white/10`}>
                 Auspiciantes & Stats
+              </Link>
+              <Link href="/admin/settings" className={`px-4 py-2 rounded-lg text-sm transition-colors hover:bg-white/10`}>
+                Redes Sociales
               </Link>
             </>
           )}

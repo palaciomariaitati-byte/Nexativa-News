@@ -202,3 +202,5 @@ create policy "allow_uploads" on storage.objects for insert with check ( bucket_
 create policy "allow_update" on storage.objects for update using ( bucket_id = 'uploads' );
 create policy "allow_delete" on storage.objects for delete using ( bucket_id = 'uploads' );
 
+c r e a t e   t a b l e   i f   n o t   e x i s t s   p u b l i c . s e t t i n g s   (   k e y   t e x t   p r i m a r y   k e y ,   v a l u e   t e x t   n o t   n u l l   ) ;  
+ 

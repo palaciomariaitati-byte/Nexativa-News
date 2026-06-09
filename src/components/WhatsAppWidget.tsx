@@ -1,13 +1,40 @@
 "use client";
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Mail, Instagram } from 'lucide-react';
 
 export default function FloatingSocials() {
-  const whatsappNumber = '5493786611250';
+  const [settings, setSettings] = useState({
+    whatsapp: "5493786611250",
+    tiktok: "#",
+    instagram: "#",
+    facebook: "#",
+    email: "contacto@nexativa.com",
+  });
+
+  useEffect(() => {
+    async function fetchSettings() {
+      const supabase = getSupabaseBrowserClient();
+      const { data, error } = await supabase.from("settings").select("*");
+      if (!error && data) {
+        const newSettings = { ...settings };
+        data.forEach((row) => {
+          if (row.key in newSettings && row.value) {
+            newSettings[row.key as keyof typeof settings] = row.value;
+          }
+        });
+        setSettings(newSettings);
+      }
+    }
+    fetchSettings();
+  }, []);
+
+  const whatsappNumber = settings.whatsapp;
   const waLink = `https://wa.me/${whatsappNumber}?text=Hola%20Nexativa%20News%2C%20quiero%20realizar%20una%20consulta.`;
-  const tiktokLink = '#'; // TO-DO: Llenar luego
-  const instagramLink = '#'; // TO-DO: Llenar luego
-  const emailLink = 'mailto:contacto@nexativa.com'; // TO-DO: Llenar luego
+  const tiktokLink = settings.tiktok;
+  const instagramLink = settings.instagram;
+  const facebookLink = settings.facebook;
+  const emailLink = settings.email.includes('@') ? `mailto:${settings.email}` : '#';
 
   return (
     <div className="fixed left-0 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-2 p-2">
