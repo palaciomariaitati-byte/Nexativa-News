@@ -143,3 +143,24 @@ export async function deleteSponsor(id: string) {
   return true;
 }
 
+// ----- Generic CRUD for Dashboard -----
+export async function fetchAll<T = any>(table: string): Promise<T[]> {
+  const role = await getStaffRole();
+  if (!role) throw new Error('No autorizado');
+
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase.from(table).select('*').order('created_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  return data as T[];
+}
+
+export async function deleteRecord(table: string, id: string) {
+  const role = await getStaffRole();
+  if (!role) throw new Error('No autorizado');
+
+  const supabase = createServerSupabaseClient();
+  const { error } = await supabase.from(table).delete().eq('id', id);
+  if (error) throw new Error(error.message);
+  return true;
+}
+

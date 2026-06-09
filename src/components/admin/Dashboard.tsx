@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { fetchAll, deleteRecord } from '@/app/admin/actions';
-import type { Article, Product, Sponsor, StreamVideo, ProPartner } from '@/lib/types';
+import type { Article, Product, Sponsor, StreamVideo } from '@/lib/types';
 
 type Tab = 'articles' | 'products' | 'sponsors' | 'streams' | 'pro_partners';
 

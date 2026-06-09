@@ -30,9 +30,6 @@ export default function MarqueeHeader({ sponsors }: { sponsors: Sponsor[] }) {
           </a>
         )}
       </div>
-      {s.map_url && (
-        <p className="text-sm text-slate-500">Mapa no disponible temporalmente.</p>
-      )}
     </div>
   );
 
