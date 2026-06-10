@@ -52,7 +52,7 @@ export default function RootLayout({
       lang="es"
       className={`${outfit.variable} ${inter.variable} h-full antialiased dark`}
     >
-      <body className="min-h-full flex flex-col font-sans bg-[#0B0F19] text-gray-200 text-lg">
+      <body className="min-h-full flex flex-col font-sans text-gray-200 text-lg">
         <Navbar />
         <ExternalNewsCarousel />
         <main className="flex-grow pb-16 sm:pb-0">{children}</main>

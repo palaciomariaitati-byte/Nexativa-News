@@ -27,7 +27,7 @@ export default function FloatingShortcuts() {
   }
 
   return (
-    <div className="fixed right-6 bottom-6 z-50">
+    <div className="fixed right-6 bottom-24 sm:bottom-6 z-50">
       <button
         onClick={scrollToTop}
         className={`p-4 bg-[var(--color-brand-accent)] text-black rounded-full shadow-lg hover:bg-white transition-all transform ${

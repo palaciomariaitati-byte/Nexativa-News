@@ -208,13 +208,19 @@ export default async function HomePage() {
             <h3 className="text-white text-xl sm:text-2xl font-bold">Nuestros Productos</h3>
             <Link href="/store" className="text-[var(--color-brand-accent)] hover:text-white transition-colors font-bold text-sm">Ver Todo &rarr;</Link>
           </div>
-          <div className="flex overflow-x-auto pb-4 gap-4 snap-x snap-mandatory hide-scrollbar sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:overflow-visible sm:pb-0">
+          <div className="overflow-hidden w-full relative">
             {products.length > 0 ? (
-              products.slice(0, 4).map((p) => (
-                <ProductCard key={p.id} product={p} />
-              ))
+              <div className="flex w-max animate-marquee-slow hover:[animation-play-state:paused] gap-4 pb-4">
+                {products.map((p) => (
+                  <ProductCard key={p.id} product={p} />
+                ))}
+                {/* Duplicado para crear el efecto infinito sin cortes */}
+                {products.map((p) => (
+                  <ProductCard key={p.id + "-clone"} product={p} />
+                ))}
+              </div>
             ) : (
-              <p className="text-sm text-gray-500 min-w-full">No hay productos disponibles.</p>
+              <p className="text-sm text-gray-500 w-full text-center">No hay productos disponibles.</p>
             )}
           </div>
         </section>
@@ -231,10 +237,16 @@ export default async function HomePage() {
                 <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-2">
                   <h3 className="text-white text-xl sm:text-2xl font-bold">{cat}</h3>
                 </div>
-                <div className="flex overflow-x-auto pb-4 gap-4 snap-x snap-mandatory hide-scrollbar sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 sm:overflow-visible sm:pb-0">
-                  {catSponsors.map((sponsor) => (
-                    <SponsorCard key={sponsor.id} sponsor={sponsor} />
-                  ))}
+                <div className="overflow-hidden w-full relative">
+                  <div className="flex w-max animate-marquee-slow hover:[animation-play-state:paused] gap-4 pb-4">
+                    {catSponsors.map((sponsor) => (
+                      <SponsorCard key={sponsor.id} sponsor={sponsor} />
+                    ))}
+                    {/* Duplicado para scroll infinito */}
+                    {catSponsors.map((sponsor) => (
+                      <SponsorCard key={sponsor.id + "-clone"} sponsor={sponsor} />
+                    ))}
+                  </div>
                 </div>
               </section>
             );
