@@ -3,16 +3,17 @@
 import React, { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import type { VideoQueueItem } from "@/lib/types";
 
 // Dynamically import react-player to avoid SSR issues
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ReactPlayer = dynamic(() => import("react-player"), { ssr: false }) as any;
 
 export default function VideoSection() {
-  const [queue, setQueue] = useState<any[]>([]);
+  const [queue, setQueue] = useState<VideoQueueItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showVideo, setShowVideo] = useState(true);
   const [loading, setLoading] = useState(true);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [isFloating, setIsFloating] = useState(false);
 
   const placeholderRef = React.useRef<HTMLDivElement>(null);
@@ -69,7 +70,6 @@ export default function VideoSection() {
   const currentVideo = queue[currentIndex];
 
   const handleVideoEnd = () => {
-    setIsPlaying(false);
     if (currentIndex + 1 < queue.length) {
       setCurrentIndex(currentIndex + 1);
     } else {
@@ -110,7 +110,7 @@ export default function VideoSection() {
             )}
             
             <div className="aspect-video w-full relative bg-black">
-                {/* @ts-ignore */}
+                {/* @ts-expect-error react-player types are not strict enough */}
                 <ReactPlayer
                   url={currentVideo.video_url}
                   playing={false}
@@ -119,13 +119,13 @@ export default function VideoSection() {
                   light={true}
                   width="100%"
                   height="100%"
-                  onPlay={() => setIsPlaying(true)}
                   onEnded={handleVideoEnd}
-                  onError={(e: any) => {
+                  onError={(e: Error) => {
                     console.error("Error playing video:", currentVideo.video_url, e);
                     handleVideoEnd();
                   }}
                   style={{ position: "absolute", top: 0, left: 0 }}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   config={({
                     youtube: {
                       playerVars: { 

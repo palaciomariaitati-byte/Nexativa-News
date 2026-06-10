@@ -22,6 +22,7 @@ export default function AdminStaffPage() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchStaff();
   }, []);
 
@@ -34,8 +35,9 @@ export default function AdminStaffPage() {
       setNewName("");
       setNewPassword("");
       fetchStaff();
-    } catch (e: any) {
-      alert("Error al crear clave: " + e.message);
+    } catch (error: Error | unknown) {
+      const err = error as Error;
+      alert("Error: " + err.message);
     }
   };
 
@@ -44,8 +46,9 @@ export default function AdminStaffPage() {
       try {
         await deleteStaffKey(id);
         fetchStaff();
-      } catch (e: any) {
-        alert("Error al eliminar: " + e.message);
+      } catch (error: Error | unknown) {
+        const err = error as Error;
+        alert("Error al eliminar: " + err.message);
       }
     }
   };

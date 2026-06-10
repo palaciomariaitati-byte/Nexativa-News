@@ -4,9 +4,10 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
+import type { Session } from "@supabase/supabase-js";
 
 export default function Navbar() {
-  const [session, setSession] = useState<any>(null);
+  const [session, setSession] = useState<Session | null>(null);
 
   // Detect auth state
   useEffect(() => {
@@ -30,7 +31,7 @@ export default function Navbar() {
           </div>
 
           {/* Navigation links */}
-          <div className="flex items-center space-x-6">
+          <div className="hidden sm:flex items-center space-x-6">
             <Link href="/" className="text-sm font-medium hover:text-[var(--color-brand-accent)] transition-colors uppercase tracking-widest">
               Inicio
             </Link>

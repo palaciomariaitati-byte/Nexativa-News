@@ -11,16 +11,17 @@ export default function AdminStreamingPage() {
   const [newVideoTitle, setNewVideoTitle] = useState("");
   const supabase = getSupabaseBrowserClient();
 
-  async function fetchVideos() {
+  const fetchVideos = React.useCallback(async () => {
     setLoading(true);
     const { data } = await supabase.from("video_queue").select("*").order("position", { ascending: true });
     if (data) setVideos(data);
     setLoading(false);
-  }
+  }, [supabase]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchVideos();
-  }, [supabase]);
+  }, [fetchVideos]);
 
   const detectType = (url: string) => {
     if (url.includes("youtube.com") || url.includes("youtu.be")) return "youtube";

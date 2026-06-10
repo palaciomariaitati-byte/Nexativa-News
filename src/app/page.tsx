@@ -3,13 +3,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import React, { Suspense } from "react";
-import { getPublishedArticles, getProducts, getSponsors, getActiveStream } from "@/lib/supabase/serverQueries";
-import type { Article, Product, Sponsor, StreamVideo } from "@/lib/types";
+import { getPublishedArticles, getProducts, getSponsors } from "@/lib/supabase/serverQueries";
+import type { Product, Sponsor } from "@/lib/types";
 import NewsTabs from "@/components/NewsTabs/NewsTabs";
-import MarqueeHeader from "@/components/MarqueeHeader";
 import VideoSection from "@/components/VideoSection";
 import SubscriptionTiers from "@/components/SubscriptionTiers";
-import StickyVideo from "@/components/StickyVideo";
 import SponsorsMarquee from "@/components/SponsorsMarquee";
 import TopBusBar from "@/components/TopBusBar";
 // -----------------------------------------------------------------
@@ -75,12 +73,14 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
   const cardContent = (
     <>
       {sponsor.banner_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
         <img 
           src={sponsor.banner_url} 
           alt={sponsor.name} 
           className="w-full h-32 object-cover rounded-md mb-2 shadow-md"
         />
       ) : sponsor.logo_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
         <img 
           src={sponsor.logo_url} 
           alt={sponsor.name} 
@@ -156,11 +156,10 @@ function NewsTabsSkeleton() {
 // -----------------------------------------------------------------
 export default async function HomePage() {
   // Fetch everything in parallel on the server
-  const [initialArticles, products, sponsors, activeStream] = await Promise.all([
+  const [initialArticles, products, sponsors] = await Promise.all([
     getPublishedArticles("nacional"),
     getProducts(),
     getSponsors(),
-    getActiveStream(),
   ]);
 
   // Sticky video logic moved to <StickyVideo /> client component

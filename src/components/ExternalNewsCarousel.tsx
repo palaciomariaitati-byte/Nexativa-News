@@ -35,7 +35,7 @@ export default function ExternalNewsCarousel() {
             const data = await res.json();
             if (data.items) {
               // Get top 5 from each to not overwhelm
-              data.items.slice(0, 5).forEach((item: any) => {
+              data.items.slice(0, 5).forEach((item: {title: string, link: string, pubDate: string}) => {
                 allNews.push({
                   title: item.title,
                   link: item.link,

@@ -5,7 +5,7 @@
  * trademarks, registered logos, or closed-source algorithms.
  */
 
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Outfit, Inter } from "next/font/google";
 import "./globals.css";
 
@@ -13,6 +13,7 @@ import Navbar from "@/components/Navbar/Navbar";
 import Footer from "@/components/Footer/Footer";
 import ExternalNewsCarousel from "@/components/ExternalNewsCarousel";
 import FloatingShortcuts from "@/components/FloatingShortcuts";
+import MobileBottomNav from "@/components/Navbar/MobileBottomNav";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -26,13 +27,17 @@ const inter = Inter({
   display: "swap",
 });
 
+export const viewport: Viewport = {
+  themeColor: "#0B0F19",
+};
+
 export const metadata: Metadata = {
   title: "Nexativa News",
   description: "Portal de noticias modernista",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
     title: "Nexativa",
   },
 };
@@ -50,9 +55,10 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col font-sans bg-[#0B0F19] text-gray-200 text-lg">
         <Navbar />
         <ExternalNewsCarousel />
-        <main className="flex-grow">{children}</main>
+        <main className="flex-grow pb-16 sm:pb-0">{children}</main>
         <Footer />
         <FloatingShortcuts />
+        <MobileBottomNav />
       </body>
     </html>
   );

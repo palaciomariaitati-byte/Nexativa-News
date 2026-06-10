@@ -20,12 +20,7 @@ export default function FloatingShortcuts() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const scrollToSection = (id: string) => {
-    const element = document.getElementById(id);
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth" });
-    }
-  };
+
 
   if (pathname?.startsWith("/admin") || pathname?.startsWith("/login")) {
     return null;

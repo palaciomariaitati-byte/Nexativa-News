@@ -19,22 +19,31 @@ export default function TopBusBar() {
       const supabase = getSupabaseBrowserClient();
       const { data, error } = await supabase.from("settings").select("*");
       if (!error && data) {
-        const newSettings = { ...settings };
-        data.forEach((row) => {
-          if (row.key in newSettings && row.value) {
-            newSettings[row.key as keyof typeof settings] = row.value;
-          }
+        setSettings((prev) => {
+          const newSettings = { ...prev };
+          data.forEach((row) => {
+            if (row.key in newSettings && row.value) {
+              newSettings[row.key as keyof typeof prev] = row.value;
+            }
+          });
+          return newSettings;
         });
-        setSettings(newSettings);
       }
     }
     fetchSettings();
   }, []);
 
   const scrollToSection = (id: string) => {
+    if (window.location.pathname !== "/") {
+      window.location.href = `/#${id}`;
+      return;
+    }
     const element = document.getElementById(id);
     if (element) {
-      element.scrollIntoView({ behavior: "smooth" });
+      element.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      // Si la sección no existe (ej. no hay sponsors de esa categoría), alertamos al usuario sutilmente
+      console.log(`Sección ${id} no encontrada (quizás no hay elementos).`);
     }
   };
 
