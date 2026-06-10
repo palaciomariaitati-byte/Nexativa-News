@@ -19,30 +19,41 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 const dummySponsors = [
   {
-    name: "Hotel El Descanso (Ejemplo)",
+    name: "Sheraton Hotel (Ejemplo)",
     category: "Hotelería",
     website_url: "https://ejemplo.com",
+    banner_url: "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&q=80",
   },
   {
-    name: "Turismo Aventura (Ejemplo)",
+    name: "Boutique Resort (Ejemplo)",
+    category: "Hotelería",
+    website_url: "https://ejemplo.com",
+    banner_url: "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=800&q=80",
+  },
+  {
+    name: "Patagonia Expeditions (Ejemplo)",
     category: "Turismo",
     website_url: "https://ejemplo.com",
+    banner_url: "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800&q=80",
   },
   {
-    name: "Restaurante La Casona (Ejemplo)",
+    name: "Andes Travel (Ejemplo)",
+    category: "Turismo",
+    website_url: "https://ejemplo.com",
+    banner_url: "https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800&q=80",
+  },
+  {
+    name: "Gourmet Steakhouse (Ejemplo)",
     category: "Gastronomía",
     website_url: "https://ejemplo.com",
+    banner_url: "https://images.unsplash.com/photo-1544025162-d76694265947?w=800&q=80",
   },
   {
-    name: "Estudio Contable (Ejemplo)",
-    category: "Servicios",
+    name: "Café del Bosque (Ejemplo)",
+    category: "Gastronomía",
     website_url: "https://ejemplo.com",
+    banner_url: "https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=800&q=80",
   },
-  {
-    name: "Ferretería Central (Ejemplo)",
-    category: "Otros",
-    website_url: "https://ejemplo.com",
-  }
 ];
 
 async function seed() {
