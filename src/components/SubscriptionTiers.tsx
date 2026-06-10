@@ -49,7 +49,7 @@ export default function SubscriptionTiers() {
           {tiers.map((tier) => (
             <div
               key={tier.name}
-              className={`glass-panel p-6 sm:p-8 flex flex-col items-center hover:-translate-y-2 transition-all duration-300 relative min-w-[260px] sm:min-w-0 snap-center flex-shrink-0 ${tier.name === 'Oro' ? 'border-[var(--color-brand-accent)] shadow-[0_0_30px_rgba(212,175,55,0.15)]' : 'border-white/10'}`}
+              className={`glass-panel p-6 sm:p-8 flex flex-col items-center hover:-translate-y-2 transition-all duration-300 relative min-w-[260px] sm:min-w-0 snap-center flex-shrink-0 ${tier.name === 'Oro' ? 'border-[var(--color-brand-accent)] shadow-[0_0_30px_rgba(212,175,55,0.15)] !overflow-visible' : 'border-white/10'}`}
             >
               {tier.badge && (
                 <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-[var(--color-brand-accent)] to-yellow-600 text-black text-xs font-bold px-4 py-1.5 rounded-full shadow-lg uppercase tracking-wider">

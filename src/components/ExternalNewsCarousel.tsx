@@ -81,8 +81,7 @@ export default function ExternalNewsCarousel() {
       </div>
       <div className="flex-1 overflow-hidden relative">
         <div 
-          className="flex space-x-12 animate-marquee-slow pl-4"
-          style={{ animationDuration: `${Math.max(news.length * 8, 40)}s` }}
+          className="flex w-max gap-8 animate-marquee-news hover:[animation-play-state:paused] whitespace-nowrap px-4"
         >
           {news.map((item, idx) => (
             <a

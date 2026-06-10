@@ -62,7 +62,7 @@ export default function TopBusBar() {
 
   return (
     <div className="w-full max-w-[1400px] mx-auto px-2 sm:px-4 lg:px-8 mt-2 mb-4">
-      <div className="glass-panel w-full rounded-2xl flex flex-col md:flex-row items-center justify-between p-2 md:p-3 gap-3 border border-white/10 shadow-lg">
+      <div className="glass-panel !overflow-visible w-full rounded-2xl flex flex-col md:flex-row items-center justify-between p-2 md:p-3 gap-3 border border-white/10 shadow-lg">
         
         {/* Atajos de Categorías (Izquierda) */}
         <div className="flex overflow-x-auto hide-scrollbar items-center justify-start md:justify-center gap-2 w-full md:w-auto pb-1 md:pb-0 snap-x">

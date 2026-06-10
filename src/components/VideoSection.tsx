@@ -16,24 +16,24 @@ export default function VideoSection() {
   const [loading, setLoading] = useState(true);
   const [isFloating, setIsFloating] = useState(false);
 
+  const [videoError, setVideoError] = useState(false);
+
   const placeholderRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        // Solo flota si el placeholder dejó de verse Y la ventana se desplazó más abajo de él
-        if (!entry.isIntersecting && window.scrollY > (placeholderRef.current?.offsetTop || 0)) {
-          setIsFloating(true);
-        } else {
-          setIsFloating(false);
-        }
-      },
-      { threshold: 0 }
-    );
-    if (placeholderRef.current) {
-      observer.observe(placeholderRef.current);
-    }
-    return () => observer.disconnect();
+    const handleScroll = () => {
+      if (!placeholderRef.current) return;
+      const rect = placeholderRef.current.getBoundingClientRect();
+      // Flota si el placeholder pasó hacia arriba de la ventana
+      if (rect.bottom < 0) {
+        setIsFloating(true);
+      } else {
+        setIsFloating(false);
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   useEffect(() => {
@@ -70,6 +70,7 @@ export default function VideoSection() {
   const currentVideo = queue[currentIndex];
 
   const handleVideoEnd = () => {
+    setVideoError(false);
     if (currentIndex + 1 < queue.length) {
       setCurrentIndex(currentIndex + 1);
     } else {
@@ -110,32 +111,47 @@ export default function VideoSection() {
             )}
             
             <div className="aspect-video w-full relative bg-black">
-                {/* @ts-expect-error react-player types are not strict enough */}
-                <ReactPlayer
-                  url={currentVideo.video_url}
-                  playing={true}
-                  controls={true}
-                  muted={true}
-                  light={false}
-                  width="100%"
-                  height="100%"
-                  onEnded={handleVideoEnd}
-                  onError={(e: Error) => {
-                    console.error("Error playing video:", currentVideo.video_url, e);
-                    handleVideoEnd();
-                  }}
-                  style={{ position: "absolute", top: 0, left: 0 }}
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  config={({
-                    youtube: {
-                      playerVars: { 
-                        autoplay: 1, 
-                        modestbranding: 1, 
-                        origin: typeof window !== 'undefined' ? window.location.origin : ''
-                      }
-                    }
-                  }) as any}
-                />
+                {videoError ? (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 text-white p-4 text-center">
+                    <p className="text-red-400 font-bold mb-2">Video no disponible o bloqueado</p>
+                    <p className="text-sm text-gray-400 mb-4 truncate w-full px-4">{currentVideo.video_url}</p>
+                    <button 
+                      onClick={() => { setVideoError(false); handleVideoEnd(); }}
+                      className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-md transition-colors text-sm"
+                    >
+                      Saltar al siguiente
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {/* @ts-expect-error react-player types are not strict enough */}
+                    <ReactPlayer
+                      url={currentVideo.video_url}
+                      playing={true}
+                      controls={true}
+                      muted={true}
+                      light={false}
+                      width="100%"
+                      height="100%"
+                      onEnded={handleVideoEnd}
+                      onError={(e: Error) => {
+                        console.error("Error playing video:", currentVideo.video_url, e);
+                        setVideoError(true);
+                      }}
+                      style={{ position: "absolute", top: 0, left: 0 }}
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      config={({
+                        youtube: {
+                          playerVars: { 
+                            autoplay: 1, 
+                            modestbranding: 1, 
+                            origin: typeof window !== 'undefined' ? window.location.origin : ''
+                          }
+                        }
+                      }) as any}
+                    />
+                  </>
+                )}
             </div>
           </div>
         </div>

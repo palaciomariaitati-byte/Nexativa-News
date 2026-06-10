@@ -65,8 +65,7 @@ export default function SponsorTabs({ sponsors }: { sponsors: Sponsor[] }) {
         {activeSponsors.length > 0 ? (
           <div className="overflow-hidden w-full relative">
             <div 
-              className="flex w-max animate-marquee-slow hover:[animation-play-state:paused] gap-4 pb-2"
-              style={{ animationDuration: `${Math.max(activeSponsors.length * 15, 30)}s` }}
+              className="flex w-max animate-marquee-sponsors hover:[animation-play-state:paused] gap-4 pb-2"
             >
               {activeSponsors.map((sponsor) => (
                 <SponsorCardItem key={sponsor.id} sponsor={sponsor} getTrackingUrl={getTrackingUrl} />

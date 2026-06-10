@@ -44,6 +44,21 @@ h1, h2, h3, h4, h5, h6 {
   width: max-content;
 }
 
+.animate-marquee-news {
+  animation: marquee-slow 160s linear infinite;
+  width: max-content;
+}
+
+.animate-marquee-shop {
+  animation: marquee-slow 45s linear infinite;
+  width: max-content;
+}
+
+.animate-marquee-sponsors {
+  animation: marquee-slow 45s linear infinite;
+  width: max-content;
+}
+
 .glass-panel {
   @apply backdrop-blur-xl border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.4)] rounded-2xl relative overflow-hidden;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
