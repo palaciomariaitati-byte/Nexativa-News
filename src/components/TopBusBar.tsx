@@ -13,6 +13,7 @@ export default function TopBusBar() {
     youtube: "#",
     email: "contacto@nexativa.com",
   });
+  const [isQrOpen, setIsQrOpen] = useState(false);
 
   useEffect(() => {
     async function fetchSettings() {
@@ -164,17 +165,19 @@ export default function TopBusBar() {
             <Mail className="w-4 h-4 sm:w-5 sm:h-5" />
           </a>
 
-          {/* Botón QR Code (Hover muestra el código QR) */}
-          <div className="relative group hidden sm:block">
+          {/* Botón QR Code (Hover/Click muestra el código QR) */}
+          <div className="relative group">
             <button
+              onClick={() => setIsQrOpen(!isQrOpen)}
+              onBlur={() => setTimeout(() => setIsQrOpen(false), 200)}
               className="bg-[var(--color-brand-accent)] text-black p-2 rounded-full hover:bg-white transition-colors shadow-md flex items-center justify-center"
               aria-label="Descargar App"
             >
               <QrCode className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
-            <div className="absolute right-0 top-full mt-2 w-48 p-4 bg-white rounded-xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 flex flex-col items-center">
+            <div className={`absolute right-0 md:right-auto md:left-1/2 md:-translate-x-1/2 top-full mt-2 w-48 p-4 bg-white rounded-xl shadow-2xl transition-all duration-300 z-50 flex flex-col items-center ${isQrOpen ? 'opacity-100 visible' : 'opacity-0 invisible group-hover:opacity-100 group-hover:visible'}`}>
               <p className="text-black text-xs font-bold text-center mb-2 leading-tight">
-                Escanea para descargar<br/>Nexativa News en tu móvil
+                Escanea para descargar<br/>Nexativa News
               </p>
               {/* Usamos una API gratuita para generar el QR dinámicamente con la URL actual */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
