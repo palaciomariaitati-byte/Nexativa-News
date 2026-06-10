@@ -13,7 +13,7 @@ export default function SponsorsMarquee({ sponsors }: { sponsors: Sponsor[] }) {
 
   return (
     <div className="bg-[var(--color-brand-accent)] text-black py-3 overflow-hidden whitespace-nowrap border-b border-yellow-600/50 w-full relative z-10 shadow-[0_0_20px_var(--color-brand-accent)]">
-      <div className="flex items-center space-x-12 animate-marquee">
+      <div className="flex items-center space-x-12 animate-marquee-pro">
         {displaySponsors.map((s) => (
           <div key={s.id} className="flex items-center space-x-2 px-8">
             <span className="text-xl font-black uppercase tracking-widest">{s.name}</span>
