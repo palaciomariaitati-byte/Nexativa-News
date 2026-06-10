@@ -81,7 +81,7 @@ export default function VideoSection() {
   if (loading || queue.length === 0 || !currentVideo) return null;
 
   const floatingClasses = isFloating 
-    ? "fixed bottom-6 left-6 w-[280px] sm:w-[350px] z-[60] shadow-2xl scale-100" 
+    ? "fixed bottom-20 left-4 w-[200px] sm:bottom-6 sm:left-6 sm:w-[350px] z-[60] shadow-2xl scale-100" 
     : "relative w-full max-w-3xl mx-auto z-10";
 
   return (
@@ -94,7 +94,7 @@ export default function VideoSection() {
           {isFloating && (
             <button
               onClick={() => setShowVideo(false)}
-              className="absolute top-2 right-2 text-white hover:text-white bg-black/80 rounded-full w-8 h-8 flex items-center justify-center z-50 backdrop-blur-sm border border-white/20 shadow-lg"
+              className="absolute top-1 right-1 text-white hover:text-white bg-black/80 rounded-full w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center z-50 backdrop-blur-sm border border-white/20 shadow-lg text-xs"
               title="Cerrar reproductor"
             >
               ✖
@@ -102,9 +102,9 @@ export default function VideoSection() {
           )}
           <div className="flex flex-col relative group">
             {isFloating && (
-              <div className="absolute top-0 left-0 w-full p-2 bg-gradient-to-b from-black/80 to-transparent z-40 flex items-center justify-between pointer-events-none">
-                <h5 className="font-semibold text-white text-xs flex items-center gap-2 truncate pr-8">
-                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+              <div className="absolute top-0 left-0 w-full p-1.5 sm:p-2 bg-gradient-to-b from-black/80 to-transparent z-40 flex items-center justify-between pointer-events-none">
+                <h5 className="font-semibold text-white text-[10px] sm:text-xs flex items-center gap-1.5 sm:gap-2 truncate pr-8">
+                  <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-red-500 animate-pulse" />
                   En Vivo
                 </h5>
               </div>
@@ -113,11 +113,11 @@ export default function VideoSection() {
             <div className="aspect-video w-full relative bg-black">
                 {videoError ? (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 text-white p-4 text-center">
-                    <p className="text-red-400 font-bold mb-2">Video no disponible o bloqueado</p>
-                    <p className="text-sm text-gray-400 mb-4 truncate w-full px-4">{currentVideo.video_url}</p>
+                    <p className="text-red-400 font-bold mb-2 text-xs sm:text-base">Video no disponible o bloqueado</p>
+                    <p className="text-[10px] sm:text-sm text-gray-400 mb-4 truncate w-full px-4">{currentVideo.video_url}</p>
                     <button 
                       onClick={() => { setVideoError(false); handleVideoEnd(); }}
-                      className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-md transition-colors text-sm"
+                      className="bg-white/10 hover:bg-white/20 px-3 py-1.5 sm:px-4 sm:py-2 rounded-md transition-colors text-xs sm:text-sm"
                     >
                       Saltar al siguiente
                     </button>
@@ -146,11 +146,11 @@ export default function VideoSection() {
           </div>
         </div>
       ) : (
-        <div className={`flex flex-col items-center justify-center p-3 bg-black/80 border border-white/10 rounded-xl shadow-2xl backdrop-blur-md ${isFloating ? 'fixed bottom-6 left-6 w-auto z-[60]' : 'w-full max-w-4xl mx-auto'}`}>
+        <div className={`flex flex-col items-center justify-center p-2 sm:p-3 bg-black/80 border border-white/10 rounded-xl shadow-2xl backdrop-blur-md ${isFloating ? 'fixed bottom-20 left-4 sm:bottom-6 sm:left-6 w-auto z-[60]' : 'w-full max-w-4xl mx-auto'}`}>
           <p className="text-gray-400 text-[10px] mb-1.5 hidden md:block">Transmisión minimizada</p>
           <button 
             onClick={() => setShowVideo(true)}
-            className="bg-[var(--color-brand-accent)] text-black text-sm font-bold px-3 py-1.5 rounded-lg shadow-lg hover:scale-105 transition-transform flex items-center gap-2"
+            className="bg-[var(--color-brand-accent)] text-black text-xs sm:text-sm font-bold px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg shadow-lg hover:scale-105 transition-transform flex items-center gap-1.5 sm:gap-2"
           >
             ▶ En Vivo
           </button>
