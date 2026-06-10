@@ -45,7 +45,7 @@ export default function SubscriptionTiers() {
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[300px] bg-[var(--color-brand-accent)]/10 blur-[120px] rounded-full pointer-events-none"></div>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <h2 className="text-2xl font-extrabold text-center mb-8">Planes de Suscripción</h2>
-        <div className="flex overflow-x-auto pb-6 gap-4 snap-x snap-mandatory hide-scrollbar md:grid md:grid-cols-3 md:gap-6 md:overflow-visible md:pb-0">
+        <div className="flex overflow-x-auto pt-8 -mt-8 pb-6 gap-4 snap-x snap-mandatory hide-scrollbar md:grid md:grid-cols-3 md:gap-6 md:overflow-visible md:pb-0 md:pt-4 md:-mt-4">
           {tiers.map((tier) => (
             <div
               key={tier.name}

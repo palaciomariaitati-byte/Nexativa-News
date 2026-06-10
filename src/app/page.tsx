@@ -150,7 +150,10 @@ export default async function HomePage() {
           </div>
           <div className="overflow-hidden w-full relative">
             {products.length > 0 ? (
-              <div className="flex w-max animate-marquee-slow hover:[animation-play-state:paused] gap-4 pb-4">
+              <div 
+                className="flex w-max animate-marquee-slow hover:[animation-play-state:paused] gap-4 pb-4"
+                style={{ animationDuration: `${Math.max(products.length * 15, 30)}s` }}
+              >
                 {products.map((p) => (
                   <ProductCard key={p.id} product={p} />
                 ))}

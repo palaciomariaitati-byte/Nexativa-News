@@ -80,7 +80,10 @@ export default function ExternalNewsCarousel() {
         Último Momento
       </div>
       <div className="flex-1 overflow-hidden relative">
-        <div className="flex space-x-12 animate-marquee-slow pl-4">
+        <div 
+          className="flex space-x-12 animate-marquee-slow pl-4"
+          style={{ animationDuration: `${Math.max(news.length * 8, 40)}s` }}
+        >
           {news.map((item, idx) => (
             <a
               key={idx}
