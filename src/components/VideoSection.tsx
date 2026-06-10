@@ -127,10 +127,10 @@ export default function VideoSection() {
                     {/* @ts-expect-error react-player types are not strict enough */}
                     <ReactPlayer
                       url={currentVideo.video_url}
-                      playing={true}
+                      playing={false}
                       controls={true}
-                      muted={true}
-                      light={false}
+                      muted={false}
+                      light={true}
                       width="100%"
                       height="100%"
                       onEnded={handleVideoEnd}
@@ -139,16 +139,6 @@ export default function VideoSection() {
                         setVideoError(true);
                       }}
                       style={{ position: "absolute", top: 0, left: 0 }}
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      config={({
-                        youtube: {
-                          playerVars: { 
-                            autoplay: 1, 
-                            modestbranding: 1, 
-                            origin: typeof window !== 'undefined' ? window.location.origin : ''
-                          }
-                        }
-                      }) as any}
                     />
                   </>
                 )}
