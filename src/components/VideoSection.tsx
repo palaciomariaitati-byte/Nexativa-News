@@ -113,10 +113,10 @@ export default function VideoSection() {
                 {/* @ts-expect-error react-player types are not strict enough */}
                 <ReactPlayer
                   url={currentVideo.video_url}
-                  playing={false}
+                  playing={true}
                   controls={true}
-                  muted={false}
-                  light={true}
+                  muted={true}
+                  light={false}
                   width="100%"
                   height="100%"
                   onEnded={handleVideoEnd}
@@ -129,7 +129,7 @@ export default function VideoSection() {
                   config={({
                     youtube: {
                       playerVars: { 
-                        autoplay: 0, 
+                        autoplay: 1, 
                         modestbranding: 1, 
                         origin: typeof window !== 'undefined' ? window.location.origin : ''
                       }
