@@ -4,6 +4,17 @@ import { redirect } from "next/navigation";
 import { getStaffRole } from "./actions";
 import LogoutButton from "./LogoutButton"; // We will create this client component
 import GoBackButton from "./GoBackButton"; // Go back button component
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Admin Panel - Nexativa",
+  manifest: "/admin-manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Nexativa Admin",
+  },
+};
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const userRole = await getStaffRole();

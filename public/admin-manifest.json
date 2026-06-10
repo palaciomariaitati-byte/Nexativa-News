@@ -1,15 +1,15 @@
 {
-  "name": "Nexativa News",
-  "short_name": "Nexativa",
-  "description": "Portal de Noticias de Nexativa - Nivel Pro",
-  "start_url": "/",
+  "name": "Nexativa Admin Panel",
+  "short_name": "Admin",
+  "description": "Panel de Control de Nexativa News",
+  "start_url": "/admin",
   "display": "standalone",
   "background_color": "#0B0F19",
   "theme_color": "#0B0F19",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/icons/main-icon.png",
+      "src": "/icons/admin-icon.png",
       "sizes": "any",
       "type": "image/png",
       "purpose": "any maskable"
