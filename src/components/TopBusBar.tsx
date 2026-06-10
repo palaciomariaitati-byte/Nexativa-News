@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { Mail, Building2, Map, UtensilsCrossed, Briefcase } from 'lucide-react';
+import { Mail, Building2, Map, UtensilsCrossed, Briefcase, QrCode } from 'lucide-react';
 
 export default function TopBusBar() {
   const [settings, setSettings] = useState({
@@ -38,12 +38,17 @@ export default function TopBusBar() {
       window.location.href = `/#${id}`;
       return;
     }
-    const element = document.getElementById(id);
+    // Actualiza el hash para que SponsorTabs cambie la pestaña activa
+    window.history.pushState(null, "", `#${id}`);
+    // Dispara el evento hashchange manualmente para que el useEffect de SponsorTabs lo escuche
+    window.dispatchEvent(new Event("hashchange"));
+    
+    // Scrollea suavemente hasta la sección de sponsors
+    const element = document.getElementById("sponsors-section");
     if (element) {
-      element.scrollIntoView({ behavior: "smooth", block: "start" });
-    } else {
-      // Si la sección no existe (ej. no hay sponsors de esa categoría), alertamos al usuario sutilmente
-      console.log(`Sección ${id} no encontrada (quizás no hay elementos).`);
+      // Offset top para que no quede tapado por la navbar
+      const y = element.getBoundingClientRect().top + window.scrollY - 100;
+      window.scrollTo({ top: y, behavior: "smooth" });
     }
   };
 
@@ -158,6 +163,28 @@ export default function TopBusBar() {
           >
             <Mail className="w-4 h-4 sm:w-5 sm:h-5" />
           </a>
+
+          {/* Botón QR Code (Hover muestra el código QR) */}
+          <div className="relative group hidden sm:block">
+            <button
+              className="bg-[var(--color-brand-accent)] text-black p-2 rounded-full hover:bg-white transition-colors shadow-md flex items-center justify-center"
+              aria-label="Descargar App"
+            >
+              <QrCode className="w-4 h-4 sm:w-5 sm:h-5" />
+            </button>
+            <div className="absolute right-0 top-full mt-2 w-48 p-4 bg-white rounded-xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 flex flex-col items-center">
+              <p className="text-black text-xs font-bold text-center mb-2 leading-tight">
+                Escanea para descargar<br/>Nexativa News en tu móvil
+              </p>
+              {/* Usamos una API gratuita para generar el QR dinámicamente con la URL actual */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img 
+                src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://nexativa-news-digital.vercel.app/" 
+                alt="QR Code" 
+                className="w-32 h-32 rounded-md shadow-sm"
+              />
+            </div>
+          </div>
         </div>
 
       </div>
