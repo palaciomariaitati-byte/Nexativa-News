@@ -13,7 +13,10 @@
 }
 
 body {
-  @apply font-sans bg-[var(--color-brand-bg)] text-[var(--color-brand-text)] antialiased;
+  @apply font-sans text-[var(--color-brand-text)] antialiased;
+  background: radial-gradient(circle at top right, #1e2840, #0B0F19 40%, #05080f);
+  background-attachment: fixed;
+  min-height: 100vh;
   selection: bg-[var(--color-brand-accent)] text-black;
 }
 
@@ -42,5 +45,15 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .glass-panel {
-  @apply bg-white/5 backdrop-blur-md border border-white/10 shadow-xl rounded-2xl;
+  @apply backdrop-blur-xl border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.4)] rounded-2xl relative overflow-hidden;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+}
+
+.glass-panel::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  z-index: 10;
 }
