@@ -78,7 +78,9 @@ export default function VideoSection() {
     }
   };
 
-  if (loading || queue.length === 0 || !currentVideo) return null;
+  if (loading) return <div className="p-4 bg-gray-900 text-white text-center rounded-xl border border-white/10 w-full max-w-4xl mx-auto mt-8">Cargando reproductor (loading: {String(loading)})...</div>;
+  if (queue.length === 0) return <div className="p-4 bg-red-900/50 text-white text-center rounded-xl border border-red-500 w-full max-w-4xl mx-auto mt-8">La cola de videos está vacía según la base de datos (queue.length: 0). Revisa las políticas RLS.</div>;
+  if (!currentVideo) return <div className="p-4 bg-orange-900/50 text-white text-center rounded-xl border border-orange-500 w-full max-w-4xl mx-auto mt-8">Video actual no encontrado (currentIndex: {currentIndex}).</div>;
 
   const floatingClasses = isFloating 
     ? "fixed bottom-20 left-4 w-[200px] sm:bottom-6 sm:left-6 sm:w-[350px] z-[60] shadow-2xl scale-100" 
@@ -127,10 +129,10 @@ export default function VideoSection() {
                     {/* @ts-expect-error react-player types are not strict enough */}
                     <ReactPlayer
                       url={currentVideo.video_url}
-                      playing={false}
+                      playing={true}
                       controls={true}
-                      muted={false}
-                      light={true}
+                      muted={true}
+                      light={false}
                       width="100%"
                       height="100%"
                       onEnded={handleVideoEnd}
