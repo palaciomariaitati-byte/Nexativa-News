@@ -81,7 +81,7 @@ export default function VideoSection() {
   if (loading || queue.length === 0 || !currentVideo) return null;
 
   const floatingClasses = isFloating 
-    ? "fixed bottom-6 right-6 w-[280px] sm:w-[350px] z-[60] shadow-2xl scale-100" 
+    ? "fixed bottom-6 left-6 w-[280px] sm:w-[350px] z-[60] shadow-2xl scale-100" 
     : "relative w-full max-w-3xl mx-auto z-10";
 
   return (
@@ -146,11 +146,11 @@ export default function VideoSection() {
           </div>
         </div>
       ) : (
-        <div className={`flex flex-col items-center justify-center p-4 bg-black/80 border border-white/10 rounded-xl shadow-2xl backdrop-blur-md ${isFloating ? 'fixed bottom-6 right-6 w-auto z-[60]' : 'w-full max-w-4xl mx-auto'}`}>
-          <p className="text-gray-400 text-xs mb-2 hidden md:block">Transmisión minimizada</p>
+        <div className={`flex flex-col items-center justify-center p-3 bg-black/80 border border-white/10 rounded-xl shadow-2xl backdrop-blur-md ${isFloating ? 'fixed bottom-6 left-6 w-auto z-[60]' : 'w-full max-w-4xl mx-auto'}`}>
+          <p className="text-gray-400 text-[10px] mb-1.5 hidden md:block">Transmisión minimizada</p>
           <button 
             onClick={() => setShowVideo(true)}
-            className="bg-[var(--color-brand-accent)] text-black font-bold px-4 py-2 rounded-lg shadow-lg hover:scale-105 transition-transform flex items-center gap-2"
+            className="bg-[var(--color-brand-accent)] text-black text-sm font-bold px-3 py-1.5 rounded-lg shadow-lg hover:scale-105 transition-transform flex items-center gap-2"
           >
             ▶ En Vivo
           </button>
