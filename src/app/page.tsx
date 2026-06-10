@@ -10,6 +10,7 @@ import VideoSection from "@/components/VideoSection";
 import SubscriptionTiers from "@/components/SubscriptionTiers";
 import SponsorsMarquee from "@/components/SponsorsMarquee";
 import TopBusBar from "@/components/TopBusBar";
+import SponsorTabs from "@/components/SponsorTabs";
 // -----------------------------------------------------------------
 // Mock data (static) — kept for non-news columns
 // -----------------------------------------------------------------
@@ -64,68 +65,7 @@ function ProductCard({ product }: { product: Product }) {
   );
 }
 
-function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
-  // Use the tracking API as a bridge for links
-  const getTrackingUrl = (url: string, type: string) => {
-    return `/api/track-click?sponsor_id=${sponsor.id}&type=${type}&url=${encodeURIComponent(url)}`;
-  };
 
-  const cardContent = (
-    <>
-      {sponsor.banner_url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img 
-          src={sponsor.banner_url} 
-          alt={sponsor.name} 
-          className="w-full h-32 object-cover rounded-md mb-2 shadow-md"
-        />
-      ) : sponsor.logo_url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img 
-          src={sponsor.logo_url} 
-          alt={sponsor.name} 
-          className="w-full h-24 object-contain rounded-md mb-2 bg-white/5 shadow-md p-2"
-        />
-      ) : null}
-      
-      <h4 className="font-bold text-gray-100 group-hover:text-[var(--color-brand-accent)] transition-colors text-center w-full truncate">
-        {sponsor.name}
-      </h4>
-      
-      {/* Botones de redes (solo visibles en PC para evitar clics accidentales al deslizar en el móvil) */}
-      <div className="hidden sm:flex flex-wrap justify-center gap-2 mt-2 w-full">
-        {sponsor.website_url && (
-          <a href={getTrackingUrl(sponsor.website_url, 'website')} target="_blank" rel="noopener noreferrer" className="bg-white/10 hover:bg-[var(--color-brand-accent)] hover:text-black text-white px-3 py-1 rounded-full text-xs transition-colors">
-            Sitio Web
-          </a>
-        )}
-        {sponsor.instagram_url && (
-          <a href={getTrackingUrl(sponsor.instagram_url, 'instagram')} target="_blank" rel="noopener noreferrer" className="bg-gradient-to-r from-purple-600 to-pink-500 hover:opacity-80 text-white px-3 py-1 rounded-full text-xs transition-opacity">
-            Instagram
-          </a>
-        )}
-      </div>
-    </>
-  );
-
-  // En móvil, hacemos que toda la tarjeta sea clickeable hacia su sitio principal,
-  // para que siga siendo funcional sin necesidad de los botones chicos.
-  const mainLink = sponsor.website_url || sponsor.instagram_url;
-
-  if (mainLink) {
-    return (
-      <a href={getTrackingUrl(mainLink, 'card_click')} target="_blank" rel="noopener noreferrer" className="glass-panel p-3 space-y-2 hover:-translate-y-1 transition-transform group flex flex-col items-center min-w-[160px] sm:min-w-0 flex-shrink-0 snap-center border border-white/5 cursor-pointer">
-        {cardContent}
-      </a>
-    );
-  }
-
-  return (
-    <div className="glass-panel p-3 space-y-2 hover:-translate-y-1 transition-transform group flex flex-col items-center min-w-[160px] sm:min-w-0 flex-shrink-0 snap-center border border-white/5">
-      {cardContent}
-    </div>
-  );
-}
 
 // Skeleton for the NewsTabs while loading on the server
 function NewsTabsSkeleton() {
@@ -226,31 +166,10 @@ export default async function HomePage() {
         </section>
       </div>
 
-      {/* 5️⃣ Sponsors / Adhered Businesses (Grid o Carrusel) */}
+      {/* 5️⃣ Sponsors / Adhered Businesses (Tabs) */}
       {sponsors.length > 0 && (
-        <div className="w-full max-w-7xl px-2 sm:px-4 lg:px-8 mt-10 sm:mt-16 space-y-8 sm:space-y-12">
-          {["Hotelería", "Turismo", "Gastronomía", "Servicios", "Otros"].map((cat) => {
-            const catSponsors = sponsors.filter((s) => (s.category || 'Servicios') === cat);
-            if (catSponsors.length === 0) return null;
-            return (
-              <section key={cat} id={`cat-${cat.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")}`} className="w-full scroll-mt-24">
-                <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-2">
-                  <h3 className="text-white text-xl sm:text-2xl font-bold">{cat}</h3>
-                </div>
-                <div className="overflow-hidden w-full relative">
-                  <div className="flex w-max animate-marquee-slow hover:[animation-play-state:paused] gap-4 pb-4">
-                    {catSponsors.map((sponsor) => (
-                      <SponsorCard key={sponsor.id} sponsor={sponsor} />
-                    ))}
-                    {/* Duplicado para scroll infinito */}
-                    {catSponsors.map((sponsor) => (
-                      <SponsorCard key={sponsor.id + "-clone"} sponsor={sponsor} />
-                    ))}
-                  </div>
-                </div>
-              </section>
-            );
-          })}
+        <div className="w-full max-w-[1200px] px-2 sm:px-4 lg:px-8 mt-10 sm:mt-16">
+          <SponsorTabs sponsors={sponsors} />
         </div>
       )}
 
