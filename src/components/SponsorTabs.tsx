@@ -43,8 +43,8 @@ export default function SponsorTabs({ sponsors }: { sponsors: Sponsor[] }) {
       <div className="flex overflow-x-auto border-b border-white/10 bg-black/20 hide-scrollbar snap-x">
         {categories.map((cat) => {
           const count = sponsors.filter((s) => (s.category || 'Servicios') === cat).length;
-          if (count === 0) return null; // Ocultar pestañas sin sponsors
-
+          if (count === 0 && activeTab !== cat) return null; // Ocultar pestañas sin sponsors, salvo la activa
+          
           return (
             <button
               key={cat}

@@ -175,11 +175,9 @@ export default async function HomePage() {
       </div>
 
       {/* 5️⃣ Sponsors / Adhered Businesses (Tabs) */}
-      {normalSponsors.length > 0 && (
-        <div className="w-full max-w-[1200px] px-2 sm:px-4 lg:px-8 mt-10 sm:mt-16">
-          <SponsorTabs sponsors={normalSponsors} />
-        </div>
-      )}
+      <div className="w-full max-w-[1200px] px-2 sm:px-4 lg:px-8 mt-10 sm:mt-16" id="sponsors-section-wrapper">
+        <SponsorTabs sponsors={normalSponsors} />
+      </div>
 
       <div className="w-full mt-16">
         <SubscriptionTiers />
