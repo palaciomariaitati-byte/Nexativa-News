@@ -2,6 +2,8 @@ import React from "react";
 import Link from "next/link";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
+export const dynamic = 'force-dynamic';
+
 export default async function AdminSponsorsPage() {
   const supabase = createServerSupabaseClient();
   // Fetch sponsors with their click counts
