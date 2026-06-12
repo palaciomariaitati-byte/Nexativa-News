@@ -18,14 +18,16 @@ export default function SponsorForm({ initialData = null }: { initialData?: any 
 
     try {
       if (isEditing) {
-        await updateSponsor(initialData.id, formData);
+        const res = await updateSponsor(initialData.id, formData);
+        if (res?.error) throw new Error(res.error);
       } else {
-        await createSponsor(formData);
+        const res = await createSponsor(formData);
+        if (res?.error) throw new Error(res.error);
       }
       router.push("/admin/sponsors");
       router.refresh();
     } catch (err: any) {
-      setError(err.message || "Ocurrió un error");
+      setError(err.message || "Ocurrió un error al guardar el cliente.");
       setLoading(false);
     }
   };

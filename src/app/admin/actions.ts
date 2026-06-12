@@ -87,72 +87,84 @@ export async function uploadImage(file: File, folder: string) {
 }
 
 export async function createSponsor(formData: FormData) {
-  const role = await getStaffRole();
-  if (!role) throw new Error('No autorizado');
+  try {
+    const role = await getStaffRole();
+    if (!role) return { error: 'No autorizado' };
 
-  const name = formData.get('name') as string;
-  const category = formData.get('category') as string || 'Servicios';
-  const website_url = formData.get('website_url') as string;
-  const instagram_url = formData.get('instagram_url') as string;
-  const facebook_url = formData.get('facebook_url') as string;
-  const tiktok_url = formData.get('tiktok_url') as string;
-  const youtube_url = formData.get('youtube_url') as string;
-  const whatsapp = formData.get('whatsapp') as string;
-  const email = formData.get('email') as string;
-  const is_pro = formData.get('is_pro') === 'on';
-  const logoFile = formData.get('logo') as File | null;
-  const bannerFile = formData.get('banner') as File | null;
+    const name = formData.get('name') as string;
+    const category = formData.get('category') as string || 'Servicios';
+    const website_url = formData.get('website_url') as string;
+    const instagram_url = formData.get('instagram_url') as string;
+    const facebook_url = formData.get('facebook_url') as string;
+    const tiktok_url = formData.get('tiktok_url') as string;
+    const youtube_url = formData.get('youtube_url') as string;
+    const whatsapp = formData.get('whatsapp') as string;
+    const email = formData.get('email') as string;
+    const is_pro = formData.get('is_pro') === 'on';
+    const logoFile = formData.get('logo') as File | null;
+    const bannerFile = formData.get('banner') as File | null;
 
-  let logo_url = '';
-  let banner_url = '';
+    let logo_url = '';
+    let banner_url = '';
 
-  if (logoFile && logoFile.size > 0) logo_url = await uploadImage(logoFile, 'sponsors/logos');
-  if (bannerFile && bannerFile.size > 0) banner_url = await uploadImage(bannerFile, 'sponsors/banners');
+    if (logoFile && logoFile.size > 0) logo_url = await uploadImage(logoFile, 'sponsors/logos');
+    if (bannerFile && bannerFile.size > 0) banner_url = await uploadImage(bannerFile, 'sponsors/banners');
 
-  const supabase = createServerSupabaseClient();
-  const { error } = await supabase.from('sponsors').insert([
-    { name, category, logo_url, banner_url, website_url, instagram_url, facebook_url, tiktok_url, youtube_url, whatsapp, email, is_pro }
-  ]);
-  if (error) throw new Error(error.message);
-  return true;
+    const supabase = createServerSupabaseClient();
+    const { error } = await supabase.from('sponsors').insert([
+      { name, category, logo_url, banner_url, website_url, instagram_url, facebook_url, tiktok_url, youtube_url, whatsapp, email, is_pro }
+    ]);
+    if (error) return { error: error.message };
+    return { success: true };
+  } catch (err: any) {
+    return { error: err.message };
+  }
 }
 
 export async function updateSponsor(id: string, formData: FormData) {
-  const role = await getStaffRole();
-  if (!role) throw new Error('No autorizado');
+  try {
+    const role = await getStaffRole();
+    if (!role) return { error: 'No autorizado' };
 
-  const name = formData.get('name') as string;
-  const category = formData.get('category') as string || 'Servicios';
-  const website_url = formData.get('website_url') as string;
-  const instagram_url = formData.get('instagram_url') as string;
-  const facebook_url = formData.get('facebook_url') as string;
-  const tiktok_url = formData.get('tiktok_url') as string;
-  const youtube_url = formData.get('youtube_url') as string;
-  const whatsapp = formData.get('whatsapp') as string;
-  const email = formData.get('email') as string;
-  const is_pro = formData.get('is_pro') === 'on';
-  const logoFile = formData.get('logo') as File | null;
-  const bannerFile = formData.get('banner') as File | null;
+    const name = formData.get('name') as string;
+    const category = formData.get('category') as string || 'Servicios';
+    const website_url = formData.get('website_url') as string;
+    const instagram_url = formData.get('instagram_url') as string;
+    const facebook_url = formData.get('facebook_url') as string;
+    const tiktok_url = formData.get('tiktok_url') as string;
+    const youtube_url = formData.get('youtube_url') as string;
+    const whatsapp = formData.get('whatsapp') as string;
+    const email = formData.get('email') as string;
+    const is_pro = formData.get('is_pro') === 'on';
+    const logoFile = formData.get('logo') as File | null;
+    const bannerFile = formData.get('banner') as File | null;
 
-  const updateData: any = { name, category, website_url, instagram_url, facebook_url, tiktok_url, youtube_url, whatsapp, email, is_pro };
+    const updateData: any = { name, category, website_url, instagram_url, facebook_url, tiktok_url, youtube_url, whatsapp, email, is_pro };
 
-  if (logoFile && logoFile.size > 0) updateData.logo_url = await uploadImage(logoFile, 'sponsors/logos');
-  if (bannerFile && bannerFile.size > 0) updateData.banner_url = await uploadImage(bannerFile, 'sponsors/banners');
+    if (logoFile && logoFile.size > 0) updateData.logo_url = await uploadImage(logoFile, 'sponsors/logos');
+    if (bannerFile && bannerFile.size > 0) updateData.banner_url = await uploadImage(bannerFile, 'sponsors/banners');
 
-  const supabase = createServerSupabaseClient();
-  const { error } = await supabase.from('sponsors').update(updateData).eq('id', id);
-  if (error) throw new Error(error.message);
-  return true;
+    const supabase = createServerSupabaseClient();
+    const { error } = await supabase.from('sponsors').update(updateData).eq('id', id);
+    if (error) return { error: error.message };
+    return { success: true };
+  } catch (err: any) {
+    return { error: err.message };
+  }
 }
 
 export async function deleteSponsor(id: string) {
-  const role = await getStaffRole();
-  if (!role) throw new Error('No autorizado');
+  try {
+    const role = await getStaffRole();
+    if (!role) return { error: 'No autorizado' };
 
-  const supabase = createServerSupabaseClient();
-  const { error } = await supabase.from('sponsors').delete().eq('id', id);
-  if (error) throw new Error(error.message);
-  return true;
+    const supabase = createServerSupabaseClient();
+    const { error } = await supabase.from('sponsors').delete().eq('id', id);
+    if (error) return { error: error.message };
+    return { success: true };
+  } catch (err: any) {
+    return { error: err.message };
+  }
 }
 
 // ----- Generic CRUD for Dashboard -----
