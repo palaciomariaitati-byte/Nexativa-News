@@ -68,18 +68,18 @@ export default async function AdminSponsorsPage() {
               </div>
 
               {/* Stats & Info */}
-              <div className="w-full md:w-2/3 grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white/5 p-4 rounded text-center">
-                  <p className="text-sm text-gray-400 uppercase tracking-widest mb-1">Visitas Web</p>
-                  <p className="text-3xl font-bold text-blue-400">{websiteClicks}</p>
+              <div className="w-full md:w-2/3 grid grid-cols-1 md:grid-cols-3 gap-2 lg:gap-4">
+                <div className="bg-white/5 p-3 lg:p-4 rounded text-center overflow-hidden">
+                  <p className="text-[10px] lg:text-xs text-gray-400 uppercase tracking-wider mb-1 truncate">Visitas Web</p>
+                  <p className="text-2xl lg:text-3xl font-bold text-blue-400">{websiteClicks}</p>
                 </div>
-                <div className="bg-white/5 p-4 rounded text-center">
-                  <p className="text-sm text-gray-400 uppercase tracking-widest mb-1">Visitas Instagram</p>
-                  <p className="text-3xl font-bold text-pink-400">{instagramClicks}</p>
+                <div className="bg-white/5 p-3 lg:p-4 rounded text-center overflow-hidden">
+                  <p className="text-[10px] lg:text-xs text-gray-400 uppercase tracking-wider mb-1 truncate">Visitas Instag.</p>
+                  <p className="text-2xl lg:text-3xl font-bold text-pink-400">{instagramClicks}</p>
                 </div>
-                <div className="bg-[var(--color-brand-accent)]/10 border border-[var(--color-brand-accent)]/30 p-4 rounded text-center">
-                  <p className="text-sm text-[var(--color-brand-accent)] uppercase tracking-widest mb-1">Total Generado</p>
-                  <p className="text-3xl font-bold text-[var(--color-brand-accent)]">{totalClicks}</p>
+                <div className="bg-[var(--color-brand-accent)]/10 border border-[var(--color-brand-accent)]/30 p-3 lg:p-4 rounded text-center overflow-hidden">
+                  <p className="text-[10px] lg:text-xs text-[var(--color-brand-accent)] uppercase tracking-wider mb-1 truncate">Total Generado</p>
+                  <p className="text-2xl lg:text-3xl font-bold text-[var(--color-brand-accent)]">{totalClicks}</p>
                 </div>
               </div>
             </div>
