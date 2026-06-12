@@ -97,6 +97,56 @@ export default function SponsorForm({ initialData = null }: { initialData?: any 
               className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-brand-accent)]"
             />
           </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Facebook (Opcional)</label>
+            <input
+              type="url"
+              name="facebook_url"
+              defaultValue={initialData?.facebook_url || ""}
+              placeholder="https://facebook.com/..."
+              className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-brand-accent)]"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">TikTok (Opcional)</label>
+            <input
+              type="url"
+              name="tiktok_url"
+              defaultValue={initialData?.tiktok_url || ""}
+              placeholder="https://tiktok.com/@..."
+              className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-brand-accent)]"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">YouTube (Opcional)</label>
+            <input
+              type="url"
+              name="youtube_url"
+              defaultValue={initialData?.youtube_url || ""}
+              placeholder="https://youtube.com/..."
+              className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-brand-accent)]"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">WhatsApp (Opcional)</label>
+            <input
+              type="text"
+              name="whatsapp"
+              defaultValue={initialData?.whatsapp || ""}
+              placeholder="+54911..."
+              className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-brand-accent)]"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium mb-1">Email (Opcional)</label>
+            <input
+              type="email"
+              name="email"
+              defaultValue={initialData?.email || ""}
+              placeholder="contacto@..."
+              className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-brand-accent)]"
+            />
+          </div>
         </div>
 
         <div className="border-t border-white/10 pt-4 mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">

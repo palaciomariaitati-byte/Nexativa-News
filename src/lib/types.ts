@@ -44,7 +44,11 @@ export interface Sponsor {
   category: string;
   website_url: string | null;
   instagram_url: string | null;
-  is_pro: boolean;
+  facebook_url: string | null;
+  tiktok_url: string | null;
+  youtube_url: string | null;
+  whatsapp: string | null;
+  email: string | null;
   created_at: string;
 }
 

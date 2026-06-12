@@ -94,6 +94,11 @@ export async function createSponsor(formData: FormData) {
   const category = formData.get('category') as string || 'Servicios';
   const website_url = formData.get('website_url') as string;
   const instagram_url = formData.get('instagram_url') as string;
+  const facebook_url = formData.get('facebook_url') as string;
+  const tiktok_url = formData.get('tiktok_url') as string;
+  const youtube_url = formData.get('youtube_url') as string;
+  const whatsapp = formData.get('whatsapp') as string;
+  const email = formData.get('email') as string;
   const logoFile = formData.get('logo') as File | null;
   const bannerFile = formData.get('banner') as File | null;
 
@@ -105,7 +110,7 @@ export async function createSponsor(formData: FormData) {
 
   const supabase = createServerSupabaseClient();
   const { error } = await supabase.from('sponsors').insert([
-    { name, category, logo_url, banner_url, website_url, instagram_url }
+    { name, category, logo_url, banner_url, website_url, instagram_url, facebook_url, tiktok_url, youtube_url, whatsapp, email }
   ]);
   if (error) throw new Error(error.message);
   return true;
@@ -119,10 +124,15 @@ export async function updateSponsor(id: string, formData: FormData) {
   const category = formData.get('category') as string || 'Servicios';
   const website_url = formData.get('website_url') as string;
   const instagram_url = formData.get('instagram_url') as string;
+  const facebook_url = formData.get('facebook_url') as string;
+  const tiktok_url = formData.get('tiktok_url') as string;
+  const youtube_url = formData.get('youtube_url') as string;
+  const whatsapp = formData.get('whatsapp') as string;
+  const email = formData.get('email') as string;
   const logoFile = formData.get('logo') as File | null;
   const bannerFile = formData.get('banner') as File | null;
 
-  const updateData: any = { name, category, website_url, instagram_url };
+  const updateData: any = { name, category, website_url, instagram_url, facebook_url, tiktok_url, youtube_url, whatsapp, email };
 
   if (logoFile && logoFile.size > 0) updateData.logo_url = await uploadImage(logoFile, 'sponsors/logos');
   if (bannerFile && bannerFile.size > 0) updateData.banner_url = await uploadImage(bannerFile, 'sponsors/banners');

@@ -14,7 +14,11 @@ export default async function AdminSponsorsPage() {
       banner_url,
       website_url,
       instagram_url,
-      is_pro,
+      facebook_url,
+      tiktok_url,
+      youtube_url,
+      whatsapp,
+      email,
       sponsor_clicks (
         id,
         click_type
