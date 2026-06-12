@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import type { Sponsor } from "@/lib/types";
-import { Globe, Instagram, Facebook, Youtube, MessageCircle, Mail } from "lucide-react";
+import { Globe, MessageCircle, Mail } from "lucide-react";
 
 export default function SponsorTabs({ sponsors }: { sponsors: Sponsor[] }) {
   const categories = ["Hotelería", "Turismo", "Gastronomía", "Servicios", "Otros"];
@@ -89,11 +89,6 @@ export default function SponsorTabs({ sponsors }: { sponsors: Sponsor[] }) {
 
 // Sub-componente extraído de page.tsx para mantener el mismo diseño
 function SponsorCardItem({ sponsor, getTrackingUrl }: { sponsor: Sponsor, getTrackingUrl: any }) {
-  // TikTok uses a custom icon since lucide doesn't have an official one that looks good always, or we use something generic.
-  // We will just use an SVG or a text fallback. Actually, Lucide has no TikTok. We'll use a simple "TT" or an SVG.
-  // Wait, I can use an SVG for TikTok. I'll just skip TikTok if it's too complex or use a generic "Link" icon.
-  // Let's use a generic link icon for TikTok or a simple text.
-  
   const cardContent = (
     <>
       {sponsor.banner_url ? (
@@ -124,24 +119,29 @@ function SponsorCardItem({ sponsor, getTrackingUrl }: { sponsor: Sponsor, getTra
         )}
         {sponsor.instagram_url && (
           <a href={getTrackingUrl(sponsor.id, sponsor.instagram_url, 'instagram')} target="_blank" rel="noopener noreferrer" className="text-pink-400 hover:text-pink-300 hover:scale-110 transition-all" title="Instagram">
-            <Instagram className="w-4 h-4" />
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill="currentColor" className="w-4 h-4">
+              <path d="M224.1 141c-63.6 0-114.9 51.3-114.9 114.9s51.3 114.9 114.9 114.9S339 319.5 339 255.9 287.7 141 224.1 141zm0 189.6c-41.1 0-74.7-33.5-74.7-74.7s33.5-74.7 74.7-74.7 74.7 33.5 74.7 74.7-33.6 74.7-74.7 74.7zm146.4-194.3c0 14.9-12 26.8-26.8 26.8-14.9 0-26.8-12-26.8-26.8s12-26.8 26.8-26.8 26.8 12 26.8 26.8zm76.1 27.2c-1.7-35.9-9.9-67.7-36.2-93.9-26.2-26.2-58-34.4-93.9-36.2-37-2.1-147.9-2.1-184.9 0-35.8 1.7-67.6 9.9-93.9 36.1s-34.4 58-36.2 93.9c-2.1 37-2.1 147.9 0 184.9 1.7 35.9 9.9 67.7 36.2 93.9s58 34.4 93.9 36.2c37 2.1 147.9 2.1 184.9 0 35.9-1.7 67.7-9.9 93.9-36.2 26.2-26.2 34.4-58 36.2-93.9 2.1-37 2.1-147.8 0-184.8zM398.8 388c-7.8 19.6-22.9 34.7-42.6 42.6-29.5 11.7-99.5 9-132.1 9s-102.7 2.6-132.1-9c-19.6-7.8-34.7-22.9-42.6-42.6-11.7-29.5-9-99.5-9-132.1s-2.6-102.7 9-132.1c7.8-19.6 22.9-34.7 42.6-42.6 29.5-11.7 99.5-9 132.1-9s102.7-2.6 132.1 9c19.6 7.8 34.7 22.9 42.6 42.6 11.7 29.5 9 99.5 9 132.1s2.7 102.7-9 132.1z"/>
+            </svg>
           </a>
         )}
         {sponsor.facebook_url && (
           <a href={getTrackingUrl(sponsor.id, sponsor.facebook_url, 'facebook')} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-400 hover:scale-110 transition-all" title="Facebook">
-            <Facebook className="w-4 h-4" />
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512" fill="currentColor" className="w-4 h-4">
+              <path d="M279.1 288l14.22-92.66h-88.91v-60.13c0-25.35 12.42-50.06 52.24-50.06h40.42V6.26S260.4 0 225.4 0c-73.22 0-121.1 44.38-121.1 124.7v70.62H22.89V288h81.39v224h100.2V288z"/>
+            </svg>
           </a>
         )}
         {sponsor.youtube_url && (
           <a href={getTrackingUrl(sponsor.id, sponsor.youtube_url, 'youtube')} target="_blank" rel="noopener noreferrer" className="text-red-500 hover:text-red-400 hover:scale-110 transition-all" title="YouTube">
-            <Youtube className="w-4 h-4" />
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" fill="currentColor" className="w-4 h-4">
+              <path d="M549.655 124.083c-6.281-23.65-24.787-42.276-48.284-48.597C458.781 64 288 64 288 64S117.22 64 74.629 75.486c-23.497 6.322-42.003 24.947-48.284 48.597-11.412 42.867-11.412 132.305-11.412 132.305s0 89.438 11.412 132.305c6.281 23.65 24.787 41.5 48.284 47.821C117.22 448 288 448 288 448s170.78 0 213.371-11.486c23.497-6.321 42.003-24.171 48.284-47.821 11.412-42.867 11.412-132.305 11.412-132.305s0-89.438-11.412-132.305zm-317.51 213.508V175.185l142.739 81.205-142.739 81.201z"/>
+            </svg>
           </a>
         )}
         {sponsor.tiktok_url && (
           <a href={getTrackingUrl(sponsor.id, sponsor.tiktok_url, 'tiktok')} target="_blank" rel="noopener noreferrer" className="text-gray-300 hover:text-white hover:scale-110 transition-all" title="TikTok">
-            {/* Custom TikTok SVG icon */}
-            <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-              <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.12-3.44-3.17-3.61-5.46-.02-.33-.02-.66-.01-.99.11-1.74.88-3.39 2.08-4.63 1.39-1.42 3.39-2.26 5.37-2.34v4.06c-.84.05-1.68.39-2.28 1.01-.63.63-.94 1.54-.85 2.44.08.87.55 1.7 1.25 2.18.78.53 1.83.69 2.71.39.81-.27 1.48-.9 1.8-1.69.21-.51.27-1.08.28-1.63.02-4.14.01-8.28.01-12.42z" />
+            <svg viewBox="0 0 448 512" fill="currentColor" className="w-4 h-4">
+              <path d="M448,209.91a210.06,210.06,0,0,1-122.77-39.25V349.38A162.55,162.55,0,1,1,185,188.31V278.2a74.62,74.62,0,1,0,52.23,71.18V0l88,0a121.18,121.18,0,0,0,1.86,22.17h0A122.18,122.18,0,0,0,381,102.39a121.43,121.43,0,0,0,67,20.14Z"/>
             </svg>
           </a>
         )}
