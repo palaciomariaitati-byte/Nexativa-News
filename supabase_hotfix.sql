@@ -1,44 +1,32 @@
 -- ==============================================================================
--- NEXATIVA NEWS - SUPABASE HOTFIX
+-- NEXATIVA NEWS - PARCHE PARA TABLA DE PRODUCTOS Y CONFIGURACIÓN (STORE)
 -- ==============================================================================
--- Instrucciones:
 -- Copia todo este código, pégalo en el "SQL Editor" de tu panel de Supabase 
--- y presiona el botón "Run" (Ejecutar).
+-- y presiona el botón "Run".
 -- ==============================================================================
 
--- 1. Añadir los nuevos campos de redes sociales a la tabla "sponsors"
--- Usamos ADD COLUMN IF NOT EXISTS para que sea seguro ejecutarlo varias veces.
-ALTER TABLE public.sponsors 
-  ADD COLUMN IF NOT EXISTS facebook_url text,
-  ADD COLUMN IF NOT EXISTS tiktok_url text,
-  ADD COLUMN IF NOT EXISTS youtube_url text,
-  ADD COLUMN IF NOT EXISTS whatsapp text,
-  ADD COLUMN IF NOT EXISTS email text;
-
--- (Opcional) Si en el futuro necesitas "is_pro", puedes descomentar la siguiente línea:
--- ALTER TABLE public.sponsors ADD COLUMN IF NOT EXISTS is_pro boolean default false;
-
--- ==============================================================================
--- 2. Solucionar el bloqueo de RLS en "broadcast_queue"
--- Esto permite que cualquier proceso del lado del servidor (Cron/Edge Functions)
--- o usuario autenticado (incluso anónimo si usas el cliente público en pruebas)
--- pueda insertar y actualizar la cola de tareas sin restricciones.
--- ==============================================================================
-
--- Si la tabla aún no existe por alguna razón, se crea la estructura básica
-CREATE TABLE IF NOT EXISTS public.broadcast_queue (
-    id uuid primary key default gen_random_uuid(),
-    created_at timestamp with time zone default now(),
-    platform text not null,
-    task_data jsonb not null,
-    status text default 'pending',
-    attempts int default 0,
-    error_message text
+-- 1. Crear tabla de configuraciones si no existe (Para el nombre de la tienda, etc)
+CREATE TABLE IF NOT EXISTS public.settings (
+    key text PRIMARY KEY,
+    value text NOT NULL,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
 );
 
--- Desactivamos Row Level Security para que no bloquee las inserciones
-ALTER TABLE public.broadcast_queue DISABLE ROW LEVEL SECURITY;
+-- Habilitar RLS para settings y permitir acceso a todos (Next.js maneja la seguridad)
+ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "allow_all_settings" ON public.settings;
+CREATE POLICY "allow_all_settings" ON public.settings FOR ALL USING (true) WITH CHECK (true);
+
+-- 2. Asegurarnos de que la columna "stock" y "buy_url" existan en "products"
+ALTER TABLE public.products 
+  ADD COLUMN IF NOT EXISTS stock INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS buy_url text;
+
+-- 3. Refrescar la memoria caché de Supabase obligatoriamente
+-- Esto soluciona los errores donde el panel dice que la columna "no existe" en el caché
+NOTIFY pgrst, 'reload schema';
 
 -- ==============================================================================
--- ¡LISTO! Tu plataforma Nexativa ya está 100% parcheada y actualizada.
+-- ¡LISTO! Vuelve a intentar cargar tu producto y guardar tu tienda.
 -- ==============================================================================
