@@ -49,6 +49,7 @@ export interface Sponsor {
   youtube_url: string | null;
   whatsapp: string | null;
   email: string | null;
+  is_pro: boolean;
   created_at: string;
 }
 

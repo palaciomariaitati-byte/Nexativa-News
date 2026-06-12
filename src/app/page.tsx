@@ -104,6 +104,9 @@ export default async function HomePage() {
   ]);
 
   // Sticky video logic moved to <StickyVideo /> client component
+  const goldSponsors = sponsors.filter(s => s.is_pro);
+  const normalSponsors = sponsors.filter(s => !s.is_pro);
+
   return (
     <main className="w-full flex flex-col items-center pb-24 overflow-x-hidden relative">
       {/* 1️⃣ Banner principal */}
@@ -114,10 +117,12 @@ export default async function HomePage() {
       {/* 🚌 Barra Modo Bus (Atajos y Redes Sociales) */}
       <TopBusBar />
 
-      {/* 🌟 Cinta Animada de Patrocinadores (Pro) */}
-      <div className="w-full mt-6">
-        <SponsorsMarquee sponsors={sponsors} />
-      </div>
+      {/* 🌟 Cinta Animada de Patrocinadores (Pro/Nivel Oro) */}
+      {goldSponsors.length > 0 && (
+        <div className="w-full mt-6">
+          <SponsorsMarquee sponsors={goldSponsors} />
+        </div>
+      )}
 
       <div className="w-full max-w-7xl px-2 sm:px-4 lg:px-8 mt-8 sm:mt-12 space-y-10 sm:space-y-16 relative">
         {/* 2️⃣ Streaming (Prominent at top) */}
@@ -170,9 +175,9 @@ export default async function HomePage() {
       </div>
 
       {/* 5️⃣ Sponsors / Adhered Businesses (Tabs) */}
-      {sponsors.length > 0 && (
+      {normalSponsors.length > 0 && (
         <div className="w-full max-w-[1200px] px-2 sm:px-4 lg:px-8 mt-10 sm:mt-16">
-          <SponsorTabs sponsors={sponsors} />
+          <SponsorTabs sponsors={normalSponsors} />
         </div>
       )}
 
