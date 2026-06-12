@@ -101,11 +101,11 @@ export default function VideoSection() {
   const embedUrl = getYouTubeEmbedUrl(activeVideo.video_url);
 
   const floatingClasses = isFloating 
-    ? "fixed bottom-20 left-4 w-[220px] sm:bottom-6 sm:left-6 sm:w-[320px] z-[60] shadow-2xl ring-1 ring-white/20 opacity-95 hover:opacity-100 scale-100 translate-y-0" 
-    : "relative w-full max-w-3xl mx-auto z-10 shadow-xl opacity-100 scale-100 translate-y-0";
+    ? "fixed bottom-20 left-4 w-[200px] sm:bottom-6 sm:left-6 sm:w-[300px] z-[60] shadow-2xl ring-1 ring-white/20 opacity-95 hover:opacity-100 scale-100 translate-y-0" 
+    : "relative w-full max-w-2xl mx-auto z-10 shadow-xl opacity-100 scale-100 translate-y-0";
 
   return (
-    <div className="relative w-full max-w-3xl mx-auto">
+    <div className="relative w-full max-w-2xl mx-auto">
       <div ref={placeholderRef} className="w-full h-px absolute -top-20" />
       
       {/* Spacer para evitar el salto áspero (layout shift) en la pantalla cuando se hace flotante */}
@@ -153,7 +153,7 @@ export default function VideoSection() {
           </div>
         </div>
       ) : (
-        <div className={`flex flex-col items-center justify-center p-2 sm:p-3 bg-black/80 border border-white/10 rounded-xl shadow-2xl backdrop-blur-md transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)] ${isFloating ? 'fixed bottom-20 left-4 sm:bottom-6 sm:left-6 w-auto z-[60]' : 'w-full max-w-3xl mx-auto'}`}>
+        <div className={`flex flex-col items-center justify-center p-2 sm:p-3 bg-black/80 border border-white/10 rounded-xl shadow-2xl backdrop-blur-md transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)] ${isFloating ? 'fixed bottom-20 left-4 sm:bottom-6 sm:left-6 w-auto z-[60]' : 'w-full max-w-2xl mx-auto'}`}>
           <p className="text-gray-400 text-[10px] mb-1.5 hidden md:block">Transmisión minimizada</p>
           <button 
             onClick={() => setShowVideo(true)}
