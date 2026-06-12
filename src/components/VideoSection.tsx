@@ -1,35 +1,47 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import dynamic from "next/dynamic";
+import React, { useEffect, useState, useRef } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { VideoQueueItem } from "@/lib/types";
 
-// Dynamically import react-player to avoid SSR issues
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const ReactPlayer = dynamic(() => import("react-player"), { ssr: false }) as any;
+// Parseo Infalible de URLs de YouTube
+function getYouTubeEmbedUrl(url: string): string | null {
+  if (!url) return null;
+  let videoId: string | null = null;
+  try {
+    const parsedUrl = new URL(url);
+    if (parsedUrl.hostname.includes("youtube.com")) {
+      if (parsedUrl.pathname.startsWith("/shorts/")) {
+        videoId = parsedUrl.pathname.split("/")[2];
+      } else {
+        videoId = parsedUrl.searchParams.get("v");
+      }
+    } else if (parsedUrl.hostname.includes("youtu.be")) {
+      videoId = parsedUrl.pathname.substring(1);
+    }
+  } catch (e) {
+    // Ignorar errores de URL y tratar de extraer de otra manera si falla el constructor URL
+  }
+
+  if (videoId) {
+    // Parámetros exigidos para bypass autoplay y mute inicial
+    return `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&enablejsapi=1`;
+  }
+  return null;
+}
 
 export default function VideoSection() {
-  const [queue, setQueue] = useState<VideoQueueItem[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [activeVideo, setActiveVideo] = useState<VideoQueueItem | null>(null);
   const [showVideo, setShowVideo] = useState(true);
   const [loading, setLoading] = useState(true);
   const [isFloating, setIsFloating] = useState(false);
-
-  const [videoError, setVideoError] = useState(false);
-
-  const placeholderRef = React.useRef<HTMLDivElement>(null);
+  const placeholderRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleScroll = () => {
       if (!placeholderRef.current) return;
       const rect = placeholderRef.current.getBoundingClientRect();
-      // Flota si el placeholder pasó hacia arriba de la ventana
-      if (rect.bottom < 0) {
-        setIsFloating(true);
-      } else {
-        setIsFloating(false);
-      }
+      setIsFloating(rect.bottom < 0);
     };
 
     window.addEventListener("scroll", handleScroll);
@@ -37,50 +49,56 @@ export default function VideoSection() {
   }, []);
 
   useEffect(() => {
-    const fetchQueue = async () => {
-      const supabase = getSupabaseBrowserClient();
+    const supabase = getSupabaseBrowserClient();
+
+    const fetchActiveVideo = async () => {
       const { data, error } = await supabase
         .from("video_queue")
         .select("*")
-        .order("position", { ascending: true });
+        .eq("status", "playing")
+        .maybeSingle();
 
-      if (!error && data) {
-        setQueue(data);
+      if (!error) {
+        setActiveVideo(data || null);
       }
       setLoading(false);
     };
 
-    fetchQueue();
+    fetchActiveVideo();
 
-    const supabase = getSupabaseBrowserClient();
+    // Sincronización en Tiempo Real con reconexión nativa
     const channel = supabase
       .channel("video_queue_changes")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "video_queue" },
-        () => fetchQueue()
+        () => {
+          // Volvemos a obtener el estado para asegurar consistencia
+          fetchActiveVideo();
+        }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log("Realtime conectado");
+        } else if (status === 'CLOSED') {
+          console.log("Realtime desconectado");
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
     };
   }, []);
 
-  const currentVideo = queue[currentIndex];
+  if (loading) {
+    return <div className="p-4 bg-gray-900 text-white text-center rounded-xl border border-white/10 w-full max-w-4xl mx-auto mt-8">Cargando transmisión en vivo...</div>;
+  }
 
-  const handleVideoEnd = () => {
-    setVideoError(false);
-    if (currentIndex + 1 < queue.length) {
-      setCurrentIndex(currentIndex + 1);
-    } else {
-      setCurrentIndex(0);
-    }
-  };
+  if (!activeVideo) {
+    return <div className="p-4 bg-black/40 text-white/50 text-center rounded-xl border border-white/10 w-full max-w-4xl mx-auto mt-8">Próximamente estaremos en vivo.</div>;
+  }
 
-  if (loading) return <div className="p-4 bg-gray-900 text-white text-center rounded-xl border border-white/10 w-full max-w-4xl mx-auto mt-8">Cargando reproductor (loading: {String(loading)})...</div>;
-  if (queue.length === 0) return <div className="p-4 bg-red-900/50 text-white text-center rounded-xl border border-red-500 w-full max-w-4xl mx-auto mt-8">La cola de videos está vacía según la base de datos (queue.length: 0). Revisa las políticas RLS.</div>;
-  if (!currentVideo) return <div className="p-4 bg-orange-900/50 text-white text-center rounded-xl border border-orange-500 w-full max-w-4xl mx-auto mt-8">Video actual no encontrado (currentIndex: {currentIndex}).</div>;
+  const embedUrl = getYouTubeEmbedUrl(activeVideo.video_url);
 
   const floatingClasses = isFloating 
     ? "fixed bottom-20 left-4 w-[200px] sm:bottom-6 sm:left-6 sm:w-[350px] z-[60] shadow-2xl scale-100" 
@@ -88,7 +106,6 @@ export default function VideoSection() {
 
   return (
     <>
-      {/* Placeholder invisible para saber cuándo el video original sale de pantalla */}
       <div ref={placeholderRef} className="w-full h-px absolute -top-20" />
       
       {showVideo ? (
@@ -113,37 +130,20 @@ export default function VideoSection() {
             )}
             
             <div className="aspect-video w-full relative bg-black">
-                {videoError ? (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 text-white p-4 text-center">
-                    <p className="text-red-400 font-bold mb-2 text-xs sm:text-base">Video no disponible o bloqueado</p>
-                    <p className="text-[10px] sm:text-sm text-gray-400 mb-4 truncate w-full px-4">{currentVideo.video_url}</p>
-                    <button 
-                      onClick={() => { setVideoError(false); handleVideoEnd(); }}
-                      className="bg-white/10 hover:bg-white/20 px-3 py-1.5 sm:px-4 sm:py-2 rounded-md transition-colors text-xs sm:text-sm"
-                    >
-                      Saltar al siguiente
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    {/* @ts-expect-error react-player types are not strict enough */}
-                    <ReactPlayer
-                      url={currentVideo.video_url}
-                      playing={true}
-                      controls={true}
-                      muted={true}
-                      light={false}
-                      width="100%"
-                      height="100%"
-                      onEnded={handleVideoEnd}
-                      onError={(e: Error) => {
-                        console.error("Error playing video:", currentVideo.video_url, e);
-                        setVideoError(true);
-                      }}
-                      style={{ position: "absolute", top: 0, left: 0 }}
-                    />
-                  </>
-                )}
+              {embedUrl ? (
+                <iframe
+                  className="absolute top-0 left-0 w-full h-full"
+                  src={embedUrl}
+                  title="YouTube video player"
+                  frameBorder="0"
+                  allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                  allowFullScreen
+                ></iframe>
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center text-white/50 bg-gray-900">
+                  Formato de video no soportado
+                </div>
+              )}
             </div>
           </div>
         </div>

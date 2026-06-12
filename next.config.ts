@@ -23,6 +23,15 @@ const nextConfig = {
       }
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: '/setting/admin',
+        destination: '/admin/settings',
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default withPWA(nextConfig);
