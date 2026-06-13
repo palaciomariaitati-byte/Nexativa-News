@@ -16,7 +16,7 @@ export async function getPublishedArticles(category: string): Promise<Article[]>
       console.error("Error fetching articles:", error);
       return [];
     }
-    return data as Article[];
+    return (data || []) as Article[];
   } catch (error) {
     console.error("Error in getPublishedArticles:", error);
     return [];
@@ -36,7 +36,7 @@ export async function getProducts(): Promise<Product[]> {
       console.error("Error fetching products:", error);
       return [];
     }
-    return data as Product[];
+    return (data || []) as Product[];
   } catch (error) {
     console.error("Error in getProducts:", error);
     return [];
@@ -56,7 +56,7 @@ export async function getSponsors(): Promise<Sponsor[]> {
       console.error("Error fetching sponsors:", error);
       return [];
     }
-    return data as Sponsor[];
+    return (data || []) as Sponsor[];
   } catch (error) {
     console.error("Error in getSponsors:", error);
     return [];
