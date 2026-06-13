@@ -6,7 +6,7 @@ export async function getPublishedArticles(category: string): Promise<Article[]>
     const supabase = createServerSupabaseClient();
     const { data, error } = await supabase
       .from("articles")
-      .select("id, title, excerpt, image_url, category, created_at")
+      .select("id, title, excerpt, image_url, category, created_at, external_url")
       .eq("category", category)
       .eq("status", "published")
       .order("created_at", { ascending: false })
