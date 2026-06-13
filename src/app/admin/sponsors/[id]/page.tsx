@@ -14,7 +14,14 @@ export default async function EditSponsorPage({ params }: { params: { id: string
     .single();
 
   if (error || !sponsor) {
-    redirect("/admin/sponsors");
+    return (
+      <div className="p-8 text-center text-red-400 bg-red-900/20 rounded-xl border border-red-500/30">
+        <h2 className="text-xl font-bold mb-2">Error al cargar el cliente</h2>
+        <p>{error?.message || "Cliente no encontrado"}</p>
+        <p className="mt-4 text-sm text-gray-400">Por favor, reporta este error para que lo solucionemos.</p>
+        <a href="/admin/sponsors" className="mt-4 inline-block bg-white/10 px-4 py-2 rounded">Volver</a>
+      </div>
+    );
   }
 
   return (
