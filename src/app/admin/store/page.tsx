@@ -136,11 +136,11 @@ export default function AdminStorePage() {
     };
 
     if (editingProduct.id) {
-      const { error } = await supabase.from("products").update(payload).eq("id", editingProduct.id);
+      const { error } = await supabase.from("products").update(payload as any).eq("id", editingProduct.id);
       if (!error) setIsEditing(false);
       else alert("Error: " + error.message);
     } else {
-      const { error } = await supabase.from("products").insert([payload]);
+      const { error } = await supabase.from("products").insert([payload as any]);
       if (!error) setIsEditing(false);
       else alert("Error: " + error.message);
     }
