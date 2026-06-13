@@ -11,9 +11,6 @@ export default function NoraAgent() {
   const hasTriggered = useRef<boolean>(false);
 
   useEffect(() => {
-    // Si ya se abrió el chat en esta sesión, no volver a abrirlo automáticamente por hover
-    if (hasTriggered.current) return;
-
     const handleMouseOver = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       const productElement = target.closest('[data-nora-product]') as HTMLElement;
@@ -22,26 +19,30 @@ export default function NoraAgent() {
         const productName = productElement.getAttribute('data-nora-product');
         if (productName && productName !== currentHoveredProduct.current) {
           currentHoveredProduct.current = productName;
+          // Siempre actualizamos el contexto por si el usuario abre el chat manualmente
+          setContextProduct(productName);
           
           if (hoverTimer.current) clearTimeout(hoverTimer.current);
           
-          // 2.5 seconds hover threshold
+          // Reducimos a 1.5 segundos para que sea más reactivo
           hoverTimer.current = setTimeout(() => {
-            if (!hasTriggered.current) {
-              setContextProduct(productName);
-              setIsChatOpen(true);
-              hasTriggered.current = true; // Solo disparar una vez por sesión para no ser molestos
-            }
-          }, 2500);
+            // Solo abrir automáticamente si no está abierto ya
+            setIsChatOpen((prev) => {
+              if (!prev) return true;
+              return prev;
+            });
+          }, 1500);
         }
       }
     };
 
     const handleMouseOut = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
+      const relatedTarget = (e.relatedTarget as HTMLElement)?.closest?.('[data-nora-product]');
       const productElement = target.closest('[data-nora-product]');
       
-      if (!productElement) {
+      // Solo cancelar si salimos completamente de un producto (no hacia uno de sus hijos)
+      if (productElement && relatedTarget !== productElement) {
         currentHoveredProduct.current = null;
         if (hoverTimer.current) {
           clearTimeout(hoverTimer.current);
@@ -67,6 +68,15 @@ export default function NoraAgent() {
         onClose={() => setIsChatOpen(false)} 
         contextProductTitle={contextProduct}
       />
+      {!isChatOpen && (
+        <button
+          onClick={() => setIsChatOpen(true)}
+          className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-purple-600 to-pink-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-purple-500/30 hover:scale-105 transition-transform z-50 overflow-hidden border-2 border-white/20"
+        >
+          <img src="/nora-avatar.png" alt="Nora" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display='none'; }} />
+          <span className="sr-only">Abrir Chat con Nora</span>
+        </button>
+      )}
     </>
   );
 }
