@@ -28,7 +28,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
   return (
     <main className="w-full max-w-6xl mx-auto px-4 py-12 pb-32">
-      <div className="grid md:grid-cols-2 gap-12">
+      <div data-nora-product={product.title} className="grid md:grid-cols-2 gap-12">
         {/* Galería de Imágenes */}
         <div className="space-y-4">
           <div className="glass-panel overflow-hidden rounded-2xl aspect-square relative">

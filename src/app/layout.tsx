@@ -17,6 +17,7 @@ import MobileBottomNav from "@/components/Navbar/MobileBottomNav";
 import GlobalRealtimeListener from "@/components/GlobalRealtimeListener";
 import Providers from "@/components/Providers";
 import CartButton from "@/components/CartButton";
+import NoraAgent from "@/components/Nora/NoraAgent";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -65,6 +66,7 @@ export default function RootLayout({
           <FloatingShortcuts />
           <MobileBottomNav />
           <CartButton />
+          <NoraAgent />
         </Providers>
       </body>
     </html>

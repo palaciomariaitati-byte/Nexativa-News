@@ -46,7 +46,7 @@ function Banner() {
 
 function ProductCard({ product }: { product: Product }) {
   return (
-    <div className="glass-panel p-3 sm:p-4 flex flex-col h-full hover:-translate-y-1 hover:shadow-[0_0_20px_var(--color-brand-accent)] transition-all duration-300 group min-w-[200px] sm:min-w-0 flex-shrink-0 snap-center">
+    <div data-nora-product={product.title} className="glass-panel p-3 sm:p-4 flex flex-col h-full hover:-translate-y-1 hover:shadow-[0_0_20px_var(--color-brand-accent)] transition-all duration-300 group min-w-[200px] sm:min-w-0 flex-shrink-0 snap-center">
       {product.image_url && (
         <div className="overflow-hidden rounded-xl h-40 w-full mb-3 relative">
           <Image src={product.image_url} alt={product.title} width={200} height={200} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 pointer-events-none" draggable={false} />
