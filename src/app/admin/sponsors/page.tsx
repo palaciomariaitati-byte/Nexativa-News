@@ -6,30 +6,36 @@ export const dynamic = 'force-dynamic';
 
 export default async function AdminSponsorsPage() {
   const supabase = createServerSupabaseClient();
-  // Fetch sponsors with their click counts
-  const { data: sponsors, error } = await supabase
-    .from("sponsors")
-    .select(`
-      id,
-      name,
-      logo_url,
-      banner_url,
-      website_url,
-      instagram_url,
-      facebook_url,
-      tiktok_url,
-      youtube_url,
-      whatsapp,
-      email,
-      sponsor_clicks (
-        id,
-        click_type
-      )
-    `)
-    .order('created_at', { ascending: false });
+  let sponsors: any[] = [];
+  let errorMessage = "";
 
-  if (error) {
-    return <div className="text-red-500">Error loading sponsors: {error.message}</div>;
+  try {
+    const { data, error } = await supabase
+      .from("sponsors")
+      .select(`
+        id,
+        name,
+        logo_url,
+        banner_url,
+        website_url,
+        instagram_url,
+        facebook_url,
+        tiktok_url,
+        youtube_url,
+        whatsapp,
+        email,
+        sponsor_clicks (
+          id,
+          click_type
+        )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    sponsors = data || [];
+  } catch (err: any) {
+    console.error("Error loading sponsors:", err);
+    errorMessage = err.message || "Error al sincronizar con la base de datos.";
   }
 
   return (
@@ -40,6 +46,13 @@ export default async function AdminSponsorsPage() {
           + Nuevo Cliente
         </Link>
       </div>
+
+      {errorMessage && (
+        <div className="bg-red-500/10 border border-red-500/30 p-4 rounded text-red-400">
+          <p className="font-bold mb-1">Aviso del Sistema:</p>
+          <p className="text-sm">{errorMessage}</p>
+        </div>
+      )}
 
       <div className="grid gap-6 mt-8">
         {sponsors?.map((sponsor: any) => {

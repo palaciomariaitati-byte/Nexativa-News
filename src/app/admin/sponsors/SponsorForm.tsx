@@ -78,18 +78,7 @@ export default function SponsorForm({ initialData = null }: { initialData?: any 
           </div>
         </div>
         
-        <div className="flex items-center gap-3 bg-yellow-500/10 border border-yellow-500/20 p-4 rounded text-yellow-200">
-          <input
-            type="checkbox"
-            name="is_pro"
-            id="is_pro"
-            defaultChecked={initialData?.is_pro || false}
-            className="w-5 h-5 accent-[var(--color-brand-accent)]"
-          />
-          <label htmlFor="is_pro" className="font-bold cursor-pointer">
-            Auspiciante Nivel Oro (Destacar en el Carrusel Superior Animado)
-          </label>
-        </div>
+
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
