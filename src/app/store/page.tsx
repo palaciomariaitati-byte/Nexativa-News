@@ -2,6 +2,9 @@ import React from "react";
 import { getProducts } from "@/lib/supabase/serverQueries";
 import Image from "next/image";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function StorePage() {
   const products = await getProducts();
 
