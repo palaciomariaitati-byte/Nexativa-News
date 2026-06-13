@@ -50,6 +50,8 @@ export default function VideoSection() {
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
+    let channel: any = null;
+    let reconnectTimeout: NodeJS.Timeout;
 
     const fetchActiveVideo = async () => {
       const { data, error } = await supabase
@@ -66,27 +68,56 @@ export default function VideoSection() {
 
     fetchActiveVideo();
 
-    // Sincronización en Tiempo Real con reconexión nativa
-    const channel = supabase
-      .channel("video_queue_changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "video_queue" },
-        () => {
-          // Volvemos a obtener el estado para asegurar consistencia
-          fetchActiveVideo();
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log("Realtime conectado");
-        } else if (status === 'CLOSED') {
-          console.log("Realtime desconectado");
-        }
-      });
+    const connectRealtime = () => {
+      // 1. Manejo del Ciclo de Vida del Canal (Unsubscribe Limpio)
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+
+      // Sincronización en Tiempo Real
+      channel = supabase
+        .channel("video_queue_changes")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "video_queue" },
+          () => {
+            // Volvemos a obtener el estado para asegurar consistencia
+            fetchActiveVideo();
+          }
+        )
+        .subscribe((status, err) => {
+          if (status === 'SUBSCRIBED') {
+            console.log("Realtime video conectado");
+          } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || err) {
+            console.log("Realtime video desconectado. Reconectando en 3s...");
+            // 3. Monitoreo de Estado del Canal (Auto-reconnect)
+            clearTimeout(reconnectTimeout);
+            reconnectTimeout = setTimeout(() => {
+              connectRealtime();
+            }, 3000);
+          }
+        });
+    };
+
+    connectRealtime();
+
+    // 2. Reconexión por Enfoque de Pantalla (Visibility Change API)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        console.log("Pestaña visible: reconectando Video Realtime...");
+        fetchActiveVideo(); // Asegurar estado limpio
+        connectRealtime();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      supabase.removeChannel(channel);
+      clearTimeout(reconnectTimeout);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, []);
 
