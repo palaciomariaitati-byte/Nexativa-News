@@ -13,7 +13,7 @@ export default function NoraAssistant({ title, content }: NoraAssistantProps) {
   const [loading, setLoading] = useState(false);
   const [responseHtml, setResponseHtml] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [activeMode, setActiveMode] = useState<"editora" | "cm" | null>(null);
+  const [activeMode, setActiveMode] = useState<"editora" | "cm" | "soporte" | null>(null);
 
   const handleAskEditor = async () => {
     if (!title && !content) return;
