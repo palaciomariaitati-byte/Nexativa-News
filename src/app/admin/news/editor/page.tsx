@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import NoraAssistant from "@/components/NoraAssistant";
 
 export default function NewsEditorPage() {
   const router = useRouter();
@@ -69,8 +70,8 @@ export default function NewsEditorPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      <div className="flex justify-between items-center">
+    <div className="max-w-7xl mx-auto">
+      <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-serif text-[var(--color-brand-accent)] tracking-widest uppercase">
           {articleId ? "Editar Noticia" : "Nueva Noticia"}
         </h1>
@@ -79,103 +80,112 @@ export default function NewsEditorPage() {
         </button>
       </div>
 
-      <form onSubmit={handleSave} className="bg-black/20 rounded-xl border border-white/10 p-6 space-y-6">
-        
-        {/* Título */}
-        <div>
-          <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase tracking-wide">Título</label>
-          <input
-            type="text"
-            name="title"
-            required
-            value={formData.title}
-            onChange={handleChange}
-            className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)] transition-colors"
-            placeholder="Escribe un título llamativo..."
-          />
-        </div>
-
-        {/* Resumen / Excerpt */}
-        <div>
-          <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase tracking-wide">Resumen (Subtítulo)</label>
-          <textarea
-            name="excerpt"
-            rows={2}
-            value={formData.excerpt}
-            onChange={handleChange}
-            className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)] transition-colors"
-            placeholder="Breve descripción de la noticia..."
-          />
-        </div>
-
-        {/* Categoría y Estado */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <form onSubmit={handleSave} className="lg:col-span-2 bg-black/20 rounded-xl border border-white/10 p-6 space-y-6">
+          
+          {/* Título */}
           <div>
-            <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase tracking-wide">Categoría</label>
-            <select
-              name="category"
-              value={formData.category}
+            <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase tracking-wide">Título</label>
+            <input
+              type="text"
+              name="title"
+              required
+              value={formData.title}
               onChange={handleChange}
               className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)] transition-colors"
-            >
-              <option value="nacional">Nacional</option>
-              <option value="internacional">Internacional</option>
-              <option value="local">Local</option>
-            </select>
+              placeholder="Escribe un título llamativo..."
+            />
           </div>
+
+          {/* Resumen / Excerpt */}
           <div>
-            <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase tracking-wide">Estado</label>
-            <select
-              name="status"
-              value={formData.status}
+            <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase tracking-wide">Resumen (Subtítulo)</label>
+            <textarea
+              name="excerpt"
+              rows={2}
+              value={formData.excerpt}
               onChange={handleChange}
               className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)] transition-colors"
+              placeholder="Breve descripción de la noticia..."
+            />
+          </div>
+
+          {/* Categoría y Estado */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase tracking-wide">Categoría</label>
+              <select
+                name="category"
+                value={formData.category}
+                onChange={handleChange}
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)] transition-colors"
+              >
+                <option value="nacional">Nacional</option>
+                <option value="internacional">Internacional</option>
+                <option value="local">Local</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase tracking-wide">Estado</label>
+              <select
+                name="status"
+                value={formData.status}
+                onChange={handleChange}
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)] transition-colors"
+              >
+                <option value="draft">Borrador (Oculto)</option>
+                <option value="published">Publicado (Visible)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Imagen URL */}
+          <div>
+            <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase tracking-wide">URL de la Imagen Principal</label>
+            <input
+              type="url"
+              name="image_url"
+              value={formData.image_url}
+              onChange={handleChange}
+              className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)] transition-colors"
+              placeholder="https://ejemplo.com/imagen.jpg"
+            />
+          </div>
+
+          {/* Contenido Principal */}
+          <div>
+            <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase tracking-wide">Contenido Completo</label>
+            <textarea
+              name="content"
+              rows={15}
+              required
+              value={formData.content}
+              onChange={handleChange}
+              className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)] transition-colors"
+              placeholder="Escribe el cuerpo de la noticia aquí..."
+            />
+          </div>
+
+          {/* Botón Guardar */}
+          <div className="pt-4 border-t border-white/10">
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-[var(--color-brand-accent)] hover:bg-[var(--color-brand-accent-hover)] text-black font-bold uppercase tracking-widest py-4 rounded-lg transition-colors disabled:opacity-50"
             >
-              <option value="draft">Borrador (Oculto)</option>
-              <option value="published">Publicado (Visible)</option>
-            </select>
+              {loading ? "Guardando..." : (articleId ? "Guardar Cambios" : "Publicar Noticia")}
+            </button>
+          </div>
+
+        </form>
+
+        {/* Panel Lateral: Nora AI */}
+        <div className="lg:col-span-1">
+          <div className="sticky top-24">
+            <NoraAssistant title={formData.title} content={formData.content} />
           </div>
         </div>
-
-        {/* Imagen URL */}
-        <div>
-          <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase tracking-wide">URL de la Imagen Principal</label>
-          <input
-            type="url"
-            name="image_url"
-            value={formData.image_url}
-            onChange={handleChange}
-            className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)] transition-colors"
-            placeholder="https://ejemplo.com/imagen.jpg"
-          />
-        </div>
-
-        {/* Contenido Principal */}
-        <div>
-          <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase tracking-wide">Contenido Completo</label>
-          <textarea
-            name="content"
-            rows={10}
-            required
-            value={formData.content}
-            onChange={handleChange}
-            className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)] transition-colors"
-            placeholder="Escribe el cuerpo de la noticia aquí..."
-          />
-        </div>
-
-        {/* Botón Guardar */}
-        <div className="pt-4 border-t border-white/10">
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-[var(--color-brand-accent)] hover:bg-[var(--color-brand-accent-hover)] text-black font-bold uppercase tracking-widest py-4 rounded-lg transition-colors disabled:opacity-50"
-          >
-            {loading ? "Guardando..." : (articleId ? "Guardar Cambios" : "Publicar Noticia")}
-          </button>
-        </div>
-
-      </form>
+      </div>
     </div>
   );
 }
