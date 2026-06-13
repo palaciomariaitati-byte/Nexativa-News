@@ -5,12 +5,14 @@ import { redirect } from "next/navigation";
 
 export const dynamic = 'force-dynamic';
 
-export default async function EditSponsorPage({ params }: { params: { id: string } }) {
+export default async function EditSponsorPage({ params }: { params: Promise<{ id: string }> }) {
   const supabase = createServerSupabaseClient();
+  const { id } = await params;
+  
   const { data: sponsor, error } = await supabase
     .from("sponsors")
     .select("*")
-    .eq("id", params.id)
+    .eq("id", id)
     .single();
 
   if (error || !sponsor) {
