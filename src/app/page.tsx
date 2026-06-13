@@ -56,11 +56,9 @@ function ProductCard({ product }: { product: Product }) {
       {product.description && <p className="text-sm text-gray-400 mt-1 line-clamp-2">{product.description}</p>}
       <div className="mt-auto pt-4 flex items-center justify-between">
         <p className="text-[var(--color-brand-accent)] font-bold text-xl">${Number(product.price).toFixed(2)}</p>
-        {product.buy_url && (
-          <a href={product.buy_url} target="_blank" rel="noopener noreferrer" className="bg-[var(--color-brand-accent)] text-black font-bold px-4 py-2 rounded-lg hover:bg-white transition-colors relative z-10">
-            Comprar
-          </a>
-        )}
+        <Link href={`/product/${product.id}`} className="bg-[var(--color-brand-accent)] text-black font-bold px-4 py-2 rounded-lg hover:bg-white transition-colors relative z-10">
+          Ver Detalles
+        </Link>
       </div>
     </div>
   );

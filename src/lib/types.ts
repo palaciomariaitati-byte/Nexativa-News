@@ -24,6 +24,18 @@ export const NEWS_TAB_LABELS: Record<string, NewsCategory> = {
   Local: 'local',
 } as const;
 
+export interface Store {
+  id: string;
+  name: string;
+  description: string | null;
+  address: string | null;
+  whatsapp: string | null;
+  instagram: string | null;
+  facebook: string | null;
+  logo_url: string | null;
+  created_at: string;
+}
+
 export interface Product {
   id: string;
   title: string;
@@ -31,9 +43,15 @@ export interface Product {
   price: number;
   stock: number;
   image_url: string | null;
+  image_url_2: string | null;
+  image_url_3: string | null;
+  sizes: string | null;
+  colors: string | null;
   buy_url: string | null;
+  store_id: string;
   created_at: string;
   updated_at: string;
+  store?: Store; // For joined queries
 }
 
 export interface Sponsor {

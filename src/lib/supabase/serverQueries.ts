@@ -28,9 +28,8 @@ export async function getProducts(): Promise<Product[]> {
     const supabase = createServerSupabaseClient();
     const { data, error } = await supabase
       .from("products")
-      .select("id, title, description, price, image_url, buy_url")
-      .order("created_at", { ascending: false })
-      .limit(6); // Limit changed to 6 or can be removed
+      .select("*, store:stores(*)")
+      .order("created_at", { ascending: false });
 
     if (error) {
       console.error("Error fetching products:", error);
