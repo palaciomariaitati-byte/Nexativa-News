@@ -57,37 +57,84 @@ export default function NoraAssistant({ title, content }: NoraAssistantProps) {
         </div>
         <div>
           <h3 className="font-bold text-lg text-white">Nora IA <span className="text-xs bg-purple-500 text-white px-2 py-0.5 rounded-full ml-2">Nexativa Brain</span></h3>
-          <p className="text-xs text-purple-200">Asistente Editorial y CM</p>
+          <p className="text-xs text-purple-200">Editora, CM y Asesora Técnica</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-        <button
-          onClick={handleAskEditor}
-          disabled={loading || (!title && !content)}
-          className="flex items-center justify-center gap-2 bg-black/40 hover:bg-purple-600/30 border border-purple-500/30 text-white py-2 px-4 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group"
-        >
-          {loading && activeMode === "editora" ? (
-            <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
-          ) : (
-            <PenTool className="w-4 h-4 text-purple-400 group-hover:text-white transition-colors" />
-          )}
-          <span className="font-medium text-sm">Mejorar Redacción y SEO</span>
-        </button>
+      {activeMode === "soporte" ? (
+        <div className="mb-4">
+          <textarea
+            placeholder="¿En qué puedo ayudarte, Jefe? Escribe tu consulta técnica aquí..."
+            className="w-full bg-black/40 border border-purple-500/30 rounded-lg p-3 text-white focus:outline-none focus:border-purple-500 mb-2"
+            rows={3}
+            id="soporte-query"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={async () => {
+                const query = (document.getElementById("soporte-query") as HTMLTextAreaElement)?.value;
+                if (!query) return;
+                setLoading(true);
+                setResponseHtml(null);
+                const { askNoraSupport } = await import("@/app/admin/actions/nora");
+                const res = await askNoraSupport(query);
+                if (res.success) setResponseHtml(res.text || "");
+                else setResponseHtml(`<p class="text-red-400">${res.error}</p>`);
+                setLoading(false);
+              }}
+              disabled={loading}
+              className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors flex items-center gap-2"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Preguntar"}
+            </button>
+            <button
+              onClick={() => setActiveMode(null)}
+              className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+          <button
+            onClick={handleAskEditor}
+            disabled={loading || (!title && !content)}
+            className="flex items-center justify-center gap-2 bg-black/40 hover:bg-purple-600/30 border border-purple-500/30 text-white py-2 px-2 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group"
+            title="Mejorar Redacción y SEO"
+          >
+            {loading && activeMode === "editora" ? (
+              <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
+            ) : (
+              <PenTool className="w-4 h-4 text-purple-400 group-hover:text-white transition-colors" />
+            )}
+            <span className="font-medium text-xs">Editora</span>
+          </button>
 
-        <button
-          onClick={handleAskCM}
-          disabled={loading || (!title && !content)}
-          className="flex items-center justify-center gap-2 bg-black/40 hover:bg-pink-600/30 border border-pink-500/30 text-white py-2 px-4 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group"
-        >
-          {loading && activeMode === "cm" ? (
-            <Loader2 className="w-4 h-4 animate-spin text-pink-400" />
-          ) : (
-            <Share2 className="w-4 h-4 text-pink-400 group-hover:text-white transition-colors" />
-          )}
-          <span className="font-medium text-sm">Generar Copys Virales</span>
-        </button>
-      </div>
+          <button
+            onClick={handleAskCM}
+            disabled={loading || (!title && !content)}
+            className="flex items-center justify-center gap-2 bg-black/40 hover:bg-pink-600/30 border border-pink-500/30 text-white py-2 px-2 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group"
+            title="Generar Copys Virales"
+          >
+            {loading && activeMode === "cm" ? (
+              <Loader2 className="w-4 h-4 animate-spin text-pink-400" />
+            ) : (
+              <Share2 className="w-4 h-4 text-pink-400 group-hover:text-white transition-colors" />
+            )}
+            <span className="font-medium text-xs">CM Redes</span>
+          </button>
+
+          <button
+            onClick={() => setActiveMode("soporte")}
+            className="flex items-center justify-center gap-2 bg-black/40 hover:bg-blue-600/30 border border-blue-500/30 text-white py-2 px-2 rounded-lg transition-all duration-300 group"
+            title="Soporte Técnico"
+          >
+            <Sparkles className="w-4 h-4 text-blue-400 group-hover:text-white transition-colors" />
+            <span className="font-medium text-xs">Soporte</span>
+          </button>
+        </div>
+      )}
 
       {responseHtml && (
         <div className="mt-4 bg-black/60 border border-white/10 rounded-lg p-4 relative group">

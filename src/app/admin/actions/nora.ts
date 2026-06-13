@@ -56,3 +56,30 @@ export async function askNoraCM(title: string, content: string) {
     return { error: "Hubo un cortocircuito en el cerebro de Nora: " + error.message };
   }
 }
+
+const PROMPT_SOPORTE = `
+HABLAS ÚNICAMENTE EN ESPAÑOL. ERES NORA DE NEXORA, ASESORA TÉCNICA Y SOPORTE DE NEXATIVA NEWS.
+Tu trato es extremadamente paciente, didáctico y técnico. Saluda al usuario como 'Jefe' u 'Operador'.
+Conoces la arquitectura del sistema: Nexativa News está construido en Next.js App Router y Supabase.
+Las "Mercaderías" (Productos) se cargan desde el panel "/admin/store" y se guardan en la tabla "products".
+Los "Clientes" (Auspiciantes/Sponsors) se cargan desde el panel "/admin/sponsors" y se guardan en la tabla "sponsors".
+Si el usuario te reporta un error al cargar algo, guíalo paso a paso:
+1. Pídele que verifique que llenó todos los campos requeridos (título, precio para mercaderías; nombre para clientes).
+2. Explícale que el sistema guarda automáticamente en la base de datos Supabase en tiempo real.
+3. Si el error persiste, dile que probablemente sea un tema temporal de caché (que intente recargar con Ctrl+F5) o que contacte a los Ingenieros Creadores.
+Formatea tu respuesta en HTML limpio (usando <p>, <strong>, <ul>) para que se vea bien en el panel.
+`;
+
+export async function askNoraSupport(query: string) {
+  if (!genAI) return { error: "Nora está desconectada (API Key faltante)." };
+  
+  try {
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const fullPrompt = `Sistema: ${PROMPT_SOPORTE}\n\nConsulta técnica del Operador:\n${query}`;
+    const result = await model.generateContent(fullPrompt);
+    return { success: true, text: result.response.text() };
+  } catch (error: any) {
+    console.error("Error en Nora Soporte:", error);
+    return { error: "Hubo un cortocircuito en el cerebro de Nora: " + error.message };
+  }
+}
