@@ -1,24 +1,37 @@
 import { createClient } from "@supabase/supabase-js";
+import * as fs from 'fs';
+import { resolve } from 'path';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://xeheuscrttrbfnojwwqt.supabase.co";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhlaGV1c2NydHRyYmZub2p3d3F0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3MTY1NzIsImV4cCI6MjA5NjI5MjU3Mn0.WgHr9a4nJznufgYtkMhy_9aA9_V5qSEYlkn-gElbvIs";
+const envFile = fs.readFileSync(resolve(process.cwd(), '.env.local'), 'utf-8');
+const env: Record<string, string> = {};
+envFile.split('\n').forEach(line => {
+  const [key, ...values] = line.split('=');
+  if (key && values.length > 0) env[key.trim()] = values.join('=').trim();
+});
 
-const supabaseAnon = createClient(supabaseUrl, supabaseAnonKey);
+const supabaseUrl = env['NEXT_PUBLIC_SUPABASE_URL'];
+const supabaseAnonKey = env['NEXT_PUBLIC_SUPABASE_ANON_KEY'];
 
-async function checkStorage() {
-  console.log("Checking Storage Buckets...");
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+async function testUpload() {
+  console.log("Testing upload with ANON key...");
   
-  // Create a dummy blob
-  const dummyFile = new Blob(["test"], { type: "text/plain" });
+  // Create a dummy file
+  const buffer = Buffer.from("Hello World", "utf-8");
+  const blob = new Blob([buffer], { type: "text/plain" });
 
-  const { data, error } = await supabaseAnon.storage.from("uploads").upload("store/test_rls.txt", dummyFile, { upsert: true });
+  const fileName = `test_upload_${Date.now()}.txt`;
+  
+  const { data, error } = await supabase.storage.from("uploads").upload(fileName, blob, { upsert: false });
   
   if (error) {
-    console.error("Storage upload error (anon key):", error);
+    console.error("❌ Upload failed:", error.message);
   } else {
-    console.log("Storage upload successful with anon key!", data);
-    await supabaseAnon.storage.from("uploads").remove(["store/test_rls.txt"]);
+    console.log("✅ Upload successful:", data);
+    // Cleanup
+    await supabase.storage.from("uploads").remove([fileName]);
   }
 }
 
-checkStorage();
+testUpload();

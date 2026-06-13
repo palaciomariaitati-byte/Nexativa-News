@@ -17,6 +17,7 @@ export default function NewsEditorPage() {
     excerpt: "",
     content: "",
     image_url: "",
+    external_url: "",
     category: "nacional",
     status: "draft",
   });
@@ -31,6 +32,7 @@ export default function NewsEditorPage() {
             excerpt: data.excerpt || "",
             content: data.content || "",
             image_url: data.image_url || "",
+            external_url: data.external_url || "",
             category: data.category || "nacional",
             status: data.status || "draft",
           });
@@ -149,6 +151,19 @@ export default function NewsEditorPage() {
               onChange={handleChange}
               className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)] transition-colors"
               placeholder="https://ejemplo.com/imagen.jpg"
+            />
+          </div>
+
+          {/* Enlace Externo (Opcional) */}
+          <div>
+            <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase tracking-wide">Enlace Externo (Nota Original)</label>
+            <input
+              type="url"
+              name="external_url"
+              value={formData.external_url}
+              onChange={handleChange}
+              className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)] transition-colors"
+              placeholder="https://canal.com/noticia-completa"
             />
           </div>
 

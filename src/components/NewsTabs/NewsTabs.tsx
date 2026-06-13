@@ -38,7 +38,7 @@ export default function NewsTabs({
     const supabase = getSupabaseBrowserClient();
     const { data, error: dbError } = await supabase
       .from("articles")
-      .select("id, title, excerpt, image_url, category, created_at")
+      .select("id, title, excerpt, image_url, category, created_at, external_url")
       .eq("category", category)
       .eq("status", "published")
       .order("created_at", { ascending: false })
@@ -179,30 +179,44 @@ export default function NewsTabs({
         {/* Article list */}
         {!loading && !error && articles.length > 0 && (
           <ul className="space-y-2">
-            {articles.map((article) => (
-              <li
-                key={article.id}
-                className="group px-3 py-3 rounded-xl hover:bg-white/5 transition-all duration-300 border border-transparent hover:border-white/10"
-              >
-                <h4 className="font-bold text-sm text-gray-200 group-hover:text-[var(--color-brand-accent)] transition-colors leading-snug">
-                  {article.title}
-                </h4>
-                {article.excerpt && (
-                  <p className="text-xs text-gray-400 mt-2 line-clamp-2 leading-relaxed">
-                    {article.excerpt}
-                  </p>
-                )}
-                {article.created_at && (
-                  <time className="text-[11px] text-gray-500 mt-2 block">
-                    {new Date(article.created_at).toLocaleDateString("es-AR", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    })}
-                  </time>
-                )}
-              </li>
-            ))}
+            {articles.map((article) => {
+              const content = (
+                <>
+                  <h4 className="font-bold text-sm text-gray-200 group-hover:text-[var(--color-brand-accent)] transition-colors leading-snug">
+                    {article.title}
+                  </h4>
+                  {article.excerpt && (
+                    <p className="text-xs text-gray-400 mt-2 line-clamp-2 leading-relaxed">
+                      {article.excerpt}
+                    </p>
+                  )}
+                  {article.created_at && (
+                    <time className="text-[11px] text-gray-500 mt-2 block">
+                      {new Date(article.created_at).toLocaleDateString("es-AR", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </time>
+                  )}
+                </>
+              );
+
+              return (
+                <li
+                  key={article.id}
+                  className="group px-3 py-3 rounded-xl hover:bg-white/5 transition-all duration-300 border border-transparent hover:border-white/10"
+                >
+                  {(article as any).external_url ? (
+                    <a href={(article as any).external_url} target="_blank" rel="noopener noreferrer" className="block w-full h-full">
+                      {content}
+                    </a>
+                  ) : (
+                    <div>{content}</div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
