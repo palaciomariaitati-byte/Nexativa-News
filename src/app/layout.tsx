@@ -14,8 +14,9 @@ import Footer from "@/components/Footer/Footer";
 import ExternalNewsCarousel from "@/components/ExternalNewsCarousel";
 import FloatingShortcuts from "@/components/FloatingShortcuts";
 import MobileBottomNav from "@/components/Navbar/MobileBottomNav";
-
 import GlobalRealtimeListener from "@/components/GlobalRealtimeListener";
+import Providers from "@/components/Providers";
+import CartButton from "@/components/CartButton";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -55,13 +56,16 @@ export default function RootLayout({
       className={`${outfit.variable} ${inter.variable} h-full antialiased dark`}
     >
       <body className="min-h-full flex flex-col font-sans text-gray-200 text-lg">
-        <GlobalRealtimeListener />
-        <Navbar />
-        <ExternalNewsCarousel />
-        <main className="flex-grow pb-16 sm:pb-0">{children}</main>
-        <Footer />
-        <FloatingShortcuts />
-        <MobileBottomNav />
+        <Providers>
+          <GlobalRealtimeListener />
+          <Navbar />
+          <ExternalNewsCarousel />
+          <main className="flex-grow pb-16 sm:pb-0">{children}</main>
+          <Footer />
+          <FloatingShortcuts />
+          <MobileBottomNav />
+          <CartButton />
+        </Providers>
       </body>
     </html>
   );

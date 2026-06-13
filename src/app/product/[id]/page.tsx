@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import AddToCartButton from "@/components/AddToCartButton";
 
 export const dynamic = 'force-dynamic';
 
@@ -57,41 +58,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             {product.description}
           </div>
 
-          <div className="space-y-4 border-t border-white/10 pt-6">
-            {sizes.length > 0 && (
-              <div>
-                <h3 className="font-bold text-white mb-2 uppercase text-sm tracking-wider">Talles Disponibles</h3>
-                <div className="flex flex-wrap gap-2">
-                  {sizes.map((s: string) => (
-                    <span key={s} className="px-4 py-2 rounded border border-white/20 text-gray-300 hover:border-[var(--color-brand-accent)] transition-colors cursor-pointer">{s}</span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {colors.length > 0 && (
-              <div>
-                <h3 className="font-bold text-white mb-2 uppercase text-sm tracking-wider">Colores</h3>
-                <div className="flex flex-wrap gap-2">
-                  {colors.map((c: string) => (
-                    <span key={c} className="px-4 py-2 rounded border border-white/20 text-gray-300 hover:border-[var(--color-brand-accent)] transition-colors cursor-pointer">{c}</span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Acciones de Compra (Mock antes del Carrito global) */}
-          <div className="pt-6">
-            <button className="w-full bg-[var(--color-brand-accent)] text-black font-black text-xl py-4 rounded-xl hover:bg-white transition-colors uppercase tracking-widest">
-              Añadir al Carrito
-            </button>
-            {product.buy_url && (
-              <a href={product.buy_url} target="_blank" rel="noopener noreferrer" className="block text-center mt-4 text-[var(--color-brand-accent)] underline">
-                Link de pago directo
-              </a>
-            )}
-          </div>
+          <AddToCartButton product={product} store={store} sizes={sizes} colors={colors} />
 
           {/* Información de la Tienda */}
           {store && (
