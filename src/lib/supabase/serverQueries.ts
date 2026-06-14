@@ -42,6 +42,25 @@ export async function getProducts(): Promise<Product[]> {
   }
 }
 
+export async function getStores(): Promise<any[]> {
+  try {
+    const supabase = createServerSupabaseClient();
+    const { data, error } = await supabase
+      .from("stores")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching stores:", error);
+      return [];
+    }
+    return data || [];
+  } catch (error) {
+    console.error("Error in getStores:", error);
+    return [];
+  }
+}
+
 export async function getSponsors(): Promise<Sponsor[]> {
   try {
     const supabase = createServerSupabaseClient();

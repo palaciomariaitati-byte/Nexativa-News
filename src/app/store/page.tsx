@@ -1,13 +1,15 @@
 import React from "react";
-import { getProducts } from "@/lib/supabase/serverQueries";
+import { getProducts, getStores } from "@/lib/supabase/serverQueries";
 import Image from "next/image";
 import Link from "next/link";
+import { Store as StoreIcon } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function StorePage() {
   const products = await getProducts();
+  const stores = await getStores();
 
   return (
     <main className="p-4 lg:p-8 max-w-7xl mx-auto min-h-screen">
@@ -15,6 +17,32 @@ export default async function StorePage() {
         Nexativa Shop
       </h1>
       
+      {/* Sección de Tiendas */}
+      {stores.length > 0 && (
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold text-[var(--color-brand-accent)] mb-6 flex items-center gap-2">
+            <StoreIcon className="w-6 h-6" /> Nuestras Tiendas Oficiales
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {stores.map((store) => (
+              <Link key={store.id} href={`/store/${store.id}`} className="glass-panel p-4 flex flex-col items-center justify-center hover:-translate-y-1 hover:shadow-[0_0_20px_var(--color-brand-accent)] transition-all group border border-white/10">
+                <div className="w-20 h-20 rounded-full border-2 border-white/20 overflow-hidden bg-black/50 mb-3 group-hover:border-[var(--color-brand-accent)] transition-colors">
+                  {store.logo_url ? (
+                    <img src={store.logo_url} alt={store.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <StoreIcon className="w-8 h-8 m-auto mt-6 text-white/50" />
+                  )}
+                </div>
+                <h3 className="font-bold text-white text-center group-hover:text-[var(--color-brand-accent)] transition-colors">{store.name}</h3>
+                <span className="text-xs text-gray-400 mt-1">Visitar Tienda &rarr;</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Sección de Productos */}
+      <h2 className="text-2xl font-bold text-white mb-6 border-b border-white/10 pb-2">Todos los Productos</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {products.length > 0 ? (
           products.map((product) => (
@@ -44,7 +72,7 @@ export default async function StorePage() {
             </div>
           ))
         ) : (
-          <p className="text-sm text-gray-500 col-span-full">No hay productos disponibles en este momento.</p>
+          <p className="text-sm text-gray-500 col-span-full">No hay productos cargados actualmente.</p>
         )}
       </div>
     </main>
