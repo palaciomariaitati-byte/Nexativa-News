@@ -22,7 +22,7 @@ export default function AdminStaffPage() {
   }
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     fetchStaff();
   }, []);
 

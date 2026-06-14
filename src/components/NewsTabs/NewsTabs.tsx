@@ -84,7 +84,7 @@ export default function NewsTabs({
   useEffect(() => {
     cacheRef.current[initialTab] = initialArticles;
     if (activeTab === initialTab) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       setArticles(initialArticles);
     }
   }, [initialArticles, initialTab, activeTab]);

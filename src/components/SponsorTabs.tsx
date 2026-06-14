@@ -105,14 +105,14 @@ function SponsorCardItem({ sponsor, getTrackingUrl }: { sponsor: Sponsor, getTra
   const cardContent = (
     <>
       {sponsor.banner_url ? (
-        // eslint-disable-next-line @next/next/no-img-element
+         
         <img 
           src={sponsor.banner_url} 
           alt={sponsor.name} 
           className="w-full h-32 object-cover rounded-md mb-2 shadow-md"
         />
       ) : sponsor.logo_url ? (
-        // eslint-disable-next-line @next/next/no-img-element
+         
         <img 
           src={sponsor.logo_url} 
           alt={sponsor.name} 

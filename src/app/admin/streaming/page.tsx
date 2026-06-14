@@ -19,7 +19,7 @@ export default function AdminStreamingPage() {
   }, [supabase]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     fetchVideos();
   }, [fetchVideos]);
 

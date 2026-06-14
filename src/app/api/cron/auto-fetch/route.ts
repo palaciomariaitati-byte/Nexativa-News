@@ -64,7 +64,7 @@ export async function GET(request: Request) {
       const title = item.title;
       
       // Limpiar el contenido HTML para el resumen
-      let rawContent = item.description || item.content || "";
+      const rawContent = item.description || item.content || "";
       let cleanExcerpt = rawContent.replace(/<[^>]+>/g, '').trim().substring(0, 150) + "...";
       if (!cleanExcerpt || cleanExcerpt === "...") cleanExcerpt = "Noticia destacada extraída automáticamente.";
 

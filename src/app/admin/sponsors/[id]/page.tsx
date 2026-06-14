@@ -2,6 +2,7 @@ import React from "react";
 import SponsorForm from "../SponsorForm";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +22,7 @@ export default async function EditSponsorPage({ params }: { params: Promise<{ id
         <h2 className="text-xl font-bold mb-2">Error al cargar el cliente</h2>
         <p>{error?.message || "Cliente no encontrado"}</p>
         <p className="mt-4 text-sm text-gray-400">Por favor, reporta este error para que lo solucionemos.</p>
-        <a href="/admin/sponsors" className="mt-4 inline-block bg-white/10 px-4 py-2 rounded">Volver</a>
+        <Link href="/admin/sponsors" className="mt-4 inline-block bg-white/10 px-4 py-2 rounded">Volver</Link>
       </div>
     );
   }

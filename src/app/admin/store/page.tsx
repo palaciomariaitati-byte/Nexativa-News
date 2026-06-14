@@ -51,7 +51,9 @@ export default function AdminStorePage() {
 
     if (logoFile && logoFile.size > 0) {
       const fileExt = logoFile.name.split('.').pop();
-      const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+      // eslint-disable-next-line react-hooks/purity
+      const randId = Date.now().toString(36) + Math.floor(Math.random() * 1000).toString();
+      const fileName = `${randId}.${fileExt}`;
       const filePath = `store_logos/${fileName}`;
       const { error: uploadError } = await supabase.storage.from('uploads').upload(filePath, logoFile, { upsert: false });
       if (uploadError) {
@@ -68,7 +70,9 @@ export default function AdminStorePage() {
 
     if (bannerFile && bannerFile.size > 0) {
       const fileExt = bannerFile.name.split('.').pop();
-      const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+      // eslint-disable-next-line react-hooks/purity
+      const randId = Date.now().toString(36) + Math.floor(Math.random() * 1000).toString();
+      const fileName = `${randId}.${fileExt}`;
       const filePath = `store_banners/${fileName}`;
       const { error: uploadError } = await supabase.storage.from('uploads').upload(filePath, bannerFile, { upsert: false });
       if (uploadError) {
@@ -125,7 +129,7 @@ export default function AdminStorePage() {
       formData.get("image_file_3") as File | null,
     ];
     
-    let finalImageUrls = [
+    const finalImageUrls = [
       editingProduct.image_url || "",
       editingProduct.image_url_2 || "",
       editingProduct.image_url_3 || ""
@@ -135,7 +139,9 @@ export default function AdminStorePage() {
       const imageFile = imageFiles[i];
       if (imageFile && imageFile.size > 0) {
         const fileExt = imageFile.name.split('.').pop();
-        const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+        // eslint-disable-next-line react-hooks/purity
+        const randId = Date.now().toString(36) + Math.floor(Math.random() * 1000).toString();
+        const fileName = `${randId}.${fileExt}`;
         const filePath = `store/${fileName}`;
         const { error: uploadError } = await supabase.storage.from('uploads').upload(filePath, imageFile, { upsert: false });
         if (uploadError) {

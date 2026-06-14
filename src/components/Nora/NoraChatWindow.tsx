@@ -25,13 +25,6 @@ export default function NoraChatWindow({ isOpen, onClose, contextProductTitle }:
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
-  // Initial trigger
-  useEffect(() => {
-    if (isOpen && messages.length === 0 && contextProductTitle) {
-      triggerInitialNoraMessage(contextProductTitle);
-    }
-  }, [isOpen, contextProductTitle, messages.length]);
-
   const triggerInitialNoraMessage = async (productTitle: string) => {
     setIsTyping(true);
     
@@ -56,6 +49,12 @@ export default function NoraChatWindow({ isOpen, onClose, contextProductTitle }:
     }
   };
 
+  // Initial trigger
+  useEffect(() => {
+    if (isOpen && messages.length === 0 && contextProductTitle) {
+      triggerInitialNoraMessage(contextProductTitle);
+    }
+  }, [isOpen, contextProductTitle, messages.length]);
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isTyping) return;
