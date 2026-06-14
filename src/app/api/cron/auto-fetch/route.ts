@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 export const maxDuration = 60; // 60 seconds max execution time for cron
 
@@ -8,23 +7,7 @@ export async function GET(request: Request) {
   try {
     console.log("[Auto-Fetch] Inicia sincronización automática de noticias...");
 
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-          setAll(cookiesToSet) {
-            try {
-              cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
-            } catch {}
-          },
-        },
-      }
-    );
+    const supabase = createServerSupabaseClient();
 
     // 1. Obtener la URL del RSS configurada en Settings
     const { data: settingsData, error: settingsError } = await supabase
