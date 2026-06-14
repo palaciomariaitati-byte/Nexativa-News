@@ -59,6 +59,27 @@ export async function askNoraEditor(title: string, content: string, operatorName
       newContent: parsed.newContent
     };
   } catch (error: any) {
+    if (error.message?.includes("429") && process.env.GEMINI_API_KEY_FALLBACK) {
+      try {
+        const fallbackGenAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY_FALLBACK);
+        const fallbackModel = fallbackGenAI.getGenerativeModel({ 
+          model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+          generationConfig: { responseMimeType: "application/json" }
+        });
+        const prompt = PROMPT_EDITORA.replace(/\[OPERATOR_NAME\]/g, operatorName);
+        const fullPrompt = `Sistema: ${prompt}\n\nRevisa esta noticia:\n\nTITULAR ORIGINAL: ${title}\n\nCONTENIDO: ${content}`;
+        const fallbackResult = await fallbackModel.generateContent(fullPrompt);
+        const fallbackParsed = JSON.parse(fallbackResult.response.text());
+        return { 
+          success: true, 
+          text: fallbackParsed.htmlForPanel,
+          newTitle: fallbackParsed.newTitle,
+          newContent: fallbackParsed.newContent
+        };
+      } catch (fallbackError: any) {
+        return { error: "Hubo un cortocircuito en ambos cerebros de Nora: " + fallbackError.message };
+      }
+    }
     console.error("Error en Nora Editor:", error);
     return { error: "Hubo un cortocircuito en el cerebro de Nora: " + error.message };
   }
@@ -77,6 +98,18 @@ export async function askNoraCM(title: string, content: string, operatorName: st
     const result = await model.generateContent(fullPrompt);
     return { success: true, text: result.response.text() };
   } catch (error: any) {
+    if (error.message?.includes("429") && process.env.GEMINI_API_KEY_FALLBACK) {
+      try {
+        const fallbackGenAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY_FALLBACK);
+        const fallbackModel = fallbackGenAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || "gemini-2.5-flash" });
+        const prompt = PROMPT_CM.replace(/\[OPERATOR_NAME\]/g, operatorName);
+        const fullPrompt = `Sistema: ${prompt}\n\nGenera contenido viral para esta noticia:\n\nTITULAR: ${title}\n\nCONTENIDO: ${content}`;
+        const fallbackResult = await fallbackModel.generateContent(fullPrompt);
+        return { success: true, text: fallbackResult.response.text() };
+      } catch (fallbackError: any) {
+        return { error: "Hubo un cortocircuito en ambos cerebros de Nora: " + fallbackError.message };
+      }
+    }
     console.error("Error en Nora CM:", error);
     return { error: "Hubo un cortocircuito en el cerebro de Nora: " + error.message };
   }
@@ -109,6 +142,18 @@ export async function askNoraSupport(query: string, operatorName: string = "Comp
     const result = await model.generateContent(fullPrompt);
     return { success: true, text: result.response.text() };
   } catch (error: any) {
+    if (error.message?.includes("429") && process.env.GEMINI_API_KEY_FALLBACK) {
+      try {
+        const fallbackGenAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY_FALLBACK);
+        const fallbackModel = fallbackGenAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || "gemini-2.5-flash" });
+        const prompt = PROMPT_SOPORTE.replace(/\[OPERATOR_NAME\]/g, operatorName);
+        const fullPrompt = `Sistema: ${prompt}\n\nConsulta técnica del Operador:\n${query}`;
+        const fallbackResult = await fallbackModel.generateContent(fullPrompt);
+        return { success: true, text: fallbackResult.response.text() };
+      } catch (fallbackError: any) {
+        return { error: "Hubo un cortocircuito en ambos cerebros de Nora: " + fallbackError.message };
+      }
+    }
     console.error("Error en Nora Soporte:", error);
     return { error: "Hubo un cortocircuito en el cerebro de Nora: " + error.message };
   }
