@@ -92,6 +92,19 @@ export default function AdminSettingsPage() {
           <p className="text-xs text-white/50 mt-2">Si escribís algo acá, aparecerá como "Último Momento" en la barra de noticias de la página principal. Dejalo vacío para ocultarlo.</p>
         </div>
 
+        <div className="bg-indigo-900/30 border border-indigo-500/50 p-4 rounded-xl mb-6">
+          <label className="block text-sm font-bold text-indigo-400 mb-2 uppercase">Fuente Automática de Noticias (Bot de Ingesta)</label>
+          <input
+            type="url"
+            name="auto_news_rss_url"
+            value={settings.auto_news_rss_url || ""}
+            onChange={handleChange}
+            className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-indigo-500"
+            placeholder="Ej: https://www.infobae.com/arc/outboundfeeds/rss/?outputType=xml"
+          />
+          <p className="text-xs text-white/50 mt-2">El bot leerá este enlace RSS cada 60 minutos y publicará automáticamente las noticias nuevas en tu base de datos.</p>
+        </div>
+
         <div className="bg-white/5 border border-white/10 p-4 rounded-xl mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
           <h2 className="md:col-span-3 text-xl font-bold text-[var(--color-brand-accent)] uppercase mb-2">Precios de los Planes</h2>
           <div>
