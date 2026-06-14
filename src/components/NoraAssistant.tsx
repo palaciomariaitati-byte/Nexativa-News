@@ -1,17 +1,30 @@
 "use client";
 
 import React, { useState } from "react";
-import { askNoraEditor, askNoraCM } from "@/app/admin/actions/nora";
-import { Sparkles, PenTool, Share2, Copy, Check, Loader2 } from "lucide-react";
+import { askNoraEditor, askNoraCM, askNoraSupport } from "@/app/admin/actions/nora";
+import { Sparkles, PenTool, Share2, Copy, Check, Loader2, Wand2, Send } from "lucide-react";
 
 interface NoraAssistantProps {
   title: string;
   content: string;
+  operatorName?: string;
+  onApplyChanges?: (newTitle: string, newContent: string) => void;
+  onPublishDirectly?: (newTitle: string, newContent: string) => void;
 }
 
-export default function NoraAssistant({ title, content }: NoraAssistantProps) {
+export default function NoraAssistant({ 
+  title, 
+  content, 
+  operatorName = "Compañero",
+  onApplyChanges,
+  onPublishDirectly 
+}: NoraAssistantProps) {
   const [loading, setLoading] = useState(false);
   const [responseHtml, setResponseHtml] = useState<string | null>(null);
+  
+  // State to hold the new generated content so we can apply it
+  const [generatedData, setGeneratedData] = useState<{newTitle: string, newContent: string} | null>(null);
+  
   const [copied, setCopied] = useState(false);
   const [activeMode, setActiveMode] = useState<"editora" | "cm" | "soporte" | null>(null);
 
@@ -20,9 +33,17 @@ export default function NoraAssistant({ title, content }: NoraAssistantProps) {
     setLoading(true);
     setActiveMode("editora");
     setResponseHtml(null);
-    const res = await askNoraEditor(title, content);
-    if (res.success) setResponseHtml(res.text || "");
-    else setResponseHtml(`<p class="text-red-400">${res.error}</p>`);
+    setGeneratedData(null);
+    
+    const res = await askNoraEditor(title, content, operatorName);
+    if (res.success) {
+      setResponseHtml(res.text || "");
+      if (res.newTitle && res.newContent) {
+        setGeneratedData({ newTitle: res.newTitle, newContent: res.newContent });
+      }
+    } else {
+      setResponseHtml(`<p class="text-red-400">${res.error}</p>`);
+    }
     setLoading(false);
   };
 
@@ -31,7 +52,25 @@ export default function NoraAssistant({ title, content }: NoraAssistantProps) {
     setLoading(true);
     setActiveMode("cm");
     setResponseHtml(null);
-    const res = await askNoraCM(title, content);
+    setGeneratedData(null);
+    
+    const res = await askNoraCM(title, content, operatorName);
+    if (res.success) {
+      setResponseHtml(res.text || "");
+    } else {
+      setResponseHtml(`<p class="text-red-400">${res.error}</p>`);
+    }
+    setLoading(false);
+  };
+
+  const handleAskSupport = async () => {
+    const query = (document.getElementById("soporte-query") as HTMLTextAreaElement)?.value;
+    if (!query) return;
+    setLoading(true);
+    setResponseHtml(null);
+    setGeneratedData(null);
+    
+    const res = await askNoraSupport(query, operatorName);
     if (res.success) setResponseHtml(res.text || "");
     else setResponseHtml(`<p class="text-red-400">${res.error}</p>`);
     setLoading(false);
@@ -39,9 +78,10 @@ export default function NoraAssistant({ title, content }: NoraAssistantProps) {
 
   const copyToClipboard = () => {
     if (!responseHtml) return;
-    // Strip HTML tags for clipboard
-    const plainText = responseHtml.replace(/<[^>]+>/g, "");
-    navigator.clipboard.writeText(plainText);
+    // For CM it's just raw HTML, for Editor it's the HTML panel text
+    // But if we want to copy the actual content, we should copy the generatedData content if it exists
+    const textToCopy = generatedData ? generatedData.newContent.replace(/<[^>]+>/g, "") : responseHtml.replace(/<[^>]+>/g, "");
+    navigator.clipboard.writeText(textToCopy);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -51,52 +91,42 @@ export default function NoraAssistant({ title, content }: NoraAssistantProps) {
       {/* Decorative background element */}
       <div className="absolute -top-10 -right-10 w-32 h-32 bg-purple-500/20 blur-3xl rounded-full pointer-events-none"></div>
       
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center gap-3 mb-4 relative z-10">
         <div className="bg-purple-500/20 p-2 rounded-lg">
           <Sparkles className="text-purple-400 w-6 h-6" />
         </div>
         <div>
           <h3 className="font-bold text-lg text-white">Nora IA <span className="text-xs bg-purple-500 text-white px-2 py-0.5 rounded-full ml-2">Nexativa Brain</span></h3>
-          <p className="text-xs text-purple-200">Editora, CM y Asesora Técnica</p>
+          <p className="text-xs text-purple-200">Editora, CM y Asesora</p>
         </div>
       </div>
 
       {activeMode === "soporte" ? (
-        <div className="mb-4">
+        <div className="mb-4 relative z-10">
           <textarea
-            placeholder="¿En qué puedo ayudarte, Jefe? Escribe tu consulta técnica aquí..."
+            placeholder={`¿En qué puedo ayudarte, ${operatorName}? Escribe tu consulta...`}
             className="w-full bg-black/40 border border-purple-500/30 rounded-lg p-3 text-white focus:outline-none focus:border-purple-500 mb-2"
             rows={3}
             id="soporte-query"
           />
           <div className="flex gap-2">
             <button
-              onClick={async () => {
-                const query = (document.getElementById("soporte-query") as HTMLTextAreaElement)?.value;
-                if (!query) return;
-                setLoading(true);
-                setResponseHtml(null);
-                const { askNoraSupport } = await import("@/app/admin/actions/nora");
-                const res = await askNoraSupport(query);
-                if (res.success) setResponseHtml(res.text || "");
-                else setResponseHtml(`<p class="text-red-400">${res.error}</p>`);
-                setLoading(false);
-              }}
+              onClick={handleAskSupport}
               disabled={loading}
               className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors flex items-center gap-2"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Preguntar"}
             </button>
             <button
-              onClick={() => setActiveMode(null)}
+              onClick={() => { setActiveMode(null); setResponseHtml(null); }}
               className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg text-sm transition-colors"
             >
-              Cancelar
+              Volver
             </button>
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4 relative z-10">
           <button
             onClick={handleAskEditor}
             disabled={loading || (!title && !content)}
@@ -126,7 +156,7 @@ export default function NoraAssistant({ title, content }: NoraAssistantProps) {
           </button>
 
           <button
-            onClick={() => setActiveMode("soporte")}
+            onClick={() => { setActiveMode("soporte"); setResponseHtml(null); }}
             className="flex items-center justify-center gap-2 bg-black/40 hover:bg-blue-600/30 border border-blue-500/30 text-white py-2 px-2 rounded-lg transition-all duration-300 group"
             title="Soporte Técnico"
           >
@@ -137,27 +167,54 @@ export default function NoraAssistant({ title, content }: NoraAssistantProps) {
       )}
 
       {responseHtml && (
-        <div className="mt-4 bg-black/60 border border-white/10 rounded-lg p-4 relative group">
+        <div className="mt-4 bg-black/60 border border-white/10 rounded-lg p-4 relative group z-10">
           <button 
             onClick={copyToClipboard}
-            className="absolute top-3 right-3 bg-white/10 hover:bg-white/20 p-2 rounded transition-colors"
+            className="absolute top-3 right-3 bg-white/10 hover:bg-white/20 p-2 rounded transition-colors z-20"
             title="Copiar al portapapeles"
           >
             {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-gray-300" />}
           </button>
           
-          <div className="flex items-center gap-2 mb-3 border-b border-white/10 pb-2">
-            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+          <div className="flex items-center gap-2 mb-3 border-b border-white/10 pb-2 pr-8">
+            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0"></span>
             <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">
-              Respuesta de Nora ({activeMode})
+              Nora ({activeMode})
             </span>
           </div>
           
           {/* Prose classes para estilizar el HTML inyectado de forma segura */}
           <div 
-            className="text-gray-200 text-sm prose prose-invert max-w-none prose-p:leading-relaxed prose-p:mb-2 prose-strong:text-white prose-ul:pl-4 prose-ul:mb-2"
+            className="text-gray-200 text-sm prose prose-invert max-w-none prose-p:leading-relaxed prose-p:mb-2 prose-strong:text-white prose-ul:pl-4 prose-ul:mb-2 mb-4"
             dangerouslySetInnerHTML={{ __html: responseHtml }}
           />
+
+          {/* Acciones de Autopublicación (Solo en modo Editora si se generó data) */}
+          {activeMode === "editora" && generatedData && (
+            <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-white/10">
+              <p className="text-xs text-purple-300 font-medium mb-1 text-center">¿Qué hacemos con esta noticia, {operatorName}?</p>
+              
+              {onApplyChanges && (
+                <button 
+                  onClick={() => onApplyChanges(generatedData.newTitle, generatedData.newContent)}
+                  className="flex items-center justify-center gap-2 w-full bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/50 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all"
+                >
+                  <Wand2 className="w-4 h-4 text-purple-300" />
+                  Aplicar cambios al Borrador
+                </button>
+              )}
+              
+              {onPublishDirectly && (
+                <button 
+                  onClick={() => onPublishDirectly(generatedData.newTitle, generatedData.newContent)}
+                  className="flex items-center justify-center gap-2 w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-purple-500/20 transition-all"
+                >
+                  <Send className="w-4 h-4" />
+                  ¡Publicar Ahora Mismo!
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

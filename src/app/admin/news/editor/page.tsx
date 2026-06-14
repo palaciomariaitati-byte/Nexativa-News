@@ -12,6 +12,7 @@ export default function NewsEditorPage() {
   const supabase = getSupabaseBrowserClient();
 
   const [loading, setLoading] = useState(false);
+  const [operatorName, setOperatorName] = useState("Compañero");
   const [formData, setFormData] = useState({
     title: "",
     excerpt: "",
@@ -23,6 +24,20 @@ export default function NewsEditorPage() {
   });
 
   useEffect(() => {
+    async function fetchUser() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const metaName = session.user.user_metadata?.full_name || session.user.user_metadata?.name;
+        if (metaName) {
+          setOperatorName(metaName.split(" ")[0]);
+        } else if (session.user.email) {
+          const emailName = session.user.email.split("@")[0];
+          setOperatorName(emailName.charAt(0).toUpperCase() + emailName.slice(1));
+        }
+      }
+    }
+    fetchUser();
+
     if (articleId) {
       async function fetchArticle() {
         const { data } = await supabase.from("articles").select("*").eq("id", articleId).single();
@@ -58,14 +73,45 @@ export default function NewsEditorPage() {
     };
 
     if (articleId) {
-      // Update
       const { error } = await supabase.from("articles").update(payload).eq("id", articleId);
       if (error) alert("Error al guardar: " + error.message);
       else router.push("/admin/news");
     } else {
-      // Insert
       const { error } = await supabase.from("articles").insert([payload]);
       if (error) alert("Error al crear: " + error.message);
+      else router.push("/admin/news");
+    }
+    setLoading(false);
+  };
+
+  const handleApplyChanges = (newTitle: string, newContent: string) => {
+    setFormData(prev => ({
+      ...prev,
+      title: newTitle,
+      content: newContent
+    }));
+  };
+
+  const handlePublishDirectly = async (newTitle: string, newContent: string) => {
+    setLoading(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    const payload = {
+      ...formData,
+      title: newTitle,
+      content: newContent,
+      status: "published", // ¡Fuerza la publicación!
+      author_id: session?.user.id,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (articleId) {
+      const { error } = await supabase.from("articles").update(payload).eq("id", articleId);
+      if (error) alert("Error al autopublicar: " + error.message);
+      else router.push("/admin/news");
+    } else {
+      const { error } = await supabase.from("articles").insert([payload]);
+      if (error) alert("Error al autopublicar: " + error.message);
       else router.push("/admin/news");
     }
     setLoading(false);
@@ -197,7 +243,13 @@ export default function NewsEditorPage() {
         {/* Panel Lateral: Nora AI */}
         <div className="lg:col-span-1">
           <div className="sticky top-24">
-            <NoraAssistant title={formData.title} content={formData.content} />
+            <NoraAssistant 
+              title={formData.title} 
+              content={formData.content} 
+              operatorName={operatorName}
+              onApplyChanges={handleApplyChanges}
+              onPublishDirectly={handlePublishDirectly}
+            />
           </div>
         </div>
       </div>
