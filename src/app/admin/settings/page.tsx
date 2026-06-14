@@ -14,6 +14,7 @@ export default function AdminSettingsPage() {
     youtube: "",
     linkedin: "",
     email: "",
+    x_url: "",
   });
 
   const supabase = getSupabaseBrowserClient();
@@ -143,6 +144,18 @@ export default function AdminSettingsPage() {
             onChange={handleChange}
             className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)]"
             placeholder="https://linkedin.com/in/..."
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase">X (Twitter)</label>
+          <input
+            type="url"
+            name="x_url"
+            value={settings.x_url || ""}
+            onChange={handleChange}
+            className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)]"
+            placeholder="https://x.com/..."
           />
         </div>
 
