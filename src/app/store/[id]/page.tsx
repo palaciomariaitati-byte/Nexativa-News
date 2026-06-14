@@ -29,20 +29,29 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
   return (
     <main className="w-full max-w-7xl mx-auto px-4 py-12 pb-32">
       {/* Banner/Header de Tienda */}
-      <div className="bg-black/30 border border-white/10 rounded-3xl p-8 mb-12 flex flex-col md:flex-row items-center md:items-start gap-8">
-        {store.logo_url ? (
-          <img src={store.logo_url} alt={store.name} className="w-32 h-32 md:w-48 md:h-48 rounded-full object-cover border-4 border-white/10" />
-        ) : (
-          <div className="w-32 h-32 md:w-48 md:h-48 rounded-full bg-white/5 border-4 border-white/10 flex items-center justify-center text-gray-500">Sin Logo</div>
+      <div className="relative bg-black/30 border border-white/10 rounded-3xl mb-12 overflow-hidden">
+        {store.banner_url && (
+          <div className="w-full h-48 sm:h-64 md:h-80 relative">
+            <img src={store.banner_url} alt={store.name} className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent"></div>
+          </div>
         )}
-        <div className="flex-1 text-center md:text-left space-y-4">
-          <h1 className="text-4xl md:text-5xl font-black text-white">{store.name}</h1>
-          <p className="text-gray-300 text-lg max-w-2xl">{store.description}</p>
-          <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 pt-2">
-            {store.address && <span className="bg-white/5 px-4 py-2 rounded-lg text-sm border border-white/10">📍 {store.address}</span>}
-            {store.whatsapp && <a href={`https://wa.me/${store.whatsapp}`} target="_blank" className="bg-green-600/20 text-green-400 px-4 py-2 rounded-lg text-sm border border-green-500/30 font-bold">💬 WhatsApp</a>}
-            {store.instagram && <a href={store.instagram} target="_blank" className="bg-pink-600/20 text-pink-400 px-4 py-2 rounded-lg text-sm border border-pink-500/30 font-bold">📸 Instagram</a>}
-            {store.facebook && <a href={store.facebook} target="_blank" className="bg-blue-600/20 text-blue-400 px-4 py-2 rounded-lg text-sm border border-blue-500/30 font-bold">📘 Facebook</a>}
+        <div className={`p-8 flex flex-col md:flex-row items-center md:items-start gap-8 relative z-10 ${store.banner_url ? '-mt-24' : ''}`}>
+          {store.logo_url ? (
+            <img src={store.logo_url} alt={store.name} className="w-32 h-32 md:w-48 md:h-48 rounded-full object-cover border-4 border-[#1a1a1a] bg-black shadow-2xl" />
+          ) : (
+            <div className="w-32 h-32 md:w-48 md:h-48 rounded-full bg-[#1a1a1a] border-4 border-black flex items-center justify-center text-gray-500 shadow-2xl">Sin Logo</div>
+          )}
+          <div className="flex-1 text-center md:text-left space-y-4 md:mt-12">
+            <h1 className="text-4xl md:text-5xl font-black text-white drop-shadow-md">{store.name}</h1>
+            <p className="text-gray-300 text-lg max-w-2xl drop-shadow-md">{store.description}</p>
+            <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 pt-2">
+              {store.address && <span className="bg-black/50 backdrop-blur-md px-4 py-2 rounded-lg text-sm border border-white/10">📍 {store.address}</span>}
+              {store.whatsapp && <a href={`https://wa.me/${store.whatsapp}`} target="_blank" className="bg-green-600/30 backdrop-blur-md text-green-400 px-4 py-2 rounded-lg text-sm border border-green-500/30 font-bold hover:bg-green-600/50 transition-colors">💬 WhatsApp</a>}
+              {store.instagram && <a href={store.instagram} target="_blank" className="bg-pink-600/30 backdrop-blur-md text-pink-400 px-4 py-2 rounded-lg text-sm border border-pink-500/30 font-bold hover:bg-pink-600/50 transition-colors">📸 Instagram</a>}
+              {store.facebook && <a href={store.facebook} target="_blank" className="bg-blue-600/30 backdrop-blur-md text-blue-400 px-4 py-2 rounded-lg text-sm border border-blue-500/30 font-bold hover:bg-blue-600/50 transition-colors">📘 Facebook</a>}
+              {store.x_url && <a href={store.x_url} target="_blank" className="bg-white/10 backdrop-blur-md text-white px-4 py-2 rounded-lg text-sm border border-white/30 font-bold hover:bg-white/20 transition-colors">𝕏 Twitter</a>}
+            </div>
           </div>
         </div>
       </div>

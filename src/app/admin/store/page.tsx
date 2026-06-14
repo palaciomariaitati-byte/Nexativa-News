@@ -44,6 +44,41 @@ export default function AdminStorePage() {
     e.preventDefault();
     if (!editingStore) return;
     setLoading(true);
+
+    const formData = new FormData(e.currentTarget);
+    const logoFile = formData.get("logo_file") as File | null;
+    let logo_url = editingStore.logo_url || null;
+
+    if (logoFile && logoFile.size > 0) {
+      const fileExt = logoFile.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+      const filePath = `store_logos/${fileName}`;
+      const { error: uploadError } = await supabase.storage.from('uploads').upload(filePath, logoFile, { upsert: false });
+      if (uploadError) {
+        alert("Error subiendo el logo: " + uploadError.message);
+        setLoading(false);
+        return;
+      }
+      const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(filePath);
+      logo_url = publicUrlData.publicUrl;
+    }
+
+    const bannerFile = formData.get("banner_file") as File | null;
+    let banner_url = editingStore.banner_url || null;
+
+    if (bannerFile && bannerFile.size > 0) {
+      const fileExt = bannerFile.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+      const filePath = `store_banners/${fileName}`;
+      const { error: uploadError } = await supabase.storage.from('uploads').upload(filePath, bannerFile, { upsert: false });
+      if (uploadError) {
+        alert("Error subiendo el banner: " + uploadError.message);
+        setLoading(false);
+        return;
+      }
+      const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(filePath);
+      banner_url = publicUrlData.publicUrl;
+    }
     
     const payload = {
       name: editingStore.name,
@@ -52,6 +87,9 @@ export default function AdminStorePage() {
       whatsapp: editingStore.whatsapp,
       instagram: editingStore.instagram,
       facebook: editingStore.facebook,
+      x_url: editingStore.x_url,
+      logo_url: logo_url,
+      banner_url: banner_url
     };
 
     if (editingStore.id) {
@@ -137,7 +175,10 @@ export default function AdminStorePage() {
 
   const handleDeleteProduct = async (id: string) => {
     if (confirm("¿Eliminar este producto?")) {
-      await supabase.from("products").delete().eq("id", id);
+      const { error } = await supabase.from("products").delete().eq("id", id);
+      if (error) {
+        alert("No se pudo eliminar el producto: " + error.message);
+      }
       if (selectedStore) fetchProducts(selectedStore.id);
     }
   };
@@ -210,6 +251,20 @@ export default function AdminStorePage() {
                 <div>
                   <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase">Facebook URL</label>
                   <input type="url" value={editingStore.facebook || ""} onChange={e => setEditingStore({...editingStore, facebook: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)]" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase">X (Twitter) URL</label>
+                  <input type="url" value={editingStore.x_url || ""} onChange={e => setEditingStore({...editingStore, x_url: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)]" />
+                </div>
+                <div className="md:col-span-1">
+                  <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase">Logo de la Tienda</label>
+                  {editingStore.logo_url && <img src={editingStore.logo_url} alt="Logo" className="h-16 w-16 object-contain mb-2 bg-white/5 rounded border border-white/10 p-1" />}
+                  <input type="file" name="logo_file" accept="image/*" className="w-full text-xs text-gray-400 file:mr-2 file:py-2 file:px-4 file:rounded file:border-0 file:bg-[var(--color-brand-accent)] file:text-black hover:file:bg-white" />
+                </div>
+                <div className="md:col-span-1">
+                  <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase">Banner de la Tienda</label>
+                  {editingStore.banner_url && <img src={editingStore.banner_url} alt="Banner" className="h-16 w-full object-cover mb-2 bg-white/5 rounded border border-white/10 p-1" />}
+                  <input type="file" name="banner_file" accept="image/*" className="w-full text-xs text-gray-400 file:mr-2 file:py-2 file:px-4 file:rounded file:border-0 file:bg-[var(--color-brand-accent)] file:text-black hover:file:bg-white" />
                 </div>
               </div>
               <div className="flex space-x-4 pt-4 border-t border-white/10">

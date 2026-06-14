@@ -30,7 +30,8 @@ export async function askNoraEditor(title: string, content: string) {
   
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const modelId = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+    const model = genAI.getGenerativeModel({ model: modelId });
     const fullPrompt = `Sistema: ${PROMPT_EDITORA}\n\nRevisa esta noticia:\n\nTITULAR ORIGINAL: ${title}\n\nCONTENIDO: ${content}`;
     const result = await model.generateContent(fullPrompt);
     return { success: true, text: result.response.text() };
@@ -46,7 +47,8 @@ export async function askNoraCM(title: string, content: string) {
   
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const modelId = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+    const model = genAI.getGenerativeModel({ model: modelId });
     const fullPrompt = `Sistema: ${PROMPT_CM}\n\nGenera contenido viral para esta noticia:\n\nTITULAR: ${title}\n\nCONTENIDO: ${content}`;
     const result = await model.generateContent(fullPrompt);
     return { success: true, text: result.response.text() };
@@ -75,7 +77,8 @@ export async function askNoraSupport(query: string) {
   
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const modelId = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+    const model = genAI.getGenerativeModel({ model: modelId });
     const fullPrompt = `Sistema: ${PROMPT_SOPORTE}\n\nConsulta técnica del Operador:\n${query}`;
     const result = await model.generateContent(fullPrompt);
     return { success: true, text: result.response.text() };

@@ -33,6 +33,8 @@ export interface Store {
   instagram: string | null;
   facebook: string | null;
   logo_url: string | null;
+  banner_url: string | null;
+  x_url: string | null;
   created_at: string;
 }
 

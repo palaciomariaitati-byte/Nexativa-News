@@ -42,9 +42,6 @@ export default function SponsorTabs({ sponsors }: { sponsors: Sponsor[] }) {
       {/* Pestañas (Scroll horizontal en móvil si no entran) */}
       <div className="flex overflow-x-auto border-b border-white/10 bg-black/20 hide-scrollbar snap-x">
         {categories.map((cat) => {
-          const count = sponsors.filter((s) => (s.category || 'Servicios') === cat).length;
-          if (count === 0 && activeTab !== cat) return null; // Ocultar pestañas sin sponsors, salvo la activa
-          
           return (
             <button
               key={cat}
@@ -61,7 +58,7 @@ export default function SponsorTabs({ sponsors }: { sponsors: Sponsor[] }) {
         })}
       </div>
 
-      {/* Contenido (Cinta Infinita) */}
+      {/* Contenido (Cinta Infinita o Placeholders) */}
       <div className="p-4 sm:p-6 w-full">
         {activeSponsors.length > 0 ? (
           <div className="overflow-hidden w-full relative">
@@ -78,8 +75,24 @@ export default function SponsorTabs({ sponsors }: { sponsors: Sponsor[] }) {
             </div>
           </div>
         ) : (
-          <div className="text-center py-8 text-gray-500 text-sm">
-            No hay comercios en esta categoría.
+          <div className="overflow-hidden w-full relative">
+            <div className="flex w-max animate-marquee-sponsors hover:[animation-play-state:paused] gap-4 pb-2">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={`ph1-${i}`} className="glass-panel p-3 flex flex-col items-center justify-center min-w-[160px] max-w-[200px] h-48 border border-white/5 bg-white/5">
+                  <h4 className="font-bold text-gray-400 text-center uppercase tracking-widest text-sm">
+                    Publicite Aquí
+                  </h4>
+                </div>
+              ))}
+              {/* Duplicado para crear el efecto infinito */}
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={`ph2-${i}`} className="glass-panel p-3 flex flex-col items-center justify-center min-w-[160px] max-w-[200px] h-48 border border-white/5 bg-white/5">
+                  <h4 className="font-bold text-gray-400 text-center uppercase tracking-widest text-sm">
+                    Publicite Aquí
+                  </h4>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

@@ -27,10 +27,10 @@ export default function MobileBottomNav() {
 
   return (
     <div className="sm:hidden fixed bottom-0 left-0 right-0 z-50 glass-panel border-t border-white/10 flex justify-around items-center h-16 pb-safe">
-      <Link href="/" className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${pathname === "/" ? "text-[var(--color-brand-accent)]" : "text-gray-400 hover:text-white transition-colors"}`}>
+      <a href="/" className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${pathname === "/" ? "text-[var(--color-brand-accent)]" : "text-gray-400 hover:text-white transition-colors"}`}>
         <Home className="w-5 h-5" />
         <span className="text-[10px] font-bold uppercase tracking-wider">Inicio</span>
-      </Link>
+      </a>
       <Link href="/news" className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${pathname === "/news" ? "text-[var(--color-brand-accent)]" : "text-gray-400 hover:text-white transition-colors"}`}>
         <Newspaper className="w-5 h-5" />
         <span className="text-[10px] font-bold uppercase tracking-wider">Noticias</span>

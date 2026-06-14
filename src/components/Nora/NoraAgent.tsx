@@ -71,7 +71,7 @@ export default function NoraAgent() {
       {!isChatOpen && (
         <button
           onClick={() => setIsChatOpen(true)}
-          className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-purple-600 to-pink-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-purple-500/30 hover:scale-105 transition-transform z-50 overflow-hidden border-2 border-white/20"
+          className="fixed bottom-32 left-6 sm:bottom-6 sm:left-6 w-14 h-14 bg-gradient-to-r from-purple-600 to-pink-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-purple-500/30 hover:scale-105 transition-transform z-50 overflow-hidden border-2 border-white/20"
         >
           <img src="/nora-avatar.png" alt="Nora" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display='none'; }} />
           <span className="sr-only">Abrir Chat con Nora</span>
