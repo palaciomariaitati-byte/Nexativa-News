@@ -31,11 +31,6 @@ const nextConfig: NextConfig = {
         destination: '/admin/settings',
         permanent: true,
       },
-      {
-        source: '/ADMIN',
-        destination: '/admin',
-        permanent: true,
-      },
     ];
   },
 };
