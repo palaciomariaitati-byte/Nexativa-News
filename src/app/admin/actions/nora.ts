@@ -46,7 +46,7 @@ export async function askNoraEditor(title: string, content: string, operatorName
       generationConfig: { responseMimeType: "application/json" }
     });
     const prompt = PROMPT_EDITORA.replace(/\[OPERATOR_NAME\]/g, operatorName);
-    const fullPrompt = \`Sistema: \${prompt}\\n\\nRevisa esta noticia:\\n\\nTITULAR ORIGINAL: \${title}\\n\\nCONTENIDO: \${content}\`;
+    const fullPrompt = `Sistema: ${prompt}\n\nRevisa esta noticia:\n\nTITULAR ORIGINAL: ${title}\n\nCONTENIDO: ${content}`;
     const result = await model.generateContent(fullPrompt);
     const textRes = result.response.text();
     
@@ -73,7 +73,7 @@ export async function askNoraCM(title: string, content: string, operatorName: st
     const modelId = process.env.GEMINI_MODEL || "gemini-2.5-flash";
     const model = genAI.getGenerativeModel({ model: modelId });
     const prompt = PROMPT_CM.replace(/\[OPERATOR_NAME\]/g, operatorName);
-    const fullPrompt = \`Sistema: \${prompt}\\n\\nGenera contenido viral para esta noticia:\\n\\nTITULAR: \${title}\\n\\nCONTENIDO: \${content}\`;
+    const fullPrompt = `Sistema: ${prompt}\n\nGenera contenido viral para esta noticia:\n\nTITULAR: ${title}\n\nCONTENIDO: ${content}`;
     const result = await model.generateContent(fullPrompt);
     return { success: true, text: result.response.text() };
   } catch (error: any) {
@@ -105,7 +105,7 @@ export async function askNoraSupport(query: string, operatorName: string = "Comp
     const modelId = process.env.GEMINI_MODEL || "gemini-2.5-flash";
     const model = genAI.getGenerativeModel({ model: modelId });
     const prompt = PROMPT_SOPORTE.replace(/\[OPERATOR_NAME\]/g, operatorName);
-    const fullPrompt = \`Sistema: \${prompt}\\n\\nConsulta técnica del Operador:\\n\${query}\`;
+    const fullPrompt = `Sistema: ${prompt}\n\nConsulta técnica del Operador:\n${query}`;
     const result = await model.generateContent(fullPrompt);
     return { success: true, text: result.response.text() };
   } catch (error: any) {
