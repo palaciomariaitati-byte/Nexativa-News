@@ -40,6 +40,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Link href="/admin/news" className={`px-4 py-2 rounded-lg text-sm transition-colors hover:bg-white/10`}>
             Prensa & Noticias
           </Link>
+          <Link href="/admin/culture" className={`px-4 py-2 rounded-lg text-sm transition-colors hover:bg-white/10`}>
+            Espacio Cultural
+          </Link>
           {(userRole === 'admin' || userRole === 'operator') && (
             <>
               <Link href="/admin/store" className={`px-4 py-2 rounded-lg text-sm transition-colors hover:bg-white/10`}>

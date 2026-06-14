@@ -123,3 +123,15 @@ export interface Profile {
   role: 'admin' | 'operator' | 'redactor';
   updated_at: string;
 }
+
+export interface CulturalPost {
+  id: string;
+  title: string;
+  content: string;
+  author_name: string;
+  image_url: string | null;
+  project_url: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}

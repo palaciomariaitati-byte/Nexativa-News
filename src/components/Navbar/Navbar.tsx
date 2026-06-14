@@ -44,6 +44,9 @@ export default function Navbar() {
             <Link href="/news" className="text-sm font-medium hover:text-[var(--color-brand-accent)] transition-colors uppercase tracking-widest">
               Noticias
             </Link>
+            <Link href="/cultura" className="text-sm font-medium hover:text-[var(--color-brand-accent)] transition-colors uppercase tracking-widest">
+              Cultura
+            </Link>
             <Link href="/store" className="text-sm font-medium hover:text-[var(--color-brand-accent)] transition-colors uppercase tracking-widest">
               Shop
             </Link>
