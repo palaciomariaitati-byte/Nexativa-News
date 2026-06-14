@@ -109,9 +109,11 @@ export async function createSponsor(formData: FormData) {
     const map_url = formData.get('map_url') as string;
     const logoFile = formData.get('logo') as File | null;
     const bannerFile = formData.get('banner') as File | null;
+    const logoUrlManual = formData.get('logo_url_manual') as string;
+    const bannerUrlManual = formData.get('banner_url_manual') as string;
 
-    let logo_url = '';
-    let banner_url = '';
+    let logo_url = logoUrlManual || '';
+    let banner_url = bannerUrlManual || '';
 
     if (logoFile && logoFile.size > 0) logo_url = await uploadImage(logoFile, 'sponsors/logos');
     if (bannerFile && bannerFile.size > 0) banner_url = await uploadImage(bannerFile, 'sponsors/banners');
@@ -150,8 +152,13 @@ export async function updateSponsor(id: string, formData: FormData) {
     const map_url = formData.get('map_url') as string;
     const logoFile = formData.get('logo') as File | null;
     const bannerFile = formData.get('banner') as File | null;
+    const logoUrlManual = formData.get('logo_url_manual') as string;
+    const bannerUrlManual = formData.get('banner_url_manual') as string;
 
     const updateData: any = { name, slogan, category, plan_type, website_url, instagram_url, facebook_url, tiktok_url, youtube_url, x_url, whatsapp, email, map_url };
+
+    if (logoUrlManual) updateData.logo_url = logoUrlManual;
+    if (bannerUrlManual) updateData.banner_url = bannerUrlManual;
 
     if (logoFile && logoFile.size > 0) updateData.logo_url = await uploadImage(logoFile, 'sponsors/logos');
     if (bannerFile && bannerFile.size > 0) updateData.banner_url = await uploadImage(bannerFile, 'sponsors/banners');

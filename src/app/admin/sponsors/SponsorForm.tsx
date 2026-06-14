@@ -198,7 +198,7 @@ export default function SponsorForm({ initialData = null }: { initialData?: any 
 
         <div className="border-t border-white/10 pt-4 mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
-            <label className="block text-sm font-medium">Logo Cuadrado (Opcional)</label>
+            <label className="block text-sm font-medium">Logo Cuadrado</label>
             {initialData?.logo_url && (
               <img src={initialData.logo_url} alt="Logo actual" className="h-16 object-contain bg-white/5 rounded p-1 mb-2" />
             )}
@@ -206,13 +206,19 @@ export default function SponsorForm({ initialData = null }: { initialData?: any 
               type="file"
               name="logo"
               accept="image/*"
-              className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-bold file:bg-[var(--color-brand-accent)] file:text-black hover:file:bg-white"
+              className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-bold file:bg-[var(--color-brand-accent)] file:text-black hover:file:bg-white mb-2"
             />
-            <p className="text-xs text-gray-500">Formato cuadrado recomendado.</p>
+            <p className="text-xs font-bold text-gray-400">O pegar URL directa de la imagen (Ahorra espacio):</p>
+            <input
+              type="url"
+              name="logo_url_manual"
+              placeholder="https://ejemplo.com/logo.png"
+              className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-brand-accent)] text-sm"
+            />
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-medium">Banner Largo (Opcional)</label>
+            <label className="block text-sm font-medium">Banner Largo</label>
             {initialData?.banner_url && (
               <img src={initialData.banner_url} alt="Banner actual" className="h-16 w-full object-cover rounded mb-2" />
             )}
@@ -220,9 +226,15 @@ export default function SponsorForm({ initialData = null }: { initialData?: any 
               type="file"
               name="banner"
               accept="image/*"
-              className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-bold file:bg-[var(--color-brand-accent)] file:text-black hover:file:bg-white"
+              className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-bold file:bg-[var(--color-brand-accent)] file:text-black hover:file:bg-white mb-2"
             />
-            <p className="text-xs text-gray-500">Se usará para la tarjeta grande.</p>
+            <p className="text-xs font-bold text-gray-400">O pegar URL directa de la imagen (Ahorra espacio):</p>
+            <input
+              type="url"
+              name="banner_url_manual"
+              placeholder="https://ejemplo.com/banner.jpg"
+              className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-brand-accent)] text-sm"
+            />
           </div>
         </div>
       </div>
