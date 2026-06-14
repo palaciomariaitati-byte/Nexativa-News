@@ -92,6 +92,17 @@ export default function SponsorForm({ initialData = null }: { initialData?: any 
             />
           </div>
           <div>
+            <label className="block text-sm font-medium mb-1">Slogan / Frase (Opcional)</label>
+            <input
+              type="text"
+              name="slogan"
+              defaultValue={initialData?.slogan || ""}
+              placeholder="Ej: El mejor sabor de la ciudad"
+              maxLength={60}
+              className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-brand-accent)]"
+            />
+          </div>
+          <div>
             <label className="block text-sm font-medium mb-1">Instagram (Opcional)</label>
             <input
               type="url"
@@ -138,6 +149,16 @@ export default function SponsorForm({ initialData = null }: { initialData?: any 
               name="whatsapp"
               defaultValue={initialData?.whatsapp || ""}
               placeholder="+54911..."
+              className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-brand-accent)]"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">X (Twitter) (Opcional)</label>
+            <input
+              type="url"
+              name="x_url"
+              defaultValue={initialData?.x_url || ""}
+              placeholder="https://x.com/..."
               className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-brand-accent)]"
             />
           </div>

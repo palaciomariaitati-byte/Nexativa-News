@@ -92,12 +92,14 @@ export async function createSponsor(formData: FormData) {
     if (!role) return { error: 'No autorizado' };
 
     const name = formData.get('name') as string;
+    const slogan = formData.get('slogan') as string;
     const category = formData.get('category') as string || 'Servicios';
     const website_url = formData.get('website_url') as string;
     const instagram_url = formData.get('instagram_url') as string;
     const facebook_url = formData.get('facebook_url') as string;
     const tiktok_url = formData.get('tiktok_url') as string;
     const youtube_url = formData.get('youtube_url') as string;
+    const x_url = formData.get('x_url') as string;
     const whatsapp = formData.get('whatsapp') as string;
     const email = formData.get('email') as string;
     const logoFile = formData.get('logo') as File | null;
@@ -111,7 +113,7 @@ export async function createSponsor(formData: FormData) {
 
     const supabase = createServerSupabaseClient();
     const { error } = await supabase.from('sponsors').insert([
-      { name, category, logo_url, banner_url, website_url, instagram_url, facebook_url, tiktok_url, youtube_url, whatsapp, email }
+      { name, slogan, category, logo_url, banner_url, website_url, instagram_url, facebook_url, tiktok_url, youtube_url, x_url, whatsapp, email }
     ]);
     if (error) return { error: error.message };
     return { success: true };
@@ -126,18 +128,20 @@ export async function updateSponsor(id: string, formData: FormData) {
     if (!role) return { error: 'No autorizado' };
 
     const name = formData.get('name') as string;
+    const slogan = formData.get('slogan') as string;
     const category = formData.get('category') as string || 'Servicios';
     const website_url = formData.get('website_url') as string;
     const instagram_url = formData.get('instagram_url') as string;
     const facebook_url = formData.get('facebook_url') as string;
     const tiktok_url = formData.get('tiktok_url') as string;
     const youtube_url = formData.get('youtube_url') as string;
+    const x_url = formData.get('x_url') as string;
     const whatsapp = formData.get('whatsapp') as string;
     const email = formData.get('email') as string;
     const logoFile = formData.get('logo') as File | null;
     const bannerFile = formData.get('banner') as File | null;
 
-    const updateData: any = { name, category, website_url, instagram_url, facebook_url, tiktok_url, youtube_url, whatsapp, email };
+    const updateData: any = { name, slogan, category, website_url, instagram_url, facebook_url, tiktok_url, youtube_url, x_url, whatsapp, email };
 
     if (logoFile && logoFile.size > 0) updateData.logo_url = await uploadImage(logoFile, 'sponsors/logos');
     if (bannerFile && bannerFile.size > 0) updateData.banner_url = await uploadImage(bannerFile, 'sponsors/banners');

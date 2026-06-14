@@ -123,6 +123,11 @@ function SponsorCardItem({ sponsor, getTrackingUrl }: { sponsor: Sponsor, getTra
       <h4 className="font-bold text-gray-100 group-hover:text-[var(--color-brand-accent)] transition-colors text-center w-full truncate">
         {sponsor.name}
       </h4>
+      {sponsor.slogan && (
+        <p className="text-xs text-gray-400 text-center italic line-clamp-2 w-full px-2">
+          "{sponsor.slogan}"
+        </p>
+      )}
       
       <div className="flex flex-wrap justify-center gap-3 mt-2 w-full border-t border-white/5 pt-2">
         {sponsor.website_url && (
@@ -141,6 +146,13 @@ function SponsorCardItem({ sponsor, getTrackingUrl }: { sponsor: Sponsor, getTra
           <a href={getTrackingUrl(sponsor.id, sponsor.facebook_url, 'facebook')} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-400 hover:scale-110 transition-all" title="Facebook">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512" fill="currentColor" className="w-4 h-4">
               <path d="M279.1 288l14.22-92.66h-88.91v-60.13c0-25.35 12.42-50.06 52.24-50.06h40.42V6.26S260.4 0 225.4 0c-73.22 0-121.1 44.38-121.1 124.7v70.62H22.89V288h81.39v224h100.2V288z"/>
+            </svg>
+          </a>
+        )}
+        {sponsor.x_url && (
+          <a href={getTrackingUrl(sponsor.id, sponsor.x_url, 'x')} target="_blank" rel="noopener noreferrer" className="text-white hover:text-gray-300 hover:scale-110 transition-all" title="X (Twitter)">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor" className="w-4 h-4">
+              <path d="M389.2 48h70.6L305.6 224.2 487 464H345L233.7 318.6 106.5 464H35.8L200.7 275.5 26.8 48H172.4L273 180.8 389.2 48zM364.4 421.8h39.1L151.1 88h-42L364.4 421.8z"/>
             </svg>
           </a>
         )}

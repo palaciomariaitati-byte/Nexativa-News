@@ -59,6 +59,7 @@ export interface Product {
 export interface Sponsor {
   id: string;
   name: string;
+  slogan: string | null;
   logo_url: string;
   banner_url: string | null;
   category: string;
@@ -67,6 +68,7 @@ export interface Sponsor {
   facebook_url: string | null;
   tiktok_url: string | null;
   youtube_url: string | null;
+  x_url: string | null;
   whatsapp: string | null;
   email: string | null;
   created_at: string;

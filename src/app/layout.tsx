@@ -39,6 +39,10 @@ export const metadata: Metadata = {
   title: "Nexativa News",
   description: "Portal de noticias modernista",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/icons/main-icon.png",
+    apple: "/icons/main-icon.png"
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
