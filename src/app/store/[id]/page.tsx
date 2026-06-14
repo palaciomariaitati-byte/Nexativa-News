@@ -6,6 +6,31 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export const dynamic = 'force-dynamic';
 
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const supabase = createServerSupabaseClient();
+  const { data: store } = await supabase.from("stores").select("name, description, logo_url, banner_url").eq("id", id).single();
+  if (!store) return { title: "Tienda no encontrada" };
+  
+  const image = store.banner_url || store.logo_url;
+  
+  return {
+    title: store.name,
+    description: store.description || `Bienvenido a la tienda de ${store.name}`,
+    openGraph: {
+      title: store.name,
+      description: store.description || `Bienvenido a la tienda de ${store.name}`,
+      images: image ? [{ url: image }] : [],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: store.name,
+      description: store.description || `Bienvenido a la tienda de ${store.name}`,
+      images: image ? [image] : [],
+    }
+  };
+}
+
 export default async function StorePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = createServerSupabaseClient();
@@ -47,6 +72,7 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
             <p className="text-gray-300 text-lg max-w-2xl drop-shadow-md">{store.description}</p>
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 pt-2">
               {store.address && <span className="bg-black/50 backdrop-blur-md px-4 py-2 rounded-lg text-sm border border-white/10">📍 {store.address}</span>}
+              {store.map_url && <a href={store.map_url} target="_blank" className="bg-white/10 backdrop-blur-md text-[var(--color-brand-accent)] px-4 py-2 rounded-lg text-sm border border-[var(--color-brand-accent)]/30 font-bold hover:bg-[var(--color-brand-accent)]/20 transition-colors">🗺️ Ubicación</a>}
               {store.whatsapp && <a href={`https://wa.me/${store.whatsapp}`} target="_blank" className="bg-green-600/30 backdrop-blur-md text-green-400 px-4 py-2 rounded-lg text-sm border border-green-500/30 font-bold hover:bg-green-600/50 transition-colors">💬 WhatsApp</a>}
               {store.instagram && <a href={store.instagram} target="_blank" className="bg-pink-600/30 backdrop-blur-md text-pink-400 px-4 py-2 rounded-lg text-sm border border-pink-500/30 font-bold hover:bg-pink-600/50 transition-colors">📸 Instagram</a>}
               {store.facebook && <a href={store.facebook} target="_blank" className="bg-blue-600/30 backdrop-blur-md text-blue-400 px-4 py-2 rounded-lg text-sm border border-blue-500/30 font-bold hover:bg-blue-600/50 transition-colors">📘 Facebook</a>}

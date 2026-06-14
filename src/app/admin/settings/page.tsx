@@ -16,6 +16,9 @@ export default function AdminSettingsPage() {
     email: "",
     x_url: "",
     system_announcement: "",
+    plan_bronce_price: "",
+    plan_plata_price: "",
+    plan_oro_price: "",
   });
 
   const supabase = getSupabaseBrowserClient();
@@ -87,6 +90,43 @@ export default function AdminSettingsPage() {
             placeholder="Ej: ¡Lanzamos la nueva plataforma de Nexativa News! 🎉"
           />
           <p className="text-xs text-white/50 mt-2">Si escribís algo acá, aparecerá como "Último Momento" en la barra de noticias de la página principal. Dejalo vacío para ocultarlo.</p>
+        </div>
+
+        <div className="bg-white/5 border border-white/10 p-4 rounded-xl mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <h2 className="md:col-span-3 text-xl font-bold text-[var(--color-brand-accent)] uppercase mb-2">Precios de los Planes</h2>
+          <div>
+            <label className="block text-sm font-bold text-white mb-2 uppercase">Precio Plan Bronce</label>
+            <input
+              type="text"
+              name="plan_bronce_price"
+              value={settings.plan_bronce_price || ""}
+              onChange={handleChange}
+              className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)]"
+              placeholder="Ej: $5.000 / mes"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-white mb-2 uppercase">Precio Plan Plata</label>
+            <input
+              type="text"
+              name="plan_plata_price"
+              value={settings.plan_plata_price || ""}
+              onChange={handleChange}
+              className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)]"
+              placeholder="Ej: $10.000 / mes"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-white mb-2 uppercase">Precio Plan Oro</label>
+            <input
+              type="text"
+              name="plan_oro_price"
+              value={settings.plan_oro_price || ""}
+              onChange={handleChange}
+              className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)]"
+              placeholder="Ej: $20.000 / mes"
+            />
+          </div>
         </div>
 
         <div>

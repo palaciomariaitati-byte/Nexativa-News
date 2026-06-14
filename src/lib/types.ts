@@ -35,6 +35,7 @@ export interface Store {
   logo_url: string | null;
   banner_url: string | null;
   x_url: string | null;
+  map_url: string | null;
   created_at: string;
 }
 
@@ -71,6 +72,7 @@ export interface Sponsor {
   x_url: string | null;
   whatsapp: string | null;
   email: string | null;
+  map_url: string | null;
   plan_type?: 'oro' | 'plata' | 'bronce';
   created_at: string;
 }

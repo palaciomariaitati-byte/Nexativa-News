@@ -1,9 +1,11 @@
 "use client";
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
-const tiers = [
+const initialTiers = [
   {
     name: 'Bronce',
+    key: 'plan_bronce_price',
     features: [
       'Acceso ilimitado a noticias',
       'Alertas en tiempo real',
@@ -12,9 +14,11 @@ const tiers = [
     link: 'https://wa.me/5493786611250?text=Hola%20Nexativa%20News%2C%20quiero%20suscribirme%20al%20Plan%20Bronce',
     badge: null,
     borderClass: 'border-gray-300',
+    price: '',
   },
   {
     name: 'Plata',
+    key: 'plan_plata_price',
     features: [
       'Socio Pro',
       'Acceso a Tienda con descuento',
@@ -24,9 +28,11 @@ const tiers = [
     link: 'https://wa.me/5493786611250?text=Hola%20Nexativa%20News%2C%20quiero%20suscribirme%20al%20Plan%20Plata',
     badge: null,
     borderClass: 'border-gray-300',
+    price: '',
   },
   {
     name: 'Oro',
+    key: 'plan_oro_price',
     features: [
       'Acceso total',
       'Soporte prioritario',
@@ -36,10 +42,30 @@ const tiers = [
     link: 'https://wa.me/5493786611250?text=Hola%20Nexativa%20News%2C%20quiero%20suscribirme%20al%20Plan%20Oro',
     badge: 'Popular',
     borderClass: 'border-brand-gold',
+    price: '',
   },
 ];
 
 export default function SubscriptionTiers() {
+  const [tiers, setTiers] = useState(initialTiers);
+
+  useEffect(() => {
+    async function fetchPrices() {
+      const supabase = getSupabaseBrowserClient();
+      const { data } = await supabase.from('settings').select('*').in('key', ['plan_bronce_price', 'plan_plata_price', 'plan_oro_price']);
+      if (data) {
+        setTiers(prev => prev.map(tier => {
+          const priceObj = data.find(d => d.key === tier.key);
+          if (priceObj && priceObj.value) {
+            return { ...tier, price: priceObj.value };
+          }
+          return tier;
+        }));
+      }
+    }
+    fetchPrices();
+  }, []);
+
   return (
     <section className="py-12 mt-12 border-t border-white/5 relative overflow-hidden">
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[300px] bg-[var(--color-brand-accent)]/10 blur-[120px] rounded-full pointer-events-none"></div>
@@ -56,7 +82,10 @@ export default function SubscriptionTiers() {
                   {tier.badge}
                 </div>
               )}
-              <h3 className="text-2xl sm:text-3xl font-bold text-white mb-6">{tier.name}</h3>
+              <h3 className="text-2xl sm:text-3xl font-bold text-white mb-2">{tier.name}</h3>
+              {tier.price && (
+                <div className="text-[var(--color-brand-accent)] font-extrabold text-2xl mb-4">{tier.price}</div>
+              )}
               <ul className="space-y-4 mb-8 text-sm text-gray-300 text-center w-full">
                 {tier.features.map((f, i) => (
                   <li key={i} className="flex items-center justify-center gap-2">

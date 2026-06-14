@@ -184,6 +184,16 @@ export default function SponsorForm({ initialData = null }: { initialData?: any 
               className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-brand-accent)]"
             />
           </div>
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium mb-1">Ubicación GPS / Google Maps URL (Opcional)</label>
+            <input
+              type="url"
+              name="map_url"
+              defaultValue={initialData?.map_url || ""}
+              placeholder="https://maps.google.com/..."
+              className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-brand-accent)]"
+            />
+          </div>
         </div>
 
         <div className="border-t border-white/10 pt-4 mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">

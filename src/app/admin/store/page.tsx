@@ -88,6 +88,7 @@ export default function AdminStorePage() {
       instagram: editingStore.instagram,
       facebook: editingStore.facebook,
       x_url: editingStore.x_url,
+      map_url: editingStore.map_url,
       logo_url: logo_url,
       banner_url: banner_url
     };
@@ -255,6 +256,10 @@ export default function AdminStorePage() {
                 <div>
                   <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase">X (Twitter) URL</label>
                   <input type="url" value={editingStore.x_url || ""} onChange={e => setEditingStore({...editingStore, x_url: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)]" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase">Mapa GPS (Google Maps Embed URL)</label>
+                  <input type="url" value={editingStore.map_url || ""} onChange={e => setEditingStore({...editingStore, map_url: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)]" placeholder="https://www.google.com/maps/embed?pb=..." />
                 </div>
                 <div className="md:col-span-1">
                   <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase">Logo de la Tienda</label>

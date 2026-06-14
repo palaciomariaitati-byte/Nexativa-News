@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import type { Sponsor } from "@/lib/types";
-import { Globe, MessageCircle, Mail } from "lucide-react";
+import { Globe, MessageCircle, Mail, MapPin } from "lucide-react";
 
 export default function SponsorTabs({ sponsors }: { sponsors: Sponsor[] }) {
   const categories = ["Hotelería", "Turismo", "Gastronomía", "Servicios", "Otros"];
@@ -133,6 +133,11 @@ function SponsorCardItem({ sponsor, getTrackingUrl }: { sponsor: Sponsor, getTra
         {sponsor.website_url && (
           <a href={getTrackingUrl(sponsor.id, sponsor.website_url, 'website')} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white hover:scale-110 transition-all" title="Sitio Web">
             <Globe className="w-4 h-4" />
+          </a>
+        )}
+        {sponsor.map_url && (
+          <a href={getTrackingUrl(sponsor.id, sponsor.map_url, 'map')} target="_blank" rel="noopener noreferrer" className="text-emerald-500 hover:text-emerald-400 hover:scale-110 transition-all" title="Ver Ubicación">
+            <MapPin className="w-4 h-4" />
           </a>
         )}
         {sponsor.instagram_url && (

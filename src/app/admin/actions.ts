@@ -102,6 +102,8 @@ export async function createSponsor(formData: FormData) {
     const x_url = formData.get('x_url') as string;
     const whatsapp = formData.get('whatsapp') as string;
     const email = formData.get('email') as string;
+    const plan_type = formData.get('plan_type') as string;
+    const map_url = formData.get('map_url') as string;
     const logoFile = formData.get('logo') as File | null;
     const bannerFile = formData.get('banner') as File | null;
 
@@ -113,7 +115,7 @@ export async function createSponsor(formData: FormData) {
 
     const supabase = createServerSupabaseClient();
     const { error } = await supabase.from('sponsors').insert([
-      { name, slogan, category, logo_url, banner_url, website_url, instagram_url, facebook_url, tiktok_url, youtube_url, x_url, whatsapp, email, plan_type }
+      { name, slogan, category, logo_url, banner_url, website_url, instagram_url, facebook_url, tiktok_url, youtube_url, x_url, whatsapp, email, plan_type, map_url }
     ]);
     if (error) return { error: error.message };
     return { success: true };
@@ -139,10 +141,11 @@ export async function updateSponsor(id: string, formData: FormData) {
     const x_url = formData.get('x_url') as string;
     const whatsapp = formData.get('whatsapp') as string;
     const email = formData.get('email') as string;
+    const map_url = formData.get('map_url') as string;
     const logoFile = formData.get('logo') as File | null;
     const bannerFile = formData.get('banner') as File | null;
 
-    const updateData: any = { name, slogan, category, plan_type, website_url, instagram_url, facebook_url, tiktok_url, youtube_url, x_url, whatsapp, email };
+    const updateData: any = { name, slogan, category, plan_type, website_url, instagram_url, facebook_url, tiktok_url, youtube_url, x_url, whatsapp, email, map_url };
 
     if (logoFile && logoFile.size > 0) updateData.logo_url = await uploadImage(logoFile, 'sponsors/logos');
     if (bannerFile && bannerFile.size > 0) updateData.banner_url = await uploadImage(bannerFile, 'sponsors/banners');
@@ -189,5 +192,27 @@ export async function deleteRecord(table: string, id: string) {
   const { error } = await supabase.from(table).delete().eq('id', id);
   if (error) throw new Error(error.message);
   return true;
+}
+
+// ----- Accounting Management -----
+export async function createAccountingMovement(formData: FormData) {
+  try {
+    const role = await getStaffRole();
+    if (!role) return { error: 'No autorizado' };
+
+    const type = formData.get('type') as string;
+    const amount = parseFloat(formData.get('amount') as string);
+    const description = formData.get('description') as string;
+
+    const supabase = createServerSupabaseClient();
+    const { error } = await supabase.from('accounting_movements').insert([
+      { type, amount, description }
+    ]);
+    
+    if (error) return { error: error.message };
+    return { success: true };
+  } catch (err: any) {
+    return { error: err.message };
+  }
 }
 

@@ -36,8 +36,36 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Nexativa News",
-  description: "Portal de noticias modernista",
+  metadataBase: new URL("https://www.nexativanews.com.ar"),
+  title: {
+    default: "Nexativa - Lo nuestro para el mundo",
+    template: "%s | Nexativa",
+  },
+  description: "Portal de noticias, Marketplace PyME, Turismo y Espacio Cultural Regional.",
+  keywords: ["noticias", "marketplace", "turismo", "cultura", "regional", "nexativa"],
+  authors: [{ name: "Nexativa" }],
+  openGraph: {
+    type: "website",
+    locale: "es_AR",
+    url: "https://www.nexativanews.com.ar",
+    siteName: "Nexativa",
+    title: "Nexativa - Lo nuestro para el mundo",
+    description: "Portal de noticias, Marketplace PyME, Turismo y Espacio Cultural Regional.",
+    images: [
+      {
+        url: "/banner-nexativa.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Nexativa Banner",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Nexativa - Lo nuestro para el mundo",
+    description: "Portal de noticias, Marketplace PyME, Turismo y Espacio Cultural Regional.",
+    images: ["/banner-nexativa.jpg"],
+  },
   manifest: "/manifest.json",
   icons: {
     icon: "/icons/main-icon.png",

@@ -4,6 +4,32 @@ import { notFound } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { CulturalPost } from "@/lib/types";
 
+export async function generateMetadata({ params }: { params: { id: string } }) {
+  const supabase = createServerSupabaseClient();
+  const { data } = await supabase.from("cultural_posts").select("title, content, image_url").eq("id", params.id).single();
+  
+  if (!data) return { title: "Obra no encontrada" };
+  
+  // Stripping HTML tags for description
+  const cleanDescription = data.content.replace(/<[^>]+>/g, '').substring(0, 160) + "...";
+  
+  return {
+    title: data.title,
+    description: cleanDescription,
+    openGraph: {
+      title: data.title,
+      description: cleanDescription,
+      images: data.image_url ? [{ url: data.image_url }] : [],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: data.title,
+      description: cleanDescription,
+      images: data.image_url ? [data.image_url] : [],
+    }
+  };
+}
+
 export default async function CulturalPostDetailPage({ params }: { params: { id: string } }) {
   const supabase = createServerSupabaseClient();
   const { data } = await supabase

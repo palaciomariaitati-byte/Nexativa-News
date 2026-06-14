@@ -7,6 +7,29 @@ import AddToCartButton from "@/components/AddToCartButton";
 
 export const dynamic = 'force-dynamic';
 
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const supabase = createServerSupabaseClient();
+  const { data: product } = await supabase.from("products").select("title, description, image_url").eq("id", id).single();
+  if (!product) return { title: "Producto no encontrado" };
+  
+  return {
+    title: product.title,
+    description: product.description || "Comprá en nuestro Marketplace",
+    openGraph: {
+      title: product.title,
+      description: product.description || "Comprá en nuestro Marketplace",
+      images: product.image_url ? [{ url: product.image_url }] : [],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: product.title,
+      description: product.description || "Comprá en nuestro Marketplace",
+      images: product.image_url ? [product.image_url] : [],
+    }
+  };
+}
+
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = createServerSupabaseClient();
@@ -75,6 +98,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               </div>
               <div className="space-y-2 text-sm text-gray-300">
                 {store.address && <p>📍 {store.address}</p>}
+                {store.map_url && <p>🗺️ Ubicación: <a href={store.map_url} target="_blank" className="text-[var(--color-brand-accent)] hover:underline">Ver en Mapa</a></p>}
                 {store.whatsapp && <p>💬 WhatsApp: <a href={`https://wa.me/${store.whatsapp}`} target="_blank" className="text-[var(--color-brand-accent)]">{store.whatsapp}</a></p>}
                 {store.instagram && <p>📸 Instagram: <a href={store.instagram} target="_blank" className="text-[var(--color-brand-accent)]">Ver Perfil</a></p>}
               </div>
