@@ -124,7 +124,7 @@ export async function createSponsor(formData: FormData) {
     return { success: true };
   } catch (err: any) {
     if (err.message.includes('size')) {
-      return { error: 'El archivo de imagen es demasiado pesado. Por favor, subí una imagen más liviana (máximo 5MB).' };
+      return { error: 'El archivo de imagen es demasiado pesado. Por favor, subí una imagen más liviana (máximo 10MB).' };
     }
     return { error: 'Ocurrió un error inesperado: ' + err.message };
   }

@@ -129,15 +129,17 @@ function SponsorCardItem({ sponsor, getTrackingUrl }: { sponsor: Sponsor, getTra
         </p>
       )}
       
-      <div className="flex flex-wrap justify-center gap-3 mt-2 w-full border-t border-white/5 pt-2">
+      {sponsor.map_url && (
+        <a href={getTrackingUrl(sponsor.id, sponsor.map_url, 'map')} target="_blank" rel="noopener noreferrer" className="mt-2 w-full bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/50 text-emerald-400 py-1.5 px-3 rounded-md flex items-center justify-center gap-2 transition-all group-hover:scale-105" title="Ver Ubicación">
+          <MapPin className="w-4 h-4" />
+          <span className="text-xs font-bold uppercase tracking-wider">Cómo llegar</span>
+        </a>
+      )}
+
+      <div className="flex flex-wrap justify-center gap-3 mt-3 w-full border-t border-white/5 pt-2">
         {sponsor.website_url && (
           <a href={getTrackingUrl(sponsor.id, sponsor.website_url, 'website')} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white hover:scale-110 transition-all" title="Sitio Web">
             <Globe className="w-4 h-4" />
-          </a>
-        )}
-        {sponsor.map_url && (
-          <a href={getTrackingUrl(sponsor.id, sponsor.map_url, 'map')} target="_blank" rel="noopener noreferrer" className="text-emerald-500 hover:text-emerald-400 hover:scale-110 transition-all" title="Ver Ubicación">
-            <MapPin className="w-4 h-4" />
           </a>
         )}
         {sponsor.instagram_url && (
