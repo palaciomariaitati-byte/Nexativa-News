@@ -195,7 +195,7 @@ export default function TopBusBar() {
               {/* Usamos una API gratuita para generar el QR dinámicamente con la URL actual */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img 
-                src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://nexativa-news-digital.vercel.app/" 
+                src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://www.nexativanews.com.ar/" 
                 alt="QR Code" 
                 className="w-32 h-32 rounded-md shadow-sm"
               />
