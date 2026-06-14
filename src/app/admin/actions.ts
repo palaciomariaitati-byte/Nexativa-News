@@ -73,14 +73,17 @@ export async function listStaffKeys() {
 }
 
 // ----- Sponsors Management -----
-export async function uploadImage(file: File, folder: string) {
+export async function uploadImage(file: File, pathPrefix: string) {
   const supabase = createServerSupabaseClient();
-  const fileExt = file.name.split('.').pop();
-  const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
-  const filePath = `${folder}/${fileName}`;
+  const ext = file.name.split('.').pop();
+  const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
+  const filePath = `${pathPrefix}/${fileName}`;
 
   const { data, error } = await supabase.storage.from('uploads').upload(filePath, file, { cacheControl: '3600', upsert: false });
-  if (error) throw new Error('Error subiendo imagen: ' + error.message);
+  if (error) {
+    if (error.message.includes('size')) throw new Error('El archivo de imagen supera el tamaño máximo permitido de 5MB.');
+    throw new Error('Error subiendo imagen: ' + error.message);
+  }
   
   const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(filePath);
   return publicUrlData.publicUrl;
@@ -117,10 +120,13 @@ export async function createSponsor(formData: FormData) {
     const { error } = await supabase.from('sponsors').insert([
       { name, slogan, category, logo_url, banner_url, website_url, instagram_url, facebook_url, tiktok_url, youtube_url, x_url, whatsapp, email, plan_type, map_url }
     ]);
-    if (error) return { error: error.message };
+    if (error) return { error: "Error al guardar en la base de datos: " + error.message };
     return { success: true };
   } catch (err: any) {
-    return { error: err.message };
+    if (err.message.includes('size')) {
+      return { error: 'El archivo de imagen es demasiado pesado. Por favor, subí una imagen más liviana (máximo 5MB).' };
+    }
+    return { error: 'Ocurrió un error inesperado: ' + err.message };
   }
 }
 
