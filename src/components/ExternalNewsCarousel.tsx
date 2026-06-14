@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 // Using a free RSS to JSON proxy for client-side fetching without CORS issues
 const RSS_PROXY = "https://api.rss2json.com/v1/api.json?rss_url=";
@@ -45,6 +46,18 @@ export default function ExternalNewsCarousel() {
               });
             }
           }
+        }
+
+        // Fetch System Announcement
+        const supabase = getSupabaseBrowserClient();
+        const { data: settingData } = await supabase.from("settings").select("value").eq("key", "system_announcement").single();
+        if (settingData && settingData.value && settingData.value.trim() !== "") {
+          allNews.unshift({
+            title: settingData.value,
+            link: "#",
+            pubDate: new Date().toISOString(),
+            source: "NEXATIVA",
+          });
         }
 
         // Shuffle or sort by date (sorting by date here)

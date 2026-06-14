@@ -76,6 +76,18 @@ export default function SponsorForm({ initialData = null }: { initialData?: any 
               <option value="Otros">Otros</option>
             </select>
           </div>
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium mb-1">Plan de Suscripción</label>
+            <select
+              name="plan_type"
+              defaultValue={initialData?.plan_type || "bronce"}
+              className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-brand-accent)]"
+            >
+              <option value="oro">Plan Oro</option>
+              <option value="plata">Plan Plata</option>
+              <option value="bronce">Plan Bronce</option>
+            </select>
+          </div>
         </div>
         
 

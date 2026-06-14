@@ -15,6 +15,7 @@ export default function AdminSettingsPage() {
     linkedin: "",
     email: "",
     x_url: "",
+    system_announcement: "",
   });
 
   const supabase = getSupabaseBrowserClient();
@@ -75,6 +76,19 @@ export default function AdminSettingsPage() {
       </p>
 
       <form onSubmit={handleSave} className="space-y-6">
+        <div className="bg-white/5 border border-[var(--color-brand-accent)]/50 p-4 rounded-xl mb-6">
+          <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase">Anuncio del Sistema (Carrusel de Noticias)</label>
+          <input
+            type="text"
+            name="system_announcement"
+            value={settings.system_announcement || ""}
+            onChange={handleChange}
+            className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)]"
+            placeholder="Ej: ¡Lanzamos la nueva plataforma de Nexativa News! 🎉"
+          />
+          <p className="text-xs text-white/50 mt-2">Si escribís algo acá, aparecerá como "Último Momento" en la barra de noticias de la página principal. Dejalo vacío para ocultarlo.</p>
+        </div>
+
         <div>
           <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase">WhatsApp (Número, ej: 5493786611250)</label>
           <input

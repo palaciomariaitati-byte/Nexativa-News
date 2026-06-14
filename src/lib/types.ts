@@ -71,6 +71,7 @@ export interface Sponsor {
   x_url: string | null;
   whatsapp: string | null;
   email: string | null;
+  plan_type?: 'oro' | 'plata' | 'bronce';
   created_at: string;
 }
 

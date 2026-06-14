@@ -113,7 +113,7 @@ export async function createSponsor(formData: FormData) {
 
     const supabase = createServerSupabaseClient();
     const { error } = await supabase.from('sponsors').insert([
-      { name, slogan, category, logo_url, banner_url, website_url, instagram_url, facebook_url, tiktok_url, youtube_url, x_url, whatsapp, email }
+      { name, slogan, category, logo_url, banner_url, website_url, instagram_url, facebook_url, tiktok_url, youtube_url, x_url, whatsapp, email, plan_type }
     ]);
     if (error) return { error: error.message };
     return { success: true };
@@ -130,6 +130,7 @@ export async function updateSponsor(id: string, formData: FormData) {
     const name = formData.get('name') as string;
     const slogan = formData.get('slogan') as string;
     const category = formData.get('category') as string || 'Servicios';
+    const plan_type = formData.get('plan_type') as string;
     const website_url = formData.get('website_url') as string;
     const instagram_url = formData.get('instagram_url') as string;
     const facebook_url = formData.get('facebook_url') as string;
@@ -141,7 +142,7 @@ export async function updateSponsor(id: string, formData: FormData) {
     const logoFile = formData.get('logo') as File | null;
     const bannerFile = formData.get('banner') as File | null;
 
-    const updateData: any = { name, slogan, category, website_url, instagram_url, facebook_url, tiktok_url, youtube_url, x_url, whatsapp, email };
+    const updateData: any = { name, slogan, category, plan_type, website_url, instagram_url, facebook_url, tiktok_url, youtube_url, x_url, whatsapp, email };
 
     if (logoFile && logoFile.size > 0) updateData.logo_url = await uploadImage(logoFile, 'sponsors/logos');
     if (bannerFile && bannerFile.size > 0) updateData.banner_url = await uploadImage(bannerFile, 'sponsors/banners');
