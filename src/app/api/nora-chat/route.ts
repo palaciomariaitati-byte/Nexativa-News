@@ -43,12 +43,45 @@ export async function POST(req: Request) {
       finalMessage = `[CONTEXTO OCULTO DEL SISTEMA: El cliente acaba de dudar/mirar esto: "${context}". Inicia la conversación basándote en eso, pero de forma casual y humana, como si te hubieras acercado a él en la tienda.]\n\nHola.`;
     }
 
-    const result = await chat.sendMessage(finalMessage);
-    const text = result.response.text();
+    let text = "";
+    try {
+      const result = await chat.sendMessage(finalMessage);
+      text = result.response.text();
+    } catch (apiError: any) {
+      console.warn("Primary API error:", apiError.message);
+      
+      // Si es un error de cuota (429) y tenemos llave de relevo, intentamos con la de relevo
+      if (apiError.message?.includes("429") && process.env.GEMINI_API_KEY_FALLBACK) {
+        try {
+          console.log("Intentando con GEMINI_API_KEY_FALLBACK...");
+          const fallbackGenAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY_FALLBACK);
+          const fallbackModel = fallbackGenAI.getGenerativeModel({ model: modelId });
+          const fallbackChat = fallbackModel.startChat({
+            history: [
+              { role: "user", parts: [{ text: `INSTRUCCIONES DEL SISTEMA: ${SYSTEM_PROMPT}` }] },
+              { role: "model", parts: [{ text: "Entendido. Soy Nora, vendedora humana. Seré muy natural." }] },
+              ...(history || []).map((msg: any) => ({
+                role: msg.role === "nora" ? "model" : "user",
+                parts: [{ text: msg.content }]
+              }))
+            ]
+          });
+          const fallbackResult = await fallbackChat.sendMessage(finalMessage);
+          text = fallbackResult.response.text();
+        } catch (fallbackError) {
+          console.error("Fallback API también falló:", fallbackError);
+          text = "¡Uy! Perdoná la demora, se nos llenó el local de gente de golpe y estoy atendiendo a varios a la vez 😅. Si tenés prisa, ¿me escribís por WhatsApp usando el globito verde de la barra superior? Así te ayudo más rápido por ahí.";
+        }
+      } else {
+        // Si no hay llave de relevo o es otro error, damos una respuesta "humana" de saturación
+        text = "¡Uy! Perdoná la demora, se nos llenó el local de gente de golpe y estoy atendiendo a varios a la vez 😅. Si tenés prisa, ¿me escribís por WhatsApp usando el globito verde de la barra superior? Así te ayudo más rápido por ahí.";
+      }
+    }
 
     return NextResponse.json({ text });
   } catch (error: any) {
-    console.error("Error en Nora API:", error);
-    return NextResponse.json({ error: "Error de red" }, { status: 500 });
+    console.error("Error crítico en Nora API:", error);
+    // Respuesta de emergencia si todo el bloque falla
+    return NextResponse.json({ text: "¡Uy! Perdoná, estoy teniendo problemas con mi sistema. ¿Me escribís por WhatsApp?" });
   }
 }
