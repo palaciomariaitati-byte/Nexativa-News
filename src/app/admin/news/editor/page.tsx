@@ -6,6 +6,8 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import MediaUploader from "@/components/MediaUploader";
 import NoraAssistant from "@/components/NoraAssistant";
 
+export const maxDuration = 60; // Allow long LLM calls
+
 export default function NewsEditorPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
