@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState } from "react";
-import { askNoraEditor, askNoraCM, askNoraSupport } from "@/app/admin/actions/nora";
-import { Sparkles, PenTool, Share2, Copy, Check, Loader2, Wand2, Send } from "lucide-react";
+import { askNoraEditor, askNoraCM, askNoraSupport, askNoraMarketing } from "@/app/admin/actions/nora";
+import { Sparkles, PenTool, Share2, Copy, Check, Loader2, Wand2, Send, Lightbulb } from "lucide-react";
 
 interface NoraAssistantProps {
   title: string;
   content: string;
   operatorName?: string;
+  roleDescription?: string;
   onApplyChanges?: (newTitle: string, newContent: string) => void;
   onPublishDirectly?: (newTitle: string, newContent: string) => void;
 }
@@ -16,6 +17,7 @@ export default function NoraAssistant({
   title, 
   content, 
   operatorName = "Compañero",
+  roleDescription = "Editora, CM y Asesora",
   onApplyChanges,
   onPublishDirectly 
 }: NoraAssistantProps) {
@@ -26,7 +28,7 @@ export default function NoraAssistant({
   const [generatedData, setGeneratedData] = useState<{newTitle: string, newContent: string} | null>(null);
   
   const [copied, setCopied] = useState(false);
-  const [activeMode, setActiveMode] = useState<"editora" | "cm" | "soporte" | null>(null);
+  const [activeMode, setActiveMode] = useState<"editora" | "cm" | "soporte" | "publicista" | null>(null);
 
   const handleAskEditor = async () => {
     if (!title && !content) return;
@@ -55,6 +57,22 @@ export default function NoraAssistant({
     setGeneratedData(null);
     
     const res = await askNoraCM(title, content, operatorName);
+    if (res.success) {
+      setResponseHtml(res.text || "");
+    } else {
+      setResponseHtml(`<p class="text-red-400">${res.error}</p>`);
+    }
+    setLoading(false);
+  };
+
+  const handleAskMarketing = async () => {
+    if (!title && !content) return;
+    setLoading(true);
+    setActiveMode("publicista");
+    setResponseHtml(null);
+    setGeneratedData(null);
+    
+    const res = await askNoraMarketing(title, content, operatorName);
     if (res.success) {
       setResponseHtml(res.text || "");
     } else {
@@ -139,6 +157,20 @@ export default function NoraAssistant({
               <PenTool className="w-4 h-4 text-purple-400 group-hover:text-white transition-colors" />
             )}
             <span className="font-medium text-xs">Editora</span>
+          </button>
+
+          <button
+            onClick={handleAskMarketing}
+            disabled={loading || (!title && !content)}
+            className="flex items-center justify-center gap-2 bg-black/40 hover:bg-amber-600/30 border border-amber-500/30 text-white py-2 px-2 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group"
+            title="Estrategias, Guiones y Ads"
+          >
+            {loading && activeMode === "publicista" ? (
+              <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+            ) : (
+              <Lightbulb className="w-4 h-4 text-amber-400 group-hover:text-white transition-colors" />
+            )}
+            <span className="font-medium text-xs">Estratega</span>
           </button>
 
           <button
