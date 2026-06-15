@@ -3,6 +3,9 @@
 import React, { useEffect, useState, useRef } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { VideoQueueItem } from "@/lib/types";
+import dynamic from "next/dynamic";
+
+const ReactPlayer = dynamic(() => import("react-player/lazy"), { ssr: false });
 
 // Parseo Infalible de URLs de YouTube
 function getYouTubeEmbedUrl(url: string): string | null {
@@ -47,6 +50,20 @@ export default function VideoSection() {
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  const handleVideoEnded = async () => {
+    if (!activeVideo) return;
+    try {
+      console.log("Video finalizado, solicitando siguiente...");
+      await fetch("/api/streaming/next", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoId: activeVideo.id }),
+      });
+    } catch (e) {
+      console.error("Error al avanzar la cola:", e);
+    }
+  };
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
@@ -166,15 +183,23 @@ export default function VideoSection() {
             )}
             
             <div className="aspect-video w-full relative bg-black">
-              {embedUrl ? (
-                <iframe
-                  className="absolute top-0 left-0 w-full h-full"
-                  src={embedUrl}
-                  title="YouTube video player"
-                  frameBorder="0"
-                  allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-                  allowFullScreen
-                ></iframe>
+              {activeVideo?.video_url ? (
+                <ReactPlayer
+                  url={activeVideo.video_url}
+                  className="absolute top-0 left-0"
+                  width="100%"
+                  height="100%"
+                  playing={true}
+                  muted={true}
+                  controls={true}
+                  playsinline={true}
+                  onEnded={handleVideoEnded}
+                  config={{
+                    youtube: {
+                      playerVars: { autoplay: 1, playsinline: 1 }
+                    }
+                  }}
+                />
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center text-white/50 bg-gray-900">
                   Formato de video no soportado
