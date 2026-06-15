@@ -6,6 +6,10 @@
     {
       "path": "/api/cron/auto-fetch",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/cleanup-media",
+      "schedule": "0 3 * * *"
     }
   ]
 }
