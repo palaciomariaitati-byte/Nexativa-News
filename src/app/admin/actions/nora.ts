@@ -1,4 +1,5 @@
 "use server";
+export const maxDuration = 60; // Evitar el timeout de Vercel (Hobby permite hasta 60s ahora)
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
