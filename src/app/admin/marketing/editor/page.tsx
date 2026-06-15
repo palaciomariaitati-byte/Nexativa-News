@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import NoraAssistant from "@/components/NoraAssistant";
+import MediaUploader from "@/components/MediaUploader";
 
 export default function MarketingEditorPage() {
   const router = useRouter();
@@ -205,18 +206,28 @@ export default function MarketingEditorPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase">Imagen del Anuncio (URL)</label>
-            <input
-              type="url"
-              name="image_url"
-              value={formData.image_url}
-              onChange={handleChange}
-              className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)]"
-              placeholder="https://ejemplo.com/banner.jpg"
-            />
+            <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase">Media (Imagen o Video URL)</label>
+            <div className="flex flex-col gap-4">
+              <input
+                type="url"
+                name="image_url"
+                value={formData.image_url}
+                onChange={handleChange}
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)]"
+                placeholder="https://ejemplo.com/media.mp4 o pega un enlace aquí"
+              />
+              <MediaUploader 
+                label="O sube tu archivo directamente a Supabase"
+                onUploadSuccess={(url) => setFormData({ ...formData, image_url: url })}
+              />
+            </div>
             {formData.image_url && (
               <div className="mt-4 aspect-video rounded-lg overflow-hidden border border-white/10 relative h-48 w-full max-w-sm">
-                <img src={formData.image_url} alt="Preview" className="object-cover w-full h-full" />
+                {formData.image_url.match(/\.(mp4|webm|ogg)$/i) ? (
+                  <video src={formData.image_url} controls className="object-cover w-full h-full" />
+                ) : (
+                  <img src={formData.image_url} alt="Preview" className="object-cover w-full h-full" />
+                )}
               </div>
             )}
           </div>
