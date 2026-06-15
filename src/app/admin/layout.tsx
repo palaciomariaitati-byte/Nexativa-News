@@ -54,6 +54,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               <Link href="/admin/sponsors" className={`px-4 py-2 rounded-lg text-sm transition-colors hover:bg-white/10`}>
                 Auspiciantes & Stats
               </Link>
+              <Link href="/admin/marketing" className={`px-4 py-2 rounded-lg text-sm transition-colors text-[var(--color-brand-accent)] font-bold hover:bg-white/10`}>
+                Marketing & Ads
+              </Link>
               <Link href="/admin/settings" className={`px-4 py-2 rounded-lg text-sm transition-colors hover:bg-white/10`}>
                 Redes Sociales
               </Link>

@@ -72,15 +72,47 @@ export default function NewsEditorPage() {
       updated_at: new Date().toISOString(),
     };
 
+    let savedId = articleId;
+
     if (articleId) {
       const { error } = await supabase.from("articles").update(payload).eq("id", articleId);
-      if (error) alert("Error al guardar: " + error.message);
-      else router.push("/admin/news");
+      if (error) {
+        alert("Error al guardar: " + error.message);
+        setLoading(false);
+        return;
+      }
     } else {
-      const { error } = await supabase.from("articles").insert([payload]);
-      if (error) alert("Error al crear: " + error.message);
-      else router.push("/admin/news");
+      const { data, error } = await supabase.from("articles").insert([payload]).select("id").single();
+      if (error) {
+        alert("Error al crear: " + error.message);
+        setLoading(false);
+        return;
+      }
+      if (data) savedId = data.id;
     }
+
+    if (formData.status === "published") {
+      const wantToPublish = confirm("¿Deseas anunciar esta noticia en Redes Sociales (Make.com) ahora mismo?");
+      if (wantToPublish && savedId) {
+        try {
+          const res = await fetch("/api/social-publish", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: savedId, type: "news" })
+          });
+          const result = await res.json();
+          if (result.success) {
+            alert("¡Noticia enviada a Redes Sociales con éxito!");
+          } else {
+            alert("Error al enviar a redes: " + result.error);
+          }
+        } catch (err) {
+          alert("Fallo de conexión al disparar el webhook de redes.");
+        }
+      }
+    }
+
+    router.push("/admin/news");
     setLoading(false);
   };
 
@@ -105,15 +137,42 @@ export default function NewsEditorPage() {
       updated_at: new Date().toISOString(),
     };
 
+    let savedId = articleId;
+
     if (articleId) {
       const { error } = await supabase.from("articles").update(payload).eq("id", articleId);
-      if (error) alert("Error al autopublicar: " + error.message);
-      else router.push("/admin/news");
+      if (error) {
+        alert("Error al autopublicar: " + error.message);
+        setLoading(false);
+        return;
+      }
     } else {
-      const { error } = await supabase.from("articles").insert([payload]);
-      if (error) alert("Error al autopublicar: " + error.message);
-      else router.push("/admin/news");
+      const { data, error } = await supabase.from("articles").insert([payload]).select("id").single();
+      if (error) {
+        alert("Error al autopublicar: " + error.message);
+        setLoading(false);
+        return;
+      }
+      if (data) savedId = data.id;
     }
+
+    const wantToPublish = confirm("¿Deseas anunciar esta noticia en Redes Sociales (Make.com) ahora mismo?");
+    if (wantToPublish && savedId) {
+      try {
+        const res = await fetch("/api/social-publish", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: savedId, type: "news" })
+        });
+        const result = await res.json();
+        if (result.success) alert("¡Noticia enviada a Redes Sociales con éxito!");
+        else alert("Error al enviar a redes: " + result.error);
+      } catch (err) {
+        alert("Fallo de conexión al disparar el webhook de redes.");
+      }
+    }
+
+    router.push("/admin/news");
     setLoading(false);
   };
 

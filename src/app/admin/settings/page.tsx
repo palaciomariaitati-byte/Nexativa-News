@@ -20,6 +20,7 @@ export default function AdminSettingsPage() {
     plan_bronce_price: "",
     plan_plata_price: "",
     plan_oro_price: "",
+    make_webhook_url: "",
   });
 
   const supabase = getSupabaseBrowserClient();
@@ -113,6 +114,19 @@ export default function AdminSettingsPage() {
             placeholder="Ej: https://www.infobae.com/arc/outboundfeeds/rss/?outputType=xml"
           />
           <p className="text-xs text-white/50 mt-2">El bot leerá este enlace RSS cada 60 minutos y publicará automáticamente las noticias nuevas en tu base de datos.</p>
+        </div>
+
+        <div className="bg-gradient-to-r from-pink-900/30 to-orange-900/30 border border-pink-500/50 p-4 rounded-xl mb-6">
+          <label className="block text-sm font-bold text-pink-400 mb-2 uppercase">Integración Automática de Redes (Make.com Webhook)</label>
+          <input
+            type="url"
+            name="make_webhook_url"
+            value={settings.make_webhook_url || ""}
+            onChange={handleChange}
+            className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-pink-500"
+            placeholder="Ej: https://hook.eu1.make.com/xxxxxxxxxxxxxxx"
+          />
+          <p className="text-xs text-white/50 mt-2">Pega aquí el enlace de tu Webhook de Make.com. Al publicar una Noticia o Anuncio, el sistema enviará los datos allí automáticamente para que se auto-publiquen en Instagram, Facebook y X.</p>
         </div>
 
         <div className="bg-white/5 border border-white/10 p-4 rounded-xl mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
