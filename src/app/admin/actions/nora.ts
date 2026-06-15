@@ -81,7 +81,7 @@ export async function askNoraEditor(title: string, content: string, operatorName
       newContent: parsed.newContent
     };
   } catch (error: any) {
-    if (error.message?.includes("429") && process.env.GEMINI_API_KEY_FALLBACK) {
+    if ((error.message?.includes("429") || error.message?.includes("503") || error.message?.includes("500") || error.message?.includes("502")) && process.env.GEMINI_API_KEY_FALLBACK) {
       try {
         const fallbackGenAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY_FALLBACK);
         const fallbackModel = fallbackGenAI.getGenerativeModel({ 
@@ -120,7 +120,7 @@ export async function askNoraCM(title: string, content: string, operatorName: st
     const result = await model.generateContent(fullPrompt);
     return { success: true, text: result.response.text() };
   } catch (error: any) {
-    if (error.message?.includes("429") && process.env.GEMINI_API_KEY_FALLBACK) {
+    if ((error.message?.includes("429") || error.message?.includes("503") || error.message?.includes("500") || error.message?.includes("502")) && process.env.GEMINI_API_KEY_FALLBACK) {
       try {
         const fallbackGenAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY_FALLBACK);
         const fallbackModel = fallbackGenAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || "gemini-2.5-flash" });
@@ -164,7 +164,7 @@ export async function askNoraSupport(query: string, operatorName: string = "Comp
     const result = await model.generateContent(fullPrompt);
     return { success: true, text: result.response.text() };
   } catch (error: any) {
-    if (error.message?.includes("429") && process.env.GEMINI_API_KEY_FALLBACK) {
+    if ((error.message?.includes("429") || error.message?.includes("503") || error.message?.includes("500") || error.message?.includes("502")) && process.env.GEMINI_API_KEY_FALLBACK) {
       try {
         const fallbackGenAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY_FALLBACK);
         const fallbackModel = fallbackGenAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || "gemini-2.5-flash" });
@@ -209,7 +209,7 @@ export async function askNoraMarketing(title: string, content: string, operatorN
     const result = await model.generateContent(fullPrompt);
     return { success: true, text: result.response.text() };
   } catch (error: any) {
-    if (error.message?.includes("429") && process.env.GEMINI_API_KEY_FALLBACK) {
+    if ((error.message?.includes("429") || error.message?.includes("503") || error.message?.includes("500") || error.message?.includes("502")) && process.env.GEMINI_API_KEY_FALLBACK) {
       try {
         const fallbackGenAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY_FALLBACK);
         const fallbackModel = fallbackGenAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || "gemini-2.5-flash" });
