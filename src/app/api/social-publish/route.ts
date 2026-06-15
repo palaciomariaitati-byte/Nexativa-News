@@ -10,10 +10,11 @@ export async function POST(req: Request) {
     const supabase = await createServerSupabaseClient();
 
     // 1. Obtener la URL del Webhook
-    const { data: settings } = await supabase.from('settings').select('make_webhook_url').single();
-    if (!settings?.make_webhook_url) {
+    const { data: settingsItem } = await supabase.from('settings').select('value').eq('key', 'make_webhook_url').single();
+    if (!settingsItem?.value) {
       return NextResponse.json({ error: "No hay una URL de Webhook de Make configurada en Redes Sociales." }, { status: 400 });
     }
+    const make_webhook_url = settingsItem.value;
 
     let payload: any = { source: type, url: "https://www.nexativanews.com.ar" };
     let tableToUpdate = "";
@@ -64,7 +65,7 @@ export async function POST(req: Request) {
     }
 
     // 3. Enviar a Make.com
-    const makeRes = await fetch(settings.make_webhook_url, {
+    const makeRes = await fetch(make_webhook_url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
