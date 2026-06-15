@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { X, Send, User, Sparkles } from "lucide-react";
+import { X, Send, User, Sparkles, Scale } from "lucide-react";
 
 interface Message {
   role: "user" | "nora";
   content: string;
+  isLegalResponse?: boolean;
 }
 
 interface NoraChatWindowProps {
@@ -18,6 +19,7 @@ export default function NoraChatWindow({ isOpen, onClose, contextProductTitle }:
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [isFrozen, setIsFrozen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll
@@ -40,7 +42,10 @@ export default function NoraChatWindow({ isOpen, onClose, contextProductTitle }:
       });
       const data = await res.json();
       if (data.text) {
-        setMessages([{ role: "nora", content: data.text }]);
+        setMessages([{ role: "nora", content: data.text, isLegalResponse: data.freeze }]);
+        if (data.freeze) {
+          setIsFrozen(true);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -77,7 +82,10 @@ export default function NoraChatWindow({ isOpen, onClose, contextProductTitle }:
       });
       const data = await res.json();
       if (data.text) {
-        setMessages([...newHistory, { role: "nora", content: data.text }]);
+        setMessages([...newHistory, { role: "nora", content: data.text, isLegalResponse: data.freeze }]);
+        if (data.freeze) {
+          setIsFrozen(true);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -90,7 +98,7 @@ export default function NoraChatWindow({ isOpen, onClose, contextProductTitle }:
   if (!isOpen) return null;
 
   return (
-    <div className="fixed bottom-4 sm:bottom-8 left-4 sm:left-8 z-50 w-[320px] sm:w-[380px] bg-black/90 backdrop-blur-xl border border-white/20 rounded-2xl shadow-[0_0_40px_rgba(var(--color-brand-accent-rgb),0.2)] overflow-hidden flex flex-col h-[500px] max-h-[80vh] animate-in slide-in-from-bottom-10 fade-in duration-300">
+    <div className={`fixed bottom-4 sm:bottom-8 left-4 sm:left-8 z-50 w-[320px] sm:w-[380px] backdrop-blur-xl border border-white/20 rounded-2xl shadow-[0_0_40px_rgba(var(--color-brand-accent-rgb),0.2)] overflow-hidden flex flex-col h-[500px] max-h-[80vh] animate-in slide-in-from-bottom-10 fade-in duration-300 ${isFrozen ? "bg-slate-900/95" : "bg-black/90"}`}>
       
       {/* Header */}
       <div className="bg-gradient-to-r from-[var(--color-brand-accent)] to-[var(--color-brand-accent-hover)] p-4 flex items-center justify-between shadow-lg relative z-10">
@@ -98,7 +106,7 @@ export default function NoraChatWindow({ isOpen, onClose, contextProductTitle }:
           <div className="relative">
             {/* Avatar placeholder - El usuario cambiará esto */}
             <div className="w-10 h-10 rounded-full bg-black/20 flex items-center justify-center border-2 border-white/30 overflow-hidden">
-              <img src="/nora-avatar.png" alt="Nora" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display='none'; }} />
+              <img src="/nora-avatar.jpg?v=2" alt="Nora" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display='none'; }} />
               <User className="w-6 h-6 text-black/50 absolute -z-10" />
             </div>
             <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[var(--color-brand-accent)]"></div>
@@ -120,9 +128,24 @@ export default function NoraChatWindow({ isOpen, onClose, contextProductTitle }:
             <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm ${
               msg.role === "user" 
                 ? "bg-white/10 text-white rounded-br-sm" 
-                : "bg-gradient-to-br from-gray-900 to-black border border-white/10 text-gray-100 rounded-bl-sm"
+                : msg.isLegalResponse
+                  ? "bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-600 text-gray-100 rounded-bl-sm"
+                  : "bg-gradient-to-br from-gray-900 to-black border border-white/10 text-gray-100 rounded-bl-sm"
             }`}>
+              {msg.isLegalResponse && (
+                <div className="flex items-center gap-2 mb-2 text-slate-300 font-semibold border-b border-slate-600 pb-2">
+                  <Scale className="w-4 h-4" />
+                  Derivación Administrativa
+                </div>
+              )}
               {msg.content}
+              {msg.isLegalResponse && (
+                <div className="mt-3 pt-3 border-t border-slate-700">
+                  <a href="/libro-de-quejas" target="_blank" rel="noopener noreferrer" className="block w-full text-center py-2 px-3 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-lg transition-colors border border-white/20">
+                    Abrir Formulario Oficial de Reclamos
+                  </a>
+                </div>
+              )}
             </div>
             <span className="text-[10px] text-gray-500 mt-1 px-1">
               {msg.role === "nora" ? "Nora" : "Tú"} • Ahora
@@ -149,13 +172,14 @@ export default function NoraChatWindow({ isOpen, onClose, contextProductTitle }:
             type="text" 
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Escribe un mensaje..." 
-            className="w-full bg-white/5 border border-white/10 rounded-full pl-4 pr-12 py-3 text-sm text-white focus:outline-none focus:border-[var(--color-brand-accent)] transition-colors"
+            placeholder={isFrozen ? "Sesión redirigida a canales legales oficiales." : "Escribe un mensaje..."}
+            disabled={isFrozen}
+            className={`w-full bg-white/5 border border-white/10 rounded-full pl-4 pr-12 py-3 text-sm text-white focus:outline-none focus:border-[var(--color-brand-accent)] transition-colors ${isFrozen ? "opacity-50 cursor-not-allowed" : ""}`}
           />
           <button 
             type="submit" 
-            disabled={!input.trim() || isTyping}
-            className="absolute right-2 p-2 bg-[var(--color-brand-accent)] text-black rounded-full hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100"
+            disabled={!input.trim() || isTyping || isFrozen}
+            className={`absolute right-2 p-2 rounded-full transition-transform ${isFrozen ? "bg-gray-600 text-gray-400 cursor-not-allowed" : "bg-[var(--color-brand-accent)] text-black hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"}`}
           >
             <Send className="w-4 h-4 ml-0.5" />
           </button>

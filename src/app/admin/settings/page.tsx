@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import NoraAssistant from "@/components/NoraAssistant";
 
 export default function AdminSettingsPage() {
   const [loading, setLoading] = useState(true);
@@ -77,6 +78,15 @@ export default function AdminSettingsPage() {
       <p className="text-white/70 mb-8">
         Actualiza los enlaces de tus redes sociales. Si dejas un campo vacío o con "#", el enlace no se abrirá.
       </p>
+
+      {/* Botón Violeta de Nora (CM Asistente) */}
+      <div className="mb-8">
+        <NoraAssistant 
+          title="Gestión de Redes Sociales" 
+          content="Necesito crear un copy o estrategia rápida para las redes sociales de Nexativa News basándome en los enlaces configurados."
+          operatorName="Admin"
+        />
+      </div>
 
       <form onSubmit={handleSave} className="space-y-6">
         <div className="bg-white/5 border border-[var(--color-brand-accent)]/50 p-4 rounded-xl mb-6">

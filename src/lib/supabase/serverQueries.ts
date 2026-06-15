@@ -99,3 +99,39 @@ export async function getActiveStream(): Promise<StreamVideo | null> {
     return null;
   }
 }
+
+export async function saveNoraLead(leadData: any): Promise<boolean> {
+  try {
+    const supabase = createServerSupabaseClient();
+    const { error } = await supabase.from("nora_leads").insert([leadData]);
+    if (error) {
+      console.error("Error saving Nora lead:", error);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("Error in saveNoraLead:", error);
+    return false;
+  }
+}
+
+export async function saveNoraComplaint(history: any[], finalMessage: string, noraResponse: string): Promise<boolean> {
+  try {
+    const supabase = createServerSupabaseClient();
+    const complaintData = {
+      chat_history: JSON.stringify([...history, { role: "user", content: finalMessage }]),
+      nora_response: noraResponse,
+      status: "PENDIENTE_REVISION"
+    };
+    const { error } = await supabase.from("nora_complaints").insert([complaintData]);
+    if (error) {
+      console.error("Error saving Nora complaint:", error);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("Error in saveNoraComplaint:", error);
+    return false;
+  }
+}
+
