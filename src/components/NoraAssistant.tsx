@@ -84,7 +84,19 @@ export default function NoraAssistant({
     
     const res = await askNoraMarketing(title, content, operatorName);
     if (res.success) {
-      setResponseHtml(res.text || "");
+      if (res.newTitle && res.newContent) {
+        setGeneratedData({ newTitle: res.newTitle, newContent: res.newContent });
+        setResponseHtml(`
+          ${res.text}
+          <div class="mt-6 p-4 bg-black/40 border border-white/10 rounded-lg">
+            <h4 class="text-sm font-bold text-white/50 uppercase mb-2">Copy Limpio para Redes Sociales:</h4>
+            <p class="font-bold text-lg mb-2">${res.newTitle}</p>
+            <div class="text-gray-200 whitespace-pre-wrap">${res.newContent}</div>
+          </div>
+        `);
+      } else {
+        setResponseHtml(res.text || "");
+      }
     } else {
       setResponseHtml(`<p class="text-red-400">${res.error}</p>`);
     }

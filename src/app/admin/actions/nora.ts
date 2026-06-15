@@ -186,14 +186,15 @@ HABLAS ÚNICAMENTE EN ESPAÑOL. ERES NORA DE NEXORA, DIRECTORA DE MARKETING, PUB
 Tu trato es sumamente sofisticado, analítico, persuasivo y de nivel agencia internacional.
 Dirígete a la persona que te habla por su nombre: [OPERATOR_NAME], como tu colega de agencia.
 Tu trabajo es ayudar al equipo interno a crear ESTRATEGIAS, SPOTS, PAUTAS PUBLICITARIAS, GUIONES DE VIDEO y COPIES AVANZADOS para los clientes.
-Si te dan un producto o idea básica, debes devolver una propuesta comercial completa y brillante, dividida en:
-1. Concepto Creativo (La gran idea)
-2. Guion para Spot (15 segundos, alto impacto)
-3. Copy para Ads (Estructura AIDA: Atención, Interés, Deseo, Acción)
-4. Sugerencia visual o de segmentación
+Si te dan un producto o idea básica, debes devolver una propuesta comercial completa y brillante.
 
-Formatea tu respuesta en HTML limpio (usando <h3>, <p>, <strong>, <ul>) para que se vea bien en el panel del Editor.
-Usa emojis de forma estratégica, pero mantén un tono de autoridad y alto valor.
+DEBES DEVOLVER TU RESPUESTA ESTRICTAMENTE EN FORMATO JSON VÁLIDO CON LA SIGUIENTE ESTRUCTURA:
+{
+  "htmlForPanel": "<Tu estrategia completa en HTML aquí, dividida en Concepto Creativo, Guion para Spot y Sugerencia Visual. Usa <h3>, <p>, <strong>, <ul> y emojis estratégicos>",
+  "newTitle": "<Un título super atractivo y clickbait para la campaña final (máx 60 caracteres)>",
+  "newContent": "<El Copy final limpio para redes sociales, estructurado con AIDA, con emojis y hashtags relevantes, listo para copiar y pegar>"
+}
+NO INCLUYAS markdown de bloques de código en tu respuesta, solo el JSON puro.
 `;
 
 export async function askNoraMarketing(title: string, content: string, operatorName: string = "Compañero") {
@@ -203,20 +204,32 @@ export async function askNoraMarketing(title: string, content: string, operatorN
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
     const modelId = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-    const model = genAI.getGenerativeModel({ model: modelId });
+    const model = genAI.getGenerativeModel({ model: modelId, generationConfig: { responseMimeType: "application/json" } });
     const prompt = PROMPT_MARKETING.replace(/\[OPERATOR_NAME\]/g, operatorName);
     const fullPrompt = `Sistema: ${prompt}\n\nGenera una ESTRATEGIA DE MARKETING de alto nivel para este proyecto:\n\nCLIENTE/CAMPAÑA: ${title}\n\nIDEA BASE: ${content}`;
     const result = await model.generateContent(fullPrompt);
-    return { success: true, text: result.response.text() };
+    const parsed = JSON.parse(result.response.text());
+    return { 
+      success: true, 
+      text: parsed.htmlForPanel,
+      newTitle: parsed.newTitle,
+      newContent: parsed.newContent
+    };
   } catch (error: any) {
     if ((error.message?.includes("429") || error.message?.includes("503") || error.message?.includes("500") || error.message?.includes("502")) && process.env.GEMINI_API_KEY_FALLBACK) {
       try {
         const fallbackGenAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY_FALLBACK);
-        const fallbackModel = fallbackGenAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || "gemini-2.5-flash" });
+        const fallbackModel = fallbackGenAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || "gemini-2.5-flash", generationConfig: { responseMimeType: "application/json" } });
         const prompt = PROMPT_MARKETING.replace(/\[OPERATOR_NAME\]/g, operatorName);
         const fullPrompt = `Sistema: ${prompt}\n\nGenera una ESTRATEGIA DE MARKETING de alto nivel para este proyecto:\n\nCLIENTE/CAMPAÑA: ${title}\n\nIDEA BASE: ${content}`;
         const fallbackResult = await fallbackModel.generateContent(fullPrompt);
-        return { success: true, text: fallbackResult.response.text() };
+        const fallbackParsed = JSON.parse(fallbackResult.response.text());
+        return { 
+          success: true, 
+          text: fallbackParsed.htmlForPanel,
+          newTitle: fallbackParsed.newTitle,
+          newContent: fallbackParsed.newContent
+        };
       } catch (fallbackError: any) {
         return { error: "Hubo un cortocircuito en ambos cerebros de Nora: " + fallbackError.message };
       }
@@ -225,4 +238,3 @@ export async function askNoraMarketing(title: string, content: string, operatorN
     return { error: "Hubo un cortocircuito en el cerebro de Nora: " + error.message };
   }
 }
-
