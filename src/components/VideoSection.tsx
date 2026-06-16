@@ -55,7 +55,8 @@ export default function VideoSection() {
     if (audioRef.current) {
       if (isRadioPlaying || isRadioBuffering) {
         audioRef.current.pause();
-        audioRef.current.src = ""; // Liberar buffer
+        audioRef.current.removeAttribute('src'); // Forzar limpieza
+        audioRef.current.load();
         setIsRadioPlaying(false);
         setIsRadioBuffering(false);
       } else {
@@ -63,28 +64,18 @@ export default function VideoSection() {
         if (radioUrl) {
           const cleanUrl = radioUrl.split('nocache=')[0].replace(/[?&]$/, '');
           const separator = cleanUrl.includes('?') ? '&' : '?';
-          audioRef.current.src = `${cleanUrl}${separator}nocache=${Date.now()}`;
+          const freshUrl = `${cleanUrl}${separator}nocache=${Date.now()}`;
+          audioRef.current.src = freshUrl;
         }
-        audioRef.current.preload = "none";
-        audioRef.current.load();
         audioRef.current.volume = 1.0;
-        
+        audioRef.current.load();
+
         const playPromise = audioRef.current.play();
         if (playPromise !== undefined) {
           playPromise.catch(e => {
-            console.warn("Fallo inicial al reproducir, intentando nuevamente...", e);
-            // Reintento agresivo como en el reproductor nativo
-            if (audioRef.current) {
-              const cleanUrl = audioRef.current.src.split('nocache=')[0].replace(/[?&]$/, '');
-              const separator = cleanUrl.includes('?') ? '&' : '?';
-              audioRef.current.src = `${cleanUrl}${separator}nocache=${Date.now()}`;
-              audioRef.current.load();
-              audioRef.current.play().catch(retryErr => {
-                console.error("Error definitivo al reproducir audio:", retryErr);
-                setIsRadioBuffering(false);
-                setIsRadioPlaying(false);
-              });
-            }
+            console.error("Error al reproducir audio:", e);
+            setIsRadioBuffering(false);
+            setIsRadioPlaying(false);
           });
         }
       }
@@ -314,11 +305,13 @@ export default function VideoSection() {
                       )}
                     </button>
                   </div>
-                  
+
                   <audio
                     ref={audioRef}
                     className="hidden"
                     preload="none"
+                    crossOrigin="anonymous"
+                    type="audio/mpeg"
                     autoPlay={false}
                     controls={false}
                     playsInline={true}
