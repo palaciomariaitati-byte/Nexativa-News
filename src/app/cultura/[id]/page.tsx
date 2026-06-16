@@ -4,9 +4,10 @@ import { notFound } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { CulturalPost } from "@/lib/types";
 
-export async function generateMetadata({ params }: { params: { id: string } }) {
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const supabase = createServerSupabaseClient();
-  const { data } = await supabase.from("cultural_posts").select("title, content, image_url").eq("id", params.id).single();
+  const { data } = await supabase.from("cultural_posts").select("title, content, image_url").eq("id", id).single();
   
   if (!data) return { title: "Obra no encontrada" };
   
@@ -30,12 +31,13 @@ export async function generateMetadata({ params }: { params: { id: string } }) {
   };
 }
 
-export default async function CulturalPostDetailPage({ params }: { params: { id: string } }) {
+export default async function CulturalPostDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const supabase = createServerSupabaseClient();
   const { data } = await supabase
     .from("cultural_posts")
     .select("*")
-    .eq("id", params.id)
+    .eq("id", id)
     .single();
 
   if (!data) {

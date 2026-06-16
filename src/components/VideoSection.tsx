@@ -54,7 +54,6 @@ export default function VideoSection() {
   useEffect(() => {
     const a = document.createElement("audio");
     a.preload = "none";
-    a.crossOrigin = "anonymous";
     a.style.display = "none";
     document.body.appendChild(a);
     audioRef.current = a;
