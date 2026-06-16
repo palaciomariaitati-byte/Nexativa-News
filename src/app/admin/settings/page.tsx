@@ -21,6 +21,7 @@ export default function AdminSettingsPage() {
     plan_plata_price: "",
     plan_oro_price: "",
     make_webhook_url: "",
+    radio_url: "",
   });
 
   const supabase = getSupabaseBrowserClient();
@@ -127,6 +128,19 @@ export default function AdminSettingsPage() {
             placeholder="Ej: https://hook.eu1.make.com/xxxxxxxxxxxxxxx"
           />
           <p className="text-xs text-white/50 mt-2">Pega aquí el enlace de tu Webhook de Make.com. Al publicar una Noticia o Anuncio, el sistema enviará los datos allí automáticamente para que se auto-publiquen en Instagram, Facebook y X.</p>
+        </div>
+
+        <div className="bg-emerald-900/30 border border-emerald-500/50 p-4 rounded-xl mb-6">
+          <label className="block text-sm font-bold text-emerald-400 mb-2 uppercase">URL de Radio en Vivo</label>
+          <input
+            type="url"
+            name="radio_url"
+            value={settings.radio_url || ""}
+            onChange={handleChange}
+            className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-emerald-500"
+            placeholder="Ej: https://stream.radio.com/envivo.mp3"
+          />
+          <p className="text-xs text-white/50 mt-2">Introduce la URL directa del streaming de audio para habilitar la pestaña de Radio en la página principal.</p>
         </div>
 
         <div className="bg-white/5 border border-white/10 p-4 rounded-xl mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">

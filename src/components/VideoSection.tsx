@@ -33,12 +33,63 @@ function getYouTubeEmbedUrl(url: string): string | null {
   return null;
 }
 
+const PLAYER_CONFIG = {
+  youtube: {
+    playerVars: { autoplay: 1, playsinline: 1, mute: 1 }
+  }
+};
+
 export default function VideoSection() {
   const [activeVideo, setActiveVideo] = useState<VideoQueueItem | null>(null);
   const [showVideo, setShowVideo] = useState(true);
   const [loading, setLoading] = useState(true);
   const [isFloating, setIsFloating] = useState(false);
+  const [mode, setMode] = useState<"tv" | "radio">("tv");
+  const [radioUrl, setRadioUrl] = useState<string | null>(null);
+  const [isRadioPlaying, setIsRadioPlaying] = useState(false);
+  const [isRadioBuffering, setIsRadioBuffering] = useState(false);
   const placeholderRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  const toggleRadioPlay = () => {
+    if (audioRef.current) {
+      if (isRadioPlaying || isRadioBuffering) {
+        audioRef.current.pause();
+        audioRef.current.src = ""; // Liberar buffer
+        setIsRadioPlaying(false);
+        setIsRadioBuffering(false);
+      } else {
+        setIsRadioBuffering(true);
+        if (radioUrl) {
+          const cleanUrl = radioUrl.split('nocache=')[0].replace(/[?&]$/, '');
+          const separator = cleanUrl.includes('?') ? '&' : '?';
+          audioRef.current.src = `${cleanUrl}${separator}nocache=${Date.now()}`;
+        }
+        audioRef.current.preload = "none";
+        audioRef.current.load();
+        audioRef.current.volume = 1.0;
+        
+        const playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(e => {
+            console.warn("Fallo inicial al reproducir, intentando nuevamente...", e);
+            // Reintento agresivo como en el reproductor nativo
+            if (audioRef.current) {
+              const cleanUrl = audioRef.current.src.split('nocache=')[0].replace(/[?&]$/, '');
+              const separator = cleanUrl.includes('?') ? '&' : '?';
+              audioRef.current.src = `${cleanUrl}${separator}nocache=${Date.now()}`;
+              audioRef.current.load();
+              audioRef.current.play().catch(retryErr => {
+                console.error("Error definitivo al reproducir audio:", retryErr);
+                setIsRadioBuffering(false);
+                setIsRadioPlaying(false);
+              });
+            }
+          });
+        }
+      }
+    }
+  };
 
   useEffect(() => {
     const handleScroll = () => {
@@ -80,6 +131,17 @@ export default function VideoSection() {
       if (!error) {
         setActiveVideo(data || null);
       }
+
+      const { data: settingsData } = await supabase
+        .from("settings")
+        .select("value")
+        .eq("key", "radio_url")
+        .maybeSingle();
+
+      if (settingsData?.value) {
+        setRadioUrl(settingsData.value);
+      }
+
       setLoading(false);
     };
 
@@ -163,6 +225,25 @@ export default function VideoSection() {
 
       {showVideo ? (
         <div className={`transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)] bg-black border border-white/10 rounded-xl overflow-hidden ${floatingClasses}`}>
+          
+          {/* Selector de Modo (TV / Radio) - Oculto cuando es flotante para ahorrar espacio */}
+          {!isFloating && radioUrl && (
+            <div className="flex bg-black/50 border-b border-white/10">
+              <button 
+                onClick={() => setMode("tv")}
+                className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider transition-colors ${mode === "tv" ? "text-[var(--color-brand-accent)] border-b-2 border-[var(--color-brand-accent)] bg-white/5" : "text-white/50 hover:text-white/80"}`}
+              >
+                📺 TV en Vivo
+              </button>
+              <button 
+                onClick={() => setMode("radio")}
+                className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider transition-colors ${mode === "radio" ? "text-[var(--color-brand-accent)] border-b-2 border-[var(--color-brand-accent)] bg-white/5" : "text-white/50 hover:text-white/80"}`}
+              >
+                📻 Radio
+              </button>
+            </div>
+          )}
+
           {isFloating && (
             <button
               onClick={() => setShowVideo(false)}
@@ -177,20 +258,13 @@ export default function VideoSection() {
               <div className="absolute top-0 left-0 w-full p-1.5 sm:p-2 bg-gradient-to-b from-black/80 to-transparent z-40 flex items-center justify-between pointer-events-none">
                 <h5 className="font-semibold text-white text-[10px] sm:text-xs flex items-center gap-1.5 sm:gap-2 truncate pr-8">
                   <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-red-500 animate-pulse" />
-                  En Vivo
+                  {mode === "tv" ? "TV en Vivo" : "Radio en Vivo"}
                 </h5>
               </div>
             )}
             
-const playerConfig = {
-  youtube: {
-    playerVars: { autoplay: 1, playsinline: 1, mute: 1 }
-  }
-};
-
-// ... inside VideoSection ...
-            <div className="aspect-video w-full relative bg-black">
-              {activeVideo?.video_url ? (
+            <div className={`aspect-video w-full relative ${mode === "radio" ? "bg-gradient-to-br from-indigo-900 to-black" : "bg-black"}`}>
+              {mode === "tv" && activeVideo?.video_url ? (
                 <ReactPlayer
                   src={activeVideo.video_url}
                   className="absolute top-0 left-0"
@@ -200,11 +274,74 @@ const playerConfig = {
                   controls={true}
                   playsInline={true}
                   onEnded={handleVideoEnded}
-                  config={playerConfig}
+                  config={PLAYER_CONFIG}
                 />
+              ) : mode === "radio" && radioUrl ? (
+                <>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pb-8 z-10 bg-[#0a0a0a]">
+                    <div className="w-32 h-32 sm:w-48 sm:h-48 rounded-2xl flex items-center justify-center mb-6 relative shadow-[0_0_40px_rgba(200,150,100,0.15)] bg-gradient-to-br from-[#2a1a10] to-black p-4 border border-[#cf9e6e]/20">
+                      <img src="https://xn--pistarinconsoado-jub.com.ar/assets/logo.png" alt="Rincón Soñado" className="w-full h-full object-contain drop-shadow-xl" />
+                    </div>
+                    
+                    <h3 className="text-xl sm:text-2xl font-bold text-white mb-2 uppercase tracking-widest drop-shadow-lg text-center px-4">
+                      {isRadioBuffering ? "Conectando..." : isRadioPlaying ? "Radio en Vivo" : "Transmisión Pausada"}
+                    </h3>
+                    
+                    {isRadioPlaying && !isRadioBuffering && (
+                      <div className="flex items-end gap-1.5 h-6 opacity-80 mb-4">
+                        <span className="w-1.5 sm:w-2 bg-[#cf9e6e] animate-[pulse_1s_ease-in-out_infinite]" style={{ height: '30%' }}></span>
+                        <span className="w-1.5 sm:w-2 bg-[#e8be92] animate-[pulse_1.2s_ease-in-out_infinite]" style={{ height: '80%' }}></span>
+                        <span className="w-1.5 sm:w-2 bg-[#ffdca8] animate-[pulse_0.8s_ease-in-out_infinite]" style={{ height: '50%' }}></span>
+                        <span className="w-1.5 sm:w-2 bg-[#e8be92] animate-[pulse_1.1s_ease-in-out_infinite]" style={{ height: '100%' }}></span>
+                        <span className="w-1.5 sm:w-2 bg-[#cf9e6e] animate-[pulse_0.9s_ease-in-out_infinite]" style={{ height: '60%' }}></span>
+                      </div>
+                    )}
+
+                    <button 
+                      onClick={toggleRadioPlay}
+                      className="mt-2 bg-[#cf9e6e] hover:bg-[#ffdca8] text-black rounded-full w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center shadow-[0_0_20px_rgba(207,158,110,0.4)] hover:shadow-[0_0_30px_rgba(255,220,168,0.6)] transition-all transform hover:scale-105"
+                      disabled={isRadioBuffering}
+                    >
+                      {isRadioBuffering ? (
+                        <svg className="animate-spin w-6 h-6 sm:w-8 sm:h-8 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      ) : isRadioPlaying ? (
+                        <svg className="w-6 h-6 sm:w-8 sm:h-8" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+                      ) : (
+                        <svg className="w-6 h-6 sm:w-8 sm:h-8 ml-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
+                      )}
+                    </button>
+                  </div>
+                  
+                  <audio
+                    ref={audioRef}
+                    className="hidden"
+                    preload="none"
+                    autoPlay={false}
+                    controls={false}
+                    playsInline={true}
+                    onPlaying={() => {
+                      setIsRadioPlaying(true);
+                      setIsRadioBuffering(false);
+                    }}
+                    onWaiting={() => setIsRadioBuffering(true)}
+                    onPause={() => {
+                      setIsRadioPlaying(false);
+                      setIsRadioBuffering(false);
+                    }}
+                    onError={(e) => {
+                      console.error("Audio error:", e);
+                      setIsRadioPlaying(false);
+                      setIsRadioBuffering(false);
+                    }}
+                  />
+                </>
               ) : (
-                <div className="absolute inset-0 flex items-center justify-center text-white/50 bg-gray-900">
-                  Formato de video no soportado
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-white/50 bg-gray-900">
+                  <span className="text-4xl mb-3">{mode === "tv" ? "📺" : "📻"}</span>
+                  <p>{mode === "tv" ? "Formato de video no soportado" : "Radio no disponible"}</p>
                 </div>
               )}
             </div>
