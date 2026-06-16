@@ -96,7 +96,13 @@ export default function VideoSection() {
       } else {
         setIsRadioBuffering(true);
         if (radioUrl) {
-          const cleanUrl = radioUrl.split('nocache=')[0].replace(/[?&]$/, '');
+          let actualUrl = radioUrl;
+          if (actualUrl.includes("pistarinconsoñado.com.ar") || 
+              actualUrl.includes("xn--pistarinconsoado-jub.com.ar") || 
+              actualUrl.includes("pistarinconsonado.com.ar")) {
+            actualUrl = "https://miestacion.turadioonline.com.ar/8180/stream";
+          }
+          const cleanUrl = actualUrl.split('nocache=')[0].replace(/[?&]$/, '');
           const separator = cleanUrl.includes('?') ? '&' : '?';
           const freshUrl = `${cleanUrl}${separator}nocache=${Date.now()}`;
           audioRef.current.src = freshUrl;
