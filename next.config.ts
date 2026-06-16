@@ -31,6 +31,7 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
+
       {
         source: '/setting/admin',
         destination: '/admin/settings',

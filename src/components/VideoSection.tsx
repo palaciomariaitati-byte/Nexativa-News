@@ -5,7 +5,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { VideoQueueItem } from "@/lib/types";
 import dynamic from "next/dynamic";
 
-const ReactPlayer = dynamic(() => import("react-player/lazy"), { ssr: false });
+const ReactPlayer = dynamic(() => import("react-player"), { ssr: false });
 
 // Parseo Infalible de URLs de YouTube
 function getYouTubeEmbedUrl(url: string): string | null {
@@ -182,23 +182,25 @@ export default function VideoSection() {
               </div>
             )}
             
+const playerConfig = {
+  youtube: {
+    playerVars: { autoplay: 1, playsinline: 1, mute: 1 }
+  }
+};
+
+// ... inside VideoSection ...
             <div className="aspect-video w-full relative bg-black">
               {activeVideo?.video_url ? (
                 <ReactPlayer
-                  url={activeVideo.video_url}
+                  src={activeVideo.video_url}
                   className="absolute top-0 left-0"
                   width="100%"
                   height="100%"
                   playing={true}
-                  muted={true}
                   controls={true}
-                  playsinline={true}
+                  playsInline={true}
                   onEnded={handleVideoEnded}
-                  config={{
-                    youtube: {
-                      playerVars: { autoplay: 1, playsinline: 1 }
-                    }
-                  }}
+                  config={playerConfig}
                 />
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center text-white/50 bg-gray-900">
