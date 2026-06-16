@@ -49,13 +49,48 @@ export default function VideoSection() {
   const [isRadioPlaying, setIsRadioPlaying] = useState(false);
   const [isRadioBuffering, setIsRadioBuffering] = useState(false);
   const placeholderRef = useRef<HTMLDivElement>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    const a = document.createElement("audio");
+    a.preload = "none";
+    a.crossOrigin = "anonymous";
+    a.style.display = "none";
+    document.body.appendChild(a);
+    audioRef.current = a;
+
+    a.onplaying = () => {
+      setIsRadioPlaying(true);
+      setIsRadioBuffering(false);
+    };
+    a.onwaiting = () => setIsRadioBuffering(true);
+    a.onpause = () => {
+      setIsRadioPlaying(false);
+      setIsRadioBuffering(false);
+    };
+    a.onerror = (e) => {
+      console.error("Audio error:", e);
+      setIsRadioPlaying(false);
+      setIsRadioBuffering(false);
+    };
+
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.removeAttribute('src');
+        if (document.body.contains(audioRef.current)) {
+          document.body.removeChild(audioRef.current);
+        }
+        audioRef.current = null;
+      }
+    };
+  }, []);
 
   const toggleRadioPlay = () => {
     if (audioRef.current) {
       if (isRadioPlaying || isRadioBuffering) {
         audioRef.current.pause();
-        audioRef.current.removeAttribute('src'); // Forzar limpieza
+        audioRef.current.removeAttribute('src');
         audioRef.current.load();
         setIsRadioPlaying(false);
         setIsRadioBuffering(false);
@@ -305,31 +340,6 @@ export default function VideoSection() {
                       )}
                     </button>
                   </div>
-
-                  <audio
-                    ref={audioRef}
-                    className="hidden"
-                    preload="none"
-                    crossOrigin="anonymous"
-                    type="audio/mpeg"
-                    autoPlay={false}
-                    controls={false}
-                    playsInline={true}
-                    onPlaying={() => {
-                      setIsRadioPlaying(true);
-                      setIsRadioBuffering(false);
-                    }}
-                    onWaiting={() => setIsRadioBuffering(true)}
-                    onPause={() => {
-                      setIsRadioPlaying(false);
-                      setIsRadioBuffering(false);
-                    }}
-                    onError={(e) => {
-                      console.error("Audio error:", e);
-                      setIsRadioPlaying(false);
-                      setIsRadioBuffering(false);
-                    }}
-                  />
                 </>
               ) : (
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-white/50 bg-gray-900">
