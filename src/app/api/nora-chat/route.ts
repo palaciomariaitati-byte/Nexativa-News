@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { saveNoraLead, saveNoraComplaint } from "@/lib/supabase/serverQueries";
+import { generateNoraAudio } from "@/modules/nora-pro/voice_generator";
 
 const SYSTEM_PROMPT = `
 ========================================================================
@@ -18,6 +19,7 @@ Cada vez que un cliente interactúe tras el trigger de 2.5 segundos de retenció
 1. Fórmula AIDA: Capturar Atención (gancho disruptivo), despertar Interés (beneficio central), generar Deseo (transformación o dolor resuelto) y mover a la Acción (un único CTA claro como "Toca aquí y escribe al WhatsApp").
 2. Fórmula PAS: Detectar el Problema del anunciante local, Agitar ese dolor (consecuencias de no resolverlo) y presentar el producto del cliente como la única Solución.
 3. Equilibrio Persuasivo: Combinar Ethos (autoridad de marca), Pathos (conexión emocional, empatía y figuras retóricas aportadas por el perfil literario) y Logos (beneficios lógicos y métricas de rendimiento).
+4. Reconocimiento de Imágenes: Actúa como un experto en reconocimiento de productos comerciales. Si el usuario te envía una imagen, analiza minuciosamente el objeto (diseño, marca visible, tipo de artículo). Identifica qué es y realiza una búsqueda conceptual en nuestra base de datos de la tienda y comercios adheridos. Si lo encuentras, genera la tarjeta de cobro o indica la dirección física exacta del local local que lo vende.
 
 ------------------------------------------------------------------------
 ⚙️ SECCIÓN 2: INGENIERÍA DE MARKETING Y MÉTRICAS DE CONVERSIÓN
@@ -66,7 +68,7 @@ Ese bloque será invisible para el usuario.
 
 export async function POST(req: Request) {
   try {
-    const { message, history, context } = await req.json();
+    const { message, history, context, image } = await req.json();
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
@@ -96,15 +98,31 @@ export async function POST(req: Request) {
     const chat = model.startChat({ history: normalizedHistory });
 
     // If there's a specific context (like "El usuario está mirando X producto"), we inject it invisibly
-    let finalMessage = message;
+    let finalMessageParts: any[] = [];
+    
     if (context && (!history || history.length === 0)) {
-      finalMessage = `[CONTEXTO OCULTO DEL SISTEMA: El cliente acaba de dudar/mirar esto: "${context}". Inicia la conversación basándote en eso, pero de forma casual y humana, como si te hubieras acercado a él en la tienda.]\n\nHola.`;
+      finalMessageParts.push({ text: `[CONTEXTO OCULTO DEL SISTEMA: El cliente acaba de dudar/mirar esto: "${context}". Inicia la conversación basándote en eso, pero de forma casual y humana, como si te hubieras acercado a él en la tienda.]\n\nHola.` });
+    } else if (message.trim().length > 0) {
+      finalMessageParts.push({ text: message });
+    } else if (image) {
+      finalMessageParts.push({ text: "Analiza el producto de esta imagen por favor." });
+    }
+
+    // Inject image data if provided (Multimodal Vision)
+    if (image && image.data && image.mimeType) {
+      finalMessageParts.push({
+        inlineData: {
+          data: image.data,
+          mimeType: image.mimeType,
+        },
+      });
     }
 
     let text = "";
     let freezeState = false;
+    let audioBase64 = null;
     try {
-      const result = await chat.sendMessage(finalMessage);
+      const result = await chat.sendMessage(finalMessageParts);
       text = result.response.text();
 
       // Interceptar y procesar el bloque <REPORT>
@@ -116,7 +134,7 @@ export async function POST(req: Request) {
           
           if (reportData.flag_legal_claim) {
             freezeState = true;
-            await saveNoraComplaint(history, finalMessage, text);
+            await saveNoraComplaint(history, JSON.stringify(finalMessageParts), text);
             console.log("[ALERTA NORA] Reclamo guardado");
           } else {
             await saveNoraLead({
@@ -162,7 +180,7 @@ export async function POST(req: Request) {
           }
 
           const fallbackChat = fallbackModel.startChat({ history: fallbackHistory });
-          const fallbackResult = await fallbackChat.sendMessage(finalMessage);
+          const fallbackResult = await fallbackChat.sendMessage(finalMessageParts);
           text = fallbackResult.response.text();
           
           const reportMatch = text.match(/<REPORT>([\s\S]*?)<\/REPORT>/i);
@@ -172,7 +190,7 @@ export async function POST(req: Request) {
               const reportData = JSON.parse(reportJsonStr);
               if (reportData.flag_legal_claim) {
                 freezeState = true;
-                await saveNoraComplaint(history, finalMessage, text);
+                await saveNoraComplaint(history, JSON.stringify(finalMessageParts), text);
               } else {
                 await saveNoraLead({
                   rubro_cliente: reportData.rubro_cliente || "Desconocido",
@@ -194,11 +212,21 @@ export async function POST(req: Request) {
         }
       } else {
         // Si no hay llave de relevo o es otro error, damos una respuesta "humana" de saturación
-        text = "¡Uy! Perdoná la demora, se nos llenó el local de gente de golpe y estoy atendiendo a varios a la vez 😅. Si tenés prisa, ¿me escribís por WhatsApp usando el globito verde de la barra superior? Así te ayudo más rápido por ahí.";
+        if (apiError.message?.includes("429")) {
+          text = "¡Uy! Perdoná la demora, se me llenó el local de gente de golpe y se me tildó el sistema 😅. Si tenés prisa, ¿me escribís por WhatsApp usando el globito verde?";
+        } else if (apiError.message?.includes("400")) {
+          text = "¡Uy! Me pasaste un archivo o texto que mi sistema no pudo leer bien. ¿Podrías intentar de nuevo o mandarme una foto más ligera?";
+        } else {
+          text = "Perdoná la demora, se nos llenó el local de gente de golpe y estoy atendiendo a varios a la vez 😅. Si tenés prisa, ¿me escribís por WhatsApp usando el globito verde de la barra superior? Así te ayudo más rápido por ahí.";
+        }
       }
     }
+    // TTS integration (Voice Generation)
+    if (process.env.ENABLE_NORA_VOICE === "true" && text.trim().length > 0) {
+      audioBase64 = await generateNoraAudio(text);
+    }
 
-    return NextResponse.json({ text, freeze: freezeState });
+    return NextResponse.json({ text, freeze: freezeState, audioBase64 });
   } catch (error: any) {
     console.error("Error crítico en Nora API:", error);
     // Respuesta de emergencia si todo el bloque falla

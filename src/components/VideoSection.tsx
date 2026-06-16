@@ -122,6 +122,15 @@ export default function VideoSection() {
     }
   };
 
+  // Pause radio when switching to TV mode
+  useEffect(() => {
+    if (mode === "tv" && audioRef.current && (isRadioPlaying || isRadioBuffering)) {
+      audioRef.current.pause();
+      setIsRadioPlaying(false);
+      setIsRadioBuffering(false);
+    }
+  }, [mode, isRadioPlaying, isRadioBuffering]);
+
   useEffect(() => {
     const handleScroll = () => {
       if (!placeholderRef.current) return;

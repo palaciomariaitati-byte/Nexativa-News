@@ -1,12 +1,14 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { X, Send, User, Sparkles, Scale } from "lucide-react";
+import { X, Send, User, Sparkles, Scale, Paperclip, PlayCircle, PauseCircle } from "lucide-react";
 
 interface Message {
   role: "user" | "nora";
   content: string;
   isLegalResponse?: boolean;
+  audioBase64?: string;
+  attachedImageUrl?: string;
 }
 
 interface NoraChatWindowProps {
@@ -20,6 +22,12 @@ export default function NoraChatWindow({ isOpen, onClose, contextProductTitle }:
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [isFrozen, setIsFrozen] = useState(false);
+  
+  // Multimodal state
+  const [attachedImage, setAttachedImage] = useState<{ file: File; base64: string; mimeType: string } | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll
@@ -42,7 +50,7 @@ export default function NoraChatWindow({ isOpen, onClose, contextProductTitle }:
       });
       const data = await res.json();
       if (data.text) {
-        setMessages([{ role: "nora", content: data.text, isLegalResponse: data.freeze }]);
+        setMessages([{ role: "nora", content: data.text, isLegalResponse: data.freeze, audioBase64: data.audioBase64 }]);
         if (data.freeze) {
           setIsFrozen(true);
         }
@@ -60,13 +68,78 @@ export default function NoraChatWindow({ isOpen, onClose, contextProductTitle }:
       triggerInitialNoraMessage(contextProductTitle);
     }
   }, [isOpen, contextProductTitle, messages.length]);
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate type
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      alert("Por favor, sube una imagen JPG, PNG o WEBP válida.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      
+      // Compresión básica de imagen en cliente para evitar error 413 Payload Too Large de Vercel
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const MAX_WIDTH = 800;
+        const MAX_HEIGHT = 800;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height = Math.round((height * MAX_WIDTH) / width);
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width = Math.round((width * MAX_HEIGHT) / height);
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx?.drawImage(img, 0, 0, width, height);
+
+        const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.7);
+        const base64String = compressedDataUrl.split(",")[1];
+        setAttachedImage({ file, base64: base64String, mimeType: "image/jpeg" });
+        setPreviewUrl(compressedDataUrl);
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+    
+    // Reset input
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleRemoveImage = () => {
+    setAttachedImage(null);
+    setPreviewUrl(null);
+  };
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isTyping) return;
+    if ((!input.trim() && !attachedImage) || isTyping) return;
 
     const userMsg = input.trim();
     setInput("");
-    const newHistory: Message[] = [...messages, { role: "user", content: userMsg }];
+    
+    const currentPreviewUrl = previewUrl;
+    const currentAttachedImage = attachedImage;
+    
+    // Clear image immediately for UI responsiveness
+    handleRemoveImage();
+
+    const newHistory: Message[] = [...messages, { role: "user", content: userMsg, attachedImageUrl: currentPreviewUrl || undefined }];
     setMessages(newHistory);
     setIsTyping(true);
 
@@ -76,20 +149,24 @@ export default function NoraChatWindow({ isOpen, onClose, contextProductTitle }:
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: userMsg,
-          history: messages,
-          context: null
+          history: messages, // Send history WITHOUT the new image to avoid payload bloat, just the previous context
+          context: null,
+          image: currentAttachedImage ? {
+            data: currentAttachedImage.base64,
+            mimeType: currentAttachedImage.mimeType
+          } : null
         }),
       });
       const data = await res.json();
       if (data.text) {
-        setMessages([...newHistory, { role: "nora", content: data.text, isLegalResponse: data.freeze }]);
+        setMessages([...newHistory, { role: "nora", content: data.text, isLegalResponse: data.freeze, audioBase64: data.audioBase64 }]);
         if (data.freeze) {
           setIsFrozen(true);
         }
       }
     } catch (e) {
       console.error(e);
-      setMessages([...newHistory, { role: "nora", content: "Ay, perdona, se me cortó la conexión un segundito. ¿Me repites?" }]);
+      setMessages([...newHistory, { role: "nora", content: "¡Uy! Perdoná la demora, se nos llenó el local de gente de golpe y se me tildó el sistema 😅. Si tenés prisa, ¿me escribís por WhatsApp usando el globito verde?" }]);
     } finally {
       setIsTyping(false);
     }
@@ -138,12 +215,22 @@ export default function NoraChatWindow({ isOpen, onClose, contextProductTitle }:
                   Derivación Administrativa
                 </div>
               )}
+              {msg.attachedImageUrl && (
+                <div className="mb-2 rounded-lg overflow-hidden border border-white/20">
+                  <img src={msg.attachedImageUrl} alt="Adjunto" className="max-w-full h-auto max-h-32 object-contain bg-black/50" />
+                </div>
+              )}
               {msg.content}
               {msg.isLegalResponse && (
                 <div className="mt-3 pt-3 border-t border-slate-700">
                   <a href="/libro-de-quejas" target="_blank" rel="noopener noreferrer" className="block w-full text-center py-2 px-3 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-lg transition-colors border border-white/20">
                     Abrir Formulario Oficial de Reclamos
                   </a>
+                </div>
+              )}
+              {msg.audioBase64 && (
+                <div className="mt-3 pt-2 border-t border-white/10">
+                  <audio controls src={`data:audio/mp3;base64,${msg.audioBase64}`} className="h-8 w-full outline-none [&::-webkit-media-controls-panel]:bg-white/10 [&::-webkit-media-controls-current-time-display]:text-white [&::-webkit-media-controls-time-remaining-display]:text-white" />
                 </div>
               )}
             </div>
@@ -166,19 +253,51 @@ export default function NoraChatWindow({ isOpen, onClose, contextProductTitle }:
       </div>
 
       {/* Input Area */}
-      <div className="p-3 bg-black/50 border-t border-white/10 backdrop-blur-md">
+      <div className="p-3 bg-black/50 border-t border-white/10 backdrop-blur-md relative">
+        {previewUrl && (
+          <div className="absolute bottom-full left-4 mb-2 relative inline-block">
+            <div className="relative rounded-lg overflow-hidden border-2 border-[var(--color-brand-accent)] bg-black/80 shadow-lg">
+              <img src={previewUrl} alt="Preview" className="h-16 w-16 object-cover" />
+              <button 
+                onClick={handleRemoveImage}
+                className="absolute top-1 right-1 bg-black/60 text-white p-0.5 rounded-full hover:bg-black"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+        )}
+        
         <form onSubmit={handleSend} className="relative flex items-center">
+          
+          <button 
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isFrozen || isTyping}
+            className={`absolute left-2 p-2 rounded-full transition-colors ${isFrozen || isTyping ? "text-gray-600 cursor-not-allowed" : "text-gray-400 hover:text-white hover:bg-white/10"}`}
+            title="Adjuntar imagen (JPG, PNG, WEBP)"
+          >
+            <Paperclip className="w-4 h-4" />
+          </button>
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleFileChange} 
+            accept="image/png, image/jpeg, image/webp" 
+            className="hidden" 
+          />
+
           <input 
             type="text" 
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={isFrozen ? "Sesión redirigida a canales legales oficiales." : "Escribe un mensaje..."}
             disabled={isFrozen}
-            className={`w-full bg-white/5 border border-white/10 rounded-full pl-4 pr-12 py-3 text-sm text-white focus:outline-none focus:border-[var(--color-brand-accent)] transition-colors ${isFrozen ? "opacity-50 cursor-not-allowed" : ""}`}
+            className={`w-full bg-white/5 border border-white/10 rounded-full pl-10 pr-12 py-3 text-sm text-white focus:outline-none focus:border-[var(--color-brand-accent)] transition-colors ${isFrozen ? "opacity-50 cursor-not-allowed" : ""}`}
           />
           <button 
             type="submit" 
-            disabled={!input.trim() || isTyping || isFrozen}
+            disabled={(!input.trim() && !attachedImage) || isTyping || isFrozen}
             className={`absolute right-2 p-2 rounded-full transition-transform ${isFrozen ? "bg-gray-600 text-gray-400 cursor-not-allowed" : "bg-[var(--color-brand-accent)] text-black hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"}`}
           >
             <Send className="w-4 h-4 ml-0.5" />
