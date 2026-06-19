@@ -5,10 +5,10 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-sm">
         <p className="mb-2">© 2026 Nexativa News. Desarrollado por MyJNexoraVisual.</p>
         <nav className="flex justify-center space-x-4">
-          <a href="/politica-privacidad" className="hover:underline">
+          <a href="/legal-and-ip/politica-privacidad" className="hover:underline">
             Política de Privacidad
           </a>
-          <a href="/terminos" className="hover:underline">
+          <a href="/legal-and-ip/terminos" className="hover:underline">
             Términos de Servicio
           </a>
           <a href="/contacto" className="hover:underline">

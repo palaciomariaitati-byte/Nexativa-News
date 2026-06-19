@@ -7,6 +7,7 @@ interface Message {
   role: "user" | "nora";
   content: string;
   isLegalResponse?: boolean;
+  isHumanSupport?: boolean;
   audioBase64?: string;
   attachedImageUrl?: string;
 }
@@ -14,14 +15,15 @@ interface Message {
 interface NoraChatWindowProps {
   isOpen: boolean;
   onClose: () => void;
-  contextProductTitle: string | null;
+  contextData: any;
 }
 
-export default function NoraChatWindow({ isOpen, onClose, contextProductTitle }: NoraChatWindowProps) {
+export default function NoraChatWindow({ isOpen, onClose, contextData }: NoraChatWindowProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [isFrozen, setIsFrozen] = useState(false);
+  const [hasConsented, setHasConsented] = useState(false);
   
   // Multimodal state
   const [attachedImage, setAttachedImage] = useState<{ file: File; base64: string; mimeType: string } | null>(null);
@@ -35,7 +37,7 @@ export default function NoraChatWindow({ isOpen, onClose, contextProductTitle }:
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
-  const triggerInitialNoraMessage = async (productTitle: string) => {
+  const triggerInitialNoraMessage = async (dataContext: any) => {
     setIsTyping(true);
     
     try {
@@ -45,7 +47,7 @@ export default function NoraChatWindow({ isOpen, onClose, contextProductTitle }:
         body: JSON.stringify({
           message: "",
           history: [],
-          context: `Viendo el producto: ${productTitle}`
+          contextData: dataContext
         }),
       });
       const data = await res.json();
@@ -64,10 +66,10 @@ export default function NoraChatWindow({ isOpen, onClose, contextProductTitle }:
 
   // Initial trigger
   useEffect(() => {
-    if (isOpen && messages.length === 0 && contextProductTitle) {
-      triggerInitialNoraMessage(contextProductTitle);
+    if (isOpen && messages.length === 0 && contextData) {
+      triggerInitialNoraMessage(contextData);
     }
-  }, [isOpen, contextProductTitle, messages.length]);
+  }, [isOpen, contextData, messages.length]);
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -138,6 +140,8 @@ export default function NoraChatWindow({ isOpen, onClose, contextProductTitle }:
     
     // Clear image immediately for UI responsiveness
     handleRemoveImage();
+    
+    if (!hasConsented) setHasConsented(true);
 
     const newHistory: Message[] = [...messages, { role: "user", content: userMsg, attachedImageUrl: currentPreviewUrl || undefined }];
     setMessages(newHistory);
@@ -150,7 +154,7 @@ export default function NoraChatWindow({ isOpen, onClose, contextProductTitle }:
         body: JSON.stringify({
           message: userMsg,
           history: messages, // Send history WITHOUT the new image to avoid payload bloat, just the previous context
-          context: null,
+          contextData: contextData,
           image: currentAttachedImage ? {
             data: currentAttachedImage.base64,
             mimeType: currentAttachedImage.mimeType
@@ -198,6 +202,18 @@ export default function NoraChatWindow({ isOpen, onClose, contextProductTitle }:
         </button>
       </div>
 
+      {/* Legal Consent Banner (Ley 25.326) */}
+      {!hasConsented && (
+        <div className="bg-slate-900 border-b border-slate-700 p-3 text-xs text-slate-300 shadow-sm relative shrink-0">
+          <p className="pr-6">
+            <strong>Hola, soy Nora.</strong> Para ayudarte y conectar tus intereses con comercios locales, proceso tus mensajes, audios e imágenes mediante IA bajo los términos de la <strong>Ley Nacional N° 25.326 de Protección de Datos Personales</strong>. Al interactuar conmigo, aceptas nuestra <a href="/legal-and-ip/politica-privacidad" target="_blank" rel="noopener noreferrer" className="underline font-bold text-white">Política de Privacidad y Términos de Uso</a>.
+          </p>
+          <button onClick={() => setHasConsented(true)} className="absolute top-2 right-2 text-slate-400 hover:text-white p-1">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth">
         {messages.map((msg, idx) => (
@@ -215,6 +231,12 @@ export default function NoraChatWindow({ isOpen, onClose, contextProductTitle }:
                   Derivación Administrativa
                 </div>
               )}
+              {msg.isHumanSupport && (
+                <div className="flex items-center gap-2 mb-2 text-green-400 font-semibold border-b border-green-800 pb-2">
+                  <User className="w-4 h-4" />
+                  Derivación a Humano
+                </div>
+              )}
               {msg.attachedImageUrl && (
                 <div className="mb-2 rounded-lg overflow-hidden border border-white/20">
                   <img src={msg.attachedImageUrl} alt="Adjunto" className="max-w-full h-auto max-h-32 object-contain bg-black/50" />
@@ -225,6 +247,13 @@ export default function NoraChatWindow({ isOpen, onClose, contextProductTitle }:
                 <div className="mt-3 pt-3 border-t border-slate-700">
                   <a href="/libro-de-quejas" target="_blank" rel="noopener noreferrer" className="block w-full text-center py-2 px-3 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-lg transition-colors border border-white/20">
                     Abrir Formulario Oficial de Reclamos
+                  </a>
+                </div>
+              )}
+              {msg.isHumanSupport && (
+                <div className="mt-3 pt-3 border-t border-slate-700">
+                  <a href="https://wa.me/5493786414533" target="_blank" rel="noopener noreferrer" className="block w-full text-center py-2 px-3 bg-green-600/20 hover:bg-green-600/40 text-green-400 text-xs font-semibold rounded-lg transition-colors border border-green-500/30">
+                    Ir a WhatsApp de Soporte
                   </a>
                 </div>
               )}
@@ -253,7 +282,24 @@ export default function NoraChatWindow({ isOpen, onClose, contextProductTitle }:
       </div>
 
       {/* Input Area */}
-      <div className="p-3 bg-black/50 border-t border-white/10 backdrop-blur-md relative">
+      <div className="p-3 bg-black/50 border-t border-white/10 backdrop-blur-md relative mt-auto">
+        {/* Human Escape Valve */}
+        {!isFrozen && (
+          <button
+            type="button"
+            onClick={() => {
+              setIsFrozen(true);
+              setMessages(prev => [...prev, {
+                role: "nora",
+                content: "He suspendido mi asistencia automatizada en esta sesión. Por favor, haz clic abajo para contactarte con un representante humano por WhatsApp.",
+                isHumanSupport: true
+              }]);
+            }}
+            className="absolute -top-7 right-4 bg-slate-800 hover:bg-slate-700 text-white text-[10px] uppercase font-bold py-1.5 px-3 rounded-t-lg border border-white/10 border-b-0 transition-colors flex items-center gap-1 z-10"
+          >
+            <User className="w-3 h-3" /> Hablar con un humano
+          </button>
+        )}
         {previewUrl && (
           <div className="absolute bottom-full left-4 mb-2 relative inline-block">
             <div className="relative rounded-lg overflow-hidden border-2 border-[var(--color-brand-accent)] bg-black/80 shadow-lg">

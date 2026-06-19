@@ -9,14 +9,27 @@ import { Trash2 } from "lucide-react";
 export default function CheckoutPage() {
   const { items, removeItem, totalPrice, clearCart } = useCart();
   const [paymentMethod, setPaymentMethod] = useState("whatsapp");
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) {
+    return (
+      <main className="w-full max-w-4xl mx-auto px-4 py-20 text-center">
+        <h1 className="text-4xl font-black text-white mb-6 uppercase tracking-widest animate-pulse">Cargando...</h1>
+      </main>
+    );
+  }
 
   if (items.length === 0) {
     return (
       <main className="w-full max-w-4xl mx-auto px-4 py-20 text-center">
         <h1 className="text-4xl font-black text-white mb-6 uppercase tracking-widest">Carrito Vacío</h1>
         <p className="text-gray-400 mb-8">No has agregado ningún producto a tu carrito todavía.</p>
-        <Link href="/" className="bg-[var(--color-brand-accent)] text-black font-bold uppercase tracking-widest px-8 py-4 rounded-xl hover:bg-white transition-colors">
-          Volver a la Vidriera
+        <Link href="/store" className="bg-[var(--color-brand-accent)] text-black font-bold uppercase tracking-widest px-8 py-4 rounded-xl hover:bg-white transition-colors">
+          Volver al Catálogo
         </Link>
       </main>
     );
@@ -40,13 +53,17 @@ export default function CheckoutPage() {
     text += `\\n*Total Estimado:* $${totalPrice.toFixed(2)}\\n`;
     text += `*Medio de Pago elegido:* ${paymentMethod.toUpperCase()}`;
 
-    // Reemplaza esto con el número central de Nexativa o la lógica que desees
-    const globalWhatsapp = "5491100000000";
+    // Número de soporte proporcionado por el usuario
+    const globalWhatsapp = "5493786414533"; 
     
     // Si todos los productos son de la MISMA tienda, usar el WA de esa tienda
-    const firstStoreWa = items[0].store.whatsapp;
-    const allSameStore = items.every(i => i.store.id === items[0].store.id);
+    let firstStoreWa = items[0].store?.whatsapp;
+    const allSameStore = items.every(i => i.store?.id === items[0].store?.id);
     
+    if (firstStoreWa) {
+      firstStoreWa = firstStoreWa.replace(/\D/g, ''); // Deja solo números
+    }
+
     const finalNumber = allSameStore && firstStoreWa ? firstStoreWa : globalWhatsapp;
 
     const url = `https://wa.me/${finalNumber}?text=${encodeURIComponent(text)}`;
@@ -67,7 +84,7 @@ export default function CheckoutPage() {
               </div>
               <div className="flex-1 text-center sm:text-left">
                 <h3 className="text-xl font-bold text-white line-clamp-1">{item.product.title}</h3>
-                <p className="text-sm text-gray-400 mt-1">Tienda: {item.store.name}</p>
+                <p className="text-sm text-gray-400 mt-1">Tienda: {item.store?.name || "Nexativa"}</p>
                 <div className="flex flex-wrap justify-center sm:justify-start gap-2 mt-2">
                   {item.selectedSize && <span className="bg-white/10 text-xs px-2 py-1 rounded">Talle: {item.selectedSize}</span>}
                   {item.selectedColor && <span className="bg-white/10 text-xs px-2 py-1 rounded">Color: {item.selectedColor}</span>}

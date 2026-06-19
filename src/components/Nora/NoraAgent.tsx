@@ -5,45 +5,46 @@ import NoraChatWindow from "./NoraChatWindow";
 
 export default function NoraAgent() {
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [contextProduct, setContextProduct] = useState<string | null>(null);
+  const [contextData, setContextData] = useState<any>(null);
   const hoverTimer = useRef<NodeJS.Timeout | null>(null);
-  const currentHoveredProduct = useRef<string | null>(null);
-  const hasTriggered = useRef<boolean>(false);
+  const currentHoveredContext = useRef<string | null>(null);
+  const hasTriggeredBottom = useRef<boolean>(false);
 
   useEffect(() => {
     const handleMouseOver = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      const productElement = target.closest('[data-nora-product]') as HTMLElement;
+      const contextElement = target.closest('[data-nora-context]') as HTMLElement;
       
-      if (productElement) {
-        const productName = productElement.getAttribute('data-nora-product');
-        if (productName && productName !== currentHoveredProduct.current) {
-          currentHoveredProduct.current = productName;
-          // Siempre actualizamos el contexto por si el usuario abre el chat manualmente
-          setContextProduct(productName);
-          
-          if (hoverTimer.current) clearTimeout(hoverTimer.current);
-          
-          // Reducimos a 1.5 segundos para que sea más reactivo
-          hoverTimer.current = setTimeout(() => {
-            // Solo abrir automáticamente si no está abierto ya
-            setIsChatOpen((prev) => {
-              if (!prev) return true;
-              return prev;
-            });
-          }, 1500);
+      if (contextElement) {
+        const contextRaw = contextElement.getAttribute('data-nora-context');
+        if (contextRaw && contextRaw !== currentHoveredContext.current) {
+          currentHoveredContext.current = contextRaw;
+          try {
+            const parsedData = JSON.parse(contextRaw);
+            setContextData(parsedData);
+            
+            if (hoverTimer.current) clearTimeout(hoverTimer.current);
+            
+            hoverTimer.current = setTimeout(() => {
+              setIsChatOpen((prev) => {
+                if (!prev) return true;
+                return prev;
+              });
+            }, 1500);
+          } catch(err) {
+            console.error("Error parsing nora context", err);
+          }
         }
       }
     };
 
     const handleMouseOut = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      const relatedTarget = (e.relatedTarget as HTMLElement)?.closest?.('[data-nora-product]');
-      const productElement = target.closest('[data-nora-product]');
+      const relatedTarget = (e.relatedTarget as HTMLElement)?.closest?.('[data-nora-context]');
+      const contextElement = target.closest('[data-nora-context]');
       
-      // Solo cancelar si salimos completamente de un producto (no hacia uno de sus hijos)
-      if (productElement && relatedTarget !== productElement) {
-        currentHoveredProduct.current = null;
+      if (contextElement && relatedTarget !== contextElement) {
+        currentHoveredContext.current = null;
         if (hoverTimer.current) {
           clearTimeout(hoverTimer.current);
           hoverTimer.current = null;
@@ -51,12 +52,30 @@ export default function NoraAgent() {
       }
     };
 
+    const handleScroll = () => {
+      // Trigger at the bottom of the page
+      if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 200) {
+        if (!hasTriggeredBottom.current) {
+          hasTriggeredBottom.current = true;
+          setContextData({ type: 'b2b', trigger: 'end_of_page' });
+          setIsChatOpen(true);
+        }
+      } else {
+        // Reset if they scroll back up so it can trigger again later if needed
+        if (window.innerHeight + window.scrollY < document.body.offsetHeight - 1000) {
+          hasTriggeredBottom.current = false;
+        }
+      }
+    };
+
     document.addEventListener("mouseover", handleMouseOver);
     document.addEventListener("mouseout", handleMouseOut);
+    window.addEventListener("scroll", handleScroll, { passive: true });
 
     return () => {
       document.removeEventListener("mouseover", handleMouseOver);
       document.removeEventListener("mouseout", handleMouseOut);
+      window.removeEventListener("scroll", handleScroll);
       if (hoverTimer.current) clearTimeout(hoverTimer.current);
     };
   }, []);
@@ -66,7 +85,7 @@ export default function NoraAgent() {
       <NoraChatWindow 
         isOpen={isChatOpen} 
         onClose={() => setIsChatOpen(false)} 
-        contextProductTitle={contextProduct}
+        contextData={contextData}
       />
       {!isChatOpen && (
         <button

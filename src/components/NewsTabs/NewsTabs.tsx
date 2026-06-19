@@ -214,6 +214,15 @@ export default function NewsTabs({
                   ) : (
                     <div>{content}</div>
                   )}
+                  {/* Legal Notice Ley 11.723 */}
+                  <div className="mt-3 pt-3 border-t border-white/5 text-[10px] text-gray-500">
+                    <p className="mb-1 leading-tight">
+                      <strong>Aviso Legal:</strong> Esta nota fue procesada y adaptada regionalmente por nuestro sistema editorial autónomo bajo el <strong>Derecho de Cita (Ley 11.723)</strong>.
+                    </p>
+                    <a href="https://wa.me/5493786414533" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white underline">
+                      Reportar Error o Solicitar Rectificación
+                    </a>
+                  </div>
                 </li>
               );
             })}

@@ -46,7 +46,7 @@ export default async function StorePage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {products.length > 0 ? (
           products.map((product) => (
-            <div data-nora-product={product.title} key={product.id} className="glass-panel p-4 flex flex-col h-full hover:-translate-y-1 hover:shadow-[0_0_20px_var(--color-brand-accent)] transition-all duration-300 group">
+            <div data-nora-context={JSON.stringify({ type: 'b2c', title: product.title, price: product.price, store: product.store?.name, description: product.description })} key={product.id} className="glass-panel p-4 flex flex-col h-full hover:-translate-y-1 hover:shadow-[0_0_20px_var(--color-brand-accent)] transition-all duration-300 group">
               {product.image_url && (
                 <div className="overflow-hidden rounded-xl h-48 w-full mb-3 relative">
                   <Image src={product.image_url} alt={product.title} fill className="object-cover group-hover:scale-110 transition-transform duration-500" />
