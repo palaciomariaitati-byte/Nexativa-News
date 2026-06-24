@@ -16,7 +16,13 @@ export default async function ClassicNewspaperPage() {
     .from("articles")
     .select("*")
     .order("created_at", { ascending: false })
-    .limit(10);
+    .limit(50);
+
+  // Fetch sponsors
+  const { data: sponsors } = await supabase
+    .from("sponsors")
+    .select("*")
+    .eq("is_active", true);
 
   // Fetch radio stream URL
   const { data: settingData } = await supabase
@@ -49,8 +55,8 @@ export default async function ClassicNewspaperPage() {
       </div>
 
       {/* Cabecera Principal del Periódico */}
-      <header className="max-w-6xl mx-auto px-4 py-8 text-center border-b-4 border-double border-[#2c241b] mb-8 relative">
-        <div className="absolute top-8 right-4 hidden md:block">
+      <header className="max-w-6xl mx-auto px-4 py-8 text-center border-b-4 border-double border-[#2c241b] mb-8 relative mt-16 sm:mt-0">
+        <div className="absolute -top-12 right-0 sm:top-8 sm:right-4 z-10 scale-75 sm:scale-100 origin-top-right">
            {/* Reproductor de Radio Vintage */}
            {radioUrl && <ClassicRadioPlayer streamUrl={radioUrl} />}
         </div>
@@ -121,11 +127,33 @@ export default async function ClassicNewspaperPage() {
         </div>
 
         {/* Publicidad Vintage */}
-        <div className="my-12 p-8 border-4 border-double border-[#2c241b] text-center bg-[#eae0c4]">
-          <h4 className="text-sm uppercase tracking-widest font-bold mb-4">- Avisos Clasificados -</h4>
-          <p className="text-3xl font-black uppercase tracking-tighter italic">Espacio Disponible</p>
-          <p className="text-lg mt-2">Su empresa podría estar anunciándose aquí.</p>
-        </div>
+        {sponsors && sponsors.length > 0 ? (
+          <div className="my-12 p-8 border-4 border-double border-[#2c241b] text-center bg-[#eae0c4]">
+            <h4 className="text-sm uppercase tracking-widest font-bold mb-6">- Avisos Clasificados -</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
+              {sponsors.map((sponsor) => (
+                <a 
+                  key={sponsor.id} 
+                  href={sponsor.website_url || sponsor.instagram_url || "#"} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="border-2 border-dashed border-[#2c241b] p-4 flex flex-col items-center justify-center hover:bg-[#d8cba8] transition-colors"
+                >
+                  {sponsor.logo_url && (
+                    <img src={sponsor.logo_url} alt={sponsor.name} className="h-16 object-contain mb-4 grayscale contrast-125 sepia-[.3]" />
+                  )}
+                  <p className="font-black uppercase tracking-tighter text-xl">{sponsor.name}</p>
+                </a>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="my-12 p-8 border-4 border-double border-[#2c241b] text-center bg-[#eae0c4]">
+            <h4 className="text-sm uppercase tracking-widest font-bold mb-4">- Avisos Clasificados -</h4>
+            <p className="text-3xl font-black uppercase tracking-tighter italic">Espacio Disponible</p>
+            <p className="text-lg mt-2">Su empresa podría estar anunciándose aquí.</p>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 border-t-2 border-[#2c241b] pt-8">
           {bottomArticles?.map((article) => (
