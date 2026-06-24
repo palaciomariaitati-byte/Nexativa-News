@@ -254,7 +254,7 @@ export default function NewsEditorPage() {
             <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase tracking-wide">Media (Imagen o Video URL)</label>
             <div className="flex flex-col gap-4">
               <input
-                type="url"
+                type="text"
                 name="image_url"
                 value={formData.image_url}
                 onChange={handleChange}
@@ -281,7 +281,7 @@ export default function NewsEditorPage() {
           <div>
             <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase tracking-wide">Enlace Externo (Nota Original)</label>
             <input
-              type="url"
+              type="text"
               name="external_url"
               value={formData.external_url}
               onChange={handleChange}
@@ -311,7 +311,7 @@ export default function NewsEditorPage() {
               disabled={loading}
               className="w-full bg-[var(--color-brand-accent)] hover:bg-[var(--color-brand-accent-hover)] text-black font-bold uppercase tracking-widest py-4 rounded-lg transition-colors disabled:opacity-50"
             >
-              {loading ? "Guardando..." : (articleId ? "Guardar Cambios" : "Publicar Noticia")}
+              {loading ? "Procesando..." : (formData.status === 'published' ? (articleId ? "Actualizar y Publicar" : "Publicar Noticia") : (articleId ? "Guardar Borrador" : "Crear Borrador"))}
             </button>
           </div>
 
