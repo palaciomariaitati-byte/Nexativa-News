@@ -30,7 +30,7 @@ export default function NoraAgent() {
                 if (!prev) return true;
                 return prev;
               });
-            }, 1500);
+            }, 6000);
           } catch(err) {
             console.error("Error parsing nora context", err);
           }
