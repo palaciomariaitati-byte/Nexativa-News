@@ -33,6 +33,7 @@ El JSON debe tener exactamente esta estructura:
   "newContent": "El cuerpo completo de la noticia corregida, con saltos de línea y formato HTML básico (<p>, <strong>, etc) listo para publicar."
 }
 No devuelvas Markdown rodeando el JSON (\`\`\`json ... \`\`\`), devuelve solo el JSON puro.
+MUY IMPORTANTE: Usa comillas simples (') para cualquier atributo dentro del HTML (ej. <span class='text-red'>) para no romper el formato JSON con comillas dobles sin escapar.
 `;
 
 const PROMPT_CM = `
@@ -70,7 +71,8 @@ export async function askNoraEditor(title: string, content: string, operatorName
     const prompt = PROMPT_EDITORA.replace(/\[OPERATOR_NAME\]/g, operatorName);
     const fullPrompt = `Sistema: ${prompt}\n\nRevisa esta noticia:\n\nTITULAR ORIGINAL: ${title}\n\nCONTENIDO: ${content}`;
     const result = await model.generateContent(fullPrompt);
-    const textRes = result.response.text();
+    let textRes = result.response.text();
+    textRes = textRes.replace(/```json/gi, "").replace(/```/g, "").trim();
     
     // Parse the JSON
     const parsed = JSON.parse(textRes);
@@ -91,7 +93,9 @@ export async function askNoraEditor(title: string, content: string, operatorName
         const prompt = PROMPT_EDITORA.replace(/\[OPERATOR_NAME\]/g, operatorName);
         const fullPrompt = `Sistema: ${prompt}\n\nRevisa esta noticia:\n\nTITULAR ORIGINAL: ${title}\n\nCONTENIDO: ${content}`;
         const fallbackResult = await fallbackModel.generateContent(fullPrompt);
-        const fallbackParsed = JSON.parse(fallbackResult.response.text());
+        let fallbackTextRes = fallbackResult.response.text();
+        fallbackTextRes = fallbackTextRes.replace(/```json/gi, "").replace(/```/g, "").trim();
+        const fallbackParsed = JSON.parse(fallbackTextRes);
         return { 
           success: true, 
           text: fallbackParsed.htmlForPanel,
@@ -195,6 +199,7 @@ DEBES DEVOLVER TU RESPUESTA ESTRICTAMENTE EN FORMATO JSON VÁLIDO CON LA SIGUIEN
   "newContent": "<El Copy final limpio para redes sociales, estructurado con AIDA, con emojis y hashtags relevantes, listo para copiar y pegar>"
 }
 NO INCLUYAS markdown de bloques de código en tu respuesta, solo el JSON puro.
+MUY IMPORTANTE: Usa comillas simples (') para cualquier atributo dentro del HTML (ej. <span class='text-red'>) para no romper el formato JSON con comillas dobles sin escapar.
 `;
 
 export async function askNoraMarketing(title: string, content: string, operatorName: string = "Compañero") {
@@ -208,7 +213,9 @@ export async function askNoraMarketing(title: string, content: string, operatorN
     const prompt = PROMPT_MARKETING.replace(/\[OPERATOR_NAME\]/g, operatorName);
     const fullPrompt = `Sistema: ${prompt}\n\nGenera una ESTRATEGIA DE MARKETING de alto nivel para este proyecto:\n\nCLIENTE/CAMPAÑA: ${title}\n\nIDEA BASE: ${content}`;
     const result = await model.generateContent(fullPrompt);
-    const parsed = JSON.parse(result.response.text());
+    let textRes = result.response.text();
+    textRes = textRes.replace(/```json/gi, "").replace(/```/g, "").trim();
+    const parsed = JSON.parse(textRes);
     return { 
       success: true, 
       text: parsed.htmlForPanel,
@@ -223,7 +230,9 @@ export async function askNoraMarketing(title: string, content: string, operatorN
         const prompt = PROMPT_MARKETING.replace(/\[OPERATOR_NAME\]/g, operatorName);
         const fullPrompt = `Sistema: ${prompt}\n\nGenera una ESTRATEGIA DE MARKETING de alto nivel para este proyecto:\n\nCLIENTE/CAMPAÑA: ${title}\n\nIDEA BASE: ${content}`;
         const fallbackResult = await fallbackModel.generateContent(fullPrompt);
-        const fallbackParsed = JSON.parse(fallbackResult.response.text());
+        let fallbackTextRes = fallbackResult.response.text();
+        fallbackTextRes = fallbackTextRes.replace(/```json/gi, "").replace(/```/g, "").trim();
+        const fallbackParsed = JSON.parse(fallbackTextRes);
         return { 
           success: true, 
           text: fallbackParsed.htmlForPanel,
