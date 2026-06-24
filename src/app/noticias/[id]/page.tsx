@@ -108,10 +108,10 @@ export default async function NewsArticlePage({ params }: PageProps) {
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent z-20 pointer-events-none" />
         
         {/* Contenido en la Cabecera */}
-        <div className="absolute bottom-0 left-0 w-full p-6 md:p-12 lg:px-24 z-30">
+        <div className="absolute bottom-0 left-0 w-full p-6 md:p-12 lg:px-24 z-30 pointer-events-none">
           <Link
             href="/#noticias"
-            className="inline-flex items-center gap-2 text-white/70 hover:text-[var(--color-brand-accent)] transition-colors mb-6 uppercase tracking-widest text-xs font-bold"
+            className="inline-flex items-center gap-2 text-white/70 hover:text-[var(--color-brand-accent)] transition-colors mb-6 uppercase tracking-widest text-xs font-bold pointer-events-auto"
           >
             <ChevronLeft className="w-4 h-4" />
             Volver al inicio
