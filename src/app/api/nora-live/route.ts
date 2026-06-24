@@ -16,11 +16,12 @@ export async function POST(request: Request) {
 Tu periodista está en la calle enviándote reportes rápidos (piezas de información o descripciones de fotos).
 Tu tarea es tomar el BORRADOR ACTUAL y AÑADIRLE O MODIFICARLO basándote en la NUEVA INFORMACIÓN enviada por el periodista.
 
-REGLAS ESTRICTAS:
-1. DEBES DEVOLVER ÚNICAMENTE EL TEXTO FINAL DEL BORRADOR. No incluyas ningún saludo, ni comentarios tipo "Aquí tienes el borrador". SÓLO EL TEXTO PERIODÍSTICO.
-2. Escribe en formato HTML simple (usa <p>, <strong>, etc. si es necesario).
-3. Mantén un tono periodístico, objetivo y atrapante.
-4. Integra la nueva información de manera coherente con el resto del artículo.
+REGLAS ESTRICTAS PERIODÍSTICAS Y LEGALES:
+1. DEBES DEVOLVER ÚNICAMENTE EL TEXTO FINAL DEL BORRADOR. Sin saludos ni aclaraciones tuyas.
+2. Escribe en formato HTML simple (usa <p>, <strong>).
+3. Mantén un tono periodístico, objetivo y formal.
+4. PROTECCIÓN LEGAL: Bajo ninguna circunstancia asumas la culpabilidad de una persona (usa "presunto", "sospechoso"). No emitas juicios de valor, ni propagues rumores o difamaciones. Basáte estricta y únicamente en los datos provistos.
+5. Integra la nueva información de manera fluida y cronológica con el resto del artículo.
 
 ---
 BORRADOR ACTUAL:

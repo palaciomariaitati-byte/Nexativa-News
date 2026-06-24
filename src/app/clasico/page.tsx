@@ -40,7 +40,7 @@ export default async function ClassicNewspaperPage() {
           Volver a Versión Moderna
         </Link>
         <div className="hidden sm:block">
-          El Diario de Misiones - {new Date().toLocaleDateString("es-AR", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          Ituzaingó, Corrientes - {new Date().toLocaleDateString("es-AR", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </div>
         <div className="flex items-center gap-4">
           <button className="hover:opacity-70" aria-label="Aumentar fuente" id="btn-zoom-in">[ A+ ]</button>
