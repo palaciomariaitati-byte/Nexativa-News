@@ -144,7 +144,7 @@ Devuelve la respuesta ESTRICTAMENTE en este formato JSON, sin markdown ni backti
       }
 
       // Añadimos la atribución programáticamente
-      const finalHtmlContent = \`\${parsed.htmlContent}\n\n<p><i>Fuente original: <a href="\${link}" target="_blank" rel="noopener noreferrer">Leer nota completa aquí</a></i></p>\`;
+      const finalHtmlContent = `${parsed.htmlContent}\n\n<p><i>Fuente original: <a href="${link}" target="_blank" rel="noopener noreferrer">Leer nota completa aquí</a></i></p>`;
 
       return {
         title: parsed.newTitle || title,

@@ -17,16 +17,16 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   
   return {
     title: store.name,
-    description: store.description || \`Bienvenido a la tienda de \${store.name}\`,
+    description: store.description || `Bienvenido a la tienda de ${store.name}`,
     openGraph: {
       title: store.name,
-      description: store.description || \`Bienvenido a la tienda de \${store.name}\`,
+      description: store.description || `Bienvenido a la tienda de ${store.name}`,
       images: image ? [{ url: image }] : [],
     },
     twitter: {
       card: "summary_large_image",
       title: store.name,
-      description: store.description || \`Bienvenido a la tienda de \${store.name}\`,
+      description: store.description || `Bienvenido a la tienda de ${store.name}`,
       images: image ? [image] : [],
     }
   };
