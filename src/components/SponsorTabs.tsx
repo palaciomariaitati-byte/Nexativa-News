@@ -61,9 +61,9 @@ export default function SponsorTabs({ sponsors }: { sponsors: Sponsor[] }) {
       {/* Contenido (Cinta Infinita o Placeholders) */}
       <div className="p-4 sm:p-6 w-full">
         {activeSponsors.length > 0 ? (
-          <div className="overflow-hidden w-full relative">
+          <div className="overflow-hidden w-full relative group/sponsor">
             <div 
-              className="flex w-max animate-marquee-sponsors pause-on-hover gap-4 pb-2"
+              className="flex w-max animate-marquee-sponsors group-hover/sponsor:[animation-play-state:paused] gap-4 pb-2"
             >
               {activeSponsors.map((sponsor) => (
                 <SponsorCardItem key={sponsor.id} sponsor={sponsor} getTrackingUrl={getTrackingUrl} />
@@ -75,8 +75,8 @@ export default function SponsorTabs({ sponsors }: { sponsors: Sponsor[] }) {
             </div>
           </div>
         ) : (
-          <div className="overflow-hidden w-full relative">
-            <div className="flex w-max animate-marquee-sponsors pause-on-hover gap-4 pb-2">
+          <div className="overflow-hidden w-full relative group/sponsor">
+            <div className="flex w-max animate-marquee-sponsors group-hover/sponsor:[animation-play-state:paused] gap-4 pb-2">
               {[1, 2, 3, 4, 5].map((i) => (
                 <div key={`ph1-${i}`} className="glass-panel p-3 flex flex-col items-center justify-center min-w-[160px] max-w-[200px] h-48 border border-white/5 bg-white/5">
                   <h4 className="font-bold text-gray-400 text-center uppercase tracking-widest text-sm">
