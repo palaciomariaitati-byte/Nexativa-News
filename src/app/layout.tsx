@@ -78,6 +78,8 @@ export const metadata: Metadata = {
   },
 };
 
+import ModernLayoutWrapper from "@/components/ModernLayoutWrapper";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -91,14 +93,18 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col font-sans text-gray-200 text-lg">
         <Providers>
           <GlobalRealtimeListener />
-          <Navbar />
-          <ExternalNewsCarousel />
+          <ModernLayoutWrapper>
+            <Navbar />
+            <ExternalNewsCarousel />
+          </ModernLayoutWrapper>
           <main className="flex-grow pb-16 sm:pb-0">{children}</main>
-          <Footer />
-          <FloatingShortcuts />
-          <MobileBottomNav />
-          <CartButton />
-          <NoraAgent />
+          <ModernLayoutWrapper>
+            <Footer />
+            <FloatingShortcuts />
+            <MobileBottomNav />
+            <CartButton />
+            <NoraAgent />
+          </ModernLayoutWrapper>
         </Providers>
       </body>
     </html>
