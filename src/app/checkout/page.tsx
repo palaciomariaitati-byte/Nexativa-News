@@ -68,7 +68,8 @@ export default function CheckoutPage() {
 
     const url = `https://wa.me/${finalNumber}?text=${encodeURIComponent(text)}`;
     window.open(url, "_blank");
-    clearCart();
+    // Nota: NO limpiamos el carrito automáticamente aquí, porque si el enlace de WhatsApp
+    // falla o el usuario no envía el mensaje, perdería todos sus productos.
   };
 
   return (

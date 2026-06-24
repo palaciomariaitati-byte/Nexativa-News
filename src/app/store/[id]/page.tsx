@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import ImageCarousel from "@/components/ImageCarousel";
 
 export const dynamic = 'force-dynamic';
 
@@ -16,16 +17,16 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   
   return {
     title: store.name,
-    description: store.description || `Bienvenido a la tienda de ${store.name}`,
+    description: store.description || \`Bienvenido a la tienda de \${store.name}\`,
     openGraph: {
       title: store.name,
-      description: store.description || `Bienvenido a la tienda de ${store.name}`,
+      description: store.description || \`Bienvenido a la tienda de \${store.name}\`,
       images: image ? [{ url: image }] : [],
     },
     twitter: {
       card: "summary_large_image",
       title: store.name,
-      description: store.description || `Bienvenido a la tienda de ${store.name}`,
+      description: store.description || \`Bienvenido a la tienda de \${store.name}\`,
       images: image ? [image] : [],
     }
   };
@@ -61,7 +62,7 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent"></div>
           </div>
         )}
-        <div className={`p-8 flex flex-col md:flex-row items-center md:items-start gap-8 relative z-10 ${store.banner_url ? '-mt-24' : ''}`}>
+        <div className={\`p-8 flex flex-col md:flex-row items-center md:items-start gap-8 relative z-10 \${store.banner_url ? '-mt-24' : ''}\`}>
           {store.logo_url ? (
             <img src={store.logo_url} alt={store.name} className="w-32 h-32 md:w-48 md:h-48 rounded-full object-cover border-4 border-[#1a1a1a] bg-black shadow-2xl" />
           ) : (
@@ -73,7 +74,7 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 pt-2">
               {store.address && <span className="bg-black/50 backdrop-blur-md px-4 py-2 rounded-lg text-sm border border-white/10">📍 {store.address}</span>}
               {store.map_url && <a href={store.map_url} target="_blank" className="bg-white/10 backdrop-blur-md text-[var(--color-brand-accent)] px-4 py-2 rounded-lg text-sm border border-[var(--color-brand-accent)]/30 font-bold hover:bg-[var(--color-brand-accent)]/20 transition-colors">🗺️ Ubicación</a>}
-              {store.whatsapp && <a href={`https://wa.me/${store.whatsapp}`} target="_blank" className="bg-green-600/30 backdrop-blur-md text-green-400 px-4 py-2 rounded-lg text-sm border border-green-500/30 font-bold hover:bg-green-600/50 transition-colors">💬 WhatsApp</a>}
+              {store.whatsapp && <a href={\`https://wa.me/\${store.whatsapp}\`} target="_blank" className="bg-green-600/30 backdrop-blur-md text-green-400 px-4 py-2 rounded-lg text-sm border border-green-500/30 font-bold hover:bg-green-600/50 transition-colors">💬 WhatsApp</a>}
               {store.instagram && <a href={store.instagram} target="_blank" className="bg-pink-600/30 backdrop-blur-md text-pink-400 px-4 py-2 rounded-lg text-sm border border-pink-500/30 font-bold hover:bg-pink-600/50 transition-colors">📸 Instagram</a>}
               {store.facebook && <a href={store.facebook} target="_blank" className="bg-blue-600/30 backdrop-blur-md text-blue-400 px-4 py-2 rounded-lg text-sm border border-blue-500/30 font-bold hover:bg-blue-600/50 transition-colors">📘 Facebook</a>}
               {store.x_url && <a href={store.x_url} target="_blank" className="bg-white/10 backdrop-blur-md text-white px-4 py-2 rounded-lg text-sm border border-white/30 font-bold hover:bg-white/20 transition-colors">𝕏 Twitter</a>}
@@ -83,33 +84,33 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
       </div>
 
       <div className="border-b border-white/10 pb-4 mb-8">
-        <h2 className="text-2xl font-bold text-white uppercase tracking-widest">Catálogo de Productos</h2>
+        <h2 className="text-2xl font-bold text-white uppercase tracking-widest">Catálogo de Productos y Servicios</h2>
       </div>
 
       {products && products.length > 0 ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-          {products.map((product) => (
-            <div data-nora-product={product.title} key={product.id} className="glass-panel p-3 sm:p-4 flex flex-col h-full hover:-translate-y-1 hover:shadow-[0_0_20px_var(--color-brand-accent)] transition-all duration-300 group">
-              <div className="overflow-hidden rounded-xl h-48 w-full mb-3 relative">
-                {product.image_url ? (
-                  <Image src={product.image_url} alt={product.title} fill className="object-cover group-hover:scale-110 transition-transform duration-500" />
-                ) : (
-                  <div className="w-full h-full bg-white/5 flex items-center justify-center text-gray-500">Sin img</div>
-                )}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {products.map((product) => {
+            const prodImages = [product.image_url, product.image_url_2, product.image_url_3].filter(Boolean) as string[];
+
+            return (
+              <div data-nora-product={product.title} key={product.id} className="glass-panel p-4 flex flex-col h-full hover:-translate-y-1 hover:shadow-[0_0_20px_var(--color-brand-accent)] transition-all duration-300 group">
+                <div className="h-64 w-full rounded-xl overflow-hidden mb-4 relative border border-white/10">
+                  <ImageCarousel images={prodImages} autoPlay={false} className="w-full h-full rounded-xl" />
+                </div>
+                <h5 className="mt-2 font-bold text-gray-100 text-xl line-clamp-1">{product.title}</h5>
+                <p className="text-sm text-gray-400 mt-2 line-clamp-3">{product.description}</p>
+                <div className="mt-auto pt-6 flex flex-col gap-4">
+                  <p className="text-[var(--color-brand-accent)] font-bold text-2xl">\${Number(product.price).toFixed(2)}</p>
+                  <Link href={\`/product/\${product.id}\`} className="bg-white/10 hover:bg-[var(--color-brand-accent)] hover:text-black text-center font-bold px-4 py-3 rounded-lg transition-colors text-lg uppercase tracking-wider">
+                    Ver Detalles Completos
+                  </Link>
+                </div>
               </div>
-              <h5 className="mt-2 font-bold text-gray-100 text-lg line-clamp-1">{product.title}</h5>
-              <p className="text-sm text-gray-400 mt-1 line-clamp-2">{product.description}</p>
-              <div className="mt-auto pt-4 flex flex-col gap-3">
-                <p className="text-[var(--color-brand-accent)] font-bold text-xl">${Number(product.price).toFixed(2)}</p>
-                <Link href={`/product/${product.id}`} className="bg-white/10 hover:bg-[var(--color-brand-accent)] hover:text-black text-center font-bold px-4 py-2 rounded-lg transition-colors">
-                  Ver Detalles
-                </Link>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
-        <p className="text-center text-gray-500 text-lg py-12">Esta tienda aún no tiene productos publicados.</p>
+        <p className="text-center text-gray-500 text-lg py-12">Esta tienda aún no tiene servicios publicados.</p>
       )}
     </main>
   );

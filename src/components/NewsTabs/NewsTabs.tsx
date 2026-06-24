@@ -181,10 +181,18 @@ export default function NewsTabs({
           <ul className="space-y-2">
             {articles.map((article) => {
               const content = (
-                <>
-                  <h4 className="font-bold text-sm text-gray-200 group-hover:text-[var(--color-brand-accent)] transition-colors leading-snug">
-                    {article.title}
-                  </h4>
+                <div className="flex gap-4 items-start">
+                  {article.image_url && (
+                    <img 
+                      src={article.image_url} 
+                      alt={article.title} 
+                      className="w-24 h-24 sm:w-32 sm:h-32 object-cover rounded-lg border border-white/10 shrink-0" 
+                    />
+                  )}
+                  <div className="flex-1">
+                    <h4 className="font-bold text-sm text-gray-200 group-hover:text-[var(--color-brand-accent)] transition-colors leading-snug">
+                      {article.title}
+                    </h4>
                   {article.excerpt && (
                     <p className="text-xs text-gray-400 mt-2 line-clamp-2 leading-relaxed">
                       {article.excerpt}
@@ -199,7 +207,8 @@ export default function NewsTabs({
                       })}
                     </time>
                   )}
-                </>
+                  </div>
+                </div>
               );
 
               return (

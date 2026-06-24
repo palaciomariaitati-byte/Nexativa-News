@@ -10,6 +10,10 @@
     {
       "path": "/api/cron/cleanup-media",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/news-rotation",
+      "schedule": "0 0 * * *"
     }
   ]
 }

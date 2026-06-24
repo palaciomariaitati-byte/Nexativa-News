@@ -47,7 +47,7 @@ export async function getStores(): Promise<any[]> {
     const supabase = createServerSupabaseClient();
     const { data, error } = await supabase
       .from("stores")
-      .select("*")
+      .select("*, products(*)")
       .order("created_at", { ascending: false });
 
     if (error) {
