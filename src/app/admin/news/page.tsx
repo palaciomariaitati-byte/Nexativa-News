@@ -110,6 +110,14 @@ export default function AdminNewsPage() {
                       {new Date(article.created_at).toLocaleDateString('es-AR')}
                     </td>
                     <td className="p-4 text-right space-x-3">
+                      <a 
+                        href={article.external_url && article.external_url.trim() !== "" ? article.external_url : `/noticias/${article.id}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="text-blue-400 hover:text-blue-300 transition-colors text-sm uppercase tracking-wider font-bold"
+                      >
+                        Ver
+                      </a>
                       <Link href={`/admin/news/editor?id=${article.id}`} className="text-[var(--color-brand-accent)] hover:text-white transition-colors text-sm uppercase tracking-wider font-bold">
                         Editar
                       </Link>

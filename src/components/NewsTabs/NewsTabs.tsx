@@ -211,13 +211,16 @@ export default function NewsTabs({
                 </div>
               );
 
+              const rawUrl = (article as any).external_url;
+              const hasExternalUrl = rawUrl && typeof rawUrl === 'string' && rawUrl.trim() !== "" && rawUrl.trim() !== "null";
+
               return (
                 <li
                   key={article.id}
                   className="group px-3 py-3 rounded-xl hover:bg-white/5 transition-all duration-300 border border-transparent hover:border-white/10"
                 >
-                  {(article as any).external_url ? (
-                    <a href={(article as any).external_url} target="_blank" rel="noopener noreferrer" className="block w-full h-full">
+                  {hasExternalUrl ? (
+                    <a href={rawUrl} target="_blank" rel="noopener noreferrer" className="block w-full h-full">
                       {content}
                     </a>
                   ) : (
