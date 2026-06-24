@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Metadata, ResolvingMetadata } from "next";
 import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, ExternalLink, Instagram } from "lucide-react";
+import { Sponsor } from "@/lib/types";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -55,6 +56,12 @@ export default async function NewsArticlePage({ params }: PageProps) {
     notFound();
   }
 
+  // Fetch sponsors for Ads
+  const { data: sponsors } = await supabase
+    .from("sponsors")
+    .select("*")
+    .limit(10);
+
   const videoUrl = article.video_url;
   const isDirectVideo = videoUrl?.match(/\.(mp4|webm|ogg)$/i) || article.image_url?.match(/\.(mp4|webm|ogg)$/i);
   const isYouTube = videoUrl?.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
@@ -65,50 +72,52 @@ export default async function NewsArticlePage({ params }: PageProps) {
   return (
     <div className="min-h-screen pb-20">
       {/* Cabecera / Media */}
-      <div className="w-full h-[50vh] md:h-[60vh] relative border-b border-[var(--color-brand-accent)] shadow-[0_0_30px_rgba(212,175,55,0.15)] bg-black overflow-hidden">
-        {youtubeId ? (
-          <iframe
-            src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&mute=1&loop=1&playlist=${youtubeId}&controls=1`}
-            className="w-full h-full object-cover pointer-events-auto z-10 relative"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-          />
-        ) : isDirectVideo ? (
-          <video
-            src={videoUrl || article.image_url || undefined}
-            autoPlay
-            muted
-            loop
-            controls
-            className="w-full h-full object-cover pointer-events-auto z-10 relative"
-          />
-        ) : actualImageUrl ? (
-          <>
-            {/* Capa 1: Fondo Difuminado (Blur) para llenar la pantalla en PC */}
-            <div 
-              className="absolute inset-0 w-full h-full bg-center bg-cover blur-3xl opacity-50 scale-110"
-              style={{ backgroundImage: `url(${actualImageUrl})` }}
+      <div className="w-full relative border-b border-[var(--color-brand-accent)] shadow-[0_0_30px_rgba(212,175,55,0.15)] bg-black overflow-hidden flex flex-col justify-end min-h-[50vh] md:min-h-[60vh]">
+        <div className="absolute inset-0 w-full h-full z-10">
+          {youtubeId ? (
+            <iframe
+              src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&mute=1&loop=1&playlist=${youtubeId}&controls=1`}
+              className="w-full h-full object-cover pointer-events-auto"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
             />
-            {/* Capa 2: Imagen Original Completa al Frente sin recortes */}
-            <img
-              src={actualImageUrl}
-              alt={article.title}
-              className="w-full h-full object-contain relative z-10 drop-shadow-2xl"
+          ) : isDirectVideo ? (
+            <video
+              src={videoUrl || article.image_url || undefined}
+              autoPlay
+              muted
+              loop
+              controls
+              className="w-full h-full object-cover pointer-events-auto"
             />
-          </>
-        ) : (
-          <div className="w-full h-full bg-black flex items-center justify-center relative z-10">
-            <span className="text-[var(--color-brand-accent)] text-4xl font-serif font-bold uppercase tracking-widest opacity-30">
-              Nexativa News
-            </span>
-          </div>
-        )}
+          ) : actualImageUrl ? (
+            <>
+              {/* Capa 1: Fondo Difuminado (Blur) para llenar la pantalla en PC */}
+              <div 
+                className="absolute inset-0 w-full h-full bg-center bg-cover blur-3xl opacity-50 scale-110"
+                style={{ backgroundImage: `url(${actualImageUrl})` }}
+              />
+              {/* Capa 2: Imagen Original Completa al Frente sin recortes */}
+              <img
+                src={actualImageUrl}
+                alt={article.title}
+                className="w-full h-full object-contain drop-shadow-2xl"
+              />
+            </>
+          ) : (
+            <div className="w-full h-full bg-black flex items-center justify-center">
+              <span className="text-[var(--color-brand-accent)] text-4xl font-serif font-bold uppercase tracking-widest opacity-30">
+                Nexativa News
+              </span>
+            </div>
+          )}
+        </div>
         
         {/* Gradiente Oscuro en la base para que el texto sea legible (SIEMPRE ENCIMA) */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent z-20 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-transparent z-20 pointer-events-none" />
         
         {/* Contenido en la Cabecera */}
-        <div className="absolute bottom-0 left-0 w-full p-6 md:p-12 lg:px-24 z-30 pointer-events-none">
+        <div className="relative w-full p-6 md:p-12 lg:px-24 z-30 pointer-events-none mt-20">
           <Link
             href="/#noticias"
             className="inline-flex items-center gap-2 text-white/70 hover:text-[var(--color-brand-accent)] transition-colors mb-6 uppercase tracking-widest text-xs font-bold pointer-events-auto"
@@ -145,13 +154,13 @@ export default async function NewsArticlePage({ params }: PageProps) {
 
       {/* Cuerpo de la Noticia */}
       <main className="max-w-4xl mx-auto px-6 md:px-12 py-12">
-        <div 
-          className="prose prose-invert prose-lg md:prose-xl max-w-none 
+        <div className="prose prose-invert prose-lg md:prose-xl max-w-none 
           prose-headings:font-serif prose-headings:text-[var(--color-brand-accent)] 
           prose-p:text-gray-300 prose-p:leading-relaxed prose-a:text-[var(--color-brand-accent)] 
           prose-strong:text-white prose-blockquote:border-[var(--color-brand-accent)] prose-blockquote:bg-white/5 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:rounded-r-lg"
-          dangerouslySetInnerHTML={{ __html: article.content }}
-        />
+        >
+          {renderContentWithAds(article.content || "", sponsors || [])}
+        </div>
 
         {/* Cierre y Aviso Legal */}
         <div className="mt-16 pt-8 border-t border-white/10 flex flex-col items-center text-center space-y-4">
@@ -175,6 +184,90 @@ export default async function NewsArticlePage({ params }: PageProps) {
           </div>
         </div>
       </main>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------
+// Función Auxiliar para Renderizar Publicidad Intercalada
+// ----------------------------------------------------------------------
+function renderContentWithAds(htmlContent: string, sponsors: Sponsor[]) {
+  if (!sponsors || sponsors.length === 0 || !htmlContent) {
+    return <div dangerouslySetInnerHTML={{ __html: htmlContent }} />;
+  }
+  
+  // Dividir el contenido por párrafos
+  const parts = htmlContent.split('</p>');
+  
+  if (parts.length <= 2) {
+    const randomSponsor = sponsors[Math.floor(Math.random() * sponsors.length)];
+    return (
+      <>
+        <div dangerouslySetInnerHTML={{ __html: htmlContent }} />
+        <AdBlock sponsor={randomSponsor} />
+      </>
+    );
+  }
+
+  // Dividir a la mitad
+  const middleIndex = Math.floor(parts.length / 2);
+  const firstHalf = parts.slice(0, middleIndex).join('</p>') + '</p>';
+  const secondHalf = parts.slice(middleIndex).join('</p>');
+
+  // Elegir 2 sponsors (distintos si es posible)
+  const sponsor1 = sponsors[Math.floor(Math.random() * sponsors.length)];
+  const remainingSponsors = sponsors.filter(s => s.id !== sponsor1.id);
+  const sponsor2 = remainingSponsors.length > 0 
+    ? remainingSponsors[Math.floor(Math.random() * remainingSponsors.length)]
+    : sponsor1;
+
+  return (
+    <>
+      <div dangerouslySetInnerHTML={{ __html: firstHalf }} />
+      <div className="my-12">
+        <AdBlock sponsor={sponsor1} />
+      </div>
+      <div dangerouslySetInnerHTML={{ __html: secondHalf }} />
+      <div className="mt-16 mb-8">
+        <AdBlock sponsor={sponsor2} />
+      </div>
+    </>
+  );
+}
+
+function AdBlock({ sponsor }: { sponsor: Sponsor }) {
+  return (
+    <div className="w-full bg-white/5 border border-white/10 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-center gap-6 shadow-2xl hover:border-[var(--color-brand-accent)] transition-colors group relative overflow-hidden">
+      {/* Etiqueta de Publicidad */}
+      <div className="absolute top-0 left-0 bg-white/10 text-white/50 text-[10px] uppercase font-bold tracking-widest px-3 py-1 rounded-br-lg">
+        Espacio Publicitario
+      </div>
+
+      <div className="w-32 h-32 md:w-40 md:h-40 rounded-xl overflow-hidden bg-white shrink-0 p-2 flex items-center justify-center">
+        <img src={sponsor.logo_url} alt={sponsor.name} className="max-w-full max-h-full object-contain" />
+      </div>
+      
+      <div className="flex-1 text-center md:text-left flex flex-col items-center md:items-start justify-center">
+        <h3 className="text-2xl font-black text-white uppercase tracking-widest mb-2 group-hover:text-[var(--color-brand-accent)] transition-colors">
+          {sponsor.name}
+        </h3>
+        {sponsor.slogan && (
+          <p className="text-gray-400 italic mb-6">"{sponsor.slogan}"</p>
+        )}
+        
+        <div className="flex flex-wrap gap-3 justify-center md:justify-start mt-auto">
+          {sponsor.instagram_url && (
+            <a href={sponsor.instagram_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-lg hover:scale-105 transition-transform shadow-lg">
+              <Instagram className="w-4 h-4" /> Instagram
+            </a>
+          )}
+          {sponsor.website_url && (
+            <a href={sponsor.website_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-white/10 text-white hover:bg-white/20 text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-lg transition-colors">
+              <ExternalLink className="w-4 h-4" /> Sitio Web
+            </a>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
