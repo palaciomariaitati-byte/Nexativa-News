@@ -7,7 +7,6 @@ export interface Article {
   excerpt: string | null;
   content: string | null;
   image_url: string | null;
-  video_url?: string | null;
   category: string | null;
   status: string;
   created_at: string;
