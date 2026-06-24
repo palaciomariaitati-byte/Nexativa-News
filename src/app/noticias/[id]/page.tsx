@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Metadata, ResolvingMetadata } from "next";
 import Link from "next/link";
-import { ChevronLeft, ExternalLink, Instagram } from "lucide-react";
+import { ChevronLeft, ExternalLink } from "lucide-react";
 import { Sponsor } from "@/lib/types";
 
 interface PageProps {
@@ -258,7 +258,7 @@ function AdBlock({ sponsor }: { sponsor: Sponsor }) {
         <div className="flex flex-wrap gap-3 justify-center md:justify-start mt-auto">
           {sponsor.instagram_url && (
             <a href={sponsor.instagram_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-lg hover:scale-105 transition-transform shadow-lg">
-              <Instagram className="w-4 h-4" /> Instagram
+              Instagram
             </a>
           )}
           {sponsor.website_url && (
