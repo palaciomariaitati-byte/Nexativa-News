@@ -21,6 +21,7 @@ export default function NewsEditorPage() {
     excerpt: "",
     content: "",
     image_url: "",
+    video_url: "",
     external_url: "",
     category: "nacional",
     status: "draft",
@@ -50,6 +51,7 @@ export default function NewsEditorPage() {
             excerpt: data.excerpt || "",
             content: data.content || "",
             image_url: data.image_url || "",
+            video_url: data.video_url || "",
             external_url: data.external_url || "",
             category: data.category || "nacional",
             status: data.status || "draft",
@@ -251,7 +253,7 @@ export default function NewsEditorPage() {
 
           {/* Imagen URL */}
           <div>
-            <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase tracking-wide">Media (Imagen o Video URL)</label>
+            <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase tracking-wide">Imagen de Portada</label>
             <div className="flex flex-col gap-4">
               <input
                 type="text"
@@ -259,22 +261,34 @@ export default function NewsEditorPage() {
                 value={formData.image_url}
                 onChange={handleChange}
                 className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)] transition-colors"
-                placeholder="https://ejemplo.com/media.mp4 o pega un enlace aquí"
+                placeholder="https://ejemplo.com/imagen.jpg o pega un enlace aquí"
               />
               <MediaUploader 
-                label="O sube tu archivo directamente a Supabase"
+                label="O sube tu imagen directamente a Supabase"
                 onUploadSuccess={(url) => setFormData({ ...formData, image_url: url })}
               />
             </div>
-            {formData.image_url && (
+            {formData.image_url && !formData.image_url.match(/\.(mp4|webm|ogg)$/i) && (
               <div className="mt-4 aspect-video rounded-lg overflow-hidden border border-white/10 relative h-48 w-full max-w-sm">
-                {formData.image_url.match(/\.(mp4|webm|ogg)$/i) ? (
-                  <video src={formData.image_url} controls className="object-cover w-full h-full" />
-                ) : (
-                  <img src={formData.image_url} alt="Preview" className="object-cover w-full h-full" />
-                )}
+                <img src={formData.image_url} alt="Preview" className="object-cover w-full h-full" />
               </div>
             )}
+          </div>
+
+          {/* Video URL */}
+          <div>
+            <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase tracking-wide">Video Principal (Opcional)</label>
+            <p className="text-xs text-gray-400 mb-2">Si agregas un enlace de YouTube o un video MP4 aquí, reemplazará a la imagen principal de la nota. Ideal para videonoticias.</p>
+            <div className="flex flex-col gap-4">
+              <input
+                type="text"
+                name="video_url"
+                value={formData.video_url || ""}
+                onChange={handleChange}
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)] transition-colors"
+                placeholder="https://www.youtube.com/watch?v=... o archivo .mp4"
+              />
+            </div>
           </div>
 
           {/* Enlace Externo (Opcional) */}

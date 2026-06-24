@@ -55,37 +55,57 @@ export default async function NewsArticlePage({ params }: PageProps) {
     notFound();
   }
 
-  const isVideo = article.image_url?.match(/\.(mp4|webm|ogg)$/i);
+  const videoUrl = article.video_url;
+  const isDirectVideo = videoUrl?.match(/\.(mp4|webm|ogg)$/i) || article.image_url?.match(/\.(mp4|webm|ogg)$/i);
+  const isYouTube = videoUrl?.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
+  const youtubeId = isYouTube ? isYouTube[1] : null;
+
+  const actualImageUrl = article.image_url;
 
   return (
     <div className="min-h-screen pb-20">
       {/* Cabecera / Media */}
-      <div className="w-full h-[50vh] md:h-[60vh] relative border-b border-[var(--color-brand-accent)] shadow-[0_0_30px_rgba(212,175,55,0.15)]">
-        {article.image_url ? (
-          isVideo ? (
-            <video
-              src={article.image_url}
-              autoPlay
-              muted
-              loop
-              controls
-              className="w-full h-full object-cover"
+      <div className="w-full h-[50vh] md:h-[60vh] relative border-b border-[var(--color-brand-accent)] shadow-[0_0_30px_rgba(212,175,55,0.15)] bg-black overflow-hidden">
+        {youtubeId ? (
+          <iframe
+            src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&mute=1&loop=1&playlist=${youtubeId}&controls=1`}
+            className="w-full h-full object-cover pointer-events-auto z-10 relative"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        ) : isDirectVideo ? (
+          <video
+            src={videoUrl || article.image_url || undefined}
+            autoPlay
+            muted
+            loop
+            controls
+            className="w-full h-full object-cover pointer-events-auto z-10 relative"
+          />
+        ) : actualImageUrl ? (
+          <>
+            {/* Capa 1: Fondo Difuminado (Blur) para llenar la pantalla en PC */}
+            <div 
+              className="absolute inset-0 w-full h-full bg-center bg-cover blur-3xl opacity-50 scale-110"
+              style={{ backgroundImage: `url(${actualImageUrl})` }}
             />
-          ) : (
+            {/* Capa 2: Imagen Original Completa al Frente sin recortes */}
             <img
-              src={article.image_url}
+              src={actualImageUrl}
               alt={article.title}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain relative z-10 drop-shadow-2xl"
             />
-          )
+          </>
         ) : (
-          <div className="w-full h-full bg-black flex items-center justify-center">
+          <div className="w-full h-full bg-black flex items-center justify-center relative z-10">
             <span className="text-[var(--color-brand-accent)] text-4xl font-serif font-bold uppercase tracking-widest opacity-30">
               Nexativa News
             </span>
           </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
+        
+        {/* Gradiente Oscuro en la base para que el texto sea legible (SIEMPRE ENCIMA) */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent z-20 pointer-events-none" />
         
         {/* Contenido en la Cabecera */}
         <div className="absolute bottom-0 left-0 w-full p-6 md:p-12 lg:px-24">
