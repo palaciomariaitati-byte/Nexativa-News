@@ -221,7 +221,9 @@ export default function NewsTabs({
                       {content}
                     </a>
                   ) : (
-                    <div>{content}</div>
+                    <a href={`/noticias/${article.id}`} className="block w-full h-full">
+                      {content}
+                    </a>
                   )}
                   {/* Legal Notice Ley 11.723 */}
                   <div className="mt-3 pt-3 border-t border-white/5 text-[10px] text-gray-500">

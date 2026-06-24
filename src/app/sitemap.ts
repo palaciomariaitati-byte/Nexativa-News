@@ -38,5 +38,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.7,
   }));
 
-  return [...staticRoutes, ...productRoutes, ...storeRoutes, ...culturalRoutes];
+  // Obtener noticias locales (sin external_url o con string vacío)
+  const { data: news } = await supabase.from("articles").select("id, updated_at, external_url").eq("status", "published");
+  
+  const localNews = (news || []).filter(n => !n.external_url || n.external_url.trim() === "");
+
+  const newsRoutes: MetadataRoute.Sitemap = localNews.map((n) => ({
+    url: `${baseUrl}/noticias/${n.id}`,
+    lastModified: new Date(n.updated_at || new Date()),
+    changeFrequency: "daily",
+    priority: 0.9,
+  }));
+
+  return [...staticRoutes, ...productRoutes, ...storeRoutes, ...culturalRoutes, ...newsRoutes];
 }
