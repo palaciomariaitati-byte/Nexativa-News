@@ -40,6 +40,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Link href="/admin/news" className={`px-4 py-2 rounded-lg text-sm transition-colors hover:bg-white/10`}>
             Prensa & Noticias
           </Link>
+          <Link href="/admin/news/live" className={`px-4 py-2 rounded-lg text-sm transition-colors text-red-500 font-bold hover:bg-white/10 flex items-center gap-2`}>
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+            Nora Live Editor
+          </Link>
           <Link href="/admin/culture" className={`px-4 py-2 rounded-lg text-sm transition-colors hover:bg-white/10`}>
             Espacio Cultural
           </Link>
