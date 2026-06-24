@@ -62,7 +62,7 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent"></div>
           </div>
         )}
-        <div className={\`p-8 flex flex-col md:flex-row items-center md:items-start gap-8 relative z-10 \${store.banner_url ? '-mt-24' : ''}\`}>
+        <div className={`p-8 flex flex-col md:flex-row items-center md:items-start gap-8 relative z-10 ${store.banner_url ? '-mt-24' : ''}`}>
           {store.logo_url ? (
             <img src={store.logo_url} alt={store.name} className="w-32 h-32 md:w-48 md:h-48 rounded-full object-cover border-4 border-[#1a1a1a] bg-black shadow-2xl" />
           ) : (
@@ -74,7 +74,7 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 pt-2">
               {store.address && <span className="bg-black/50 backdrop-blur-md px-4 py-2 rounded-lg text-sm border border-white/10">📍 {store.address}</span>}
               {store.map_url && <a href={store.map_url} target="_blank" className="bg-white/10 backdrop-blur-md text-[var(--color-brand-accent)] px-4 py-2 rounded-lg text-sm border border-[var(--color-brand-accent)]/30 font-bold hover:bg-[var(--color-brand-accent)]/20 transition-colors">🗺️ Ubicación</a>}
-              {store.whatsapp && <a href={\`https://wa.me/\${store.whatsapp}\`} target="_blank" className="bg-green-600/30 backdrop-blur-md text-green-400 px-4 py-2 rounded-lg text-sm border border-green-500/30 font-bold hover:bg-green-600/50 transition-colors">💬 WhatsApp</a>}
+              {store.whatsapp && <a href={`https://wa.me/${store.whatsapp}`} target="_blank" className="bg-green-600/30 backdrop-blur-md text-green-400 px-4 py-2 rounded-lg text-sm border border-green-500/30 font-bold hover:bg-green-600/50 transition-colors">💬 WhatsApp</a>}
               {store.instagram && <a href={store.instagram} target="_blank" className="bg-pink-600/30 backdrop-blur-md text-pink-400 px-4 py-2 rounded-lg text-sm border border-pink-500/30 font-bold hover:bg-pink-600/50 transition-colors">📸 Instagram</a>}
               {store.facebook && <a href={store.facebook} target="_blank" className="bg-blue-600/30 backdrop-blur-md text-blue-400 px-4 py-2 rounded-lg text-sm border border-blue-500/30 font-bold hover:bg-blue-600/50 transition-colors">📘 Facebook</a>}
               {store.x_url && <a href={store.x_url} target="_blank" className="bg-white/10 backdrop-blur-md text-white px-4 py-2 rounded-lg text-sm border border-white/30 font-bold hover:bg-white/20 transition-colors">𝕏 Twitter</a>}
@@ -100,8 +100,8 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
                 <h5 className="mt-2 font-bold text-gray-100 text-xl line-clamp-1">{product.title}</h5>
                 <p className="text-sm text-gray-400 mt-2 line-clamp-3">{product.description}</p>
                 <div className="mt-auto pt-6 flex flex-col gap-4">
-                  <p className="text-[var(--color-brand-accent)] font-bold text-2xl">\${Number(product.price).toFixed(2)}</p>
-                  <Link href={\`/product/\${product.id}\`} className="bg-white/10 hover:bg-[var(--color-brand-accent)] hover:text-black text-center font-bold px-4 py-3 rounded-lg transition-colors text-lg uppercase tracking-wider">
+                  <p className="text-[var(--color-brand-accent)] font-bold text-2xl">${Number(product.price).toFixed(2)}</p>
+                  <Link href={`/product/${product.id}`} className="bg-white/10 hover:bg-[var(--color-brand-accent)] hover:text-black text-center font-bold px-4 py-3 rounded-lg transition-colors text-lg uppercase tracking-wider">
                     Ver Detalles Completos
                   </Link>
                 </div>

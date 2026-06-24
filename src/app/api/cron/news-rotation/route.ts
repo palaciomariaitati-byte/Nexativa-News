@@ -8,7 +8,7 @@ export async function GET(request: Request) {
   try {
     // Verificación de seguridad de Vercel Cron (opcional pero recomendada)
     const authHeader = request.headers.get("authorization");
-    if (process.env.CRON_SECRET && authHeader !== \`Bearer \${process.env.CRON_SECRET}\`) {
+    if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
       if (process.env.NODE_ENV === "production") {
         return new NextResponse("Unauthorized", { status: 401 });
       }
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
       .lt('created_at', limitDate.toISOString());
 
     if (fetchError) {
-      throw new Error(\`Error fetching old articles: \${fetchError.message}\`);
+      throw new Error(`Error fetching old articles: ${fetchError.message}`);
     }
 
     let archivedCount = 0;
@@ -43,11 +43,11 @@ export async function GET(request: Request) {
         .in('id', oldIds);
 
       if (updateError) {
-        throw new Error(\`Error archiving articles: \${updateError.message}\`);
+        throw new Error(`Error archiving articles: ${updateError.message}`);
       }
 
       archivedCount = oldIds.length;
-      console.log(\`[News Rotation] Se archivaron \${archivedCount} noticias antiguas.\`);
+      console.log(`[News Rotation] Se archivaron ${archivedCount} noticias antiguas.`);
     } else {
       console.log("[News Rotation] No se encontraron noticias mayores a 24 hs para archivar.");
     }
@@ -77,7 +77,7 @@ export async function GET(request: Request) {
           console.error("[News Rotation] Error insertando noticias generadas por Nora:", insertError);
         } else {
           generatedCount = newArticles.length;
-          console.log(\`[News Rotation] Nora generó e insertó exitosamente \${generatedCount} noticias nuevas.\`);
+          console.log(`[News Rotation] Nora generó e insertó exitosamente ${generatedCount} noticias nuevas.`);
         }
       } else {
         console.log("[News Rotation] Nora no pudo generar nuevas noticias (quizás no hay nuevas en el RSS).");
@@ -86,7 +86,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ 
       success: true, 
-      message: \`Rotación completa. Archivadas: \${archivedCount}. Generadas por Nora: \${generatedCount}.\`,
+      message: `Rotación completa. Archivadas: ${archivedCount}. Generadas por Nora: ${generatedCount}.`,
       archived: archivedCount,
       generated: generatedCount
     });
