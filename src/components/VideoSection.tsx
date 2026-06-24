@@ -27,15 +27,15 @@ function getYouTubeEmbedUrl(url: string): string | null {
   }
 
   if (videoId) {
-    // Parámetros exigidos para bypass autoplay y mute inicial, con playsinline para evitar fullscreen forzado en móvil
-    return `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&playsinline=1&enablejsapi=1`;
+    // Parámetros exigidos para bypass autoplay inicial, con playsinline para evitar fullscreen forzado en móvil
+    return `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&enablejsapi=1`;
   }
   return null;
 }
 
 const PLAYER_CONFIG = {
   youtube: {
-    playerVars: { autoplay: 1, playsinline: 1, mute: 1 }
+    playerVars: { autoplay: 1, playsinline: 1 }
   }
 };
 
@@ -311,7 +311,7 @@ export default function VideoSection() {
                   width="100%"
                   height="100%"
                   playing={true}
-                  muted={true}
+                  muted={false}
                   controls={true}
                   playsinline={true}
                   onEnded={handleVideoEnded}
