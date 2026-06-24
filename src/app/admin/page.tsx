@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getStaffRole } from "./actions";
 
+export const revalidate = 0; // Disable static caching
+
 export default async function AdminOverviewPage() {
   const role = await getStaffRole();
   if (!role) {

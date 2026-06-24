@@ -8,6 +8,17 @@ export const metadata = {
   description: "Versión de lectura tradicional estilo periódico antiguo.",
 };
 
+export const revalidate = 0; // Disable static caching
+
+// Helper to extract fallback image from content if main media is video
+const getDisplayImage = (article: any) => {
+  if (article.image_url && !article.image_url.match(/\.(mp4|webm)$/i)) {
+    return article.image_url;
+  }
+  const imgMatch = article.content?.match(/<img[^>]+src="([^">]+)"/);
+  return imgMatch ? imgMatch[1] : null;
+};
+
 export default async function ClassicNewspaperPage() {
   const supabase = createServerSupabaseClient();
 
@@ -81,10 +92,10 @@ export default async function ClassicNewspaperPage() {
               </Link>
             </h2>
             <div className="flex flex-col md:flex-row gap-8">
-              {mainArticle.image_url && !mainArticle.image_url.match(/\.(mp4|webm)$/i) && (
+              {getDisplayImage(mainArticle) && (
                 <div className="w-full md:w-2/3 shrink-0">
                   <img 
-                    src={mainArticle.image_url} 
+                    src={getDisplayImage(mainArticle)} 
                     alt={mainArticle.title}
                     className="w-full h-auto border-4 border-double border-[#2c241b] grayscale contrast-125 sepia-[.3]"
                   />
@@ -112,9 +123,9 @@ export default async function ClassicNewspaperPage() {
                   {article.title}
                 </Link>
               </h3>
-              {article.image_url && !article.image_url.match(/\.(mp4|webm)$/i) && (
+              {getDisplayImage(article) && (
                 <img 
-                  src={article.image_url} 
+                  src={getDisplayImage(article)} 
                   alt={article.title}
                   className="w-full h-48 object-cover mb-4 border border-[#2c241b] grayscale contrast-125 sepia-[.3]"
                 />
