@@ -1,14 +1,20 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
+import { usePathname } from "next/navigation";
 import NoraChatWindow from "./NoraChatWindow";
 
 export default function NoraAgent() {
+  const pathname = usePathname();
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [contextData, setContextData] = useState<any>(null);
   const hoverTimer = useRef<NodeJS.Timeout | null>(null);
   const currentHoveredContext = useRef<string | null>(null);
   const hasTriggeredBottom = useRef<boolean>(false);
+
+  if (pathname?.startsWith("/admin")) {
+    return null;
+  }
 
   useEffect(() => {
     const handleMouseOver = (e: MouseEvent) => {

@@ -24,6 +24,13 @@ export default async function AdminOverviewPage() {
             <h3 className="font-bold mb-2">Prensa & Noticias</h3>
             <p className="text-sm text-white/70">Redacta y publica nuevos artículos para el portal. (Todos los roles)</p>
           </Link>
+          <Link href="/admin/news/live" className="bg-red-900/10 hover:bg-red-900/30 border border-red-500/30 hover:border-red-500 p-4 rounded-lg transition-all block">
+            <h3 className="font-bold mb-2 flex items-center gap-2 text-red-500">
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+              Nora Live Editor
+            </h3>
+            <p className="text-sm text-white/70">Redactora Jefa en vivo para coberturas móviles desde tu celular.</p>
+          </Link>
           <Link href="/admin/culture" className="bg-black/20 hover:bg-black/40 border border-transparent hover:border-white/10 p-4 rounded-lg transition-all block">
             <h3 className="font-bold mb-2">Espacio Cultural</h3>
             <p className="text-sm text-white/70">Gestiona los artículos de arte, cultura e historia local. (Todos los roles)</p>
