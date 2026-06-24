@@ -311,8 +311,9 @@ export default function VideoSection() {
                   width="100%"
                   height="100%"
                   playing={true}
+                  muted={true}
                   controls={true}
-                  playsInline={true}
+                  playsinline={true}
                   onEnded={handleVideoEnded}
                   config={PLAYER_CONFIG}
                 />
