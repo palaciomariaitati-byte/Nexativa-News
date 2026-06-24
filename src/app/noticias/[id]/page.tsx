@@ -54,12 +54,13 @@ export default async function NewsArticlePage({ params }: PageProps) {
   if (error || !article) {
     notFound();
   }
-  const videoUrl = article.video_url || article.image_url;
-  const isDirectVideo = videoUrl?.match(/\.(mp4|webm|ogg)$/i);
+
+  const videoUrl = article.video_url;
+  const isDirectVideo = videoUrl?.match(/\.(mp4|webm|ogg)$/i) || article.image_url?.match(/\.(mp4|webm|ogg)$/i);
   const isYouTube = videoUrl?.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
   const youtubeId = isYouTube ? isYouTube[1] : null;
 
-  const actualImageUrl = isYouTube || isDirectVideo ? null : article.image_url;
+  const actualImageUrl = article.image_url;
 
   return (
     <div className="min-h-screen pb-20">
