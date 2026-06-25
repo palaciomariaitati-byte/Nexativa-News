@@ -10,7 +10,8 @@ export async function POST(request: Request) {
     }
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const modelId = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+    const model = genAI.getGenerativeModel({ model: modelId });
 
     const prompt = `Eres NORA, la Redactora Jefa de Nexativa News. 
 Tu periodista está en la calle enviándote reportes rápidos (piezas de información o descripciones de fotos).

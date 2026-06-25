@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const ENABLE_NORA_PRO = process.env.ENABLE_NORA_PRO === 'true';
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
 // Fallback o mock
 const MOCK_RSS_URL = 'https://feeds.bbci.co.uk/mundo/rss.xml';
