@@ -144,7 +144,7 @@ export default function NoraLiveEditor() {
         excerpt: draft.substring(0, 150) + "...",
         content: draft + "<br><br><strong>🔴 Noticia en Desarrollo - Actualizada hace instantes</strong>",
         status: "published",
-        type: "news",
+        category: "local",
         image_url: imageUrl,
         author_id: authorId
       });
