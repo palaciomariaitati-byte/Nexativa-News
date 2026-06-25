@@ -43,7 +43,7 @@ export default async function ClassicNewspaperPage() {
   const { data: settingData } = await supabase
     .from("settings")
     .select("value")
-    .eq("key", "radio_stream_url")
+    .eq("key", "radio_url")
     .single();
     
   const radioUrl = settingData?.value || "https://stream.zeno.fm/gnyb99k8zzruv"; // Default fallback if missing

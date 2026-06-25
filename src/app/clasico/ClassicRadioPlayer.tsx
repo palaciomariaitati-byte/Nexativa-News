@@ -29,7 +29,19 @@ export default function ClassicRadioPlayer({ streamUrl }: { streamUrl: string })
         audioRef.current.load();
         setIsPlaying(false);
       } else {
-        audioRef.current.src = streamUrl;
+        let actualUrl = streamUrl;
+        
+        // Mismos workarounds que en la versión moderna (VideoSection.tsx)
+        if (actualUrl.includes("pistarinconsoñado.com.ar") || 
+            actualUrl.includes("xn--pistarinconsoado-jub.com.ar") || 
+            actualUrl.includes("pistarinconsonado.com.ar")) {
+          actualUrl = "https://miestacion.turadioonline.com.ar/8180/stream";
+        }
+        const cleanUrl = actualUrl.split('nocache=')[0].replace(/[?&]$/, '');
+        const separator = cleanUrl.includes('?') ? '&' : '?';
+        const freshUrl = `${cleanUrl}${separator}nocache=${Date.now()}`;
+        
+        audioRef.current.src = freshUrl;
         audioRef.current.play().then(() => {
           setIsPlaying(true);
         }).catch((e) => {
