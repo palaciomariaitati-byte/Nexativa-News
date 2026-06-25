@@ -55,8 +55,9 @@ ${message}
     const text = response.text();
 
     return NextResponse.json({ newDraft: text });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Nora Live API Error:", error);
-    return NextResponse.json({ error: "Failed to process message", reply: "Error de conexión con mi cerebro." }, { status: 500 });
+    const errorMsg = error?.message || "Error desconocido en el servidor";
+    return NextResponse.json({ error: "Failed to process message", reply: `Error de conexión con mi cerebro: ${errorMsg}` }, { status: 500 });
   }
 }
