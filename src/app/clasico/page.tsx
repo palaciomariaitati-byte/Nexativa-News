@@ -12,7 +12,11 @@ export const revalidate = 0; // Disable static caching
 
 // Helper to extract fallback image from content if main media is video
 const getDisplayImage = (article: any) => {
-  if (article.image_url && !article.image_url.match(/\.(mp4|webm)$/i)) {
+  const isVideo = (url: string) => {
+    if (!url) return false;
+    return url.match(/\.(mp4|webm|ogg)$/i) || url.includes('youtube.com') || url.includes('youtu.be');
+  };
+  if (article.image_url && !isVideo(article.image_url)) {
     return article.image_url;
   }
   const imgMatch = article.content?.match(/<img[^>]+src="([^">]+)"/);
@@ -42,7 +46,7 @@ export default async function ClassicNewspaperPage() {
     .eq("key", "radio_stream_url")
     .single();
     
-  const radioUrl = settingData?.value;
+  const radioUrl = settingData?.value || "https://stream.zeno.fm/gnyb99k8zzruv"; // Default fallback if missing
 
   const mainArticle = articles?.[0];
   const sideArticles = articles?.slice(1, 4);
@@ -66,10 +70,10 @@ export default async function ClassicNewspaperPage() {
       </div>
 
       {/* Cabecera Principal del Periódico */}
-      <header className="max-w-6xl mx-auto px-4 py-8 text-center border-b-4 border-double border-[#2c241b] mb-8 relative mt-16 sm:mt-0">
-        <div className="absolute -top-12 right-0 sm:top-8 sm:right-4 z-10 scale-75 sm:scale-100 origin-top-right">
+      <header className="max-w-6xl mx-auto px-4 py-8 text-center border-b-4 border-double border-[#2c241b] mb-8 relative mt-16 sm:mt-0 flex flex-col items-center">
+        <div className="mb-6 sm:absolute sm:top-8 sm:right-4 sm:mb-0 z-10 sm:scale-100 origin-top-right">
            {/* Reproductor de Radio Vintage */}
-           {radioUrl && <ClassicRadioPlayer streamUrl={radioUrl} />}
+           <ClassicRadioPlayer streamUrl={radioUrl} />
         </div>
         
         <h1 className="text-6xl md:text-8xl font-black mb-4 uppercase tracking-tighter" style={{ fontFamily: "'Times New Roman', Times, serif" }}>
