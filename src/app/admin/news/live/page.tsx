@@ -97,8 +97,15 @@ export default function NoraLiveEditor() {
         })
       });
       
+      let errorDetail = "";
       if (!res.ok) {
-        throw new Error("HTTP error " + res.status);
+        try {
+          const errData = await res.json();
+          errorDetail = errData.reply || errData.error || `HTTP ${res.status}`;
+        } catch {
+          errorDetail = `HTTP ${res.status}`;
+        }
+        throw new Error(errorDetail);
       }
       
       const data = await res.json();
@@ -111,7 +118,8 @@ export default function NoraLiveEditor() {
       }
     } catch (e: any) {
       console.error(e);
-      setMessages(prev => [...prev, { role: 'nora', text: "Hubo un error de conexión al enviar la imagen. (La imagen podría ser muy pesada o hubo un fallo de red)." }]);
+      const details = e.message || "Fallo de conexión o de red";
+      setMessages(prev => [...prev, { role: 'nora', text: `Hubo un error de conexión al enviar la imagen (${details}). La imagen podría ser muy pesada, no tener el formato correcto o haber un fallo de red.` }]);
     }
     setIsProcessing(false);
   };
