@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Image as ImageIcon, Loader2, CheckCircle } from "lucide-react";
+import { Send, Image as ImageIcon, Loader2, CheckCircle, Mic, Square } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
 export default function NoraLiveEditor() {
@@ -12,6 +12,8 @@ export default function NoraLiveEditor() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [published, setPublished] = useState(false);
   const [pendingImage, setPendingImage] = useState<File | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -75,6 +77,84 @@ export default function NoraLiveEditor() {
       };
       reader.readAsDataURL(file);
     });
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+        stream.getTracks().forEach(track => track.stop());
+
+        setMessages(prev => [...prev, { role: 'user', text: "[Reporte de voz enviado]" }]);
+        setIsProcessing(true);
+
+        try {
+          const reader = new FileReader();
+          reader.readAsDataURL(audioBlob);
+          reader.onloadend = async () => {
+            const base64Audio = reader.result as string;
+            
+            const res = await fetch("/api/nora-live", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ 
+                message: input.trim() ? `El periodista adjuntó un reporte de voz. Contexto adicional: ${input.trim()}` : "El periodista adjuntó un reporte de voz desde el lugar de los hechos. Transcríbelo e intégralo a la noticia.",
+                currentDraft: draft,
+                audio: base64Audio
+              })
+            });
+
+            let errorDetail = "";
+            if (!res.ok) {
+              try {
+                const errData = await res.json();
+                errorDetail = errData.reply || errData.error || `HTTP ${res.status}`;
+              } catch {
+                errorDetail = `HTTP ${res.status}`;
+              }
+              throw new Error(errorDetail);
+            }
+
+            const data = await res.json();
+            if (data.newDraft) {
+              setDraft(data.newDraft);
+            }
+            setMessages(prev => [...prev, { role: 'nora', text: data.reply || "Borrador actualizado con el reporte de voz." }]);
+            setInput("");
+          };
+        } catch (e: any) {
+          console.error(e);
+          const details = e.message || "Fallo de conexión o de red";
+          setMessages(prev => [...prev, { role: 'nora', text: `Hubo un error al procesar el reporte de voz (${details}).` }]);
+        } finally {
+          setIsProcessing(false);
+        }
+      };
+
+      recorder.start();
+      setMediaRecorder(recorder);
+      setIsRecording(true);
+    } catch (err: any) {
+      console.error(err);
+      alert("No se pudo acceder al micrófono: " + (err.message || err));
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder && isRecording) {
+      mediaRecorder.stop();
+      setIsRecording(false);
+    }
   };
 
   const handleImageUpload = async (file: File) => {
@@ -193,7 +273,7 @@ export default function NoraLiveEditor() {
         </div>
 
         <div className="p-4 border-t border-white/10 bg-black/60 flex items-center gap-2">
-          <label className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors text-gray-400 cursor-pointer">
+          <label className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors text-gray-400 cursor-pointer" title="Adjuntar imagen">
             <ImageIcon className="w-5 h-5" />
             <input 
               type="file" 
@@ -205,6 +285,13 @@ export default function NoraLiveEditor() {
               }}
             />
           </label>
+          <button 
+            onClick={isRecording ? stopRecording : startRecording}
+            className={`p-3 rounded-xl transition-all ${isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-white/5 hover:bg-white/10 text-gray-400'}`}
+            title={isRecording ? "Detener grabación y enviar" : "Grabar reporte de voz"}
+          >
+            {isRecording ? <Square className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+          </button>
           <input 
             type="text"
             value={input}
