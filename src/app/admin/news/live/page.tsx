@@ -42,7 +42,38 @@ export default function NoraLiveEditor() {
     }
     setIsProcessing(false);
   };
+  const handleImageUpload = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const base64Image = e.target?.result as string;
+      setMessages(prev => [...prev, { role: 'user', text: `[Imagen adjunta: ${file.name}]` }]);
+      setIsProcessing(true);
 
+      try {
+        const res = await fetch("/api/nora-live", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            message: input.trim() ? `El periodista adjuntó una imagen. Contexto adicional: ${input.trim()}` : "El periodista adjuntó una imagen desde el lugar de los hechos. Descríbela e intégrala a la noticia.", 
+            currentDraft: draft,
+            image: base64Image
+          })
+        });
+        const data = await res.json();
+        if (data.newDraft) {
+          setDraft(data.newDraft);
+          setMessages(prev => [...prev, { role: 'nora', text: "Borrador actualizado con la información de la imagen." }]);
+          setInput(""); // Clear input if it was sent with the image
+        } else {
+          setMessages(prev => [...prev, { role: 'nora', text: data.reply || "Error al procesar la imagen." }]);
+        }
+      } catch (e) {
+        setMessages(prev => [...prev, { role: 'nora', text: "Hubo un error de conexión." }]);
+      }
+      setIsProcessing(false);
+    };
+    reader.readAsDataURL(file);
+  };
   const handlePublish = async () => {
     if (!draft.trim()) return;
     setIsPublishing(true);
@@ -96,9 +127,18 @@ export default function NoraLiveEditor() {
         </div>
 
         <div className="p-4 border-t border-white/10 bg-black/60 flex items-center gap-2">
-          <button className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors text-gray-400">
+          <label className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors text-gray-400 cursor-pointer">
             <ImageIcon className="w-5 h-5" />
-          </button>
+            <input 
+              type="file" 
+              accept="image/*" 
+              className="hidden" 
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleImageUpload(file);
+              }}
+            />
+          </label>
           <input 
             type="text"
             value={input}

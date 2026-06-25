@@ -3,7 +3,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export async function POST(request: Request) {
   try {
-    const { message, currentDraft } = await request.json();
+    const { message, currentDraft, image } = await request.json();
     
     if (!message) {
       return NextResponse.json({ error: "No message provided" }, { status: 400 });
@@ -32,7 +32,21 @@ NUEVA INFORMACIÓN DEL PERIODISTA:
 ${message}
 `;
 
-    const result = await model.generateContent(prompt);
+    let parts: any[] = [{ text: prompt }];
+
+    if (image) {
+      const mimeMatch = image.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+).*,([^]*)$/);
+      if (mimeMatch) {
+        parts.push({
+          inlineData: {
+            data: mimeMatch[2],
+            mimeType: mimeMatch[1]
+          }
+        });
+      }
+    }
+
+    const result = await model.generateContent(parts);
     const response = await result.response;
     const text = response.text();
 
