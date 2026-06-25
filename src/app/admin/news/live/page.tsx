@@ -11,6 +11,7 @@ export default function NoraLiveEditor() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [published, setPublished] = useState(false);
+  const [pendingImage, setPendingImage] = useState<File | null>(null);
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -46,6 +47,7 @@ export default function NoraLiveEditor() {
     const reader = new FileReader();
     reader.onload = async (e) => {
       const base64Image = e.target?.result as string;
+      setPendingImage(file);
       setMessages(prev => [...prev, { role: 'user', text: `[Imagen adjunta: ${file.name}]` }]);
       setIsProcessing(true);
 
@@ -78,12 +80,24 @@ export default function NoraLiveEditor() {
     if (!draft.trim()) return;
     setIsPublishing(true);
     try {
+      let imageUrl = null;
+      if (pendingImage) {
+        const fileExt = pendingImage.name.split('.').pop();
+        const filePath = `articles/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage.from('uploads').upload(filePath, pendingImage);
+        if (!uploadError) {
+          const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(filePath);
+          imageUrl = publicUrlData.publicUrl;
+        }
+      }
+
       const { error } = await supabase.from("articles").insert({
         title: "🔴 Noticia en Desarrollo",
         excerpt: draft.substring(0, 150) + "...",
         content: draft + "<br><br><strong>🔴 Noticia en Desarrollo - Actualizada hace instantes</strong>",
         status: "published",
         type: "news",
+        image_url: imageUrl,
         author_id: (await supabase.auth.getUser()).data.user?.id
       });
       if (!error) {
