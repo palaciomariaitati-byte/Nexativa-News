@@ -1,3 +1,9 @@
-git remote remove origin
-git remote add origin https://github.com
-git push -u origin main
+# Nexativa News
+
+Portal digital de noticias Nexativa News.
+
+## Despliegue
+Este repositorio está conectado a Vercel. Cada commit en la rama `main` dispara un despliegue automático.
+
+---
+*Último trigger de prueba: 2026-06-25*
