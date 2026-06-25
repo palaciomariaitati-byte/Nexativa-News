@@ -43,38 +43,77 @@ export default function NoraLiveEditor() {
     }
     setIsProcessing(false);
   };
-  const handleImageUpload = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const base64Image = e.target?.result as string;
-      setPendingImage(file);
-      setMessages(prev => [...prev, { role: 'user', text: `[Imagen adjunta: ${file.name}]` }]);
-      setIsProcessing(true);
+  const resizeImage = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const MAX_WIDTH = 800;
+          const MAX_HEIGHT = 800;
+          let width = img.width;
+          let height = img.height;
 
-      try {
-        const res = await fetch("/api/nora-live", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            message: input.trim() ? `El periodista adjuntó una imagen. Contexto adicional: ${input.trim()}` : "El periodista adjuntó una imagen desde el lugar de los hechos. Descríbela e intégrala a la noticia.", 
-            currentDraft: draft,
-            image: base64Image
-          })
-        });
-        const data = await res.json();
-        if (data.newDraft) {
-          setDraft(data.newDraft);
-          setMessages(prev => [...prev, { role: 'nora', text: "Borrador actualizado con la información de la imagen." }]);
-          setInput(""); // Clear input if it was sent with the image
-        } else {
-          setMessages(prev => [...prev, { role: 'nora', text: data.reply || "Error al procesar la imagen." }]);
-        }
-      } catch (e) {
-        setMessages(prev => [...prev, { role: 'nora', text: "Hubo un error de conexión." }]);
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height = Math.round((height * MAX_WIDTH) / width);
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width = Math.round((width * MAX_HEIGHT) / height);
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx?.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", 0.7));
+        };
+        img.src = e.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleImageUpload = async (file: File) => {
+    setPendingImage(file);
+    setMessages(prev => [...prev, { role: 'user', text: `[Imagen adjunta: ${file.name}]` }]);
+    setIsProcessing(true);
+
+    try {
+      const base64Image = await resizeImage(file);
+      
+      const res = await fetch("/api/nora-live", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          message: input.trim() ? `El periodista adjuntó una imagen. Contexto adicional: ${input.trim()}` : "El periodista adjuntó una imagen desde el lugar de los hechos. Descríbela e intégrala a la noticia.", 
+          currentDraft: draft,
+          image: base64Image
+        })
+      });
+      
+      if (!res.ok) {
+        throw new Error("HTTP error " + res.status);
       }
-      setIsProcessing(false);
-    };
-    reader.readAsDataURL(file);
+      
+      const data = await res.json();
+      if (data.newDraft) {
+        setDraft(data.newDraft);
+        setMessages(prev => [...prev, { role: 'nora', text: "Borrador actualizado con la información de la imagen." }]);
+        setInput(""); // Clear input if it was sent with the image
+      } else {
+        setMessages(prev => [...prev, { role: 'nora', text: data.reply || "Error al procesar la imagen." }]);
+      }
+    } catch (e: any) {
+      console.error(e);
+      setMessages(prev => [...prev, { role: 'nora', text: "Hubo un error de conexión al enviar la imagen. (La imagen podría ser muy pesada o hubo un fallo de red)." }]);
+    }
+    setIsProcessing(false);
   };
   const handlePublish = async () => {
     if (!draft.trim()) return;
