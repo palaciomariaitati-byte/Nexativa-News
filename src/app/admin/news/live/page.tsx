@@ -34,10 +34,8 @@ export default function NoraLiveEditor() {
       const data = await res.json();
       if (data.newDraft) {
         setDraft(data.newDraft);
-        setMessages(prev => [...prev, { role: 'nora', text: "Borrador actualizado." }]);
-      } else {
-        setMessages(prev => [...prev, { role: 'nora', text: data.reply || "Error al procesar." }]);
       }
+      setMessages(prev => [...prev, { role: 'nora', text: data.reply || "Borrador actualizado." }]);
     } catch (e) {
       setMessages(prev => [...prev, { role: 'nora', text: "Hubo un error de conexión." }]);
     }
@@ -111,11 +109,9 @@ export default function NoraLiveEditor() {
       const data = await res.json();
       if (data.newDraft) {
         setDraft(data.newDraft);
-        setMessages(prev => [...prev, { role: 'nora', text: "Borrador actualizado con la información de la imagen." }]);
-        setInput(""); // Clear input if it was sent with the image
-      } else {
-        setMessages(prev => [...prev, { role: 'nora', text: data.reply || "Error al procesar la imagen." }]);
       }
+      setMessages(prev => [...prev, { role: 'nora', text: data.reply || "Borrador actualizado con la información de la imagen." }]);
+      setInput(""); // Clear input if it was sent with the image
     } catch (e: any) {
       console.error(e);
       const details = e.message || "Fallo de conexión o de red";

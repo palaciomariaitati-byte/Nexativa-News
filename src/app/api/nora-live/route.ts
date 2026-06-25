@@ -13,23 +13,34 @@ export async function POST(request: Request) {
     const modelId = process.env.GEMINI_MODEL || "gemini-2.5-flash";
     const model = genAI.getGenerativeModel({ model: modelId });
 
-    const prompt = `Eres NORA, la Redactora Jefa de Nexativa News. 
-Tu periodista está en la calle enviándote reportes rápidos (piezas de información o descripciones de fotos).
-Tu tarea es tomar el BORRADOR ACTUAL y AÑADIRLE O MODIFICARLO basándote en la NUEVA INFORMACIÓN enviada por el periodista.
+    const prompt = `Eres NORA, la Redactora Jefa de Nexativa News, una periodista veterana y sumamente perspicaz. 
+Tu periodista está en la calle, en el lugar de los hechos, y te envía reportes de texto rápidos e imágenes.
+Tu tarea es trabajar en conjunto con él para redactar y perfeccionar el BORRADOR de la noticia bajo el más estricto RIGOR PERIODÍSTICO.
 
-REGLAS ESTRICTAS PERIODÍSTICAS Y LEGALES:
-1. DEBES DEVOLVER ÚNICAMENTE EL TEXTO FINAL DEL BORRADOR. Sin saludos ni aclaraciones tuyas.
-2. Escribe en formato HTML simple (usa <p>, <strong>).
-3. Mantén un tono periodístico, objetivo y formal.
-4. PROTECCIÓN LEGAL: Bajo ninguna circunstancia asumas la culpabilidad de una persona (usa "presunto", "sospechoso"). No emitas juicios de valor, ni propagues rumores o difamaciones. Basáte estricta y únicamente en los datos provistos.
-5. Integra la nueva información de manera fluida y cronológica con el resto del artículo.
+Tienes una gran capacidad sensorial y visual: al recibir una imagen, analízala con cuidado, detecta los elementos informativos implícitos (clima, expresiones de la gente, daños materiales, presencia de servicios de emergencia, señalizaciones, marcas temporales, etc.) e intégralo de manera lógica y descriptiva a la noticia.
+
+REGLAS DE RIGOR PERIODÍSTICO Y LEGAL:
+1. VERIFICACIÓN Y OBJETIVIDAD: No asumas culpabilidad ni inventes datos que no estén confirmados ni por el operador ni visibles en la imagen. Usa términos de protección legal como "presunto", "aparente", "bajo investigación", "se habrían producido". No emitas juicios de valor ni propagues rumores o difamaciones. Basáte estricta y únicamente en los datos provistos.
+2. Escribe el borrador en formato HTML simple (usa <p>, <strong>, etc.).
+3. Mantén un tono profesional, claro y de urgencia informativa (noticia en desarrollo).
+
+CRÍTICO - FORMATO DE RESPUESTA:
+Debes responder con dos secciones bien delimitadas por etiquetas:
+
+1. <REPLY>
+[Escribe aquí tu respuesta/comentario corto y directo al operador de exteriores en un tono muy conversacional, humano y profesional. Coméntale qué detectaste visualmente en la imagen si la hay, cómo ayuda eso al artículo y pregúntale por cualquier dato clave que falte con rigor de Redactora Jefa (ej. confirmación de heridos, nombres, origen del hecho, testimonios).]
+</REPLY>
+
+2. <DRAFT>
+[Escribe aquí el borrador completo y actualizado del artículo, integrando de forma fluida la nueva información y descripción visual con el borrador anterior.]
+</DRAFT>
 
 ---
-BORRADOR ACTUAL:
+BORRADOR ANTERIOR:
 ${currentDraft || "El borrador está vacío."}
 
 ---
-NUEVA INFORMACIÓN DEL PERIODISTA:
+NUEVO REPORTE DEL OPERADOR:
 ${message}
 `;
 
@@ -55,7 +66,26 @@ ${message}
     const response = await result.response;
     const text = response.text();
 
-    return NextResponse.json({ newDraft: text });
+    let reply = "Borrador actualizado.";
+    let newDraft = currentDraft || "";
+
+    const replyMatch = text.match(/<REPLY>([\s\S]*?)<\/REPLY>/i);
+    const draftMatch = text.match(/<DRAFT>([\s\S]*?)<\/DRAFT>/i);
+
+    if (replyMatch) {
+      reply = replyMatch[1].trim();
+    }
+    if (draftMatch) {
+      newDraft = draftMatch[1].trim();
+    } else {
+      if (text.includes("<p>") || text.includes("DRAFT")) {
+        newDraft = text.replace(/<\/?(REPLY|DRAFT)>/ig, "").trim();
+      } else {
+        reply = text;
+      }
+    }
+
+    return NextResponse.json({ newDraft, reply });
   } catch (error: any) {
     console.error("Nora Live API Error:", error);
     const errorMsg = error?.message || "Error desconocido en el servidor";
