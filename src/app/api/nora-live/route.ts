@@ -35,12 +35,16 @@ ${message}
     let parts: any[] = [{ text: prompt }];
 
     if (image) {
-      const mimeMatch = image.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+).*,([^]*)$/);
-      if (mimeMatch) {
+      const imgParts = image.split(",");
+      if (imgParts.length === 2) {
+        const meta = imgParts[0];
+        const base64Data = imgParts[1];
+        const mimeType = meta.split(":")[1].split(";")[0];
+        
         parts.push({
           inlineData: {
-            data: mimeMatch[2],
-            mimeType: mimeMatch[1]
+            data: base64Data,
+            mimeType: mimeType
           }
         });
       }
