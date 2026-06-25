@@ -132,11 +132,16 @@ export default function NoraLiveEditor() {
         const fileExt = pendingImage.name.split('.').pop();
         const filePath = `articles/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
         const { error: uploadError } = await supabase.storage.from('uploads').upload(filePath, pendingImage);
-        if (!uploadError) {
+        if (uploadError) {
+          setMessages(prev => [...prev, { role: 'nora', text: `Advertencia: No se pudo subir la imagen al almacenamiento (${uploadError.message}). Intentando publicar sin imagen...` }]);
+        } else {
           const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(filePath);
           imageUrl = publicUrlData.publicUrl;
         }
       }
+
+      const { data: userData } = await supabase.auth.getUser();
+      const authorId = userData?.user?.id || null;
 
       const { error } = await supabase.from("articles").insert({
         title: "🔴 Noticia en Desarrollo",
@@ -145,14 +150,18 @@ export default function NoraLiveEditor() {
         status: "published",
         type: "news",
         image_url: imageUrl,
-        author_id: (await supabase.auth.getUser()).data.user?.id
+        author_id: authorId
       });
-      if (!error) {
+
+      if (error) {
+        setMessages(prev => [...prev, { role: 'nora', text: `Error de base de datos al publicar la noticia: ${error.message} (Código: ${error.code || 'Desconocido'})` }]);
+      } else {
         setPublished(true);
         setMessages(prev => [...prev, { role: 'nora', text: "¡Noticia publicada con éxito!" }]);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setMessages(prev => [...prev, { role: 'nora', text: `Excepción durante la publicación: ${e.message || e}` }]);
     }
     setIsPublishing(false);
   };
