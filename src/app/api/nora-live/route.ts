@@ -80,9 +80,28 @@ ${message || "(No envió mensaje de texto, revisa las imágenes o audios adjunto
       }
     }
 
-    const result = await model.generateContent(parts);
-    const response = await result.response;
-    const text = response.text();
+    let text = "";
+    try {
+      const result = await model.generateContent(parts);
+      const response = await result.response;
+      text = response.text();
+    } catch (apiError: any) {
+      console.warn("Nora Live primary API error, attempting fallback:", apiError.message);
+      if (process.env.GEMINI_API_KEY_FALLBACK) {
+        try {
+          const fallbackGenAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY_FALLBACK);
+          const fallbackModel = fallbackGenAI.getGenerativeModel({ model: modelId });
+          const fallbackResult = await fallbackModel.generateContent(parts);
+          const fallbackResponse = await fallbackResult.response;
+          text = fallbackResponse.text();
+        } catch (fallbackError: any) {
+          console.error("Nora Live fallback API error:", fallbackError);
+          throw new Error(`Ambas API Keys fallaron. Error primario: ${apiError.message}. Error secundario: ${fallbackError.message}`);
+        }
+      } else {
+        throw apiError;
+      }
+    }
 
     let reply = "Borrador actualizado.";
     let newDraft = currentDraft || "";
