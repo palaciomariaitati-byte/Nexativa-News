@@ -148,7 +148,7 @@ export default async function ClassicNewspaperPage() {
         {mainArticle && (
           <article className="mb-12 border-b-2 border-[#2c241b] pb-12">
             <h2 className="text-4xl md:text-6xl font-black leading-none mb-6 text-center uppercase">
-              <Link href={`/noticias/${mainArticle.id}`} className="hover:underline decoration-4 underline-offset-8">
+              <Link href={`/clasico/noticias/${mainArticle.id}`} className="hover:underline decoration-4 underline-offset-8">
                 {mainArticle.title}
               </Link>
             </h2>
@@ -180,7 +180,7 @@ export default async function ClassicNewspaperPage() {
           {sideArticles?.map((article, i) => (
             <article key={article.id} className={`flex flex-col ${i !== 2 ? 'md:border-r border-[#2c241b] md:pr-8' : ''}`}>
               <h3 className="text-2xl font-black leading-tight mb-4 uppercase">
-                <Link href={`/noticias/${article.id}`} className="hover:underline decoration-2 underline-offset-4">
+                <Link href={`/clasico/noticias/${article.id}`} className="hover:underline decoration-2 underline-offset-4">
                   {article.title}
                 </Link>
               </h3>
@@ -231,7 +231,7 @@ export default async function ClassicNewspaperPage() {
           {bottomArticles?.map((article) => (
             <article key={article.id} className="flex flex-col">
               <h4 className="text-lg font-bold leading-tight mb-2">
-                <Link href={`/noticias/${article.id}`} className="hover:underline">
+                <Link href={`/clasico/noticias/${article.id}`} className="hover:underline">
                   {article.title}
                 </Link>
               </h4>
