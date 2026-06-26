@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import ClassicRadioPlayer from "../../ClassicRadioPlayer";
 import { notFound } from "next/navigation";
+import { NEWS_TAB_LABELS } from "@/lib/types";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -35,6 +36,13 @@ export default async function ClassicArticleDetailsPage({ params }: PageProps) {
   if (!article) {
     notFound();
   }
+
+  // Get user-friendly category label
+  const categoryLabel = article.category
+    ? Object.keys(NEWS_TAB_LABELS).find(
+        (key) => NEWS_TAB_LABELS[key as keyof typeof NEWS_TAB_LABELS] === article.category
+      ) || article.category
+    : "";
 
   // Fetch sponsors
   const { data: sponsors } = await supabase
@@ -119,7 +127,7 @@ export default async function ClassicArticleDetailsPage({ params }: PageProps) {
           
           <div className="text-center text-xs md:text-sm font-bold uppercase tracking-wider border-y border-[#2c241b] py-2 mb-8">
             Publicado el {new Date(article.created_at).toLocaleDateString('es-AR', { hour: '2-digit', minute: '2-digit' })} hs
-            {article.category && ` | Categoría: ${article.category}`}
+            {categoryLabel && ` | Categoría: ${categoryLabel}`}
           </div>
 
           {/* Imagen de la Nota */}

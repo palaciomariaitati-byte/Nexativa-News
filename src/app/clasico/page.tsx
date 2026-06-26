@@ -42,8 +42,8 @@ export default async function ClassicNewspaperPage() {
     .order("created_at", { ascending: false })
     .limit(50);
 
-  let mainArticle = null;
-  let otherArticles = articles || [];
+  let mainArticle: any = null;
+  let otherArticles: any[] = articles || [];
 
   if (coverId && articles) {
     mainArticle = articles.find(a => a.id === coverId) || null;
@@ -55,15 +55,37 @@ export default async function ClassicNewspaperPage() {
         .maybeSingle();
       mainArticle = coverArticle;
     }
-    if (mainArticle) {
-      otherArticles = articles.filter(a => a.id !== mainArticle.id);
-    }
   }
 
-  if (!mainArticle && articles && articles.length > 0) {
-    mainArticle = articles[0];
-    otherArticles = articles.slice(1);
+  // Filter out sports and cultural articles to prevent duplicate rendering in main pages
+  const filteredArticles = (articles || []).filter(a => 
+    a.category !== "deportes" && a.category !== "cultural"
+  );
+
+  if (mainArticle) {
+    otherArticles = filteredArticles.filter(a => a.id !== mainArticle.id);
+  } else if (filteredArticles.length > 0) {
+    mainArticle = filteredArticles[0];
+    otherArticles = filteredArticles.slice(1);
   }
+
+  // Fetch sports articles
+  const { data: sportsArticles } = await supabase
+    .from("articles")
+    .select("*")
+    .eq("category", "deportes")
+    .eq("status", "published")
+    .order("created_at", { ascending: false })
+    .limit(3);
+
+  // Fetch cultural articles
+  const { data: culturalArticles } = await supabase
+    .from("articles")
+    .select("*")
+    .eq("category", "cultural")
+    .eq("status", "published")
+    .order("created_at", { ascending: false })
+    .limit(3);
 
   // Fetch sponsors (without invalid is_active filter)
   const { data: sponsors } = await supabase
@@ -226,6 +248,73 @@ export default async function ClassicNewspaperPage() {
             <p className="text-lg mt-2">Su empresa podría estar anunciándose aquí.</p>
           </div>
         )}
+
+        {/* Secciones Especiales: Deportes y Cultura */}
+        <div className="border-t-4 border-double border-[#2c241b] pt-8 my-12 grid grid-cols-1 md:grid-cols-2 gap-12">
+          {/* Columna Deportes */}
+          <div className="md:border-r border-[#2c241b] md:pr-12">
+            <h3 className="text-3xl font-black tracking-tight uppercase border-b-2 border-[#2c241b] pb-2 mb-6 text-center italic">
+              Sección Deportes
+            </h3>
+            {sportsArticles && sportsArticles.length > 0 ? (
+              <div className="space-y-8">
+                {sportsArticles.map((article) => (
+                  <article key={article.id} className="flex flex-col pb-6 border-b border-[#2c241b]/30 last:border-b-0">
+                    <h4 className="text-xl font-bold leading-tight mb-2 uppercase">
+                      <Link href={`/clasico/noticias/${article.id}`} className="hover:underline">
+                        {article.title}
+                      </Link>
+                    </h4>
+                    {getDisplayImage(article) && (
+                      <img 
+                        src={getDisplayImage(article)} 
+                        alt={article.title}
+                        className="w-full h-48 object-cover mb-3 border border-[#2c241b] grayscale contrast-125 sepia-[.3]"
+                      />
+                    )}
+                    <p className="text-sm text-justify leading-relaxed line-clamp-3">
+                      {article.excerpt || (article.content ? article.content.replace(/<[^>]*>/g, '').slice(0, 150) + "..." : "")}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="italic text-center text-[#5c4d3c] py-8">No hay novedades deportivas reportadas para esta edición.</p>
+            )}
+          </div>
+
+          {/* Columna Cultura */}
+          <div>
+            <h3 className="text-3xl font-black tracking-tight uppercase border-b-2 border-[#2c241b] pb-2 mb-6 text-center italic">
+              Cultura y Espectáculos
+            </h3>
+            {culturalArticles && culturalArticles.length > 0 ? (
+              <div className="space-y-8">
+                {culturalArticles.map((article) => (
+                  <article key={article.id} className="flex flex-col pb-6 border-b border-[#2c241b]/30 last:border-b-0">
+                    <h4 className="text-xl font-bold leading-tight mb-2 uppercase">
+                      <Link href={`/clasico/noticias/${article.id}`} className="hover:underline">
+                        {article.title}
+                      </Link>
+                    </h4>
+                    {getDisplayImage(article) && (
+                      <img 
+                        src={getDisplayImage(article)} 
+                        alt={article.title}
+                        className="w-full h-48 object-cover mb-3 border border-[#2c241b] grayscale contrast-125 sepia-[.3]"
+                      />
+                    )}
+                    <p className="text-sm text-justify leading-relaxed line-clamp-3">
+                      {article.excerpt || (article.content ? article.content.replace(/<[^>]*>/g, '').slice(0, 150) + "..." : "")}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="italic text-center text-[#5c4d3c] py-8">Sin novedades culturales registradas en esta edición.</p>
+            )}
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 border-t-2 border-[#2c241b] pt-8">
           {bottomArticles?.map((article) => (

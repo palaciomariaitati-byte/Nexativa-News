@@ -13,16 +13,19 @@ export interface Article {
   created_at: string;
   updated_at: string;
   author_id: string | null;
+  external_url?: string | null;
 }
 
 /** Valid news categories for the tab filter. */
-export type NewsCategory = 'nacional' | 'internacional' | 'local';
+export type NewsCategory = 'nacional' | 'internacional' | 'local' | 'deportes' | 'cultural';
 
 /** Map from display label to database category value. */
 export const NEWS_TAB_LABELS: Record<string, NewsCategory> = {
   Nacional: 'nacional',
   Internacional: 'internacional',
   Local: 'local',
+  Deportes: 'deportes',
+  Cultura: 'cultural',
 } as const;
 
 export interface Store {

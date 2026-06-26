@@ -16,7 +16,7 @@ export async function getPublishedArticles(category: string): Promise<Article[]>
       console.error("Error fetching articles:", error);
       return [];
     }
-    return (data || []) as Article[];
+    return (data || []) as unknown as Article[];
   } catch (error) {
     console.error("Error in getPublishedArticles:", error);
     return [];

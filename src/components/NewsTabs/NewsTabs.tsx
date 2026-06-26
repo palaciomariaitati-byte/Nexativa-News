@@ -45,7 +45,7 @@ export default function NewsTabs({
       .limit(20);
 
     if (dbError) throw dbError;
-    return (data ?? []) as Article[];
+    return (data ?? []) as unknown as Article[];
   }, []);
 
   // ----- Tab switch handler -----

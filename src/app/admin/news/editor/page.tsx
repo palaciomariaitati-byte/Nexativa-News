@@ -235,6 +235,8 @@ export default function NewsEditorPage() {
                 <option value="nacional">Nacional</option>
                 <option value="internacional">Internacional</option>
                 <option value="local">Local</option>
+                <option value="deportes">Deportes</option>
+                <option value="cultural">Cultura</option>
               </select>
             </div>
             <div>

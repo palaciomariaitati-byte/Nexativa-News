@@ -37,7 +37,7 @@ const PLAYER_CONFIG = {
   youtube: {
     playerVars: { autoplay: 1, playsinline: 1 }
   }
-};
+} as any;
 
 export default function VideoSection() {
   const [activeVideo, setActiveVideo] = useState<VideoQueueItem | null>(null);
@@ -313,7 +313,7 @@ export default function VideoSection() {
                   playing={true}
                   muted={false}
                   controls={true}
-                  playsinline={true}
+                  playsInline={true}
                   onEnded={handleVideoEnded}
                   config={PLAYER_CONFIG}
                 />
