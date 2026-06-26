@@ -49,14 +49,6 @@ export default async function ClassicArticleDetailsPage({ params }: PageProps) {
     .from("sponsors")
     .select("*");
 
-  // Fetch radio stream URL
-  const { data: settingData } = await supabase
-    .from("settings")
-    .select("value")
-    .eq("key", "radio_url")
-    .maybeSingle();
-    
-  const radioUrl = settingData?.value || "https://stream.zeno.fm/gnyb99k8zzruv";
 
   const headerSponsor = sponsors && sponsors.length > 0 ? sponsors[0] : null;
   const footerSponsor = sponsors && sponsors.length > 1 ? sponsors[1] : (sponsors && sponsors.length > 0 ? sponsors[0] : null);
@@ -82,7 +74,7 @@ export default async function ClassicArticleDetailsPage({ params }: PageProps) {
       {/* Cabecera del Periódico */}
       <header className="max-w-4xl mx-auto px-4 py-8 text-center border-b-4 border-double border-[#2c241b] mb-8 relative mt-16 sm:mt-0 flex flex-col items-center">
         <div className="mb-6 sm:absolute sm:top-8 sm:right-4 sm:mb-0 z-10 sm:scale-100 origin-top-right">
-           <ClassicRadioPlayer streamUrl={radioUrl} />
+           <ClassicRadioPlayer />
         </div>
         <Link href="/clasico">
           <h1 className="text-4xl md:text-6xl font-black mb-2 uppercase tracking-tighter hover:opacity-85" style={{ fontFamily: "'Times New Roman', Times, serif" }}>
