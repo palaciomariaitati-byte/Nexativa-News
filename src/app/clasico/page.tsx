@@ -26,6 +26,15 @@ const getDisplayImage = (article: any) => {
 export default async function ClassicNewspaperPage() {
   const supabase = createServerSupabaseClient();
 
+  // Fetch cover article setting
+  const { data: coverSetting } = await supabase
+    .from("settings")
+    .select("value")
+    .eq("key", "cover_article_id")
+    .maybeSingle();
+
+  const coverId = coverSetting?.value;
+
   // Fetch articles
   const { data: articles } = await supabase
     .from("articles")
@@ -33,24 +42,50 @@ export default async function ClassicNewspaperPage() {
     .order("created_at", { ascending: false })
     .limit(50);
 
-  // Fetch sponsors
+  let mainArticle = null;
+  let otherArticles = articles || [];
+
+  if (coverId && articles) {
+    mainArticle = articles.find(a => a.id === coverId) || null;
+    if (!mainArticle) {
+      const { data: coverArticle } = await supabase
+        .from("articles")
+        .select("*")
+        .eq("id", coverId)
+        .maybeSingle();
+      mainArticle = coverArticle;
+    }
+    if (mainArticle) {
+      otherArticles = articles.filter(a => a.id !== mainArticle.id);
+    }
+  }
+
+  if (!mainArticle && articles && articles.length > 0) {
+    mainArticle = articles[0];
+    otherArticles = articles.slice(1);
+  }
+
+  // Fetch sponsors (without invalid is_active filter)
   const { data: sponsors } = await supabase
     .from("sponsors")
-    .select("*")
-    .eq("is_active", true);
+    .select("*");
 
   // Fetch radio stream URL
   const { data: settingData } = await supabase
     .from("settings")
     .select("value")
     .eq("key", "radio_url")
-    .single();
+    .maybeSingle();
     
   const radioUrl = settingData?.value || "https://stream.zeno.fm/gnyb99k8zzruv"; // Default fallback if missing
 
-  const mainArticle = articles?.[0];
-  const sideArticles = articles?.slice(1, 4);
-  const bottomArticles = articles?.slice(4);
+  const sideArticles = otherArticles.slice(0, 3);
+  const bottomArticles = otherArticles.slice(3);
+
+  // Dynamic sponsor partitioning for various classic page sections
+  const headerSponsor = sponsors && sponsors.length > 0 ? sponsors[0] : null;
+  const footerSponsor = sponsors && sponsors.length > 1 ? sponsors[1] : (sponsors && sponsors.length > 0 ? sponsors[0] : null);
+  const classifiedSponsors = sponsors || [];
 
   return (
     <div className="min-h-screen bg-[#f4ebd0] text-[#2c241b] font-serif selection:bg-[#2c241b] selection:text-[#f4ebd0]">
@@ -85,6 +120,28 @@ export default async function ClassicNewspaperPage() {
           <span>Precio: Invaluable</span>
         </div>
       </header>
+
+      {/* Patrocinador de Cabecera */}
+      {headerSponsor && (
+        <div className="max-w-6xl mx-auto px-4 mb-8">
+          <div className="border-2 border-[#2c241b] p-3 text-center bg-[#eae0c4] flex flex-col md:flex-row items-center justify-between gap-4">
+            <span className="text-xs uppercase tracking-widest font-bold border border-[#2c241b] px-2 py-0.5">Espacio Patrocinado</span>
+            <a 
+              href={headerSponsor.website_url || headerSponsor.instagram_url || "#"} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-6 hover:opacity-80 transition-opacity"
+            >
+              {headerSponsor.banner_url ? (
+                <img src={headerSponsor.banner_url} alt={headerSponsor.name} className="h-16 md:h-20 object-contain grayscale contrast-125 sepia-[.3]" />
+              ) : (
+                <p className="font-black uppercase tracking-tighter text-2xl md:text-3xl italic">{headerSponsor.name} {headerSponsor.slogan ? `— ${headerSponsor.slogan}` : ""}</p>
+              )}
+            </a>
+            <span className="text-xs font-serif italic text-gray-700 hidden md:block">Auspicia esta edición clásica.</span>
+          </div>
+        </div>
+      )}
 
       {/* Cuerpo del Periódico */}
       <main className="max-w-6xl mx-auto px-4 pb-20">
@@ -142,11 +199,11 @@ export default async function ClassicNewspaperPage() {
         </div>
 
         {/* Publicidad Vintage */}
-        {sponsors && sponsors.length > 0 ? (
+        {classifiedSponsors && classifiedSponsors.length > 0 ? (
           <div className="my-12 p-8 border-4 border-double border-[#2c241b] text-center bg-[#eae0c4]">
             <h4 className="text-sm uppercase tracking-widest font-bold mb-6">- Avisos Clasificados -</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
-              {sponsors.map((sponsor) => (
+              {classifiedSponsors.map((sponsor) => (
                 <a 
                   key={sponsor.id} 
                   href={sponsor.website_url || sponsor.instagram_url || "#"} 
@@ -182,6 +239,26 @@ export default async function ClassicNewspaperPage() {
             </article>
           ))}
         </div>
+
+        {/* Patrocinador de Cierre */}
+        {footerSponsor && (
+          <div className="border-2 border-[#2c241b] p-3 text-center bg-[#eae0c4] mt-12 flex flex-col md:flex-row items-center justify-between gap-4">
+            <span className="text-xs uppercase tracking-widest font-bold border border-[#2c241b] px-2 py-0.5">Espacio Patrocinado</span>
+            <a 
+              href={footerSponsor.website_url || footerSponsor.instagram_url || "#"} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hover:opacity-80 transition-opacity"
+            >
+              {footerSponsor.banner_url ? (
+                <img src={footerSponsor.banner_url} alt={footerSponsor.name} className="h-10 md:h-12 object-contain grayscale contrast-125 sepia-[.3]" />
+              ) : (
+                <p className="font-black uppercase tracking-tighter text-xl italic">{footerSponsor.name} {footerSponsor.slogan ? `— ${footerSponsor.slogan}` : ""}</p>
+              )}
+            </a>
+            <span className="text-xs font-serif italic text-gray-700 hidden md:block">¡Gracias por apoyarnos!</span>
+          </div>
+        )}
       </main>
       
       <footer className="text-center py-6 border-t-2 border-[#2c241b] text-xs font-bold uppercase tracking-widest mt-12">

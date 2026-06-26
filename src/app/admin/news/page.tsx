@@ -7,6 +7,7 @@ import { Article } from "@/lib/types";
 
 export default function AdminNewsPage() {
   const [articles, setArticles] = useState<Article[]>([]);
+  const [coverId, setCoverId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const supabase = getSupabaseBrowserClient();
 
@@ -23,9 +24,32 @@ export default function AdminNewsPage() {
     setLoading(false);
   }
 
+  async function fetchCover() {
+    const { data } = await supabase
+      .from("settings")
+      .select("value")
+      .eq("key", "cover_article_id")
+      .maybeSingle();
+    if (data) {
+      setCoverId(data.value);
+    }
+  }
+
   useEffect(() => {
     fetchArticles();
+    fetchCover();
   }, [supabase]);
+
+  const handleSetCover = async (id: string) => {
+    const { error } = await supabase
+      .from("settings")
+      .upsert([{ key: "cover_article_id", value: id }], { onConflict: "key" });
+    if (!error) {
+      setCoverId(id);
+    } else {
+      alert("Error al establecer la portada: " + error.message);
+    }
+  };
 
   const handleDelete = async (id: string) => {
     if (confirm("¿Estás seguro de que deseas eliminar esta noticia? Esta acción no se puede deshacer.")) {
@@ -110,6 +134,17 @@ export default function AdminNewsPage() {
                       {new Date(article.created_at).toLocaleDateString('es-AR')}
                     </td>
                     <td className="p-4 text-right space-x-3">
+                      {coverId === article.id ? (
+                        <span className="text-yellow-400 font-bold text-xs uppercase tracking-wider bg-yellow-500/10 px-2 py-1 rounded border border-yellow-500/20 mr-2">★ Portada</span>
+                      ) : (
+                        <button 
+                          onClick={() => handleSetCover(article.id)} 
+                          className="text-gray-400 hover:text-yellow-400 transition-colors text-xs uppercase tracking-wider font-bold mr-2"
+                          title="Fijar como noticia de portada en la edición clásica"
+                        >
+                          ☆ Portada
+                        </button>
+                      )}
                       <a 
                         href={article.external_url && article.external_url.trim() !== "" ? article.external_url : `/noticias/${article.id}`} 
                         target="_blank" 
