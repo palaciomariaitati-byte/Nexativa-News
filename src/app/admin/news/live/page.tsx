@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Image as ImageIcon, Loader2, CheckCircle, Mic, Square } from "lucide-react";
+import { Send, Image as ImageIcon, Loader2, CheckCircle, Mic, Square, MapPin } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
+import { getClosestLocation } from "@/lib/location-db";
 
 export default function NoraLiveEditor() {
   const [draft, setDraft] = useState<string>("");
@@ -16,9 +17,40 @@ export default function NoraLiveEditor() {
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
 
+  const [coords, setCoords] = useState<string>("");
+  const [locationName, setLocationName] = useState<string>("");
+  const [isSubmittingToQueue, setIsSubmittingToQueue] = useState(false);
+
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          setCoords(`${lat}, ${lng}`);
+          
+          const loc = getClosestLocation(lat, lng);
+          if (loc) {
+            setLocationName(loc.name);
+          } else {
+            setLocationName("Ituzaingó, Corrientes");
+          }
+        },
+        (error) => {
+          console.warn("Error de geolocalización:", error);
+          setCoords("-27.5973, -56.6874");
+          setLocationName("Centro (Ituzaingó)");
+        }
+      );
+    } else {
+      setCoords("-27.5973, -56.6874");
+      setLocationName("Centro (Ituzaingó)");
+    }
+  }, []);
 
   const handleSend = async () => {
     if (!input.trim()) return;
@@ -199,6 +231,59 @@ export default function NoraLiveEditor() {
     }
     setIsProcessing(false);
   };
+
+  const handleSubmitToQueue = async () => {
+    if (!draft.trim()) return;
+    setIsSubmittingToQueue(true);
+    try {
+      let imageUrl = null;
+      if (pendingImage) {
+        const fileExt = pendingImage.name.split('.').pop();
+        const filePath = `articles/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage.from('uploads').upload(filePath, pendingImage);
+        if (uploadError) {
+          console.warn("Error subiendo imagen en cola:", uploadError.message);
+        } else {
+          const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(filePath);
+          imageUrl = publicUrlData.publicUrl;
+        }
+      }
+
+      const { data: userData } = await supabase.auth.getUser();
+      const operatorId = userData?.user?.id || "a8b297ea-5d91-402c-91d4-88ca6e2f19f3";
+
+      const bodyFormData = new FormData();
+      bodyFormData.append("operator_id", operatorId);
+      bodyFormData.append("geolocation_coordinates", coords || "-27.5973, -56.6874");
+      bodyFormData.append("raw_metadata_title", "Borrador de Nora Live: " + draft.substring(0, 30));
+      bodyFormData.append("timestamp_utc", new Date().toISOString());
+      bodyFormData.append("draft_text", draft);
+      
+      if (imageUrl) {
+        bodyFormData.append("attached_media_url", JSON.stringify([imageUrl]));
+      }
+
+      const res = await fetch("/corresponsal", {
+        method: "POST",
+        body: bodyFormData
+      });
+
+      const resData = await res.json();
+      
+      if (res.ok && resData.success) {
+        setPublished(true);
+        setMessages(prev => [...prev, { role: 'nora', text: "¡Reporte enviado exitosamente a la cola de revisión de corresponsalía!" }]);
+      } else {
+        throw new Error(resData.error || "Error de respuesta del endpoint.");
+      }
+    } catch (e: any) {
+      console.error(e);
+      setMessages(prev => [...prev, { role: 'nora', text: `Error al enviar a la cola: ${e.message || e}` }]);
+    } finally {
+      setIsSubmittingToQueue(false);
+    }
+  };
+
   const handlePublish = async () => {
     if (!draft.trim()) return;
     setIsPublishing(true);
@@ -243,7 +328,19 @@ export default function NoraLiveEditor() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-4 md:p-8 flex flex-col md:flex-row gap-8 h-[calc(100vh-100px)]">
+    <div className="max-w-6xl mx-auto p-4 md:p-8 flex flex-col gap-4 h-[calc(100vh-100px)]">
+      
+      {/* Geolocation Visual Indicator */}
+      {coords && (
+        <div className="bg-amber-500/10 border border-amber-500/20 px-4 py-3 rounded-xl flex items-center gap-2 text-xs text-amber-300">
+          <MapPin className="w-4 h-4 text-amber-500 animate-pulse" />
+          <span>
+            <strong>Ubicación del Corresponsal:</strong> {locationName} <span className="text-white/40">({coords})</span>
+          </span>
+        </div>
+      )}
+
+      <div className="flex flex-col md:flex-row gap-8 flex-1 overflow-hidden">
       
       {/* Columna Izquierda: Chat con Nora */}
       <div className="w-full md:w-1/2 flex flex-col bg-black/40 border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
@@ -317,13 +414,22 @@ export default function NoraLiveEditor() {
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
             Borrador en Desarrollo
           </h2>
-          <button 
-            onClick={handlePublish}
-            disabled={!draft.trim() || isPublishing || published}
-            className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors flex items-center gap-2 disabled:opacity-50"
-          >
-            {isPublishing ? <Loader2 className="w-4 h-4 animate-spin" /> : published ? <CheckCircle className="w-4 h-4" /> : "¡PUBLICAR AHORA!"}
-          </button>
+          <div className="flex gap-2">
+            <button 
+              onClick={handleSubmitToQueue}
+              disabled={!draft.trim() || isPublishing || isSubmittingToQueue || published}
+              className="bg-amber-600 hover:bg-amber-500 text-black px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-colors flex items-center gap-2 disabled:opacity-50"
+            >
+              {isSubmittingToQueue ? <Loader2 className="w-4 h-4 animate-spin" /> : "Enviar a Cola"}
+            </button>
+            <button 
+              onClick={handlePublish}
+              disabled={!draft.trim() || isPublishing || isSubmittingToQueue || published}
+              className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-colors flex items-center gap-2 disabled:opacity-50"
+            >
+              {isPublishing ? <Loader2 className="w-4 h-4 animate-spin" /> : published ? <CheckCircle className="w-4 h-4" /> : "¡PUBLICAR AHORA!"}
+            </button>
+          </div>
         </div>
         
         <div className="flex-1 p-6 overflow-y-auto">
@@ -337,7 +443,7 @@ export default function NoraLiveEditor() {
           )}
         </div>
       </div>
-
+      </div>
     </div>
   );
 }

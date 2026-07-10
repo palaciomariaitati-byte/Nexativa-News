@@ -139,25 +139,57 @@ export async function POST(request: Request) {
     let versionNexativa = null;
     let versionPartner = null;
 
-    const isCorrupted = !audioBuffer || audioBuffer.length === 0;
+    const draftText = formData.get("draft_text") as string | null;
+    const isCorrupted = (!audioBuffer || audioBuffer.length === 0) && (!draftText || draftText.trim() === "");
 
     if (isCorrupted) {
-      // Activar Failsafe si el audio está corrupto o vacío
+      // Activar Failsafe si el audio está corrupto o vacío y no hay texto redactado
       status = "AUDIO_ERROR_MANUAL_REVIEW_REQUIRED";
-      transcriptionText = "[ERROR DE AUDIO: No se pudo procesar o transcribir el flujo de audio del corresponsal. Se requiere revisión manual]";
+      transcriptionText = "[ERROR: No se pudo procesar el flujo de audio ni se recibió texto redactado. Se requiere revisión manual]";
       
       const fallbackTitle = rawMetadataTitle || "Reporte de Corresponsal en Staging";
       versionNexativa = {
         title: `[BORRADOR PENDIENTE] ${fallbackTitle}`,
-        excerpt: "Error de audio en exteriores. Requiere transcripción y revisión manual.",
-        content: `<p>Se ha recibido el reporte del corresponsal, pero el archivo de audio está vacío, corrupto o es incompatible. Edite este borrador para transcribir el contenido de forma manual.</p>`,
-        tags: ["Revisión", "Corresponsal", "Audio Error", "Ituzaingó", "Corrientes"]
+        excerpt: "Error de entrada en exteriores. Requiere edición y revisión manual.",
+        content: `<p>Se ha recibido el reporte del corresponsal, pero no contiene texto ni audio válido. Edite este borrador manualmente.</p>`,
+        tags: ["Revisión", "Corresponsal", "Entrada Vacía", "Ituzaingó", "Corrientes"]
       };
 
       versionPartner = {
         title: `[PENDIENTE DE REVISIÓN] ${fallbackTitle}`,
-        content: `<p>Cobertura de exteriores en espera de transcripción manual por problemas técnicos en el audio original.</p>`
+        content: `<p>Cobertura de exteriores en espera de redacción manual por problemas técnicos en el origen.</p>`
       };
+    } else if (draftText && draftText.trim() !== "") {
+      // Si nos envían el borrador de texto directamente, lo usamos
+      transcriptionText = draftText;
+      try {
+        const coords = parseCoordinates(geolocationCoordinates);
+        const closestLoc = getClosestLocation(coords.lat, coords.lng);
+        const locationContext = closestLoc 
+          ? `Ubicación aproximada detectada: Cerca de ${closestLoc.name}. Referencia municipal: ${closestLoc.description}.`
+          : `Ubicación aproximada: Coordenadas ${geolocationCoordinates}.`;
+
+        // Generar las copias a partir del texto y el contexto geográfico
+        const copies = await generateArticles(transcriptionText, locationContext);
+        versionNexativa = copies.version_nexativa;
+        versionPartner = copies.version_partner;
+      } catch (err: any) {
+        console.error("[Corresponsal API] Falló el procesamiento cognitivo de texto redactado:", err);
+        status = "AUDIO_ERROR_MANUAL_REVIEW_REQUIRED";
+        transcriptionText = `[ERROR DE PROCESAMIENTO: Falló la redacción cognitiva del borrador. Detalle: ${err.message || err}]`;
+        
+        const fallbackTitle = rawMetadataTitle || "Reporte de Corresponsal en Staging";
+        versionNexativa = {
+          title: `[BORRADOR PENDIENTE] ${fallbackTitle}`,
+          excerpt: "Error de procesamiento en la redacción automática.",
+          content: `<p>Borrador original enviado por corresponsal: ${draftText}</p><p>Fallo del motor de copia: ${err.message || err}</p>`,
+          tags: ["Revisión", "Corresponsal", "Error Redacción", "Ituzaingó", "Corrientes"]
+        };
+        versionPartner = {
+          title: `[PENDIENTE DE REVISIÓN] ${fallbackTitle}`,
+          content: `<p>Contenido en espera de edición por fallos en el motor cognitivo de redacción.</p>`
+        };
+      }
     } else {
       try {
         // Transcribir el audio en memoria (aislado, sin guardar el archivo en buckets o BD)
