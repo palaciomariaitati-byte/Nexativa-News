@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import supabaseAdmin from "@/lib/supabase/admin";
 
 // ----- Authentication (Password Only) -----
 export async function adminLogin(password: string) {
@@ -46,8 +47,7 @@ export async function createStaffKey(name: string, password: string, role: strin
   const currentUserRole = await getStaffRole();
   if (currentUserRole !== "admin") throw new Error("No autorizado");
 
-  const supabase = createServerSupabaseClient();
-  const { data, error } = await supabase.from("staff_passwords").insert([{ name, password, role }]);
+  const { data, error } = await supabaseAdmin.from("staff_passwords").insert([{ name, password, role }]);
   if (error) throw error;
   return true;
 }
@@ -56,8 +56,7 @@ export async function deleteStaffKey(id: string) {
   const currentUserRole = await getStaffRole();
   if (currentUserRole !== "admin") throw new Error("No autorizado");
 
-  const supabase = createServerSupabaseClient();
-  const { error } = await supabase.from("staff_passwords").delete().eq("id", id);
+  const { error } = await supabaseAdmin.from("staff_passwords").delete().eq("id", id);
   if (error) throw error;
   return true;
 }
@@ -66,8 +65,7 @@ export async function listStaffKeys() {
   const currentUserRole = await getStaffRole();
   if (currentUserRole !== "admin") throw new Error("No autorizado");
 
-  const supabase = createServerSupabaseClient();
-  const { data, error } = await supabase.from("staff_passwords").select("id, name, role, created_at").order("created_at", { ascending: false });
+  const { data, error } = await supabaseAdmin.from("staff_passwords").select("id, name, role, created_at").order("created_at", { ascending: false });
   if (error) throw error;
   return data;
 }

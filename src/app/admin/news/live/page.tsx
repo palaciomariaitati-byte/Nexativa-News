@@ -273,7 +273,7 @@ export default function NoraLiveEditor() {
         </div>
 
         <div className="p-4 border-t border-white/10 bg-black/60 flex items-center gap-2">
-          <label className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors text-gray-400 cursor-pointer" title="Adjuntar imagen">
+          <label className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors text-gray-400 cursor-pointer shrink-0" title="Adjuntar imagen">
             <ImageIcon className="w-5 h-5" />
             <input 
               type="file" 
@@ -287,7 +287,7 @@ export default function NoraLiveEditor() {
           </label>
           <button 
             onClick={isRecording ? stopRecording : startRecording}
-            className={`p-3 rounded-xl transition-all ${isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-white/5 hover:bg-white/10 text-gray-400'}`}
+            className={`p-3 rounded-xl transition-all shrink-0 ${isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-white/5 hover:bg-white/10 text-gray-400'}`}
             title={isRecording ? "Detener grabación y enviar" : "Grabar reporte de voz"}
           >
             {isRecording ? <Square className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
@@ -298,12 +298,12 @@ export default function NoraLiveEditor() {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
             placeholder="Escribe el suceso aquí..."
-            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-orange-500/50"
+            className="flex-1 min-w-0 bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-orange-500/50"
           />
           <button 
             onClick={handleSend}
             disabled={!input.trim() || isProcessing}
-            className="p-3 bg-orange-600 rounded-xl hover:bg-orange-500 transition-colors disabled:opacity-50"
+            className="p-3 bg-orange-600 rounded-xl hover:bg-orange-500 transition-colors disabled:opacity-50 shrink-0"
           >
             <Send className="w-5 h-5" />
           </button>

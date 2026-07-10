@@ -1,0 +1,366 @@
+"use server";
+
+import supabaseAdmin from "@/lib/supabase/admin";
+import { getStaffRole } from "../actions";
+
+// Types matching database staging buffer
+export interface StagingQueueItem {
+  id: string;
+  operator_id: string;
+  raw_metadata_title: string | null;
+  geolocation_coordinates: string;
+  attached_media_url: string[];
+  audio_url: string | null;
+  status: 'PENDING_REVIEW' | 'APPROVED_NEXATIVA_ONLY' | 'APPROVED_PARTNER_ONLY' | 'APPROVED_ALL_SIMULTANEOUS' | 'AUDIO_ERROR_MANUAL_REVIEW_REQUIRED';
+  version_nexativa: {
+    title: string;
+    excerpt: string;
+    content: string;
+    tags: string[];
+  } | null;
+  version_partner: {
+    title: string;
+    content: string;
+  } | null;
+  transcription: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EditorialAlert {
+  id: string;
+  queue_item_id: string | null;
+  alert_type: string;
+  message: string;
+  details: any;
+  created_at: string;
+}
+
+/**
+ * Helper to check database presence.
+ * If the staging tables are missing (user hasn't executed migration), throws a custom error.
+ */
+async function checkTableExists(tableName: string) {
+  const { error } = await supabaseAdmin.from(tableName).select("count").limit(1).maybeSingle();
+  if (error && error.code === "42P01") {
+    throw new Error(`MISSING_TABLE:${tableName}`);
+  }
+}
+
+/**
+ * Fetch all staging queue items sorted by date descending.
+ */
+export async function fetchStagingQueue(): Promise<StagingQueueItem[]> {
+  const role = await getStaffRole();
+  if (!role) throw new Error("No autorizado");
+
+  try {
+    await checkTableExists("editorial_staging_queue");
+    const { data, error } = await supabaseAdmin
+      .from("editorial_staging_queue")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    return data as StagingQueueItem[];
+  } catch (err: any) {
+    if (err.message?.includes("MISSING_TABLE")) {
+      throw new Error("MIGRATION_REQUIRED");
+    }
+    throw err;
+  }
+}
+
+/**
+ * Fetch all editorial alerts sorted by date descending.
+ */
+export async function fetchEditorialAlerts(): Promise<EditorialAlert[]> {
+  const role = await getStaffRole();
+  if (!role) throw new Error("No autorizado");
+
+  try {
+    await checkTableExists("editorial_alerts");
+    const { data, error } = await supabaseAdmin
+      .from("editorial_alerts")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    return data as EditorialAlert[];
+  } catch (err: any) {
+    if (err.message?.includes("MISSING_TABLE")) {
+      return []; // Silently return empty if table doesn't exist
+    }
+    throw err;
+  }
+}
+
+/**
+ * Delete a staging queue item from the buffer.
+ */
+export async function deleteStagingItem(id: string): Promise<boolean> {
+  const role = await getStaffRole();
+  if (!role) throw new Error("No autorizado");
+
+  const { error } = await supabaseAdmin.from("editorial_staging_queue").delete().eq("id", id);
+  if (error) throw error;
+  return true;
+}
+
+/**
+ * Update the copies inside a staging queue item (allowing the admin to edit before publishing).
+ */
+export async function updateStagingItem(id: string, versionNexativa: any, versionPartner: any): Promise<boolean> {
+  const role = await getStaffRole();
+  if (!role) throw new Error("No autorizado");
+
+  const { error } = await supabaseAdmin
+    .from("editorial_staging_queue")
+    .update({
+      version_nexativa: versionNexativa,
+      version_partner: versionPartner,
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", id);
+
+  if (error) throw error;
+  return true;
+}
+
+/**
+ * Get the partner's registered webhook URL from settings.
+ */
+export async function getPartnerWebhookUrl(): Promise<string> {
+  const { data, error } = await supabaseAdmin
+    .from("settings")
+    .select("value")
+    .eq("key", "partner_webhook_url")
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching partner webhook URL:", error);
+    return "";
+  }
+  return data?.value || "";
+}
+
+/**
+ * Save/Update the partner's registered webhook URL in settings.
+ */
+export async function savePartnerWebhookUrl(url: string): Promise<boolean> {
+  const role = await getStaffRole();
+  if (!role) throw new Error("No autorizado");
+
+  const { error } = await supabaseAdmin
+    .from("settings")
+    .upsert([{ key: "partner_webhook_url", value: url }], { onConflict: "key" });
+
+  if (error) throw error;
+  return true;
+}
+
+/**
+ * Logs a critical alert when webhook dispatcher fails completely.
+ */
+async function logWebhookFailureAlert(queueItemId: string, webhookUrl: string, errorMsg: string) {
+  try {
+    await supabaseAdmin.from("editorial_alerts").insert([
+      {
+        queue_item_id: queueItemId,
+        alert_type: "WEBHOOK_FAILURE",
+        message: `Error al despachar webhook al socio. Detalle: ${errorMsg}`,
+        details: {
+          partner_webhook_url: webhookUrl,
+          error: errorMsg,
+          attempts: 4,
+          timestamp: new Date().toISOString()
+        }
+      }
+    ]);
+  } catch (err) {
+    console.error("[Webhook Dispatcher] Error al intentar guardar alerta crítica:", err);
+  }
+}
+
+/**
+ * Outbound REST API call (POST) to Partner Webhook with retry logic and exponential backoff
+ */
+async function dispatchPartnerWebhook(
+  webhookUrl: string, 
+  title: string, 
+  content: string, 
+  featuredImage: string | null, 
+  queueItemId: string
+): Promise<{ success: boolean; error?: string }> {
+  const attributionFooter = "Cobertura en exteriores por gentileza de Nexativanews.com.ar";
+  const payload = {
+    title: title,
+    content: `${content} <br><br> <i>${attributionFooter}</i>`,
+    featured_image: featuredImage || "",
+    status: "draft", // Defaults to draft to give them final editorial control
+    categories: ["Regionales", "Ultimo Momento"]
+  };
+
+  const maxRetries = 3;
+  let delay = 1000; // starts with 1s delay
+  let lastError = "";
+  let success = false;
+
+  for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+    try {
+      console.log(`[Webhook Dispatcher] Enviando intento ${attempt} a ${webhookUrl}...`);
+      const response = await fetch(webhookUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.status === 200 || response.status === 201) {
+        console.log(`[Webhook Dispatcher] Webhook enviado con éxito en el intento ${attempt}.`);
+        success = true;
+        break;
+      } else {
+        const errorText = await response.text();
+        lastError = `Status HTTP ${response.status}: ${errorText || "Sin mensaje de error"}`;
+        console.warn(`[Webhook Dispatcher] Intento ${attempt} falló con error: ${lastError}`);
+      }
+    } catch (err: any) {
+      lastError = err.message || String(err);
+      console.warn(`[Webhook Dispatcher] Intento ${attempt} falló con excepción: ${lastError}`);
+    }
+
+    if (attempt <= maxRetries) {
+      console.log(`[Webhook Dispatcher] Reintentando en ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      delay *= 2; // exponential backoff
+    }
+  }
+
+  if (!success) {
+    console.error(`[Webhook Dispatcher] Todos los intentos de webhook fallaron. Guardando alerta crítica.`);
+    await logWebhookFailureAlert(queueItemId, webhookUrl, lastError);
+    return { success: false, error: lastError };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Approve and publish staged correspondent submissions.
+ */
+export async function approveStagingItem(
+  id: string, 
+  actionType: "APPROVE_NEXATIVA_ONLY" | "APPROVE_PARTNER_ONLY" | "APPROVE_ALL_SIMULTANEOUS"
+): Promise<{ success: boolean; error?: string; webhookError?: string }> {
+  const role = await getStaffRole();
+  if (!role) throw new Error("No autorizado");
+
+  // 1. Fetch the item from queue
+  const { data: item, error: fetchError } = await supabaseAdmin
+    .from("editorial_staging_queue")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (fetchError || !item) {
+    return { success: false, error: fetchError?.message || "Artículo no encontrado en la cola de staging." };
+  }
+
+  const stagingItem = item as StagingQueueItem;
+  const featuredImage = stagingItem.attached_media_url && stagingItem.attached_media_url.length > 0 
+    ? stagingItem.attached_media_url[0] 
+    : null;
+
+  let nexativaPublished = false;
+  let partnerDispatched = false;
+  let webhookErrMessage = "";
+
+  // A) Publish to Nexativa News (public.articles)
+  if (actionType === "APPROVE_NEXATIVA_ONLY" || actionType === "APPROVE_ALL_SIMULTANEOUS") {
+    if (!stagingItem.version_nexativa) {
+      return { success: false, error: "La Versión Nexativa no está disponible para publicar." };
+    }
+
+    // Insert as published article
+    const { error: insertError } = await supabaseAdmin.from("articles").insert([
+      {
+        title: stagingItem.version_nexativa.title,
+        excerpt: stagingItem.version_nexativa.excerpt,
+        content: stagingItem.version_nexativa.content,
+        image_url: featuredImage,
+        category: "local", // Categoría local por defecto para reportes locales
+        status: "published",
+        updated_at: new Date().toISOString()
+      }
+    ]);
+
+    if (insertError) {
+      return { success: false, error: `Error al publicar en Nexativa: ${insertError.message}` };
+    }
+    nexativaPublished = true;
+  }
+
+  // B) Dispatch to Partner Webhook
+  if (actionType === "APPROVE_PARTNER_ONLY" || actionType === "APPROVE_ALL_SIMULTANEOUS") {
+    if (!stagingItem.version_partner) {
+      return { success: false, error: "La Versión Socio no está disponible para publicar." };
+    }
+
+    const webhookUrl = await getPartnerWebhookUrl();
+    if (!webhookUrl || webhookUrl.trim() === "") {
+      // Si falló por falta de configuración de webhook
+      const errMsg = "URL de Webhook del socio no configurada en las redes de Nexativa.";
+      await logWebhookFailureAlert(stagingItem.id, "No configurada", errMsg);
+      
+      // Si era aprobación exclusiva de socio, cortamos. Si era simultánea, guardamos la falla
+      if (actionType === "APPROVE_PARTNER_ONLY") {
+        return { success: false, error: errMsg };
+      } else {
+        webhookErrMessage = errMsg;
+      }
+    } else {
+      const dispatchRes = await dispatchPartnerWebhook(
+        webhookUrl,
+        stagingItem.version_partner.title,
+        stagingItem.version_partner.content,
+        featuredImage,
+        stagingItem.id
+      );
+
+      if (dispatchRes.success) {
+        partnerDispatched = true;
+      } else {
+        webhookErrMessage = dispatchRes.error || "Fallo en la comunicación con el socio";
+        if (actionType === "APPROVE_PARTNER_ONLY") {
+          return { success: false, error: `Error al despachar al socio: ${webhookErrMessage}` };
+        }
+      }
+    }
+  }
+
+  // 3. Update status of the staging item based on execution
+  let newStatus = stagingItem.status;
+  if (actionType === "APPROVE_ALL_SIMULTANEOUS") {
+    newStatus = partnerDispatched ? "APPROVED_ALL_SIMULTANEOUS" : "APPROVED_NEXATIVA_ONLY";
+  } else if (actionType === "APPROVE_NEXATIVA_ONLY") {
+    newStatus = "APPROVED_NEXATIVA_ONLY";
+  } else if (actionType === "APPROVE_PARTNER_ONLY") {
+    newStatus = partnerDispatched ? "APPROVED_PARTNER_ONLY" : stagingItem.status;
+  }
+
+  const { error: updateError } = await supabaseAdmin
+    .from("editorial_staging_queue")
+    .update({ status: newStatus, updated_at: new Date().toISOString() })
+    .eq("id", id);
+
+  if (updateError) {
+    console.error("Error al actualizar estado en cola de staging:", updateError);
+  }
+
+  return { 
+    success: true, 
+    webhookError: webhookErrMessage || undefined 
+  };
+}
