@@ -49,6 +49,7 @@ export default function CorresponsalStagingPage() {
   const [editNexativaContent, setEditNexativaContent] = useState("");
   const [editPartnerTitle, setEditPartnerTitle] = useState("");
   const [editPartnerContent, setEditPartnerContent] = useState("");
+  const [editPartnerFooter, setEditPartnerFooter] = useState("");
 
   // UI state for showing/hiding transcriptions
   const [showTranscript, setShowTranscript] = useState<Record<string, boolean>>({});
@@ -111,6 +112,7 @@ export default function CorresponsalStagingPage() {
     setEditNexativaContent(item.version_nexativa?.content || "");
     setEditPartnerTitle(item.version_partner?.title || "");
     setEditPartnerContent(item.version_partner?.content || "");
+    setEditPartnerFooter(item.version_partner?.attribution_footer || "");
   };
 
   const handleCancelEdit = () => {
@@ -133,7 +135,8 @@ export default function CorresponsalStagingPage() {
       const updatedPartner = item.version_partner ? {
         ...item.version_partner,
         title: editPartnerTitle,
-        content: editPartnerContent
+        content: editPartnerContent,
+        attribution_footer: editPartnerFooter
       } : null;
 
       await updateStagingItem(id, updatedNexativa, updatedPartner);
@@ -546,8 +549,18 @@ export default function CorresponsalStagingPage() {
                             <textarea
                               value={editPartnerContent}
                               onChange={(e) => setEditPartnerContent(e.target.value)}
-                              rows={11}
+                              rows={8}
                               className="w-full bg-black/40 border border-white/20 rounded px-3 py-2 font-mono text-xs text-white focus:outline-none focus:border-purple-500"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <label className="block text-xs uppercase text-white/50 font-bold">Pie de Atribución</label>
+                            <input
+                              type="text"
+                              value={editPartnerFooter}
+                              onChange={(e) => setEditPartnerFooter(e.target.value)}
+                              className="w-full bg-black/40 border border-white/20 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
                             />
                           </div>
                         </div>
@@ -641,7 +654,7 @@ export default function CorresponsalStagingPage() {
                                   <div className="bg-white/5 p-4 rounded border border-white/10 text-white/50 text-[11px] leading-relaxed italic flex items-center gap-2">
                                     <Info className="w-4 h-4 text-purple-400 shrink-0" />
                                     <span>
-                                      <strong>Pie de Atribución (Auto):</strong> Cobertura en exteriores por gentileza de Nexativanews.com.ar
+                                      <strong>Pie de Atribución:</strong> {item.version_partner.attribution_footer || "Cobertura en exteriores por gentileza de Nexativanews.com.ar"}
                                     </span>
                                   </div>
                                 </>

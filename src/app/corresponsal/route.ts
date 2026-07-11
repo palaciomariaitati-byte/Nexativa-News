@@ -34,7 +34,7 @@ Devuelve ÚNICAMENTE la transcripción limpia y corregida del mensaje periodíst
 }
 
 // Cognitive copywriting generating exactly TWO independent versions in a single pass
-async function generateArticles(transcription: string, locationContext: string): Promise<any> {
+async function generateArticles(transcription: string, locationContext: string, operatorName: string): Promise<any> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY no está configurada en las variables de entorno.");
@@ -57,6 +57,7 @@ ${locationContext}
 Instrucciones de redacción:
 1. Contextualiza la noticia usando la ubicación geográfica suministrada. Incorpora nombres de calles, rutas (por ejemplo, Ruta 12) u otros puntos de referencia locales relevantes para que el texto sea geográficamente preciso y coherente para los lectores de Corrientes/Ituzaingó.
    - REGLA DE DISTANCIA: Si el texto de ubicación indica que la distancia al punto de referencia es de más de 200 metros (por ejemplo, "a 980m de Puerto de Ituzaingó"), NO redactes un titular ni afirmes en la noticia que el suceso ocurrió "en el puerto" o "cerca del puerto" de forma directa como si estuviera al lado, ya que esto confundirá a los lectores locales. En su lugar, usa expresiones como "en las inmediaciones de...", "en un sector residencial de Ituzaingó", o simplemente "Ituzaingó". Evita mencionar el hito lejano en el título de la noticia.
+
 2. Genera exactamente dos versiones independientes en formato HTML limpio para el cuerpo de la noticia:
 
 A) VERSION_NEXATIVA (Master Copy):
@@ -67,7 +68,12 @@ A) VERSION_NEXATIVA (Master Copy):
 B) VERSION_PARTNER (Syndicated Alternative Copy):
    - Tono: Objetivo, profesional y con un vocabulario distinto.
    - Estrategia: Reescribe la noticia completamente usando sintaxis alternativa, verbos diferentes y estructuras de oraciones distintas para lograr una duplicación léxica del 0% con respecto a la Versión A. Esto es crucial para saltar los filtros de contenido duplicado de Google.
-   - Nota: NO incluyas el pie de atribución en el JSON generado en el cuerpo del texto, ya que se le añadirá de forma programática.
+   
+3. PIE DE ATRIBUCIÓN DINÁMICO (para Version B):
+   - El nombre o medio del corresponsal que envía la cobertura es: "${operatorName}".
+   - Analiza si el nombre del corresponsal indica que pertenece a otro medio de comunicación (por ejemplo, si menciona "Radio", "FM", "Cable", "Canal", "Diario", "Portal", o nombres de periodistas o medios colaboradores externos).
+   - Si pertenece a otro medio: redacta un pie de atribución que mencione la cobertura especial de ese medio/periodista y agradezca la colaboración en redacción o soporte técnico a "Nora, la inteligencia artificial de Nexativa News" o a "Nexativanews.com.ar" (ej: "Cobertura especial de FM Ituzaingó, redactado con soporte técnico de Nora de Nexativanews.com.ar").
+   - Si es personal propio de Nexativa News (o si no se infiere que es de otro medio): usa el crédito estándar de atribución: "Cobertura en exteriores por gentileza de Nexativanews.com.ar".
 
 Devuelve la respuesta ESTRICTAMENTE en este formato JSON, sin markdown ni backticks:
 {
@@ -79,7 +85,8 @@ Devuelve la respuesta ESTRICTAMENTE en este formato JSON, sin markdown ni backti
   },
   "version_partner": {
     "title": "Título para socio sindicado",
-    "content": "<p>Cuerpo reescrito completamente para socio...</p>"
+    "content": "<p>Cuerpo reescrito completamente para socio...</p>",
+    "attribution_footer": "El pie de atribución redactado dinámicamente según las reglas del operador"
   }
 }
 `;
@@ -103,6 +110,34 @@ export async function POST(request: Request) {
     const geolocationCoordinates = formData.get("geolocation_coordinates") as string;
     const timestampUtc = formData.get("timestamp_utc") as string;
     const attachedMediaUrl = formData.get("attached_media_url") as string | null;
+
+    // Fetch operator name from database
+    let operatorName = "Corresponsal de Nexativa";
+    if (operatorId) {
+      try {
+        const { data: staffData } = await supabaseAdmin
+          .from("staff_passwords")
+          .select("name")
+          .eq("id", operatorId)
+          .maybeSingle();
+        
+        if (staffData && staffData.name) {
+          operatorName = staffData.name;
+        } else {
+          const { data: profileData } = await supabaseAdmin
+            .from("profiles")
+            .select("full_name, username")
+            .eq("id", operatorId)
+            .maybeSingle();
+          
+          if (profileData) {
+            operatorName = profileData.full_name || profileData.username || "Corresponsal de campo";
+          }
+        }
+      } catch (err) {
+        console.warn("Error fetching operator name:", err);
+      }
+    }
 
     // Security Validation
     if (!operatorId) {
@@ -171,7 +206,7 @@ export async function POST(request: Request) {
           : `Ubicación aproximada: Coordenadas ${geolocationCoordinates}.`;
 
         // Generar las copias a partir del texto y el contexto geográfico
-        const copies = await generateArticles(transcriptionText, locationContext);
+        const copies = await generateArticles(transcriptionText, locationContext, operatorName);
         versionNexativa = copies.version_nexativa;
         versionPartner = copies.version_partner;
       } catch (err: any) {
@@ -208,7 +243,7 @@ export async function POST(request: Request) {
           : `Ubicación aproximada: Coordenadas ${geolocationCoordinates}.`;
 
         // Generar copys utilizando Nora Copywriting Engine
-        const copies = await generateArticles(transcriptionText, locationContext);
+        const copies = await generateArticles(transcriptionText, locationContext, operatorName);
         
         versionNexativa = copies.version_nexativa;
         versionPartner = copies.version_partner;

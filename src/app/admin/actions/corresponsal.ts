@@ -21,6 +21,7 @@ export interface StagingQueueItem {
   version_partner: {
     title: string;
     content: string;
+    attribution_footer?: string;
   } | null;
   transcription: string | null;
   created_at: string;
@@ -190,12 +191,13 @@ async function dispatchPartnerWebhook(
   title: string, 
   content: string, 
   featuredImage: string | null, 
-  queueItemId: string
+  queueItemId: string,
+  attributionFooter?: string
 ): Promise<{ success: boolean; error?: string }> {
-  const attributionFooter = "Cobertura en exteriores por gentileza de Nexativanews.com.ar";
+  const footer = attributionFooter || "Cobertura en exteriores por gentileza de Nexativanews.com.ar";
   const payload = {
     title: title,
-    content: `${content} <br><br> <i>${attributionFooter}</i>`,
+    content: `${content} <br><br> <i>${footer}</i>`,
     featured_image: featuredImage || "",
     status: "draft", // Defaults to draft to give them final editorial control
     categories: ["Regionales", "Ultimo Momento"]
@@ -321,12 +323,14 @@ export async function approveStagingItem(
         webhookErrMessage = errMsg;
       }
     } else {
+      const footer = stagingItem.version_partner.attribution_footer || "Cobertura en exteriores por gentileza de Nexativanews.com.ar";
       const dispatchRes = await dispatchPartnerWebhook(
         webhookUrl,
         stagingItem.version_partner.title,
         stagingItem.version_partner.content,
         featuredImage,
-        stagingItem.id
+        stagingItem.id,
+        footer
       );
 
       if (dispatchRes.success) {
