@@ -44,7 +44,8 @@ export default function NoraLiveEditor() {
           console.warn("Error de geolocalización:", error);
           setCoords("-27.5973, -56.6874");
           setLocationName("Centro (Ituzaingó)");
-        }
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     } else {
       setCoords("-27.5973, -56.6874");

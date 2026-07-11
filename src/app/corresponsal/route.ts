@@ -56,6 +56,7 @@ ${locationContext}
 
 Instrucciones de redacción:
 1. Contextualiza la noticia usando la ubicación geográfica suministrada. Incorpora nombres de calles, rutas (por ejemplo, Ruta 12) u otros puntos de referencia locales relevantes para que el texto sea geográficamente preciso y coherente para los lectores de Corrientes/Ituzaingó.
+   - REGLA DE DISTANCIA: Si el texto de ubicación indica que la distancia al punto de referencia es de más de 200 metros (por ejemplo, "a 980m de Puerto de Ituzaingó"), NO redactes un titular ni afirmes en la noticia que el suceso ocurrió "en el puerto" o "cerca del puerto" de forma directa como si estuviera al lado, ya que esto confundirá a los lectores locales. En su lugar, usa expresiones como "en las inmediaciones de...", "en un sector residencial de Ituzaingó", o simplemente "Ituzaingó". Evita mencionar el hito lejano en el título de la noticia.
 2. Genera exactamente dos versiones independientes en formato HTML limpio para el cuerpo de la noticia:
 
 A) VERSION_NEXATIVA (Master Copy):
