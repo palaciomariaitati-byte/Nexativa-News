@@ -57,6 +57,24 @@ export const ITUZAINGO_LOCATIONS: LocationReference[] = [
 ];
 
 /**
+ * Calculates the distance between two coordinates in meters using the Haversine formula.
+ */
+export function calculateDistanceInMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371e3; // Earth radius in meters
+  const phi1 = lat1 * Math.PI / 180;
+  const phi2 = lat2 * Math.PI / 180;
+  const deltaPhi = (lat2 - lat1) * Math.PI / 180;
+  const deltaLambda = (lon2 - lon1) * Math.PI / 180;
+
+  const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+            Math.cos(phi1) * Math.cos(phi2) *
+            Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c; // distance in meters
+}
+
+/**
  * Parses a coordinate string in the format "lat,lng" or similar.
  */
 export function parseCoordinates(coordStr: string): { lat: number; lng: number } {
@@ -69,34 +87,43 @@ export function parseCoordinates(coordStr: string): { lat: number; lng: number }
 }
 
 /**
- * Finds the closest location reference in Corrientes/Ituzaingó database.
+ * Finds the closest location reference and returns a descriptive name with exact distance.
  */
 export function getClosestLocation(lat: number, lng: number): LocationReference | null {
   if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) return null;
   let closest: LocationReference | null = null;
   let minDistance = Infinity;
 
-  // Simple Euclidean distance (fine for local points)
   for (const loc of ITUZAINGO_LOCATIONS) {
-    const dLat = loc.lat - lat;
-    const dLng = loc.lng - lng;
-    const dist = Math.sqrt(dLat * dLat + dLng * dLng);
+    const dist = calculateDistanceInMeters(lat, lng, loc.lat, loc.lng);
     if (dist < minDistance) {
       minDistance = dist;
       closest = loc;
     }
   }
 
-  // 1 degree latitude is approx 111 km. 0.1 degree is approx 11 km.
-  // If the closest location is more than ~11 km away, return a generic location reference instead.
-  if (minDistance > 0.1) {
-    return {
-      name: "Ituzaingó / Corrientes",
-      lat,
-      lng,
-      description: `Coordenadas del operador: ${lat}, ${lng}, Provincia de Corrientes`
-    };
+  if (!closest) return null;
+
+  // Format the resolved location name based on the distance in meters
+  let resolvedName = closest.name;
+  let resolvedDesc = closest.description;
+
+  if (minDistance < 250) {
+    resolvedName = `${closest.name}`;
+    resolvedDesc = `${closest.description} (en el lugar)`;
+  } else if (minDistance < 1500) {
+    resolvedName = `Cerca de ${closest.name} (a ${Math.round(minDistance)}m)`;
+    resolvedDesc = `Aproximadamente a ${Math.round(minDistance)} metros de ${closest.description}`;
+  } else {
+    // If it's further than 1.5km, return a generic zone description
+    resolvedName = `Ituzaingó (a ${Math.round(minDistance / 100) / 10}km de ${closest.name})`;
+    resolvedDesc = `Zona de Ituzaingó, a ${Math.round(minDistance / 100) / 10}km de ${closest.name}`;
   }
 
-  return closest;
+  return {
+    name: resolvedName,
+    lat: closest.lat,
+    lng: closest.lng,
+    description: resolvedDesc
+  };
 }

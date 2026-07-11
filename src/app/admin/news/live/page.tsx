@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Image as ImageIcon, Loader2, CheckCircle, Mic, Square, MapPin } from "lucide-react";
+import { Send, Image as ImageIcon, Loader2, CheckCircle, Mic, Square, MapPin, Camera } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { getClosestLocation } from "@/lib/location-db";
 
@@ -375,6 +375,19 @@ export default function NoraLiveEditor() {
             <input 
               type="file" 
               accept="image/*" 
+              className="hidden" 
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleImageUpload(file);
+              }}
+            />
+          </label>
+          <label className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors text-gray-400 cursor-pointer shrink-0" title="Tomar foto con la cámara">
+            <Camera className="w-5 h-5" />
+            <input 
+              type="file" 
+              accept="image/*" 
+              capture="environment"
               className="hidden" 
               onChange={(e) => {
                 const file = e.target.files?.[0];
