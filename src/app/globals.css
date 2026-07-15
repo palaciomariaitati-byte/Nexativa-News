@@ -80,3 +80,29 @@ h1, h2, h3, h4, h5, h6 {
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
   z-index: 10;
 }
+
+/* Albiceleste Nationalist Theme */
+body.albiceleste-theme {
+  --color-brand-accent: #FFB81C; /* Sol de Mayo Yellow/Gold */
+  --color-brand-accent-hover: #ffe04d;
+  background: radial-gradient(circle at top, #1e385c 0%, #0d1e36 30%, #0B0F19 70%, #05080f 100%);
+}
+
+@keyframes spin-slow {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 20s linear infinite;
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 3s ease-in-out infinite;
+}
+

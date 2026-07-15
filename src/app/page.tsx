@@ -11,6 +11,7 @@ import SubscriptionTiers from "@/components/SubscriptionTiers";
 import SponsorsMarquee from "@/components/SponsorsMarquee";
 import TopBusBar from "@/components/TopBusBar";
 import SponsorTabs from "@/components/SponsorTabs";
+import AlientoPatrio from "@/components/AlientoPatrio";
 // -----------------------------------------------------------------
 // Mock data (static) — kept for non-news columns
 // -----------------------------------------------------------------
@@ -21,7 +22,7 @@ const banners = [
     alt: "Nexativa – Lo nuestro para el mundo",
     link: "#",
   },
-];// -----------------------------------------------------------------
+];// -----------------------------------------------------------------
 // Helper components (Server Components — zero client JS)
 // -----------------------------------------------------------------
 function Banner() {
@@ -121,6 +122,9 @@ export default async function HomePage() {
       )}
 
       <div className="w-full max-w-7xl px-2 sm:px-4 lg:px-8 mt-8 sm:mt-12 space-y-10 sm:space-y-16 relative">
+        {/* 🇦🇷 Altar de Aliento Patriótico */}
+        <AlientoPatrio />
+
         {/* 2️⃣ Streaming (Prominent at top) */}
         <section className="w-full relative">
           <h3 className="text-white text-xl sm:text-2xl font-bold mb-4 border-b border-[var(--color-brand-accent)] pb-2 flex items-center gap-2">
