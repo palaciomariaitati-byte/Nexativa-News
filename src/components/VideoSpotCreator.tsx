@@ -17,20 +17,159 @@ interface VideoSpotCreatorProps {
 const MUSIC_TRACKS = [
   {
     id: "motivador",
-    name: "Motivador & Tecnológico",
-    url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+    name: "Motivador & Tecnológico 🎶",
   },
   {
     id: "alegre",
-    name: "Alegre & Moda",
-    url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+    name: "Alegre & Comercial 📈",
   },
   {
     id: "acustico",
-    name: "Acústico Relajante",
-    url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
+    name: "Acústico Relajante 🍃",
   },
 ];
+
+// Procedural Audio Synthesizer Sequencer to bypass CORS and load times
+class SynthSequencer {
+  private ctx: AudioContext;
+  private dest: AudioNode;
+  private type: string;
+  private intervalId: any = null;
+  private step = 0;
+
+  constructor(ctx: AudioContext, dest: AudioNode, type: string) {
+    this.ctx = ctx;
+    this.dest = dest;
+    this.type = type;
+  }
+
+  start() {
+    const tempo = this.type === "acustico" ? 75 : this.type === "alegre" ? 105 : 125;
+    const stepDuration = 60 / tempo / 2; // eighth notes
+    let nextNoteTime = this.ctx.currentTime;
+
+    const scheduler = () => {
+      while (nextNoteTime < this.ctx.currentTime + 0.1) {
+        this.playStep(nextNoteTime, this.step);
+        nextNoteTime += stepDuration;
+        this.step = (this.step + 1) % 16;
+      }
+    };
+
+    this.intervalId = setInterval(scheduler, 25);
+  }
+
+  stop() {
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+    }
+  }
+
+  private playStep(time: number, step: number) {
+    const ctx = this.ctx;
+    const dest = this.dest;
+
+    // 1. Kick/Drum Beat (except for acoustic tracks)
+    if (this.type !== "acustico" && step % 4 === 0) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.frequency.setValueAtTime(150, time);
+      osc.frequency.exponentialRampToValueAtTime(0.01, time + 0.12);
+      
+      gain.gain.setValueAtTime(0.25, time);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + 0.12);
+      
+      osc.connect(gain);
+      gain.connect(dest);
+      
+      osc.start(time);
+      osc.stop(time + 0.15);
+    }
+
+    // 2. Chords / Melodies
+    const chords = {
+      motivador: [
+        [220, 261.63, 329.63], // Am
+        [220, 261.63, 329.63],
+        [174.61, 220, 261.63], // F
+        [196.00, 246.94, 293.66], // G
+      ],
+      alegre: [
+        [261.63, 329.63, 392.00], // C
+        [293.66, 349.23, 440.00], // Dm
+        [329.63, 392.00, 493.88], // Em
+        [349.23, 440.00, 523.25], // F
+      ],
+      acustico: [
+        [196.00, 246.94, 293.66, 392.00], // Gmaj7
+        [174.61, 220.00, 261.63, 349.23], // Fmaj7
+        [220.00, 261.63, 329.63, 440.00], // Am7
+        [196.00, 246.94, 293.66, 392.00], // Gmaj7
+      ]
+    };
+
+    const chordList = chords[this.type as keyof typeof chords] || chords.motivador;
+    const chordIndex = Math.floor(step / 4) % chordList.length;
+    const currentChord = chordList[chordIndex];
+
+    // Play bass note on step 0 and 8
+    if (step % 8 === 0) {
+      const bassFreq = currentChord[0] / 2;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(bassFreq, time);
+      gain.gain.setValueAtTime(0.18, time);
+      gain.gain.exponentialRampToValueAtTime(0.01, time + 0.8);
+      osc.connect(gain);
+      gain.connect(dest);
+      osc.start(time);
+      osc.stop(time + 1.0);
+    }
+
+    // Play melody arpeggios
+    if (this.type === "acustico") {
+      if (step % 2 === 0) {
+        const note = currentChord[step % currentChord.length];
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(note, time);
+        gain.gain.setValueAtTime(0.04, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.5);
+        osc.connect(gain);
+        gain.connect(dest);
+        osc.start(time);
+        osc.stop(time + 0.6);
+      }
+    } else {
+      if (step % 2 !== 0 && Math.random() > 0.4) {
+        const note = currentChord[Math.floor(Math.random() * currentChord.length)] * (step % 3 === 0 ? 2 : 1);
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = this.type === "motivador" ? "sawtooth" : "sine";
+        osc.frequency.setValueAtTime(note, time);
+        
+        if (osc.type === "sawtooth") {
+          const filter = ctx.createBiquadFilter();
+          filter.type = "lowpass";
+          filter.frequency.setValueAtTime(700, time);
+          osc.connect(filter);
+          filter.connect(gain);
+        } else {
+          osc.connect(gain);
+        }
+        
+        gain.gain.setValueAtTime(0.02, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.25);
+        gain.connect(dest);
+        osc.start(time);
+        osc.stop(time + 0.3);
+      }
+    }
+  }
+}
 
 export default function VideoSpotCreator({
   imageUrl,
@@ -41,10 +180,10 @@ export default function VideoSpotCreator({
   onClose,
 }: VideoSpotCreatorProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const sequencerRef = useRef<SynthSequencer | null>(null);
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -90,7 +229,6 @@ export default function VideoSpotCreator({
         ctx.save();
         ctx.translate(canvas.width / 2 + panX, canvas.height / 2 + panY);
         ctx.scale(scale, scale);
-        // Draw centered
         ctx.drawImage(img, -canvas.width / 2, -canvas.height / 2, canvas.width, canvas.height);
         ctx.restore();
       } else {
@@ -102,7 +240,7 @@ export default function VideoSpotCreator({
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
 
-      // Draw dark overlay at the bottom for readability
+      // Draw dark overlay gradient at the bottom for readability
       const shadowGrad = ctx.createLinearGradient(0, canvas.height * 0.4, 0, canvas.height);
       shadowGrad.addColorStop(0, "rgba(0,0,0,0)");
       shadowGrad.addColorStop(0.5, "rgba(0,0,0,0.6)");
@@ -119,16 +257,24 @@ export default function VideoSpotCreator({
       ctx.textAlign = "center";
       ctx.fillText(`${clientName.toUpperCase()} • SPOT PUBLICITARIO`, canvas.width / 2, 25);
 
+      // DRAW TRANSPARENT DARK CONTAINER BOX BEHIND THE TEXT BLOCK
+      // This prevents the background image details from clashing with the text readability.
+      ctx.fillStyle = "rgba(0, 0, 0, 0.78)";
+      ctx.beginPath();
+      // Y: 210, Height: 138 -> Spans from Y=210 to Y=348 (leaves 12px padding at the bottom of the canvas)
+      ctx.roundRect?.(20, canvas.height - 150, canvas.width - 40, 138, 16);
+      ctx.fill();
+
       // Draw Client Brand / Headline text
       ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 26px serif";
+      ctx.font = "bold 24px sans-serif";
       ctx.textAlign = "center";
       const displayTitle = title.length > 35 ? title.substring(0, 35) + "..." : title;
       ctx.fillText(displayTitle, canvas.width / 2, canvas.height - 110);
 
       // Draw advertising copy / slogan
       ctx.fillStyle = "#d4af37"; // Gold text accent
-      ctx.font = "bold 15px sans-serif";
+      ctx.font = "bold 14px sans-serif";
       const cleanCopy = copyText.replace(/<[^>]+>/g, "").trim();
       const displayCopy = cleanCopy.length > 55 ? cleanCopy.substring(0, 55) + "..." : cleanCopy;
       ctx.fillText(displayCopy, canvas.width / 2, canvas.height - 75);
@@ -139,11 +285,10 @@ export default function VideoSpotCreator({
       ctx.lineWidth = 1.5;
       
       const badgeWidth = 190;
-      const badgeHeight = 32;
+      const badgeHeight = 30;
       const badgeX = canvas.width / 2 - badgeWidth / 2;
       const badgeY = canvas.height - 48;
       
-      // Rounded rect for CTA
       ctx.beginPath();
       ctx.roundRect?.(badgeX, badgeY, badgeWidth, badgeHeight, 8);
       ctx.stroke();
@@ -153,7 +298,7 @@ export default function VideoSpotCreator({
       // CTA Text
       ctx.fillStyle = "#ffffff";
       ctx.font = "900 11px sans-serif";
-      ctx.fillText("¡CONSULTAR AHORA! 📲", canvas.width / 2, canvas.height - 28);
+      ctx.fillText("¡CONSULTAR AHORA! 📲", canvas.width / 2, canvas.height - 29);
 
       animationFrameRef.current = requestAnimationFrame(render);
     };
@@ -164,7 +309,6 @@ export default function VideoSpotCreator({
       }
     };
 
-    // If already loaded or fallback
     render();
 
     return () => {
@@ -174,20 +318,38 @@ export default function VideoSpotCreator({
     };
   }, [imageUrl, title, copyText, clientName]);
 
-  // Handle Play/Stop preview
-  const handlePlayToggle = () => {
-    const audio = audioRef.current;
-    if (!audio) return;
+  // Clean up audio context & sequencer on unmount
+  useEffect(() => {
+    return () => {
+      if (sequencerRef.current) {
+        sequencerRef.current.stop();
+      }
+    };
+  }, []);
 
+  // Handle Play/Stop preview
+  const handlePlayToggle = async () => {
     if (isPlaying) {
-      audio.pause();
+      if (sequencerRef.current) {
+        sequencerRef.current.stop();
+        sequencerRef.current = null;
+      }
       setIsPlaying(false);
     } else {
-      audio.currentTime = 0;
-      audio.play().catch((err) => {
-        console.error("Audio playback error:", err);
-      });
       setIsPlaying(true);
+      
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      const audioCtx = audioContextRef.current;
+      if (audioCtx.state === "suspended") {
+        await audioCtx.resume();
+      }
+      
+      // Connect to speakers directly
+      const seq = new SynthSequencer(audioCtx, audioCtx.destination, selectedTrack.id);
+      sequencerRef.current = seq;
+      seq.start();
     }
   };
 
@@ -197,20 +359,25 @@ export default function VideoSpotCreator({
     if (!track) return;
     
     setSelectedTrack(track);
-    setIsPlaying(false);
-
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.src = track.url;
-      audioRef.current.load();
+    
+    // Stop active preview
+    if (isPlaying && sequencerRef.current) {
+      sequencerRef.current.stop();
+      sequencerRef.current = null;
+      setIsPlaying(false);
     }
   };
 
   // Recording Spot logic
   const handleStartRecording = async () => {
     const canvas = canvasRef.current;
-    const audio = audioRef.current;
-    if (!canvas || !audio) return;
+    if (!canvas) return;
+
+    // Stop active preview if playing
+    if (sequencerRef.current) {
+      sequencerRef.current.stop();
+      sequencerRef.current = null;
+    }
 
     setRecordingError(null);
     setVideoBlob(null);
@@ -222,7 +389,7 @@ export default function VideoSpotCreator({
       // Capture canvas video track (30 fps)
       const canvasStream = canvas.captureStream(30);
 
-      // Set up Audio Mixing via Web Audio API to prevent CORS issues on recording
+      // Set up Audio Mixing via Web Audio API
       if (!audioContextRef.current) {
         audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
@@ -232,22 +399,24 @@ export default function VideoSpotCreator({
         await audioCtx.resume();
       }
 
-      // Re-route audio element to a stream destination
+      // Re-route synth sound to both stream destination and speakers
       const dest = audioCtx.createMediaStreamDestination();
-      const source = audioCtx.createMediaElementSource(audio);
       
-      source.connect(dest);
-      source.connect(audioCtx.destination); // Direct audio to device speaker as well
+      const splitNode = audioCtx.createGain();
+      splitNode.gain.value = 1.0;
+      splitNode.connect(dest);
+      splitNode.connect(audioCtx.destination); // Direct audio to device speaker as well
+
+      // Start the sequencer
+      const seq = new SynthSequencer(audioCtx, splitNode, selectedTrack.id);
+      sequencerRef.current = seq;
+      seq.start();
+      setIsPlaying(true);
 
       // Combine video and audio tracks
       const combinedStream = new MediaStream();
       canvasStream.getVideoTracks().forEach((track) => combinedStream.addTrack(track));
       dest.stream.getAudioTracks().forEach((track) => combinedStream.addTrack(track));
-
-      // Play audio from beginning
-      audio.currentTime = 0;
-      await audio.play();
-      setIsPlaying(true);
 
       // Set up MediaRecorder
       const options = { mimeType: "video/webm;codecs=vp9" };
@@ -256,7 +425,6 @@ export default function VideoSpotCreator({
       try {
         recorder = new MediaRecorder(combinedStream, options);
       } catch (e) {
-        // Fallback for Safari/iOS which might only support video/mp4 or video/webm without codecs
         recorder = new MediaRecorder(combinedStream);
       }
 
@@ -270,7 +438,10 @@ export default function VideoSpotCreator({
         setVideoBlob(finalBlob);
         setIsRecording(false);
         setIsPlaying(false);
-        audio.pause();
+        if (sequencerRef.current) {
+          sequencerRef.current.stop();
+          sequencerRef.current = null;
+        }
       };
 
       mediaRecorderRef.current = recorder;
@@ -292,7 +463,7 @@ export default function VideoSpotCreator({
 
     } catch (err: any) {
       console.error("Recording error:", err);
-      setRecordingError(`Error al grabar: ${err.message || "Permiso de audio denegado."}`);
+      setRecordingError(`Error al grabar: ${err.message || "Fallo en audio."}`);
       setIsRecording(false);
     }
   };
@@ -350,15 +521,6 @@ export default function VideoSpotCreator({
           <X className="w-6 h-6" />
         </button>
 
-        {/* Audio element (rendered offscreen) */}
-        <audio
-          ref={audioRef}
-          src={selectedTrack.url}
-          crossOrigin="anonymous"
-          loop
-          className="hidden"
-        />
-
         {/* Header */}
         <div className="flex items-center gap-2 border-b border-white/10 pb-3">
           <Film className="text-purple-400 w-5 h-5" />
@@ -369,7 +531,7 @@ export default function VideoSpotCreator({
         <div className="bg-purple-950/20 border border-purple-500/20 rounded-xl p-3 text-xs text-purple-200 flex items-start gap-2">
           <Info className="w-4 h-4 shrink-0 text-purple-400 mt-0.5" />
           <p>
-            Generaremos un video de 10 segundos animando la imagen promocional con efectos de cámara y superposición del copy de venta. El audio se grabará directamente desde el bucle de música elegido.
+            Generaremos un video de 10 segundos animando la imagen promocional con efectos de cámara y superposición del copy de venta. El audio es sintetizado en tiempo real en tu navegador para evitar errores y retrasos.
           </p>
         </div>
 
@@ -397,7 +559,7 @@ export default function VideoSpotCreator({
           {/* Audio selection list */}
           <div className="space-y-2">
             <label className="text-xs font-bold text-[var(--color-brand-accent)] uppercase tracking-wide flex items-center gap-1">
-              <Volume2 className="w-3.5 h-3.5" /> Música de Fondo
+              <Volume2 className="w-3.5 h-3.5" /> Estilo de Música (Sintetizador)
             </label>
             <div className="space-y-1.5">
               {MUSIC_TRACKS.map((track) => (
@@ -428,7 +590,7 @@ export default function VideoSpotCreator({
               <button
                 onClick={handlePlayToggle}
                 disabled={isRecording}
-                className="flex-1 bg-white/5 hover:bg-white/10 text-white border border-white/10 py-3 rounded-xl transition-all font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95"
+                className="flex-1 bg-white/5 hover:bg-white/10 text-white border border-white/10 py-3 rounded-xl transition-all font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
               >
                 {isPlaying ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4 text-purple-400" />}
                 {isPlaying ? "Detener" : "Preescuchar"}
@@ -437,7 +599,7 @@ export default function VideoSpotCreator({
               <button
                 onClick={handleStartRecording}
                 disabled={isRecording}
-                className={`flex-1 text-white py-3 rounded-xl transition-all font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 ${
+                className={`flex-1 text-white py-3 rounded-xl transition-all font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 cursor-pointer ${
                   isRecording 
                     ? "bg-red-700 cursor-not-allowed" 
                     : "bg-purple-600 hover:bg-purple-500 shadow-lg shadow-purple-600/15"
@@ -453,7 +615,7 @@ export default function VideoSpotCreator({
               <div className="flex gap-2 animate-slide-up">
                 <button
                   onClick={handleDownload}
-                  className="flex-1 bg-indigo-600/30 hover:bg-indigo-600/40 text-white border border-indigo-500/30 py-3 rounded-xl transition-all font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95"
+                  className="flex-1 bg-indigo-600/30 hover:bg-indigo-600/40 text-white border border-indigo-500/30 py-3 rounded-xl transition-all font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
                 >
                   <Download className="w-4 h-4" />
                   Descargar Spot
@@ -462,7 +624,7 @@ export default function VideoSpotCreator({
                 <button
                   onClick={handleUploadToCampaign}
                   disabled={uploading || success}
-                  className={`flex-1 text-black font-black py-3 rounded-xl transition-all text-xs uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 ${
+                  className={`flex-1 text-black font-black py-3 rounded-xl transition-all text-xs uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 cursor-pointer ${
                     success
                       ? "bg-green-500 hover:bg-green-600"
                       : "bg-[var(--color-brand-accent)] hover:bg-[var(--color-brand-accent-hover)]"
@@ -478,7 +640,7 @@ export default function VideoSpotCreator({
 
         {/* Form success banner */}
         {success && (
-          <div className="bg-green-500/15 border border-green-500/25 p-3 rounded-xl text-center text-xs text-green-300 font-bold animate-fade-in flex items-center justify-center gap-2 mt-4">
+          <div className="bg-green-500/15 border border-green-500/25 p-3 rounded-xl text-center text-xs text-green-300 font-bold animate-fade-in flex items-center justify-center gap-2 mt-4 font-sans">
             <CheckCircle2 className="w-4.5 h-4.5 text-green-400" />
             ¡El video ha sido subido y vinculado a tu formulario! Puedes guardar la campaña ahora.
           </div>
