@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import NoraAssistant from "@/components/NoraAssistant";
 import MediaUploader from "@/components/MediaUploader";
+import { Sparkles, Film } from "lucide-react";
+import VideoSpotCreator from "@/components/VideoSpotCreator";
 
 export const maxDuration = 60; // Allow long LLM calls
 
@@ -16,6 +18,10 @@ export default function MarketingEditorPage() {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(!!id);
   const [operatorRole, setOperatorRole] = useState("Staff");
+  const [imagePrompt, setImagePrompt] = useState("");
+  const [generatingImage, setGeneratingImage] = useState(false);
+  const [customImagePrompt, setCustomImagePrompt] = useState("");
+  const [showVideoSpotCreator, setShowVideoSpotCreator] = useState(false);
   
   const [formData, setFormData] = useState({
     client_name: "",
@@ -61,12 +67,16 @@ export default function MarketingEditorPage() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleApplyNoraChanges = (newTitle: string, newContent: string) => {
+  const handleApplyNoraChanges = (newTitle: string, newContent: string, prompt?: string) => {
     setFormData(prev => ({
       ...prev,
       campaign_name: newTitle || prev.campaign_name,
       content: newContent || prev.content
     }));
+    if (prompt) {
+      setImagePrompt(prompt);
+      setCustomImagePrompt(prompt); // Pre-fill input
+    }
   };
 
   const handlePublishDirectly = async (newTitle: string, newContent: string) => {
@@ -80,6 +90,44 @@ export default function MarketingEditorPage() {
     
     // Y guardamos forzando la publicación
     await handleSave(null, true, newTitle, newContent);
+  };
+
+  const handleGenerateImage = async () => {
+    const prompt = customImagePrompt.trim() || imagePrompt.trim();
+    if (!prompt) {
+      alert("Por favor escribe una descripción en español o pídele a Nora que te sugiera una estrategia primero.");
+      return;
+    }
+
+    setGeneratingImage(true);
+    try {
+      // 1. Build Pollinations URL (encoded)
+      const encodedPrompt = encodeURIComponent(prompt);
+      const imageUrl = `https://image.pollinations.ai/p/${encodedPrompt}?width=1024&height=768&nologo=true&seed=${Math.floor(Math.random() * 100000)}`;
+
+      // 2. Fetch the image as a Blob to store it in Supabase
+      const response = await fetch(imageUrl);
+      if (!response.ok) throw new Error("Fallo al descargar la imagen generada.");
+      const blob = await response.blob();
+
+      // 3. Upload to Supabase storage 'media' bucket
+      const fileName = `campaigns/ai_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.jpg`;
+      const { data, error: uploadError } = await supabase.storage
+        .from("media")
+        .upload(fileName, blob, { contentType: "image/jpeg", cacheControl: "3600" });
+
+      if (uploadError) throw uploadError;
+
+      // 4. Get public URL and set it in form
+      const { data: publicUrlData } = supabase.storage.from("media").getPublicUrl(fileName);
+      setFormData(prev => ({ ...prev, image_url: publicUrlData.publicUrl }));
+      alert("¡Imagen de campaña generada y guardada con éxito! 🎨");
+    } catch (err: any) {
+      console.error(err);
+      alert("Error al generar imagen: " + err.message);
+    } finally {
+      setGeneratingImage(false);
+    }
   };
 
   const handleSave = async (e: React.FormEvent | null, publishNow = false, overrideTitle?: string, overrideContent?: string) => {
@@ -223,6 +271,56 @@ export default function MarketingEditorPage() {
                 onUploadSuccess={(url) => setFormData({ ...formData, image_url: url })}
               />
             </div>
+
+            {/* Generación de Imagen IA */}
+            <div className="bg-purple-950/20 border border-purple-500/25 rounded-xl p-4 space-y-3 mt-4">
+              <span className="text-xs uppercase font-extrabold tracking-wider text-purple-300 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-purple-400" /> Herramientas Creativas de Agencia
+              </span>
+              
+              <div className="space-y-2">
+                <label className="text-xs text-gray-400 font-sans block">
+                  Descripción para Generar Imagen:
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={customImagePrompt}
+                    onChange={(e) => setCustomImagePrompt(e.target.value)}
+                    placeholder="Ej: Un café humeante sobre una mesa rústica, foto comercial..."
+                    className="flex-grow bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-purple-500"
+                  />
+                  <button
+                    type="button"
+                    disabled={generatingImage}
+                    onClick={handleGenerateImage}
+                    className="bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs px-4 py-2 rounded-lg transition-colors flex items-center gap-1 shrink-0 cursor-pointer"
+                  >
+                    {generatingImage ? "Generando..." : "Generar Imagen 🎨"}
+                  </button>
+                </div>
+                {imagePrompt && (
+                  <p className="text-[10px] text-purple-300 font-sans italic">
+                    ✨ Prompt sugerido por Nora cargado: "{imagePrompt.substring(0, 80)}..."
+                  </p>
+                )}
+              </div>
+
+              {/* Botón para crear Spot de Video */}
+              {formData.image_url && (
+                <div className="pt-2 border-t border-white/5 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setShowVideoSpotCreator(true)}
+                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-extrabold text-xs px-5 py-2.5 rounded-lg transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Film className="w-3.5 h-3.5" />
+                    Crear Spot de Video 🎥
+                  </button>
+                </div>
+              )}
+            </div>
+
             {formData.image_url && (
               <div className="mt-4 aspect-video rounded-lg overflow-hidden border border-white/10 relative h-48 w-full max-w-sm">
                 {formData.image_url.match(/\.(mp4|webm|ogg)$/i) ? (
@@ -281,10 +379,23 @@ export default function MarketingEditorPage() {
             onPublishDirectly={handlePublishDirectly}
           />
           <p className="text-xs text-white/50 mt-4 px-2">
-            <strong>Tip:</strong> Puedes escribir una idea básica en el campo de "Copy" y pedirle a Nora (Ing. de Marketing) que redacte un Copy Viral profesional con emojis y hashtags. Luego puedes guardarlo directamente.
+            <strong>Tip:</strong> Escribe tu idea en "Copy" y pídele a Nora (Estratega) que diseñe la campaña. Ella cargará un prompt de imagen y creará el copy profesional para vos en español.
           </p>
         </div>
       </div>
+
+      {showVideoSpotCreator && (
+        <VideoSpotCreator
+          imageUrl={formData.image_url}
+          title={formData.campaign_name}
+          copyText={formData.content}
+          clientName={formData.client_name}
+          onUploadFinished={(url) => {
+            setFormData(prev => ({ ...prev, image_url: url }));
+          }}
+          onClose={() => setShowVideoSpotCreator(false)}
+        />
+      )}
     </div>
   );
 }

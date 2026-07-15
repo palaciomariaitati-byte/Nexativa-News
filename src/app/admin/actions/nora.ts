@@ -198,7 +198,8 @@ DEBES DEVOLVER TU RESPUESTA ESTRICTAMENTE EN FORMATO JSON VÁLIDO CON LA SIGUIEN
 {
   "htmlForPanel": "<Tu estrategia completa en HTML aquí, dividida en Concepto Creativo, Guion para Spot y Sugerencia Visual. Usa <h3>, <p>, <strong>, <ul> y emojis estratégicos>",
   "newTitle": "<Un título super atractivo y clickbait para la campaña final (máx 60 caracteres)>",
-  "newContent": "<El Copy final limpio para redes sociales, estructurado con AIDA, con emojis y hashtags relevantes, listo para copiar y pegar>"
+  "newContent": "<El Copy final limpio para redes sociales, estructurado con AIDA, con emojis y hashtags relevantes, listo para copiar y pegar>",
+  "imagePrompt": "<Un prompt publicitario detallado y profesional EN INGLÉS para un generador de imágenes de IA. Ej: 'A professional commercial product shot of [product] on a clean pastel background, studio lighting, 8k resolution, photorealistic, no text, no words.' Debe ser descriptivo, comercial y sin incluir texto en la imagen>"
 }
 NO INCLUYAS markdown de bloques de código en tu respuesta, solo el JSON puro.
 MUY IMPORTANTE: Usa comillas simples (') para cualquier atributo dentro del HTML (ej. <span class='text-red'>) para no romper el formato JSON con comillas dobles sin escapar.
@@ -222,7 +223,8 @@ export async function askNoraMarketing(title: string, content: string, operatorN
       success: true, 
       text: parsed.htmlForPanel,
       newTitle: parsed.newTitle,
-      newContent: parsed.newContent
+      newContent: parsed.newContent,
+      imagePrompt: parsed.imagePrompt || ""
     };
   } catch (error: any) {
     if ((error.message?.includes("429") || error.message?.includes("503") || error.message?.includes("500") || error.message?.includes("502")) && process.env.GEMINI_API_KEY_FALLBACK) {
@@ -239,7 +241,8 @@ export async function askNoraMarketing(title: string, content: string, operatorN
           success: true, 
           text: fallbackParsed.htmlForPanel,
           newTitle: fallbackParsed.newTitle,
-          newContent: fallbackParsed.newContent
+          newContent: fallbackParsed.newContent,
+          imagePrompt: fallbackParsed.imagePrompt || ""
         };
       } catch (fallbackError: any) {
         return { error: "Hubo un cortocircuito en ambos cerebros de Nora: " + fallbackError.message };

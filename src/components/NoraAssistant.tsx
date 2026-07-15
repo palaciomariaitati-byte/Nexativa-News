@@ -9,7 +9,7 @@ interface NoraAssistantProps {
   content: string;
   operatorName?: string;
   roleDescription?: string;
-  onApplyChanges?: (newTitle: string, newContent: string) => void;
+  onApplyChanges?: (newTitle: string, newContent: string, imagePrompt?: string) => void;
   onPublishDirectly?: (newTitle: string, newContent: string) => void;
 }
 
@@ -25,7 +25,7 @@ export default function NoraAssistant({
   const [responseHtml, setResponseHtml] = useState<string | null>(null);
   
   // State to hold the new generated content so we can apply it
-  const [generatedData, setGeneratedData] = useState<{newTitle: string, newContent: string} | null>(null);
+  const [generatedData, setGeneratedData] = useState<{newTitle: string, newContent: string, imagePrompt?: string} | null>(null);
   
   const [copied, setCopied] = useState(false);
   const [activeMode, setActiveMode] = useState<"editora" | "cm" | "soporte" | "publicista" | null>(null);
@@ -85,13 +85,14 @@ export default function NoraAssistant({
     const res = await askNoraMarketing(title, content, operatorName);
     if (res.success) {
       if (res.newTitle && res.newContent) {
-        setGeneratedData({ newTitle: res.newTitle, newContent: res.newContent });
+        setGeneratedData({ newTitle: res.newTitle, newContent: res.newContent, imagePrompt: res.imagePrompt });
         setResponseHtml(`
           ${res.text}
-          <div class="mt-6 p-4 bg-black/40 border border-white/10 rounded-lg">
+          <div class="mt-6 p-4 bg-black/40 border border-white/10 rounded-lg font-sans">
             <h4 class="text-sm font-bold text-white/50 uppercase mb-2">Copy Limpio para Redes Sociales:</h4>
-            <p class="font-bold text-lg mb-2">${res.newTitle}</p>
-            <div class="text-gray-200 whitespace-pre-wrap">${res.newContent}</div>
+            <p class="font-bold text-lg mb-2 text-white">${res.newTitle}</p>
+            <div class="text-gray-200 whitespace-pre-wrap text-xs leading-relaxed">${res.newContent}</div>
+            ${res.imagePrompt ? `<div class='mt-3 pt-3 border-t border-white/5 text-[11px] text-purple-300 font-bold'>✨ Prompt Visual de IA generado para esta campaña.</div>` : ""}
           </div>
         `);
       } else {
@@ -243,15 +244,15 @@ export default function NoraAssistant({
             dangerouslySetInnerHTML={{ __html: responseHtml }}
           />
 
-          {/* Acciones de Autopublicación (Solo en modo Editora si se generó data) */}
-          {activeMode === "editora" && generatedData && (
+          {/* Acciones de Autopublicación (Solo en modo Editora o Publicista si se generó data) */}
+          {(activeMode === "editora" || activeMode === "publicista") && generatedData && (
             <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-white/10">
-              <p className="text-xs text-purple-300 font-medium mb-1 text-center">¿Qué hacemos con esta noticia, {operatorName}?</p>
+              <p className="text-xs text-purple-300 font-medium mb-1 text-center">¿Qué hacemos con esta sugerencia, {operatorName}?</p>
               
               {onApplyChanges && (
                 <button 
-                  onClick={() => onApplyChanges(generatedData.newTitle, generatedData.newContent)}
-                  className="flex items-center justify-center gap-2 w-full bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/50 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all"
+                  onClick={() => onApplyChanges(generatedData.newTitle, generatedData.newContent, generatedData.imagePrompt)}
+                  className="flex items-center justify-center gap-2 w-full bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/50 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer"
                 >
                   <Wand2 className="w-4 h-4 text-purple-300" />
                   Aplicar cambios al Borrador
@@ -261,7 +262,7 @@ export default function NoraAssistant({
               {onPublishDirectly && (
                 <button 
                   onClick={() => onPublishDirectly(generatedData.newTitle, generatedData.newContent)}
-                  className="flex items-center justify-center gap-2 w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-purple-500/20 transition-all"
+                  className="flex items-center justify-center gap-2 w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-purple-500/20 transition-all cursor-pointer"
                 >
                   <Send className="w-4 h-4" />
                   ¡Publicar Ahora Mismo!
