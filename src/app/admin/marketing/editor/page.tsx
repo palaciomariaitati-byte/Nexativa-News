@@ -285,6 +285,42 @@ export default function MarketingEditorPage() {
                 className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)] text-xs"
                 placeholder="O escribe un nombre de cliente personalizado"
               />
+
+              {/* Prospect Logo Uploader if custom client is chosen */}
+              {selectedSponsorId === "" && (
+                <div className="mt-3 space-y-2 border-t border-white/5 pt-3 animate-fade-in">
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide">Logo de Prospecto (Opcional)</label>
+                  <div className="flex flex-col sm:flex-row gap-3 items-start">
+                    <input
+                      type="url"
+                      value={clientLogoUrl}
+                      onChange={(e) => setClientLogoUrl(e.target.value)}
+                      className="flex-grow w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2 text-xs text-white focus:outline-none focus:border-[var(--color-brand-accent)]"
+                      placeholder="Pega la URL del logo de la empresa"
+                    />
+                    <MediaUploader 
+                      label="Subir Logo"
+                      onUploadSuccess={(url) => {
+                        setClientLogoUrl(url);
+                        alert("¡Logo del prospecto subido con éxito!");
+                      }}
+                    />
+                  </div>
+                  {clientLogoUrl && (
+                    <div className="flex items-center gap-2 mt-2 bg-white/5 p-2 rounded-lg border border-white/5 max-w-xs">
+                      <img src={clientLogoUrl} alt="Logo Prospecto" className="h-8 object-contain rounded" />
+                      <span className="text-[10px] text-gray-400 truncate flex-grow">Logo cargado</span>
+                      <button 
+                        type="button" 
+                        onClick={() => setClientLogoUrl("")} 
+                        className="text-red-400 hover:text-red-300 text-xs font-bold font-sans cursor-pointer"
+                      >
+                        Quitar
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase">Nombre de la Campaña</label>

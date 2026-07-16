@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Play, Square, Download, UploadCloud, X, Film, Volume2, Info, CheckCircle2 } from "lucide-react";
+import { Play, Square, Download, UploadCloud, X, Film, Volume2, Info, CheckCircle2, Music, Upload, Link as LinkIcon, Layers } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 interface VideoSpotCreatorProps {
@@ -16,21 +16,19 @@ interface VideoSpotCreatorProps {
 }
 
 const MUSIC_TRACKS = [
-  {
-    id: "motivador",
-    name: "Comercial Energético 🔥 (Dance Beat)",
-  },
-  {
-    id: "alegre",
-    name: "Moderno & Corporativo 📈 (Pop/Groove)",
-  },
-  {
-    id: "acustico",
-    name: "Ambiental Relajante 🍃 (Chill/Bell)",
-  },
+  { id: "motivador", name: "Comercial Energético 🔥 (Dance)", bpm: 125 },
+  { id: "alegre", name: "Moderno & Corporativo 📈 (Pop/Groove)", bpm: 108 },
+  { id: "acustico", name: "Ambiental Relajante 🍃 (Chill/Bell)", bpm: 80 },
 ];
 
-// Procedural Audio Synthesizer Sequencer to bypass CORS and load times
+const ANIMATION_STYLES = [
+  { id: "kenburns", name: "Zoom Cinemático (Ken Burns)" },
+  { id: "paneo", name: "Desplazamiento Horizontal" },
+  { id: "pulsante", name: "Pulsante Rítmico (Sincro Beat)" },
+  { id: "giro", name: "Giro Suave y Paneo" },
+];
+
+// Procedural Audio Synthesizer Sequencer
 class SynthSequencer {
   private ctx: AudioContext;
   private dest: AudioNode;
@@ -46,9 +44,8 @@ class SynthSequencer {
     this.initNoiseBuffer();
   }
 
-  // Pre-generate a white noise buffer for snare and hi-hats
   private initNoiseBuffer() {
-    const bufferSize = this.ctx.sampleRate * 0.35; // 350ms of noise
+    const bufferSize = this.ctx.sampleRate * 0.35;
     const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
     const data = buffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) {
@@ -58,7 +55,8 @@ class SynthSequencer {
   }
 
   start() {
-    const tempo = this.type === "acustico" ? 80 : this.type === "alegre" ? 108 : 125;
+    const track = MUSIC_TRACKS.find(t => t.id === this.type) || MUSIC_TRACKS[0];
+    const tempo = track.bpm;
     const stepDuration = 60 / tempo / 2; // eighth notes
     let nextNoteTime = this.ctx.currentTime;
 
@@ -83,78 +81,60 @@ class SynthSequencer {
     const ctx = this.ctx;
     const dest = this.dest;
 
-    // 1. Kick/Drum Beat (Punchy lowpass envelope) - 1 & 3 beats for tech, simple tap for acoustic
     if (this.type !== "acustico" && (step % 4 === 0)) {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      
       osc.frequency.setValueAtTime(160, time);
       osc.frequency.exponentialRampToValueAtTime(0.01, time + 0.15);
-      
-      gain.gain.setValueAtTime(0.85, time); // High volume punch
+      gain.gain.setValueAtTime(0.85, time);
       gain.gain.exponentialRampToValueAtTime(0.001, time + 0.15);
-      
       osc.connect(gain);
       gain.connect(dest);
-      
       osc.start(time);
       osc.stop(time + 0.18);
     }
 
-    // 2. Synthesized Snare Drum (White Noise + transient sine block) on beats 2 & 4
     if (this.type !== "acustico" && step % 4 === 2 && this.noiseBuffer) {
-      // Noise component
       const noiseSource = ctx.createBufferSource();
       noiseSource.buffer = this.noiseBuffer;
-      
       const filter = ctx.createBiquadFilter();
       filter.type = "bandpass";
       filter.frequency.setValueAtTime(1000, time);
-      
       const noiseGain = ctx.createGain();
       noiseGain.gain.setValueAtTime(0.45, time);
       noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 0.18);
-      
       noiseSource.connect(filter);
       filter.connect(noiseGain);
       noiseGain.connect(dest);
       noiseSource.start(time);
 
-      // Tone component
       const osc = ctx.createOscillator();
       const toneGain = ctx.createGain();
       osc.frequency.setValueAtTime(180, time);
       osc.frequency.linearRampToValueAtTime(100, time + 0.1);
-      
       toneGain.gain.setValueAtTime(0.25, time);
       toneGain.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
-      
       osc.connect(toneGain);
       toneGain.connect(dest);
       osc.start(time);
       osc.stop(time + 0.12);
     }
 
-    // 3. Synthesized Hi-hat (Highpass filtered noise) on offbeats (odd steps)
     if (this.type !== "acustico" && step % 2 === 1 && this.noiseBuffer) {
       const noiseSource = ctx.createBufferSource();
       noiseSource.buffer = this.noiseBuffer;
-      
       const filter = ctx.createBiquadFilter();
       filter.type = "highpass";
       filter.frequency.setValueAtTime(7500, time);
-      
       const hatGain = ctx.createGain();
       hatGain.gain.setValueAtTime(0.12, time);
-      hatGain.gain.exponentialRampToValueAtTime(0.001, time + 0.05); // very short snap
-      
+      hatGain.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
       noiseSource.connect(filter);
       filter.connect(hatGain);
       hatGain.connect(dest);
       noiseSource.start(time);
     }
 
-    // 4. Bass & Chords (pentatonic progressions)
     const chords = {
       motivador: [
         [220, 261.63, 329.63], // Am
@@ -180,14 +160,13 @@ class SynthSequencer {
     const chordIndex = Math.floor(step / 4) % chordList.length;
     const currentChord = chordList[chordIndex];
 
-    // Play bass note on step 0 and 8
     if (step % 8 === 0) {
       const bassFreq = currentChord[0] / 2;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = "triangle";
       osc.frequency.setValueAtTime(bassFreq, time);
-      gain.gain.setValueAtTime(0.55, time); // 3x Louder
+      gain.gain.setValueAtTime(0.55, time);
       gain.gain.exponentialRampToValueAtTime(0.01, time + 0.8);
       osc.connect(gain);
       gain.connect(dest);
@@ -195,16 +174,14 @@ class SynthSequencer {
       osc.stop(time + 1.0);
     }
 
-    // Play melody arpeggios
     if (this.type === "acustico") {
-      // Gentle sine pluck
       if (step % 2 === 0) {
         const note = currentChord[step % currentChord.length];
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = "sine";
         osc.frequency.setValueAtTime(note, time);
-        gain.gain.setValueAtTime(0.12, time); // 3x Louder
+        gain.gain.setValueAtTime(0.12, time);
         gain.gain.exponentialRampToValueAtTime(0.001, time + 0.65);
         osc.connect(gain);
         gain.connect(dest);
@@ -212,7 +189,6 @@ class SynthSequencer {
         osc.stop(time + 0.75);
       }
     } else {
-      // Catchy synth melody line
       if (step % 2 !== 0 && Math.random() > 0.3) {
         const note = currentChord[Math.floor(Math.random() * currentChord.length)] * (step % 3 === 0 ? 2 : 1);
         const osc = ctx.createOscillator();
@@ -230,7 +206,7 @@ class SynthSequencer {
           osc.connect(gain);
         }
         
-        gain.gain.setValueAtTime(0.12, time); // 6x Louder than original
+        gain.gain.setValueAtTime(0.12, time);
         gain.gain.exponentialRampToValueAtTime(0.001, time + 0.3);
         gain.connect(dest);
         osc.start(time);
@@ -252,9 +228,13 @@ export default function VideoSpotCreator({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  
+  // Custom audio elements and nodes
+  const customAudioRef = useRef<HTMLAudioElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const sequencerRef = useRef<SynthSequencer | null>(null);
-  
+  const customAudioSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+
   const [isPlaying, setIsPlaying] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -263,6 +243,14 @@ export default function VideoSpotCreator({
   const [uploading, setUploading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [recordingError, setRecordingError] = useState<string | null>(null);
+
+  // New audio states: Custom tracks
+  const [audioType, setAudioType] = useState<"synth" | "file" | "url">("synth");
+  const [customAudioUrl, setCustomAudioUrl] = useState("");
+  const [customAudioObjectUrl, setCustomAudioObjectUrl] = useState<string | null>(null);
+
+  // New animation states
+  const [animationStyle, setAnimationStyle] = useState("kenburns");
 
   const durationLimit = 10; // Spot duration: 10 seconds
 
@@ -274,12 +262,10 @@ export default function VideoSpotCreator({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Load background image
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.src = imageUrl || "/banner-nexativa.jpg";
 
-    // Load client logo image if available
     const logoImg = new Image();
     if (clientLogoUrl) {
       logoImg.crossOrigin = "anonymous";
@@ -292,24 +278,40 @@ export default function VideoSpotCreator({
       if (!ctx || !canvas) return;
 
       const elapsed = (Date.now() - startTime) / 1000;
-      const progress = (elapsed % durationLimit) / durationLimit; // 0 to 1 loop
+      const progress = (elapsed % durationLimit) / durationLimit;
 
-      // Clear canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Draw background image with Ken Burns effect (zoom & pan)
+      // Draw background image with selected animation style
       if (img.complete && img.naturalWidth > 0) {
-        const scale = 1 + progress * 0.15; // zoom from 1.0 to 1.15
-        const panX = -progress * 25;
-        const panY = -progress * 15;
-
         ctx.save();
-        ctx.translate(canvas.width / 2 + panX, canvas.height / 2 + panY);
-        ctx.scale(scale, scale);
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+
+        if (animationStyle === "kenburns") {
+          const scale = 1 + progress * 0.15;
+          const panX = -progress * 25;
+          const panY = -progress * 15;
+          ctx.translate(panX, panY);
+          ctx.scale(scale, scale);
+        } else if (animationStyle === "paneo") {
+          const panX = -30 + progress * 60;
+          ctx.translate(panX, 0);
+          ctx.scale(1.12, 1.12);
+        } else if (animationStyle === "pulsante") {
+          const track = MUSIC_TRACKS.find(t => t.id === selectedTrack.id) || MUSIC_TRACKS[0];
+          const tempo = audioType === "synth" ? track.bpm : 120;
+          const bps = tempo / 60;
+          const pulse = Math.abs(Math.sin(elapsed * Math.PI * bps)) * 0.05;
+          ctx.scale(1.05 + pulse, 1.05 + pulse);
+        } else if (animationStyle === "giro") {
+          const rotate = Math.sin(elapsed * 0.8) * 0.035;
+          ctx.rotate(rotate);
+          ctx.scale(1.08 + progress * 0.07, 1.08 + progress * 0.07);
+        }
+
         ctx.drawImage(img, -canvas.width / 2, -canvas.height / 2, canvas.width, canvas.height);
         ctx.restore();
       } else {
-        // Fallback solid gradient
         const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
         grad.addColorStop(0, "#1e1b4b");
         grad.addColorStop(1, "#311042");
@@ -317,7 +319,7 @@ export default function VideoSpotCreator({
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
 
-      // Draw dark overlay gradient at the bottom for readability
+      // Draw dark overlay gradient
       const shadowGrad = ctx.createLinearGradient(0, canvas.height * 0.4, 0, canvas.height);
       shadowGrad.addColorStop(0, "rgba(0,0,0,0)");
       shadowGrad.addColorStop(0.5, "rgba(0,0,0,0.6)");
@@ -326,7 +328,7 @@ export default function VideoSpotCreator({
       ctx.fillRect(0, canvas.height * 0.4, canvas.width, canvas.height * 0.6);
 
       // Draw top header brand ribbon
-      ctx.fillStyle = "rgba(212, 175, 55, 0.9)"; // Gold brand color
+      ctx.fillStyle = "rgba(212, 175, 55, 0.9)";
       ctx.fillRect(0, 0, canvas.width, 40);
 
       ctx.fillStyle = "#000000";
@@ -334,33 +336,30 @@ export default function VideoSpotCreator({
       ctx.textAlign = "center";
       ctx.fillText(`${clientName.toUpperCase()} • SPOT PUBLICITARIO`, canvas.width / 2 - 20, 25);
 
-      // DRAW TRANSPARENT DARK CONTAINER BOX BEHIND THE TEXT BLOCK
-      // This prevents the background image details from clashing with the text readability.
+      // Draw dark translucent box
       ctx.fillStyle = "rgba(0, 0, 0, 0.82)";
       ctx.beginPath();
-      // Y: 210, Height: 138 -> Spans from Y=210 to Y=348 (leaves 12px padding at the bottom of the canvas)
       ctx.roundRect?.(20, canvas.height - 150, canvas.width - 40, 138, 16);
       ctx.fill();
 
-      // Draw Client Brand / Headline text
+      // Headline text
       ctx.fillStyle = "#ffffff";
       ctx.font = "bold 24px sans-serif";
       ctx.textAlign = "center";
       const displayTitle = title.length > 35 ? title.substring(0, 35) + "..." : title;
       ctx.fillText(displayTitle, canvas.width / 2, canvas.height - 110);
 
-      // Draw advertising copy / slogan
-      ctx.fillStyle = "#d4af37"; // Gold text accent
+      // Slogan copy
+      ctx.fillStyle = "#d4af37";
       ctx.font = "bold 14px sans-serif";
       const cleanCopy = copyText.replace(/<[^>]+>/g, "").trim();
       const displayCopy = cleanCopy.length > 55 ? cleanCopy.substring(0, 55) + "..." : cleanCopy;
       ctx.fillText(displayCopy, canvas.width / 2, canvas.height - 75);
 
-      // Draw CTA Badge
+      // CTA Badge
       ctx.fillStyle = "#ffffff";
       ctx.strokeStyle = "rgba(255,255,255,0.4)";
       ctx.lineWidth = 1.5;
-      
       const badgeWidth = 190;
       const badgeHeight = 30;
       const badgeX = canvas.width / 2 - badgeWidth / 2;
@@ -372,23 +371,19 @@ export default function VideoSpotCreator({
       ctx.fillStyle = "rgba(255,255,255,0.1)";
       ctx.fill();
 
-      // CTA Text
       ctx.fillStyle = "#ffffff";
       ctx.font = "900 11px sans-serif";
       ctx.fillText("¡CONSULTAR AHORA! 📲", canvas.width / 2, canvas.height - 29);
 
-      // DRAW CLIENT LOGO IN THE TOP-RIGHT CORNER (Circular avatar frame)
+      // Draw logo in circle frame top-right
       if (logoImg.complete && logoImg.naturalWidth > 0) {
         ctx.save();
         ctx.beginPath();
-        // Circular clip path at X = canvas.width - 32, Y = 20, Radius = 15
         ctx.arc(canvas.width - 32, 20, 15, 0, Math.PI * 2);
         ctx.clip();
-        // Draw logo centered inside the circle clip
         ctx.drawImage(logoImg, canvas.width - 47, 5, 30, 30);
         ctx.restore();
         
-        // Add a thin gold border around the circle logo
         ctx.strokeStyle = "#ffffff";
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -399,17 +394,8 @@ export default function VideoSpotCreator({
       animationFrameRef.current = requestAnimationFrame(render);
     };
 
-    img.onload = () => {
-      if (!animationFrameRef.current) {
-        render();
-      }
-    };
-    
-    if (clientLogoUrl) {
-      logoImg.onload = () => {
-        // Trigger redrawing frame with logo
-      };
-    }
+    img.onload = render;
+    if (clientLogoUrl) logoImg.onload = render;
 
     render();
 
@@ -418,23 +404,50 @@ export default function VideoSpotCreator({
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [imageUrl, title, copyText, clientName, clientLogoUrl]);
+  }, [imageUrl, title, copyText, clientName, clientLogoUrl, animationStyle, audioType, selectedTrack]);
 
-  // Clean up audio context & sequencer on unmount
+  // Clean up references
   useEffect(() => {
     return () => {
-      if (sequencerRef.current) {
-        sequencerRef.current.stop();
-      }
+      if (sequencerRef.current) sequencerRef.current.stop();
+      if (customAudioRef.current) customAudioRef.current.pause();
+      if (customAudioObjectUrl) URL.revokeObjectURL(customAudioObjectUrl);
     };
-  }, []);
+  }, [customAudioObjectUrl]);
 
-  // Handle Play/Stop preview
+  // Setup Audio Nodes dynamically
+  const setupAudioRoute = (ctx: AudioContext, targetDest: AudioNode) => {
+    if (audioType === "synth") {
+      const seq = new SynthSequencer(ctx, targetDest, selectedTrack.id);
+      sequencerRef.current = seq;
+      seq.start();
+    } else {
+      // Load custom HTML audio source node
+      const audio = customAudioRef.current;
+      if (!audio) return;
+
+      if (!customAudioSourceRef.current) {
+        customAudioSourceRef.current = ctx.createMediaElementSource(audio);
+      }
+      
+      customAudioSourceRef.current.disconnect();
+      customAudioSourceRef.current.connect(targetDest);
+
+      audio.currentTime = 0;
+      audio.loop = true;
+      audio.play().catch(e => console.error("Fallo al reproducir audio personalizado:", e));
+    }
+  };
+
+  // Toggle preview playback
   const handlePlayToggle = async () => {
     if (isPlaying) {
       if (sequencerRef.current) {
         sequencerRef.current.stop();
         sequencerRef.current = null;
+      }
+      if (customAudioRef.current) {
+        customAudioRef.current.pause();
       }
       setIsPlaying(false);
     } else {
@@ -447,27 +460,60 @@ export default function VideoSpotCreator({
       if (audioCtx.state === "suspended") {
         await audioCtx.resume();
       }
-      
-      // Connect to speakers directly
-      const seq = new SynthSequencer(audioCtx, audioCtx.destination, selectedTrack.id);
-      sequencerRef.current = seq;
-      seq.start();
+
+      setupAudioRoute(audioCtx, audioCtx.destination);
     }
   };
 
-  // Sync music track change
+  // Sync track change
   const handleTrackChange = (trackId: string) => {
     const track = MUSIC_TRACKS.find((t) => t.id === trackId);
     if (!track) return;
-    
     setSelectedTrack(track);
     
-    // Stop active preview
-    if (isPlaying && sequencerRef.current) {
-      sequencerRef.current.stop();
-      sequencerRef.current = null;
+    if (isPlaying) {
+      if (sequencerRef.current) {
+        sequencerRef.current.stop();
+        sequencerRef.current = null;
+      }
       setIsPlaying(false);
     }
+  };
+
+  // File upload change
+  const handleAudioFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (customAudioObjectUrl) {
+      URL.revokeObjectURL(customAudioObjectUrl);
+    }
+
+    const objUrl = URL.createObjectURL(file);
+    setCustomAudioObjectUrl(objUrl);
+    setAudioType("file");
+
+    if (isPlaying) {
+      if (sequencerRef.current) {
+        sequencerRef.current.stop();
+        sequencerRef.current = null;
+      }
+      setIsPlaying(false);
+    }
+  };
+
+  // Handle URL change
+  const handleAudioUrlApply = () => {
+    if (!customAudioUrl.trim()) return;
+    setAudioType("url");
+    if (isPlaying) {
+      if (sequencerRef.current) {
+        sequencerRef.current.stop();
+        sequencerRef.current = null;
+      }
+      setIsPlaying(false);
+    }
+    alert("Audio por enlace cargado correctamente. 🔗");
   };
 
   // Recording Spot logic
@@ -475,10 +521,13 @@ export default function VideoSpotCreator({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Stop active preview if playing
+    // Reset playback nodes
     if (sequencerRef.current) {
       sequencerRef.current.stop();
       sequencerRef.current = null;
+    }
+    if (customAudioRef.current) {
+      customAudioRef.current.pause();
     }
 
     setRecordingError(null);
@@ -488,10 +537,8 @@ export default function VideoSpotCreator({
     setRecordingSeconds(0);
 
     try {
-      // Capture canvas video track (30 fps)
       const canvasStream = canvas.captureStream(30);
 
-      // Set up Audio Mixing via Web Audio API
       if (!audioContextRef.current) {
         audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
@@ -501,29 +548,23 @@ export default function VideoSpotCreator({
         await audioCtx.resume();
       }
 
-      // Re-route synth sound to both stream destination and speakers
       const dest = audioCtx.createMediaStreamDestination();
-      
       const splitNode = audioCtx.createGain();
       splitNode.gain.value = 1.0;
       splitNode.connect(dest);
-      splitNode.connect(audioCtx.destination); // Direct audio to device speaker as well
+      splitNode.connect(audioCtx.destination); // Play to speaker
 
-      // Start the sequencer
-      const seq = new SynthSequencer(audioCtx, splitNode, selectedTrack.id);
-      sequencerRef.current = seq;
-      seq.start();
+      // Play audio loop matching routing
+      setupAudioRoute(audioCtx, splitNode);
       setIsPlaying(true);
 
-      // Combine video and audio tracks
+      // Mix tracks
       const combinedStream = new MediaStream();
       canvasStream.getVideoTracks().forEach((track) => combinedStream.addTrack(track));
       dest.stream.getAudioTracks().forEach((track) => combinedStream.addTrack(track));
 
-      // Set up MediaRecorder
       const options = { mimeType: "video/webm;codecs=vp9" };
       let recorder: MediaRecorder;
-      
       try {
         recorder = new MediaRecorder(combinedStream, options);
       } catch (e) {
@@ -540,16 +581,19 @@ export default function VideoSpotCreator({
         setVideoBlob(finalBlob);
         setIsRecording(false);
         setIsPlaying(false);
+        
         if (sequencerRef.current) {
           sequencerRef.current.stop();
           sequencerRef.current = null;
+        }
+        if (customAudioRef.current) {
+          customAudioRef.current.pause();
         }
       };
 
       mediaRecorderRef.current = recorder;
       recorder.start();
 
-      // Setup countdown interval
       let elapsed = 0;
       const interval = setInterval(() => {
         elapsed += 1;
@@ -570,7 +614,6 @@ export default function VideoSpotCreator({
     }
   };
 
-  // Download locally
   const handleDownload = () => {
     if (!videoBlob) return;
     const url = URL.createObjectURL(videoBlob);
@@ -583,7 +626,6 @@ export default function VideoSpotCreator({
     URL.revokeObjectURL(url);
   };
 
-  // Auto-upload spot video to Supabase and assign to form
   const handleUploadToCampaign = async () => {
     if (!videoBlob) return;
     setUploading(true);
@@ -613,7 +655,7 @@ export default function VideoSpotCreator({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4 backdrop-blur-md animate-fade-in">
-      <div className="bg-[#111622] border border-white/10 rounded-2xl max-w-2xl w-full p-5 sm:p-6 space-y-5 relative shadow-[0_0_50px_rgba(168,85,247,0.15)] max-h-[90vh] overflow-y-auto font-sans">
+      <div className="bg-[#111622] border border-white/10 rounded-2xl max-w-2xl w-full p-5 sm:p-6 space-y-5 relative shadow-[0_0_50px_rgba(168,85,247,0.15)] max-h-[90vh] overflow-y-auto font-sans text-white">
         
         {/* Close Button */}
         <button
@@ -623,23 +665,23 @@ export default function VideoSpotCreator({
           <X className="w-6 h-6" />
         </button>
 
+        {/* Custom audio player (off-screen) */}
+        <audio
+          ref={customAudioRef}
+          src={audioType === "file" ? (customAudioObjectUrl || "") : customAudioUrl}
+          crossOrigin="anonymous"
+          className="hidden"
+        />
+
         {/* Header */}
         <div className="flex items-center gap-2 border-b border-white/10 pb-3">
           <Film className="text-purple-400 w-5 h-5" />
           <h3 className="text-lg font-bold text-white uppercase tracking-wider">Creador de Spot de Video</h3>
         </div>
 
-        {/* Info card */}
-        <div className="bg-purple-950/20 border border-purple-500/20 rounded-xl p-3 text-xs text-purple-200 flex items-start gap-2">
-          <Info className="w-4 h-4 shrink-0 text-purple-400 mt-0.5" />
-          <p>
-            Generaremos un video de 10 segundos animando la imagen promocional y superponiendo los textos y logo del cliente. El audio sintetizado ha sido mejorado para escucharse fuerte y claro en dispositivos móviles.
-          </p>
-        </div>
-
         {/* Main Canvas preview */}
         <div className="flex justify-center w-full">
-          <div className="relative aspect-video w-full max-w-[500px] rounded-xl overflow-hidden border border-white/10 bg-black shadow-inner">
+          <div className="relative aspect-video w-full max-w-[480px] rounded-xl overflow-hidden border border-white/10 bg-black shadow-inner">
             <canvas
               ref={canvasRef}
               width={640}
@@ -655,94 +697,189 @@ export default function VideoSpotCreator({
           </div>
         </div>
 
-        {/* Controls Layout */}
+        {/* Controls Layout Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           
-          {/* Audio selection list */}
-          <div className="space-y-2">
+          {/* Column 1: Audio Selection */}
+          <div className="space-y-3">
             <label className="text-xs font-bold text-[var(--color-brand-accent)] uppercase tracking-wide flex items-center gap-1">
-              <Volume2 className="w-3.5 h-3.5" /> Estilo de Música (Sintetizador Potenciado)
+              <Volume2 className="w-3.5 h-3.5" /> Configurar Audio del Spot
             </label>
-            <div className="space-y-1.5">
-              {MUSIC_TRACKS.map((track) => (
-                <button
-                  key={track.id}
-                  disabled={isRecording}
-                  onClick={() => handleTrackChange(track.id)}
-                  className={`w-full text-left text-xs px-3.5 py-2.5 rounded-lg border font-bold transition-all cursor-pointer ${
-                    selectedTrack.id === track.id
-                      ? "bg-purple-600/20 border-purple-500 text-white shadow-md"
-                      : "bg-white/5 border-white/5 text-gray-400 hover:text-white hover:bg-white/10"
-                  }`}
-                >
-                  {track.name}
-                </button>
-              ))}
-            </div>
-          </div>
 
-          {/* Action buttons */}
-          <div className="flex flex-col justify-end gap-2.5">
-            {recordingError && (
-              <p className="text-red-400 text-xs font-bold mb-1 text-center">{recordingError}</p>
+            {/* Audio Mode Tabs */}
+            <div className="flex bg-black/40 border border-white/10 p-0.5 rounded-lg text-[10px] font-bold uppercase">
+              <button
+                type="button"
+                onClick={() => setAudioType("synth")}
+                className={`flex-1 py-1.5 rounded transition-all cursor-pointer ${audioType === "synth" ? "bg-purple-600 text-white" : "text-gray-400 hover:text-white"}`}
+              >
+                Sintetizador
+              </button>
+              <button
+                type="button"
+                onClick={() => setAudioType("file")}
+                className={`flex-1 py-1.5 rounded transition-all cursor-pointer ${audioType === "file" ? "bg-purple-600 text-white" : "text-gray-400 hover:text-white"}`}
+              >
+                Subir MP3
+              </button>
+              <button
+                type="button"
+                onClick={() => setAudioType("url")}
+                className={`flex-1 py-1.5 rounded transition-all cursor-pointer ${audioType === "url" ? "bg-purple-600 text-white" : "text-gray-400 hover:text-white"}`}
+              >
+                Pegar Link
+              </button>
+            </div>
+
+            {/* Tab: Synth */}
+            {audioType === "synth" && (
+              <div className="space-y-1.5 animate-fade-in">
+                {MUSIC_TRACKS.map((track) => (
+                  <button
+                    key={track.id}
+                    disabled={isRecording}
+                    onClick={() => handleTrackChange(track.id)}
+                    className={`w-full text-left text-[11px] px-3 py-2 rounded-lg border font-bold transition-all cursor-pointer ${
+                      selectedTrack.id === track.id
+                        ? "bg-purple-600/20 border-purple-500 text-white shadow-md"
+                        : "bg-white/5 border-white/5 text-gray-400 hover:text-white hover:bg-white/10"
+                    }`}
+                  >
+                    {track.name}
+                  </button>
+                ))}
+              </div>
             )}
 
-            {/* Preview and Record Buttons */}
-            <div className="flex gap-2">
-              <button
-                onClick={handlePlayToggle}
-                disabled={isRecording}
-                className="flex-1 bg-white/5 hover:bg-white/10 text-white border border-white/10 py-3 rounded-xl transition-all font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
-              >
-                {isPlaying ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4 text-purple-400" />}
-                {isPlaying ? "Detener" : "Preescuchar"}
-              </button>
+            {/* Tab: Upload File */}
+            {audioType === "file" && (
+              <div className="space-y-2 animate-fade-in">
+                <p className="text-[10px] text-gray-400">Sube una canción local (MP3 o WAV) recomendada por tu cliente:</p>
+                <label className="flex items-center justify-center gap-2 border border-dashed border-white/20 hover:border-purple-500 bg-white/5 hover:bg-white/10 rounded-lg p-3 text-xs text-gray-300 font-bold transition-all cursor-pointer">
+                  <Upload className="w-4 h-4 text-purple-400" />
+                  {customAudioObjectUrl ? "Archivo Cargado Correctamente" : "Seleccionar Archivo de Música"}
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    onChange={handleAudioFileChange}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            )}
 
-              <button
-                onClick={handleStartRecording}
-                disabled={isRecording}
-                className={`flex-1 text-white py-3 rounded-xl transition-all font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 cursor-pointer ${
-                  isRecording 
-                    ? "bg-red-700 cursor-not-allowed" 
-                    : "bg-purple-600 hover:bg-purple-500 shadow-lg shadow-purple-600/15"
-                }`}
-              >
-                <Film className="w-4 h-4" />
-                {isRecording ? "Grabando..." : "Grabar Spot"}
-              </button>
-            </div>
-
-            {/* Download and Save actions */}
-            {videoBlob && !isRecording && (
-              <div className="flex gap-2 animate-slide-up">
-                <button
-                  onClick={handleDownload}
-                  className="flex-1 bg-indigo-600/30 hover:bg-indigo-600/40 text-white border border-indigo-500/30 py-3 rounded-xl transition-all font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
-                >
-                  <Download className="w-4 h-4" />
-                  Descargar Spot
-                </button>
-
-                <button
-                  onClick={handleUploadToCampaign}
-                  disabled={uploading || success}
-                  className={`flex-1 text-black font-black py-3 rounded-xl transition-all text-xs uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 cursor-pointer ${
-                    success
-                      ? "bg-green-500 hover:bg-green-600"
-                      : "bg-[var(--color-brand-accent)] hover:bg-[var(--color-brand-accent-hover)]"
-                  }`}
-                >
-                  {success ? <CheckCircle2 className="w-4 h-4" /> : <UploadCloud className="w-4 h-4" />}
-                  {uploading ? "Subiendo..." : success ? "Vinculado con éxito" : "Vincular a Campaña"}
-                </button>
+            {/* Tab: URL Link */}
+            {audioType === "url" && (
+              <div className="space-y-2 animate-fade-in">
+                <p className="text-[10px] text-gray-400">Pega un enlace directo a un archivo de audio streaming:</p>
+                <div className="flex gap-1.5">
+                  <input
+                    type="url"
+                    value={customAudioUrl}
+                    onChange={(e) => setCustomAudioUrl(e.target.value)}
+                    placeholder="https://ejemplo.com/musica.mp3"
+                    className="flex-grow bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-purple-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAudioUrlApply}
+                    className="bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                  >
+                    Cargar
+                  </button>
+                </div>
               </div>
             )}
           </div>
+
+          {/* Column 2: Animation & Actions */}
+          <div className="space-y-3 flex flex-col justify-between">
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-[var(--color-brand-accent)] uppercase tracking-wide flex items-center gap-1">
+                <Layers className="w-3.5 h-3.5" /> Animación del Fondo
+              </label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {ANIMATION_STYLES.map((style) => (
+                  <button
+                    key={style.id}
+                    disabled={isRecording}
+                    onClick={() => setAnimationStyle(style.id)}
+                    className={`text-[10px] px-2 py-2 rounded-lg border font-bold text-center transition-all cursor-pointer ${
+                      animationStyle === style.id
+                        ? "bg-indigo-600/25 border-indigo-500 text-white shadow-md"
+                        : "bg-white/5 border-white/5 text-gray-400 hover:text-white hover:bg-white/10"
+                    }`}
+                  >
+                    {style.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Actions block */}
+            <div className="space-y-2 pt-4">
+              {recordingError && (
+                <p className="text-red-400 text-xs font-bold text-center">{recordingError}</p>
+              )}
+
+              {/* Play & Record Buttons */}
+              <div className="flex gap-2">
+                <button
+                  onClick={handlePlayToggle}
+                  disabled={isRecording}
+                  className="flex-1 bg-white/5 hover:bg-white/10 text-white border border-white/10 py-2.5 rounded-xl transition-all font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                >
+                  {isPlaying ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4 text-purple-400" />}
+                  {isPlaying ? "Detener" : "Preescuchar"}
+                </button>
+
+                <button
+                  onClick={handleStartRecording}
+                  disabled={isRecording}
+                  className={`flex-1 text-white py-2.5 rounded-xl transition-all font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer active:scale-95 ${
+                    isRecording 
+                      ? "bg-red-700 cursor-not-allowed" 
+                      : "bg-purple-600 hover:bg-purple-500 shadow-lg shadow-purple-600/15"
+                  }`}
+                >
+                  <Film className="w-4 h-4" />
+                  {isRecording ? "Grabando..." : "Grabar Spot"}
+                </button>
+              </div>
+
+              {/* Save & Download Options */}
+              {videoBlob && !isRecording && (
+                <div className="flex gap-2 animate-slide-up">
+                  <button
+                    onClick={handleDownload}
+                    className="flex-1 bg-indigo-600/30 hover:bg-indigo-600/40 text-white border border-indigo-500/30 py-2.5 rounded-xl transition-all font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                  >
+                    <Download className="w-4 h-4" />
+                    Descargar Spot
+                  </button>
+
+                  <button
+                    onClick={handleUploadToCampaign}
+                    disabled={uploading || success}
+                    className={`flex-1 text-black font-black py-2.5 rounded-xl transition-all text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer active:scale-95 ${
+                      success
+                        ? "bg-green-500 hover:bg-green-600"
+                        : "bg-[var(--color-brand-accent)] hover:bg-[var(--color-brand-accent-hover)]"
+                    }`}
+                  >
+                    {success ? <CheckCircle2 className="w-4 h-4" /> : <UploadCloud className="w-4 h-4" />}
+                    {uploading ? "Subiendo..." : success ? "Vinculado con éxito" : "Vincular a Campaña"}
+                  </button>
+                </div>
+              )}
+            </div>
+
+          </div>
         </div>
 
-        {/* Form success banner */}
+        {/* success banner */}
         {success && (
-          <div className="bg-green-500/15 border border-green-500/25 p-3 rounded-xl text-center text-xs text-green-300 font-bold animate-fade-in flex items-center justify-center gap-2 mt-4 font-sans">
+          <div className="bg-green-500/15 border border-green-500/25 p-3 rounded-xl text-center text-xs text-green-300 font-bold animate-fade-in flex items-center justify-center gap-2 font-sans">
             <CheckCircle2 className="w-4.5 h-4.5 text-green-400" />
             ¡El video ha sido subido y vinculado a tu formulario! Puedes guardar la campaña ahora.
           </div>
