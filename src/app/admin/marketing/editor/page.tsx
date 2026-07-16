@@ -32,6 +32,10 @@ export default function MarketingEditorPage() {
     status: "draft"
   });
 
+  const [sponsors, setSponsors] = useState<any[]>([]);
+  const [selectedSponsorId, setSelectedSponsorId] = useState("");
+  const [clientLogoUrl, setClientLogoUrl] = useState("");
+
   const supabase = getSupabaseBrowserClient();
 
   useEffect(() => {
@@ -44,8 +48,14 @@ export default function MarketingEditorPage() {
     }
     checkRole();
 
-    if (id) {
-      async function fetchCampaign() {
+    async function loadData() {
+      // 1. Fetch all sponsors
+      const { data: sponsorData } = await supabase.from("sponsors").select("id, name, logo_url, slogan, category").order("name");
+      const loadedSponsors = sponsorData || [];
+      setSponsors(loadedSponsors);
+
+      // 2. Fetch campaign if editing
+      if (id) {
         const { data, error } = await supabase.from("marketing_campaigns").select("*").eq("id", id).single();
         if (data && !error) {
           setFormData({
@@ -56,15 +66,48 @@ export default function MarketingEditorPage() {
             target_audience: data.target_audience || "",
             status: data.status
           });
+
+          // Match sponsor by name
+          const matched = loadedSponsors.find(s => s.name.toLowerCase() === data.client_name.toLowerCase());
+          if (matched) {
+            setSelectedSponsorId(matched.id);
+            setClientLogoUrl(matched.logo_url || "");
+          }
         }
         setFetching(false);
       }
-      fetchCampaign();
     }
+    loadData();
   }, [id]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleSponsorChange = (sponsorId: string) => {
+    setSelectedSponsorId(sponsorId);
+    if (sponsorId === "") {
+      setClientLogoUrl("");
+      return;
+    }
+
+    const sp = sponsors.find(s => s.id === sponsorId);
+    if (sp) {
+      setFormData(prev => ({
+        ...prev,
+        client_name: sp.name,
+        target_audience: sp.slogan ? `Clientes interesados en ${sp.name}: ${sp.slogan}` : prev.target_audience
+      }));
+      setClientLogoUrl(sp.logo_url || "");
+    }
+  };
+
+  const getBriefForNora = () => {
+    const selectedSponsor = sponsors.find(s => s.id === selectedSponsorId);
+    if (selectedSponsor) {
+      return `[Cliente Registrado: ${selectedSponsor.name}, Rubro/Categoría: ${selectedSponsor.category}, Eslogan: ${selectedSponsor.slogan || "No especificado"}]. Idea base de la campaña del usuario: ${formData.content}`;
+    }
+    return formData.content;
   };
 
   const handleApplyNoraChanges = (newTitle: string, newContent: string, prompt?: string) => {
@@ -218,15 +261,29 @@ export default function MarketingEditorPage() {
         <form id="marketing-form" onSubmit={(e) => handleSave(e, false)} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase">Nombre del Cliente / Marca</label>
+              <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase">Cliente / Marca</label>
+              
+              <select
+                value={selectedSponsorId}
+                onChange={(e) => handleSponsorChange(e.target.value)}
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)] mb-2 text-xs cursor-pointer"
+              >
+                <option value="">-- Seleccionar Cliente Registrado --</option>
+                {sponsors.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.category})
+                  </option>
+                ))}
+              </select>
+
               <input
                 type="text"
                 name="client_name"
                 required
                 value={formData.client_name}
                 onChange={handleChange}
-                className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)]"
-                placeholder="Ej: Zapatería El Sol"
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)] text-xs"
+                placeholder="O escribe un nombre de cliente personalizado"
               />
             </div>
             <div>
@@ -373,7 +430,7 @@ export default function MarketingEditorPage() {
         <div className="sticky top-8">
           <NoraAssistant 
             title={formData.campaign_name}
-            content={formData.content}
+            content={getBriefForNora()}
             operatorName={operatorRole}
             onApplyChanges={handleApplyNoraChanges}
             onPublishDirectly={handlePublishDirectly}
@@ -390,6 +447,7 @@ export default function MarketingEditorPage() {
           title={formData.campaign_name}
           copyText={formData.content}
           clientName={formData.client_name}
+          clientLogoUrl={clientLogoUrl}
           onUploadFinished={(url) => {
             setFormData(prev => ({ ...prev, image_url: url }));
           }}

@@ -10,6 +10,7 @@ interface VideoSpotCreatorProps {
   title: string;
   copyText: string;
   clientName: string;
+  clientLogoUrl?: string;
   onUploadFinished: (url: string) => void;
   onClose: () => void;
 }
@@ -17,15 +18,15 @@ interface VideoSpotCreatorProps {
 const MUSIC_TRACKS = [
   {
     id: "motivador",
-    name: "Motivador & Tecnológico 🎶",
+    name: "Comercial Energético 🔥 (Dance Beat)",
   },
   {
     id: "alegre",
-    name: "Alegre & Comercial 📈",
+    name: "Moderno & Corporativo 📈 (Pop/Groove)",
   },
   {
     id: "acustico",
-    name: "Acústico Relajante 🍃",
+    name: "Ambiental Relajante 🍃 (Chill/Bell)",
   },
 ];
 
@@ -36,15 +37,28 @@ class SynthSequencer {
   private type: string;
   private intervalId: any = null;
   private step = 0;
+  private noiseBuffer: AudioBuffer | null = null;
 
   constructor(ctx: AudioContext, dest: AudioNode, type: string) {
     this.ctx = ctx;
     this.dest = dest;
     this.type = type;
+    this.initNoiseBuffer();
+  }
+
+  // Pre-generate a white noise buffer for snare and hi-hats
+  private initNoiseBuffer() {
+    const bufferSize = this.ctx.sampleRate * 0.35; // 350ms of noise
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+    this.noiseBuffer = buffer;
   }
 
   start() {
-    const tempo = this.type === "acustico" ? 75 : this.type === "alegre" ? 105 : 125;
+    const tempo = this.type === "acustico" ? 80 : this.type === "alegre" ? 108 : 125;
     const stepDuration = 60 / tempo / 2; // eighth notes
     let nextNoteTime = this.ctx.currentTime;
 
@@ -69,25 +83,78 @@ class SynthSequencer {
     const ctx = this.ctx;
     const dest = this.dest;
 
-    // 1. Kick/Drum Beat (except for acoustic tracks)
-    if (this.type !== "acustico" && step % 4 === 0) {
+    // 1. Kick/Drum Beat (Punchy lowpass envelope) - 1 & 3 beats for tech, simple tap for acoustic
+    if (this.type !== "acustico" && (step % 4 === 0)) {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       
-      osc.frequency.setValueAtTime(150, time);
-      osc.frequency.exponentialRampToValueAtTime(0.01, time + 0.12);
+      osc.frequency.setValueAtTime(160, time);
+      osc.frequency.exponentialRampToValueAtTime(0.01, time + 0.15);
       
-      gain.gain.setValueAtTime(0.25, time);
-      gain.gain.exponentialRampToValueAtTime(0.001, time + 0.12);
+      gain.gain.setValueAtTime(0.85, time); // High volume punch
+      gain.gain.exponentialRampToValueAtTime(0.001, time + 0.15);
       
       osc.connect(gain);
       gain.connect(dest);
       
       osc.start(time);
-      osc.stop(time + 0.15);
+      osc.stop(time + 0.18);
     }
 
-    // 2. Chords / Melodies
+    // 2. Synthesized Snare Drum (White Noise + transient sine block) on beats 2 & 4
+    if (this.type !== "acustico" && step % 4 === 2 && this.noiseBuffer) {
+      // Noise component
+      const noiseSource = ctx.createBufferSource();
+      noiseSource.buffer = this.noiseBuffer;
+      
+      const filter = ctx.createBiquadFilter();
+      filter.type = "bandpass";
+      filter.frequency.setValueAtTime(1000, time);
+      
+      const noiseGain = ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.45, time);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 0.18);
+      
+      noiseSource.connect(filter);
+      filter.connect(noiseGain);
+      noiseGain.connect(dest);
+      noiseSource.start(time);
+
+      // Tone component
+      const osc = ctx.createOscillator();
+      const toneGain = ctx.createGain();
+      osc.frequency.setValueAtTime(180, time);
+      osc.frequency.linearRampToValueAtTime(100, time + 0.1);
+      
+      toneGain.gain.setValueAtTime(0.25, time);
+      toneGain.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
+      
+      osc.connect(toneGain);
+      toneGain.connect(dest);
+      osc.start(time);
+      osc.stop(time + 0.12);
+    }
+
+    // 3. Synthesized Hi-hat (Highpass filtered noise) on offbeats (odd steps)
+    if (this.type !== "acustico" && step % 2 === 1 && this.noiseBuffer) {
+      const noiseSource = ctx.createBufferSource();
+      noiseSource.buffer = this.noiseBuffer;
+      
+      const filter = ctx.createBiquadFilter();
+      filter.type = "highpass";
+      filter.frequency.setValueAtTime(7500, time);
+      
+      const hatGain = ctx.createGain();
+      hatGain.gain.setValueAtTime(0.12, time);
+      hatGain.gain.exponentialRampToValueAtTime(0.001, time + 0.05); // very short snap
+      
+      noiseSource.connect(filter);
+      filter.connect(hatGain);
+      hatGain.connect(dest);
+      noiseSource.start(time);
+    }
+
+    // 4. Bass & Chords (pentatonic progressions)
     const chords = {
       motivador: [
         [220, 261.63, 329.63], // Am
@@ -120,7 +187,7 @@ class SynthSequencer {
       const gain = ctx.createGain();
       osc.type = "triangle";
       osc.frequency.setValueAtTime(bassFreq, time);
-      gain.gain.setValueAtTime(0.18, time);
+      gain.gain.setValueAtTime(0.55, time); // 3x Louder
       gain.gain.exponentialRampToValueAtTime(0.01, time + 0.8);
       osc.connect(gain);
       gain.connect(dest);
@@ -130,21 +197,23 @@ class SynthSequencer {
 
     // Play melody arpeggios
     if (this.type === "acustico") {
+      // Gentle sine pluck
       if (step % 2 === 0) {
         const note = currentChord[step % currentChord.length];
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = "sine";
         osc.frequency.setValueAtTime(note, time);
-        gain.gain.setValueAtTime(0.04, time);
-        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.5);
+        gain.gain.setValueAtTime(0.12, time); // 3x Louder
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.65);
         osc.connect(gain);
         gain.connect(dest);
         osc.start(time);
-        osc.stop(time + 0.6);
+        osc.stop(time + 0.75);
       }
     } else {
-      if (step % 2 !== 0 && Math.random() > 0.4) {
+      // Catchy synth melody line
+      if (step % 2 !== 0 && Math.random() > 0.3) {
         const note = currentChord[Math.floor(Math.random() * currentChord.length)] * (step % 3 === 0 ? 2 : 1);
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
@@ -161,11 +230,11 @@ class SynthSequencer {
           osc.connect(gain);
         }
         
-        gain.gain.setValueAtTime(0.02, time);
-        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.25);
+        gain.gain.setValueAtTime(0.12, time); // 6x Louder than original
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.3);
         gain.connect(dest);
         osc.start(time);
-        osc.stop(time + 0.3);
+        osc.stop(time + 0.35);
       }
     }
   }
@@ -176,6 +245,7 @@ export default function VideoSpotCreator({
   title,
   copyText,
   clientName,
+  clientLogoUrl,
   onUploadFinished,
   onClose,
 }: VideoSpotCreatorProps) {
@@ -204,10 +274,17 @@ export default function VideoSpotCreator({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Load image
+    // Load background image
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.src = imageUrl || "/banner-nexativa.jpg";
+
+    // Load client logo image if available
+    const logoImg = new Image();
+    if (clientLogoUrl) {
+      logoImg.crossOrigin = "anonymous";
+      logoImg.src = clientLogoUrl;
+    }
 
     let startTime = Date.now();
 
@@ -255,11 +332,11 @@ export default function VideoSpotCreator({
       ctx.fillStyle = "#000000";
       ctx.font = "bold 14px sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText(`${clientName.toUpperCase()} • SPOT PUBLICITARIO`, canvas.width / 2, 25);
+      ctx.fillText(`${clientName.toUpperCase()} • SPOT PUBLICITARIO`, canvas.width / 2 - 20, 25);
 
       // DRAW TRANSPARENT DARK CONTAINER BOX BEHIND THE TEXT BLOCK
       // This prevents the background image details from clashing with the text readability.
-      ctx.fillStyle = "rgba(0, 0, 0, 0.78)";
+      ctx.fillStyle = "rgba(0, 0, 0, 0.82)";
       ctx.beginPath();
       // Y: 210, Height: 138 -> Spans from Y=210 to Y=348 (leaves 12px padding at the bottom of the canvas)
       ctx.roundRect?.(20, canvas.height - 150, canvas.width - 40, 138, 16);
@@ -300,6 +377,25 @@ export default function VideoSpotCreator({
       ctx.font = "900 11px sans-serif";
       ctx.fillText("¡CONSULTAR AHORA! 📲", canvas.width / 2, canvas.height - 29);
 
+      // DRAW CLIENT LOGO IN THE TOP-RIGHT CORNER (Circular avatar frame)
+      if (logoImg.complete && logoImg.naturalWidth > 0) {
+        ctx.save();
+        ctx.beginPath();
+        // Circular clip path at X = canvas.width - 32, Y = 20, Radius = 15
+        ctx.arc(canvas.width - 32, 20, 15, 0, Math.PI * 2);
+        ctx.clip();
+        // Draw logo centered inside the circle clip
+        ctx.drawImage(logoImg, canvas.width - 47, 5, 30, 30);
+        ctx.restore();
+        
+        // Add a thin gold border around the circle logo
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(canvas.width - 32, 20, 15, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
       animationFrameRef.current = requestAnimationFrame(render);
     };
 
@@ -308,6 +404,12 @@ export default function VideoSpotCreator({
         render();
       }
     };
+    
+    if (clientLogoUrl) {
+      logoImg.onload = () => {
+        // Trigger redrawing frame with logo
+      };
+    }
 
     render();
 
@@ -316,7 +418,7 @@ export default function VideoSpotCreator({
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [imageUrl, title, copyText, clientName]);
+  }, [imageUrl, title, copyText, clientName, clientLogoUrl]);
 
   // Clean up audio context & sequencer on unmount
   useEffect(() => {
@@ -531,7 +633,7 @@ export default function VideoSpotCreator({
         <div className="bg-purple-950/20 border border-purple-500/20 rounded-xl p-3 text-xs text-purple-200 flex items-start gap-2">
           <Info className="w-4 h-4 shrink-0 text-purple-400 mt-0.5" />
           <p>
-            Generaremos un video de 10 segundos animando la imagen promocional con efectos de cámara y superposición del copy de venta. El audio es sintetizado en tiempo real en tu navegador para evitar errores y retrasos.
+            Generaremos un video de 10 segundos animando la imagen promocional y superponiendo los textos y logo del cliente. El audio sintetizado ha sido mejorado para escucharse fuerte y claro en dispositivos móviles.
           </p>
         </div>
 
@@ -559,7 +661,7 @@ export default function VideoSpotCreator({
           {/* Audio selection list */}
           <div className="space-y-2">
             <label className="text-xs font-bold text-[var(--color-brand-accent)] uppercase tracking-wide flex items-center gap-1">
-              <Volume2 className="w-3.5 h-3.5" /> Estilo de Música (Sintetizador)
+              <Volume2 className="w-3.5 h-3.5" /> Estilo de Música (Sintetizador Potenciado)
             </label>
             <div className="space-y-1.5">
               {MUSIC_TRACKS.map((track) => (
@@ -567,7 +669,7 @@ export default function VideoSpotCreator({
                   key={track.id}
                   disabled={isRecording}
                   onClick={() => handleTrackChange(track.id)}
-                  className={`w-full text-left text-xs px-3.5 py-2.5 rounded-lg border font-bold transition-all ${
+                  className={`w-full text-left text-xs px-3.5 py-2.5 rounded-lg border font-bold transition-all cursor-pointer ${
                     selectedTrack.id === track.id
                       ? "bg-purple-600/20 border-purple-500 text-white shadow-md"
                       : "bg-white/5 border-white/5 text-gray-400 hover:text-white hover:bg-white/10"
