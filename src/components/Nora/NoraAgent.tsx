@@ -12,7 +12,7 @@ export default function NoraAgent() {
   const currentHoveredContext = useRef<string | null>(null);
   const hasTriggeredBottom = useRef<boolean>(false);
 
-  if (pathname?.startsWith("/admin")) {
+  if (pathname?.startsWith("/admin") || pathname?.startsWith("/corresponsal-movil")) {
     return null;
   }
 
