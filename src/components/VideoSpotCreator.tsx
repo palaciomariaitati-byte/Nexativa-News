@@ -17,7 +17,7 @@ interface VideoSpotCreatorProps {
 
 const MUSIC_TRACKS = [
   { id: "motivador", name: "Comercial Energético 🔥 (Dance)", bpm: 125 },
-  { id: "alegre", name: "Moderno & Corporativo 📈 (Pop/Groove)", bpm: 108 },
+  { id: "alegre", name: "Moderno & Comercial 📈 (Pop/Groove)", bpm: 108 },
   { id: "acustico", name: "Ambiental Relajante 🍃 (Chill/Bell)", bpm: 80 },
 ];
 
@@ -319,76 +319,89 @@ export default function VideoSpotCreator({
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
 
-      // Draw dark overlay gradient
-      const shadowGrad = ctx.createLinearGradient(0, canvas.height * 0.4, 0, canvas.height);
-      shadowGrad.addColorStop(0, "rgba(0,0,0,0)");
-      shadowGrad.addColorStop(0.5, "rgba(0,0,0,0.6)");
-      shadowGrad.addColorStop(1, "rgba(0,0,0,0.9)");
-      ctx.fillStyle = shadowGrad;
-      ctx.fillRect(0, canvas.height * 0.4, canvas.width, canvas.height * 0.6);
-
-      // Draw top header brand ribbon
-      ctx.fillStyle = "rgba(212, 175, 55, 0.9)";
-      ctx.fillRect(0, 0, canvas.width, 40);
-
-      ctx.fillStyle = "#000000";
-      ctx.font = "bold 14px sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText(`${clientName.toUpperCase()} • SPOT PUBLICITARIO`, canvas.width / 2 - 20, 25);
-
-      // Draw dark translucent box
+      // Draw top header brand ribbon (Dark Translucent bar with gold bottom line)
       ctx.fillStyle = "rgba(0, 0, 0, 0.82)";
-      ctx.beginPath();
-      ctx.roundRect?.(20, canvas.height - 150, canvas.width - 40, 138, 16);
-      ctx.fill();
-
-      // Headline text
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 24px sans-serif";
-      ctx.textAlign = "center";
-      const displayTitle = title.length > 35 ? title.substring(0, 35) + "..." : title;
-      ctx.fillText(displayTitle, canvas.width / 2, canvas.height - 110);
-
-      // Slogan copy
+      ctx.fillRect(0, 0, canvas.width, 42);
       ctx.fillStyle = "#d4af37";
-      ctx.font = "bold 14px sans-serif";
-      const cleanCopy = copyText.replace(/<[^>]+>/g, "").trim();
-      const displayCopy = cleanCopy.length > 55 ? cleanCopy.substring(0, 55) + "..." : cleanCopy;
-      ctx.fillText(displayCopy, canvas.width / 2, canvas.height - 75);
+      ctx.fillRect(0, 41, canvas.width, 1.5);
 
-      // CTA Badge
+      // Client name on left
       ctx.fillStyle = "#ffffff";
-      ctx.strokeStyle = "rgba(255,255,255,0.4)";
-      ctx.lineWidth = 1.5;
-      const badgeWidth = 190;
-      const badgeHeight = 30;
-      const badgeX = canvas.width / 2 - badgeWidth / 2;
-      const badgeY = canvas.height - 48;
-      
-      ctx.beginPath();
-      ctx.roundRect?.(badgeX, badgeY, badgeWidth, badgeHeight, 8);
-      ctx.stroke();
-      ctx.fillStyle = "rgba(255,255,255,0.1)";
-      ctx.fill();
+      ctx.font = "bold 13px sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillText(`📣  ${clientName.toUpperCase()}`, 15, 22);
 
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "900 11px sans-serif";
-      ctx.fillText("¡CONSULTAR AHORA! 📲", canvas.width / 2, canvas.height - 29);
+      // Pulsing CTA Badge on right inside top bar (green WhatsApp styling)
+      ctx.save();
+      ctx.textAlign = "right";
+      const ctaPulse = 1 + Math.abs(Math.sin(elapsed * Math.PI * 1.5)) * 0.04;
+      ctx.fillStyle = "#22c55e"; // Success green
+      ctx.font = `bold ${Math.floor(11 * ctaPulse)}px sans-serif`;
+      ctx.fillText("¡CONSULTAR AHORA! 📲", canvas.width - 60, 22);
+      ctx.restore();
 
-      // Draw logo in circle frame top-right
+      // Draw logo in circle frame top-right (on the bar)
       if (logoImg.complete && logoImg.naturalWidth > 0) {
         ctx.save();
         ctx.beginPath();
-        ctx.arc(canvas.width - 32, 20, 15, 0, Math.PI * 2);
+        ctx.arc(canvas.width - 32, 21, 15, 0, Math.PI * 2);
         ctx.clip();
-        ctx.drawImage(logoImg, canvas.width - 47, 5, 30, 30);
+        ctx.drawImage(logoImg, canvas.width - 47, 6, 30, 30);
         ctx.restore();
         
         ctx.strokeStyle = "#ffffff";
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.arc(canvas.width - 32, 20, 15, 0, Math.PI * 2);
+        ctx.arc(canvas.width - 32, 21, 15, 0, Math.PI * 2);
         ctx.stroke();
+      }
+
+      // Main Campaign Title Overlay in middle-bottom
+      // Rendered with thick black outline for 100% legibility on any image without dark blocks!
+      ctx.save();
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#ffffff";
+      ctx.strokeStyle = "#000000";
+      ctx.lineWidth = 5;
+      ctx.font = "900 32px sans-serif";
+      const displayTitle = title.toUpperCase();
+      ctx.strokeText(displayTitle, canvas.width / 2, canvas.height - 75);
+      ctx.fillText(displayTitle, canvas.width / 2, canvas.height - 75);
+      ctx.restore();
+
+      // TELEVISION-STYLE NEWS TICKER (Scrolling Text Marquee)
+      // Only occupies 35px at the bottom of the canvas, keeping the graphic image completely visible.
+      const tickerHeight = 35;
+      const tickerY = canvas.height - tickerHeight;
+
+      // Dark translucent ticker background
+      ctx.fillStyle = "rgba(0, 0, 0, 0.78)";
+      ctx.fillRect(0, tickerY, canvas.width, tickerHeight);
+
+      // Gold top accent border for ticker
+      ctx.fillStyle = "#d4af37";
+      ctx.fillRect(0, tickerY, canvas.width, 1.5);
+
+      // Render scrolling text
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 13px sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+
+      const cleanCopy = copyText.replace(/<[^>]+>/g, "").trim();
+      const tickerText = `✦  ${cleanCopy}  ✦  ¡PREGUNTANOS POR NUESTRAS PROMOCIONES!  ✦  ${displayTitle}  ✦  `;
+      const textWidth = ctx.measureText(tickerText).width;
+
+      const speed = 70; // 70px per second
+      const totalWidth = textWidth + canvas.width;
+      const xOffset = canvas.width - (elapsed * speed) % totalWidth;
+
+      ctx.fillText(tickerText, xOffset, tickerY + tickerHeight / 2);
+      // Seamless loop offset
+      if (xOffset + textWidth < canvas.width) {
+        ctx.fillText(tickerText, xOffset + textWidth, tickerY + tickerHeight / 2);
       }
 
       animationFrameRef.current = requestAnimationFrame(render);
@@ -422,7 +435,6 @@ export default function VideoSpotCreator({
       sequencerRef.current = seq;
       seq.start();
     } else {
-      // Load custom HTML audio source node
       const audio = customAudioRef.current;
       if (!audio) return;
 
@@ -521,7 +533,6 @@ export default function VideoSpotCreator({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Reset playback nodes
     if (sequencerRef.current) {
       sequencerRef.current.stop();
       sequencerRef.current = null;
@@ -554,11 +565,9 @@ export default function VideoSpotCreator({
       splitNode.connect(dest);
       splitNode.connect(audioCtx.destination); // Play to speaker
 
-      // Play audio loop matching routing
       setupAudioRoute(audioCtx, splitNode);
       setIsPlaying(true);
 
-      // Mix tracks
       const combinedStream = new MediaStream();
       canvasStream.getVideoTracks().forEach((track) => combinedStream.addTrack(track));
       dest.stream.getAudioTracks().forEach((track) => combinedStream.addTrack(track));
@@ -677,6 +686,14 @@ export default function VideoSpotCreator({
         <div className="flex items-center gap-2 border-b border-white/10 pb-3">
           <Film className="text-purple-400 w-5 h-5" />
           <h3 className="text-lg font-bold text-white uppercase tracking-wider">Creador de Spot de Video</h3>
+        </div>
+
+        {/* Info card */}
+        <div className="bg-purple-950/20 border border-purple-500/20 rounded-xl p-3 text-xs text-purple-200 flex items-start gap-2">
+          <Info className="w-4 h-4 shrink-0 text-purple-400 mt-0.5" />
+          <p>
+            El spot muestra la imagen completa sin obstrucciones. El copy se desliza de forma elegante en una marquesina informativa abajo, y el título principal cuenta con trazo grueso para una excelente lectura.
+          </p>
         </div>
 
         {/* Main Canvas preview */}
