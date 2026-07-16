@@ -110,10 +110,11 @@ export async function POST(request: Request) {
     const geolocationCoordinates = formData.get("geolocation_coordinates") as string;
     const timestampUtc = formData.get("timestamp_utc") as string;
     const attachedMediaUrl = formData.get("attached_media_url") as string | null;
+    const corresponsalName = formData.get("corresponsal_name") as string | null;
 
-    // Fetch operator name from database
-    let operatorName = "Corresponsal de Nexativa";
-    if (operatorId) {
+    // Fetch operator name from database or use custom parameter
+    let operatorName = corresponsalName || "Corresponsal de Nexativa";
+    if (!corresponsalName && operatorId) {
       try {
         const { data: staffData } = await supabaseAdmin
           .from("staff_passwords")
