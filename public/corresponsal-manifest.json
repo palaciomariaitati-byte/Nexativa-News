@@ -1,0 +1,18 @@
+{
+  "name": "Nora Corresponsal",
+  "short_name": "Corresponsal",
+  "description": "Terminal de reportes de exteriores de Nexativa News",
+  "start_url": "/corresponsal-movil",
+  "display": "standalone",
+  "background_color": "#0B0F19",
+  "theme_color": "#DC2626",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/main-icon.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
