@@ -16,19 +16,19 @@ const PRESET_MESSAGES: CheerMessage[] = [
   {
     id: "preset-1",
     name: "Santi_Albiceleste",
-    text: "¡Hoy el Dibu se ataja hasta el viento! ¡Vamos Argentina! 🧤🇦🇷",
+    text: "¡El domingo contra España jugamos con el corazón en la mano! ¡Vamos Selección! 🧤🇦🇷",
     timestamp: "Hace 2 min",
   },
   {
     id: "preset-2",
     name: "Patria_Futbolera",
-    text: "Messi querido, otra función de gala por favor. ¡Queremos la final! 🐐👑",
+    text: "Leo querido, danos la última función de gala y la copa en esta gran final. 🐐👑",
     timestamp: "Hace 5 min",
   },
   {
     id: "preset-3",
     name: "Maru_LaScaloneta",
-    text: "Muchaaaachos... ¡ahora nos volvimos a ilusionar! 💙🤍💙",
+    text: "Muchaaaachos... ¡ahora nos volvimos a ilusionar! ¡A ganar el domingo! 💙🤍💙",
     timestamp: "Hace 12 min",
   },
 ];
@@ -51,7 +51,7 @@ export default function AlientoPatrio() {
   // Predictor state
   const [goalsArg, setGoalsArg] = useState(2);
   const [goalsRival, setGoalsRival] = useState(1);
-  const [rivalName, setRivalName] = useState("Rival");
+  const [rivalName] = useState("España");
   const [showShareToast, setShowShareToast] = useState(false);
 
   // Message board state
@@ -137,7 +137,7 @@ export default function AlientoPatrio() {
 
   // Handle score prediction copy
   const handleSharePrediction = () => {
-    const text = `🇦🇷 ¡Mi pálpito para hoy es Argentina ${goalsArg} - ${goalsRival} ${rivalName}! Alentemos todos juntos en NEXATIVA NEWS 💙🤍. ¡Vamos Selección!`;
+    const text = `🇦🇷 ¡Mi pálpito para la gran final del mundo es Argentina ${goalsArg} - ${goalsRival} España! Alentemos todos juntos en NEXATIVA NEWS 💙🤍. ¡Vamos Selección!`;
     navigator.clipboard.writeText(text).then(() => {
       setShowShareToast(true);
       setTimeout(() => setShowShareToast(false), 3000);
@@ -194,7 +194,7 @@ export default function AlientoPatrio() {
               Altar de Aliento Nacional
               <Star className="w-5 h-5 fill-amber-400 text-amber-400 animate-spin-slow" />
             </h3>
-            <p className="text-xs text-gray-400 font-sans mt-0.5">Semifinal del Mundo: Alentá, predecí y dejá tu mensaje</p>
+            <p className="text-xs text-gray-400 font-sans mt-0.5">Gran Final del Mundo: Argentina vs España — Domingo 16:00 hs</p>
           </div>
         </div>
         
@@ -306,19 +306,12 @@ export default function AlientoPatrio() {
               VS
             </div>
 
-            {/* Rival team */}
+            {/* Rival team (Locked to Spain) */}
             <div className="text-center flex-1">
-              <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 mx-auto flex items-center justify-center text-xl font-bold">
-                ⚽
+              <div className="w-12 h-12 rounded-2xl bg-red-950/50 border border-red-500/20 mx-auto flex items-center justify-center text-xl font-bold">
+                🇪🇸
               </div>
-              
-              <input
-                type="text"
-                value={rivalName}
-                onChange={(e) => setRivalName(e.target.value.substring(0, 10))}
-                className="w-full text-center bg-transparent border-b border-white/15 focus:border-[var(--color-brand-accent)] outline-none text-xs font-bold text-gray-300 mt-2 px-1 focus:ring-0"
-                placeholder="Rival"
-              />
+              <span className="text-xs font-bold text-gray-300 block mt-2">ESPAÑA</span>
               
               <div className="flex items-center justify-center gap-1.5 mt-3">
                 <button 
