@@ -9,6 +9,8 @@ import {
   getPartnerWebhookUrl, 
   savePartnerWebhookUrl, 
   approveStagingItem,
+  getPartnersList,
+  savePartnersList,
   StagingQueueItem,
   EditorialAlert
 } from "../../actions/corresponsal";
@@ -29,14 +31,20 @@ import {
   Clock,
   Layers,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Plus,
+  Globe
 } from "lucide-react";
 import { getClosestLocation, parseCoordinates } from "@/lib/location-db";
 
 export default function CorresponsalStagingPage() {
   const [queue, setQueue] = useState<StagingQueueItem[]>([]);
   const [alerts, setAlerts] = useState<EditorialAlert[]>([]);
-  const [webhookUrl, setWebhookUrl] = useState("");
+  const [partners, setPartners] = useState<{ id: string; name: string; url: string }[]>([]);
+  const [newPartnerName, setNewPartnerName] = useState("");
+  const [newPartnerUrl, setNewPartnerUrl] = useState("");
+  const [selectedPartners, setSelectedPartners] = useState<Record<string, string[]>>({});
+  
   const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [migrationRequired, setMigrationRequired] = useState(false);
@@ -74,8 +82,15 @@ export default function CorresponsalStagingPage() {
       const alertData = await fetchEditorialAlerts();
       setAlerts(alertData);
 
-      const url = await getPartnerWebhookUrl();
-      setWebhookUrl(url);
+      const partnersData = await getPartnersList();
+      setPartners(partnersData);
+
+      // Pre-select all webhooks by default for newly loaded drafts
+      const initialSelected: Record<string, string[]> = {};
+      queueData.forEach(item => {
+        initialSelected[item.id] = partnersData.map(p => p.url);
+      });
+      setSelectedPartners(initialSelected);
 
       // Initialize active tabs for items
       const tabs: Record<string, 'nexativa' | 'partner'> = {};
@@ -94,14 +109,49 @@ export default function CorresponsalStagingPage() {
     }
   }
 
-  const handleSaveWebhook = async (e: React.FormEvent) => {
+  const handleAddPartner = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!newPartnerName.trim() || !newPartnerUrl.trim()) return;
+
     try {
-      await savePartnerWebhookUrl(webhookUrl);
+      const newPartner = {
+        id: `partner_${Date.now()}`,
+        name: newPartnerName.trim(),
+        url: newPartnerUrl.trim()
+      };
+      const updated = [...partners, newPartner];
+      await savePartnersList(updated);
+      setPartners(updated);
+      setNewPartnerName("");
+      setNewPartnerUrl("");
       setSaveWebhookSuccess(true);
       setTimeout(() => setSaveWebhookSuccess(false), 3000);
+
+      // Pre-select the new partner for all items
+      setSelectedPartners(prev => {
+        const next = { ...prev };
+        queue.forEach(item => {
+          if (!next[item.id]) next[item.id] = [];
+          if (!next[item.id].includes(newPartner.url)) {
+            next[item.id] = [...next[item.id], newPartner.url];
+          }
+        });
+        return next;
+      });
     } catch (err: any) {
-      alert("Error al guardar Webhook: " + err.message);
+      alert("Error al agregar socio: " + err.message);
+    }
+  };
+
+  const handleDeletePartner = async (id: string) => {
+    if (!confirm("¿Seguro que deseas eliminar este socio?")) return;
+
+    try {
+      const updated = partners.filter(p => p.id !== id);
+      await savePartnersList(updated);
+      setPartners(updated);
+    } catch (err: any) {
+      alert("Error al eliminar socio: " + err.message);
     }
   };
 
@@ -189,7 +239,8 @@ export default function CorresponsalStagingPage() {
       setErrorBanner(null);
       setSuccessBanner(null);
       
-      const res = await approveStagingItem(id, actionType);
+      const webhooks = selectedPartners[id] || [];
+      const res = await approveStagingItem(id, actionType, webhooks);
       
       if (res.success) {
         let msg = "";
@@ -284,48 +335,99 @@ export default function CorresponsalStagingPage() {
         
         <button
           onClick={() => setSettingsOpen(!settingsOpen)}
-          className="bg-white/5 hover:bg-white/10 border border-white/10 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors flex items-center gap-2"
+          className="bg-white/5 hover:bg-white/10 border border-white/10 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors flex-shrink-0 flex items-center gap-2"
         >
           <Settings className="w-4 h-4 text-[var(--color-brand-accent)]" />
-          {settingsOpen ? "Cerrar Configuración" : "Configurar Socio Webhook"}
+          {settingsOpen ? "Cerrar Configuración" : "Configurar Socios (Portales)"}
         </button>
       </div>
 
       {/* Settings Form */}
       {settingsOpen && (
-        <form onSubmit={handleSaveWebhook} className="bg-black/30 border border-white/10 p-6 rounded-xl space-y-4 animate-fadeIn">
+        <div className="bg-black/30 border border-white/10 p-6 rounded-xl space-y-6 animate-fadeIn">
           <div className="flex items-center gap-2 border-b border-white/10 pb-3">
-            <Settings className="text-[var(--color-brand-accent)] w-5 h-5" />
-            <h3 className="font-bold text-white uppercase tracking-wider text-sm">Configuración de Distribución de Socios</h3>
+            <Globe className="text-[var(--color-brand-accent)] w-5 h-5 animate-pulse" />
+            <h3 className="font-bold text-white uppercase tracking-wider text-sm">Distribución de Socios Periodísticos</h3>
           </div>
-          <div className="space-y-2">
-            <label className="block text-xs uppercase text-white/60 font-bold">Webhook URL del Socio Periodístico</label>
-            <div className="flex gap-3">
-              <input
-                type="url"
-                required
-                placeholder="https://api.ejemplosocio.com/v1/posts-webhook"
-                value={webhookUrl}
-                onChange={(e) => setWebhookUrl(e.target.value)}
-                className="flex-1 bg-black/50 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-white/30 text-sm focus:outline-none focus:border-[var(--color-brand-accent)]"
-              />
-              <button
-                type="submit"
-                className="bg-[var(--color-brand-accent)] hover:bg-[var(--color-brand-accent-hover)] text-black font-bold px-6 py-2 rounded-lg transition-colors text-sm uppercase tracking-wider"
-              >
-                Guardar
-              </button>
+
+          {/* List of current partners */}
+          <div className="space-y-3">
+            <h4 className="text-xs uppercase text-white/50 font-bold tracking-wider">Socios Registrados</h4>
+            {partners.length === 0 ? (
+              <p className="text-xs text-white/40 italic py-2">No hay socios configurados aún. Las noticias se guardarán solo localmente.</p>
+            ) : (
+              <div className="overflow-x-auto border border-white/5 rounded-lg bg-black/20">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-white/5 bg-white/5 text-gray-400 font-bold uppercase">
+                      <th className="p-3">Nombre del Socio</th>
+                      <th className="p-3">URL del Webhook (Make / CMS)</th>
+                      <th className="p-3 text-center w-24">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {partners.map((partner) => (
+                      <tr key={partner.id} className="border-b border-white/5 hover:bg-white/[0.01]">
+                        <td className="p-3 font-bold text-white">{partner.name}</td>
+                        <td className="p-3 font-mono text-[10px] text-gray-400 truncate max-w-xs">{partner.url}</td>
+                        <td className="p-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePartner(partner.id)}
+                            className="text-red-400 hover:text-red-300 font-bold text-[10px] uppercase cursor-pointer"
+                          >
+                            Eliminar
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Form to add a new partner */}
+          <form onSubmit={handleAddPartner} className="space-y-3 border-t border-white/5 pt-4">
+            <h4 className="text-xs uppercase text-white/50 font-bold tracking-wider flex items-center gap-1">
+              <Plus className="w-3.5 h-3.5 text-green-400" /> Registrar Nuevo Socio
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <input
+                  type="text"
+                  required
+                  placeholder="Nombre del medio (Ej: FM Ituzaingó)"
+                  value={newPartnerName}
+                  onChange={(e) => setNewPartnerName(e.target.value)}
+                  className="w-full bg-black/50 border border-white/10 focus:border-green-500 rounded-lg px-4 py-2.5 text-xs text-white placeholder-white/30 outline-none"
+                />
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  required
+                  placeholder="https://hook.make.com/..."
+                  value={newPartnerUrl}
+                  onChange={(e) => setNewPartnerUrl(e.target.value)}
+                  className="flex-1 bg-black/50 border border-white/10 focus:border-green-500 rounded-lg px-4 py-2.5 text-xs text-white placeholder-white/30 outline-none"
+                />
+                <button
+                  type="submit"
+                  className="bg-green-600 hover:bg-green-500 text-white font-black text-xs uppercase tracking-wider px-5 py-2.5 rounded-lg transition-colors cursor-pointer"
+                >
+                  Agregar
+                </button>
+              </div>
             </div>
-            <p className="text-[11px] text-white/50">
-              Esta URL recibirá peticiones POST con el contenido de la Versión Socio en formato borrador (draft) cuando sea aprobada.
-            </p>
-          </div>
+          </form>
+
           {saveWebhookSuccess && (
-            <div className="bg-green-500/20 text-green-300 border border-green-500/30 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider animate-pulse">
-              ✓ Configuración guardada con éxito
+            <div className="bg-green-500/15 border border-green-500/20 px-4 py-2.5 rounded-lg text-xs font-bold text-green-400 tracking-wide animate-pulse">
+              ✓ Socio registrado con éxito
             </div>
           )}
-        </form>
+        </div>
       )}
 
       {/* Notifications */}
@@ -681,6 +783,35 @@ export default function CorresponsalStagingPage() {
                     </button>
 
                     <div className="flex flex-wrap items-center gap-3">
+                      {/* Checkboxes for selected partners */}
+                      {partners.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-3 bg-white/5 px-3 py-1.5 rounded-lg border border-white/5 text-[10px] text-gray-300 font-bold mr-2">
+                          <span className="uppercase text-white/40 font-black">Enviar a:</span>
+                          {partners.map(p => {
+                            const isChecked = (selectedPartners[item.id] || []).includes(p.url);
+                            return (
+                              <label key={p.id} className="flex items-center gap-1.5 cursor-pointer hover:text-white transition-colors">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => {
+                                    setSelectedPartners(prev => {
+                                      const current = prev[item.id] || [];
+                                      const updated = current.includes(p.url)
+                                        ? current.filter(u => u !== p.url)
+                                        : [...current, p.url];
+                                      return { ...prev, [item.id]: updated };
+                                    });
+                                  }}
+                                  className="accent-purple-500 rounded border-white/10"
+                                />
+                                <span>{p.name}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+
                       <button
                         onClick={() => handleApprove(item.id, "APPROVE_NEXATIVA_ONLY")}
                         disabled={actionLoadingId !== null}
@@ -691,12 +822,12 @@ export default function CorresponsalStagingPage() {
                       
                       <button
                         onClick={() => handleApprove(item.id, "APPROVE_PARTNER_ONLY")}
-                        disabled={actionLoadingId !== null}
-                        className="bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-200 px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-all disabled:opacity-50"
+                        disabled={actionLoadingId !== null || (selectedPartners[item.id] || []).length === 0}
+                        className="bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-200 px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Despachar Socio
                       </button>
-
+                      
                       <button
                         onClick={() => handleApprove(item.id, "APPROVE_ALL_SIMULTANEOUS")}
                         disabled={actionLoadingId !== null}

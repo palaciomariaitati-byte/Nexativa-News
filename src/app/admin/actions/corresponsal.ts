@@ -161,6 +161,47 @@ export async function savePartnerWebhookUrl(url: string): Promise<boolean> {
 }
 
 /**
+ * Retrieve list of registered partners.
+ */
+export async function getPartnersList(): Promise<{ id: string; name: string; url: string }[]> {
+  const { data, error } = await supabaseAdmin
+    .from("settings")
+    .select("value")
+    .eq("key", "partners_list")
+    .maybeSingle();
+
+  if (error || !data?.value) {
+    // If list does not exist yet, fallback to single legacy partner if configured
+    const legacyUrl = await getPartnerWebhookUrl();
+    if (legacyUrl) {
+      return [{ id: "legacy-partner", name: "Socio Principal", url: legacyUrl }];
+    }
+    return [];
+  }
+
+  try {
+    return JSON.parse(data.value);
+  } catch (e) {
+    return [];
+  }
+}
+
+/**
+ * Save/Update list of registered partners.
+ */
+export async function savePartnersList(partners: { id: string; name: string; url: string }[]): Promise<boolean> {
+  const role = await getStaffRole();
+  if (!role) throw new Error("No autorizado");
+
+  const { error } = await supabaseAdmin
+    .from("settings")
+    .upsert([{ key: "partners_list", value: JSON.stringify(partners) }], { onConflict: "key" });
+
+  if (error) throw error;
+  return true;
+}
+
+/**
  * Logs a critical alert when webhook dispatcher fails completely.
  */
 async function logWebhookFailureAlert(queueItemId: string, webhookUrl: string, errorMsg: string) {
@@ -254,7 +295,8 @@ async function dispatchPartnerWebhook(
  */
 export async function approveStagingItem(
   id: string, 
-  actionType: "APPROVE_NEXATIVA_ONLY" | "APPROVE_PARTNER_ONLY" | "APPROVE_ALL_SIMULTANEOUS"
+  actionType: "APPROVE_NEXATIVA_ONLY" | "APPROVE_PARTNER_ONLY" | "APPROVE_ALL_SIMULTANEOUS",
+  selectedWebhooks?: string[]
 ): Promise<{ success: boolean; error?: string; webhookError?: string }> {
   const role = await getStaffRole();
   if (!role) throw new Error("No autorizado");
@@ -310,35 +352,48 @@ export async function approveStagingItem(
       return { success: false, error: "La Versión Socio no está disponible para publicar." };
     }
 
-    const webhookUrl = await getPartnerWebhookUrl();
-    if (!webhookUrl || webhookUrl.trim() === "") {
-      // Si falló por falta de configuración de webhook
+    const webhooks = selectedWebhooks && selectedWebhooks.length > 0
+      ? selectedWebhooks
+      : [await getPartnerWebhookUrl()];
+
+    const validWebhooks = webhooks.filter(url => url && url.trim() !== "");
+
+    if (validWebhooks.length === 0) {
       const errMsg = "URL de Webhook del socio no configurada en las redes de Nexativa.";
       await logWebhookFailureAlert(stagingItem.id, "No configurada", errMsg);
-      
-      // Si era aprobación exclusiva de socio, cortamos. Si era simultánea, guardamos la falla
       if (actionType === "APPROVE_PARTNER_ONLY") {
         return { success: false, error: errMsg };
       } else {
         webhookErrMessage = errMsg;
       }
     } else {
-      const footer = stagingItem.version_partner.attribution_footer || "Cobertura en exteriores por gentileza de Nexativanews.com.ar";
-      const dispatchRes = await dispatchPartnerWebhook(
-        webhookUrl,
-        stagingItem.version_partner.title,
-        stagingItem.version_partner.content,
-        featuredImage,
-        stagingItem.id,
-        footer
-      );
+      // Parallel execution for all selected partner webhooks
+      const dispatchPromises = validWebhooks.map(async (webhookUrl) => {
+        const footer = stagingItem.version_partner!.attribution_footer || "Cobertura en exteriores por gentileza de Nexativanews.com.ar";
+        const dispatchRes = await dispatchPartnerWebhook(
+          webhookUrl,
+          stagingItem.version_partner!.title,
+          stagingItem.version_partner!.content,
+          featuredImage,
+          stagingItem.id,
+          footer
+        );
+        return { url: webhookUrl, success: dispatchRes.success, error: dispatchRes.error };
+      });
 
-      if (dispatchRes.success) {
+      const results = await Promise.all(dispatchPromises);
+      const failures = results.filter(r => !r.success);
+
+      if (failures.length === 0) {
         partnerDispatched = true;
       } else {
-        webhookErrMessage = dispatchRes.error || "Fallo en la comunicación con el socio";
-        if (actionType === "APPROVE_PARTNER_ONLY") {
-          return { success: false, error: `Error al despachar al socio: ${webhookErrMessage}` };
+        const failedUrls = failures.map(f => f.url).join(", ");
+        webhookErrMessage = `Falló el envío a: ${failedUrls}`;
+        if (failures.length < results.length) {
+          partnerDispatched = true; // At least one was dispatched successfully
+        }
+        if (actionType === "APPROVE_PARTNER_ONLY" && failures.length === results.length) {
+          return { success: false, error: `Error al despachar a los socios: ${webhookErrMessage}` };
         }
       }
     }
