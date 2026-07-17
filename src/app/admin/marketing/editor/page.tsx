@@ -7,6 +7,7 @@ import NoraAssistant from "@/components/NoraAssistant";
 import MediaUploader from "@/components/MediaUploader";
 import { Sparkles, Film, Share2 } from "lucide-react";
 import VideoSpotCreator from "@/components/VideoSpotCreator";
+import { optimizeImagePrompt } from "@/app/admin/actions/nora";
 
 export const maxDuration = 60; // Allow long LLM calls
 
@@ -144,11 +145,14 @@ export default function MarketingEditorPage() {
 
     setGeneratingImage(true);
     try {
-      // 1. Build Pollinations URL (encoded)
-      const encodedPrompt = encodeURIComponent(prompt);
+      // 1. Optimize user description with Gemini (turns Spanish slang or queries into professional English prompts)
+      const optimizedPrompt = await optimizeImagePrompt(prompt);
+      
+      // 2. Build Pollinations URL (encoded)
+      const encodedPrompt = encodeURIComponent(optimizedPrompt);
       const imageUrl = `https://image.pollinations.ai/p/${encodedPrompt}?width=1024&height=768&nologo=true&seed=${Math.floor(Math.random() * 100000)}`;
 
-      // 2. Fetch the image as a Blob to store it in Supabase
+      // 3. Fetch the image as a Blob to store it in Supabase
       const response = await fetch(imageUrl);
       if (!response.ok) throw new Error("Fallo al descargar la imagen generada.");
       const blob = await response.blob();

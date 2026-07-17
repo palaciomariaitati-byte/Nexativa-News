@@ -585,7 +585,7 @@ export default function VideoSpotCreator({
         if (e.data && e.data.size > 0) chunks.push(e.data);
       };
 
-      recorder.onstop = () => {
+      recorder.onstop = async () => {
         const finalBlob = new Blob(chunks, { type: "video/webm" });
         setVideoBlob(finalBlob);
         setIsRecording(false);
@@ -597,6 +597,31 @@ export default function VideoSpotCreator({
         }
         if (customAudioRef.current) {
           customAudioRef.current.pause();
+        }
+
+        // Auto-upload to Supabase storage to update the campaign form link immediately
+        setUploading(true);
+        try {
+          const supabase = getSupabaseBrowserClient();
+          const fileName = `spots/spot_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.webm`;
+          
+          const { error: uploadError } = await supabase.storage
+            .from("media")
+            .upload(fileName, finalBlob, {
+              contentType: "video/webm",
+              cacheControl: "3600",
+            });
+
+          if (uploadError) throw uploadError;
+
+          const { data: publicUrlData } = supabase.storage.from("media").getPublicUrl(fileName);
+          onUploadFinished(publicUrlData.publicUrl);
+          setSuccess(true);
+        } catch (err: any) {
+          console.error("Auto upload error:", err);
+          setRecordingError(`Spot grabado, pero falló la subida automática: ${err.message}`);
+        } finally {
+          setUploading(false);
         }
       };
 

@@ -310,3 +310,26 @@ export async function askNoraMarketing(title: string, content: string, operatorN
     return { error: "Hubo un cortocircuito en el cerebro de Nora: " + error.message };
   }
 }
+
+export async function optimizeImagePrompt(userPrompt: string): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return userPrompt; // Fallback to raw prompt if key missing
+  
+  try {
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const modelId = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+    const model = genAI.getGenerativeModel({ model: modelId });
+    
+    const systemPrompt = `Translate and optimize the following image description into a professional commercial advertising prompt in English for an AI image generator. 
+Make it look like a high-end product shot or commercial photography. Add parameters like "studio lighting, photorealistic, 8k resolution, clean background, depth of field". 
+CRITICAL: Do not include any text, brands, or words in the image. 
+Return ONLY the English prompt string, with no introduction, no conversational text, and no quotation marks.`;
+
+    const result = await model.generateContent(`Sistema: ${systemPrompt}\n\nDescripción del usuario: ${userPrompt}`);
+    const text = result.response.text().trim();
+    return text || userPrompt;
+  } catch (error) {
+    console.error("Error optimizing prompt:", error);
+    return userPrompt;
+  }
+}
