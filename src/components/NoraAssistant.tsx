@@ -1,8 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
-import { askNoraEditor, askNoraCM, askNoraSupport, askNoraMarketing } from "@/app/admin/actions/nora";
-import { Sparkles, PenTool, Share2, Copy, Check, Loader2, Wand2, Send, Lightbulb } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { 
+  askNoraEditor, 
+  askNoraCM, 
+  askNoraSupport, 
+  askNoraMarketing,
+  fetchBrandGuidelines,
+  saveBrandGuidelines
+} from "@/app/admin/actions/nora";
+import { Sparkles, PenTool, Share2, Copy, Check, Loader2, Wand2, Send, Lightbulb, BrainCircuit } from "lucide-react";
 
 interface NoraAssistantProps {
   title: string;
@@ -28,16 +35,45 @@ export default function NoraAssistant({
   const [generatedData, setGeneratedData] = useState<{newTitle: string, newContent: string, imagePrompt?: string} | null>(null);
   
   const [copied, setCopied] = useState(false);
-  const [activeMode, setActiveMode] = useState<"editora" | "cm" | "soporte" | "publicista" | null>(null);
+  const [activeMode, setActiveMode] = useState<"editora" | "cm" | "soporte" | "publicista" | "entrenamiento" | null>(null);
+  const [guidelinesText, setGuidelinesText] = useState("");
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const text = await fetchBrandGuidelines();
+        setGuidelinesText(text);
+      } catch (e) {
+        console.error("Error loading brand guidelines:", e);
+      }
+    }
+    load();
+  }, []);
+
+  const handleSaveGuidelines = async () => {
+    setLoading(true);
+    try {
+      const ok = await saveBrandGuidelines(guidelinesText);
+      if (ok) {
+        alert("¡Memoria de Nora entrenada con éxito! 🧠");
+        setActiveMode(null);
+      } else {
+        alert("No se pudo guardar la memoria.");
+      }
+    } catch (e: any) {
+      alert("Error: " + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleAskEditor = async () => {
-    if (!title && !content) return;
     setLoading(true);
     setActiveMode("editora");
     setResponseHtml(null);
     setGeneratedData(null);
     
-    const res = await askNoraEditor(title, content, operatorName);
+    const res = await askNoraEditor(title || "", content || "", operatorName);
     if (res.success) {
       if (res.newTitle && res.newContent) {
         setGeneratedData({ newTitle: res.newTitle, newContent: res.newContent });
@@ -60,13 +96,12 @@ export default function NoraAssistant({
   };
 
   const handleAskCM = async () => {
-    if (!title && !content) return;
     setLoading(true);
     setActiveMode("cm");
     setResponseHtml(null);
     setGeneratedData(null);
     
-    const res = await askNoraCM(title, content, operatorName);
+    const res = await askNoraCM(title || "", content || "", operatorName);
     if (res.success) {
       setResponseHtml(res.text || "");
     } else {
@@ -76,13 +111,12 @@ export default function NoraAssistant({
   };
 
   const handleAskMarketing = async () => {
-    if (!title && !content) return;
     setLoading(true);
     setActiveMode("publicista");
     setResponseHtml(null);
     setGeneratedData(null);
     
-    const res = await askNoraMarketing(title, content, operatorName);
+    const res = await askNoraMarketing(title || "", content || "", operatorName);
     if (res.success) {
       if (res.newTitle && res.newContent) {
         setGeneratedData({ newTitle: res.newTitle, newContent: res.newContent, imagePrompt: res.imagePrompt });
@@ -142,7 +176,39 @@ export default function NoraAssistant({
         </div>
       </div>
 
-      {activeMode === "soporte" ? (
+      {activeMode === "entrenamiento" ? (
+        <div className="mb-4 relative z-10 space-y-3">
+          <p className="text-[11px] text-purple-300 font-bold uppercase tracking-wider flex items-center gap-1.5">
+            <BrainCircuit className="w-4 h-4 text-purple-400 shrink-0 animate-pulse" />
+            Entrenamiento de Nora: Memoria de Marca
+          </p>
+          <p className="text-[10px] text-white/50 leading-relaxed font-sans">
+            Escribe el tono de voz deseado, ideas clave de campañas pasadas, reglas locales o directrices comerciales. Nora leerá esto en cada consulta para alinearse a tus necesidades.
+          </p>
+          <textarea
+            placeholder="Ej: Somos un portal en Corrientes. Usamos humor local respetuoso, tono argentino pero formal. Queremos promocionar las ofertas locales..."
+            className="w-full bg-black/40 border border-purple-500/30 focus:border-purple-500 rounded-lg p-3 text-xs text-white outline-none"
+            rows={5}
+            value={guidelinesText}
+            onChange={(e) => setGuidelinesText(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={handleSaveGuidelines}
+              disabled={loading}
+              className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg font-bold text-xs transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Guardar Memoria"}
+            </button>
+            <button
+              onClick={() => { setActiveMode(null); }}
+              className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg text-xs transition-colors cursor-pointer"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      ) : activeMode === "soporte" ? (
         <div className="mb-4 relative z-10">
           <textarea
             placeholder={`¿En qué puedo ayudarte, ${operatorName}? Escribe tu consulta...`}
@@ -167,56 +233,68 @@ export default function NoraAssistant({
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-4 relative z-10">
-          <button
-            onClick={handleAskEditor}
-            disabled={loading || (!title && !content)}
-            className="flex items-center justify-center gap-2 bg-black/40 hover:bg-purple-600/30 border border-purple-500/30 text-white py-2 px-2 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group"
-            title="Mejorar Redacción y SEO"
-          >
-            {loading && activeMode === "editora" ? (
-              <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
-            ) : (
-              <PenTool className="w-4 h-4 text-purple-400 group-hover:text-white transition-colors" />
-            )}
-            <span className="font-medium text-xs">Editora</span>
-          </button>
+        <div className="space-y-3 relative z-10">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-1">
+            <button
+              onClick={handleAskEditor}
+              disabled={loading}
+              className="flex items-center justify-center gap-2 bg-black/40 hover:bg-purple-600/30 border border-purple-500/30 text-white py-2 px-2 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group cursor-pointer"
+              title="Mejorar Redacción y SEO"
+            >
+              {loading && activeMode === "editora" ? (
+                <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
+              ) : (
+                <PenTool className="w-4 h-4 text-purple-400 group-hover:text-white transition-colors" />
+              )}
+              <span className="font-medium text-xs">Editora</span>
+            </button>
 
-          <button
-            onClick={handleAskMarketing}
-            disabled={loading || (!title && !content)}
-            className="flex items-center justify-center gap-2 bg-black/40 hover:bg-amber-600/30 border border-amber-500/30 text-white py-2 px-2 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group"
-            title="Estrategias, Guiones y Ads"
-          >
-            {loading && activeMode === "publicista" ? (
-              <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
-            ) : (
-              <Lightbulb className="w-4 h-4 text-amber-400 group-hover:text-white transition-colors" />
-            )}
-            <span className="font-medium text-xs">Estratega</span>
-          </button>
+            <button
+              onClick={handleAskMarketing}
+              disabled={loading}
+              className="flex items-center justify-center gap-2 bg-black/40 hover:bg-amber-600/30 border border-amber-500/30 text-white py-2 px-2 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group cursor-pointer"
+              title="Estrategias, Guiones y Ads"
+            >
+              {loading && activeMode === "publicista" ? (
+                <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+              ) : (
+                <Lightbulb className="w-4 h-4 text-amber-400 group-hover:text-white transition-colors" />
+              )}
+              <span className="font-medium text-xs">Estratega</span>
+            </button>
 
-          <button
-            onClick={handleAskCM}
-            disabled={loading || (!title && !content)}
-            className="flex items-center justify-center gap-2 bg-black/40 hover:bg-pink-600/30 border border-pink-500/30 text-white py-2 px-2 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group"
-            title="Generar Copys Virales"
-          >
-            {loading && activeMode === "cm" ? (
-              <Loader2 className="w-4 h-4 animate-spin text-pink-400" />
-            ) : (
-              <Share2 className="w-4 h-4 text-pink-400 group-hover:text-white transition-colors" />
-            )}
-            <span className="font-medium text-xs">CM Redes</span>
-          </button>
+            <button
+              onClick={handleAskCM}
+              disabled={loading}
+              className="flex items-center justify-center gap-2 bg-black/40 hover:bg-pink-600/30 border border-pink-500/30 text-white py-2 px-2 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group cursor-pointer"
+              title="Generar Copys Virales"
+            >
+              {loading && activeMode === "cm" ? (
+                <Loader2 className="w-4 h-4 animate-spin text-pink-400" />
+              ) : (
+                <Share2 className="w-4 h-4 text-pink-400 group-hover:text-white transition-colors" />
+              )}
+              <span className="font-medium text-xs">CM Redes</span>
+            </button>
 
+            <button
+              onClick={() => { setActiveMode("soporte"); setResponseHtml(null); }}
+              className="flex items-center justify-center gap-2 bg-black/40 hover:bg-blue-600/30 border border-blue-500/30 text-white py-2 px-2 rounded-lg transition-all duration-300 group cursor-pointer"
+              title="Soporte Técnico"
+            >
+              <Sparkles className="w-4 h-4 text-blue-400 group-hover:text-white transition-colors" />
+              <span className="font-medium text-xs">Soporte</span>
+            </button>
+          </div>
+
+          {/* Button to Train Nora */}
           <button
-            onClick={() => { setActiveMode("soporte"); setResponseHtml(null); }}
-            className="flex items-center justify-center gap-2 bg-black/40 hover:bg-blue-600/30 border border-blue-500/30 text-white py-2 px-2 rounded-lg transition-all duration-300 group"
-            title="Soporte Técnico"
+            onClick={() => { setActiveMode("entrenamiento"); setResponseHtml(null); }}
+            className="flex items-center justify-center gap-2 w-full bg-black/40 hover:bg-purple-600/25 border border-purple-500/35 hover:border-purple-500/50 text-white py-2 px-3 rounded-lg transition-all duration-300 group cursor-pointer"
+            title="Entrenar a Nora con tus directrices"
           >
-            <Sparkles className="w-4 h-4 text-blue-400 group-hover:text-white transition-colors" />
-            <span className="font-medium text-xs">Soporte</span>
+            <BrainCircuit className="w-4 h-4 text-purple-400 group-hover:animate-pulse transition-transform" />
+            <span className="font-bold text-[10px] uppercase tracking-wider text-purple-200">🧠 Entrenar a Nora (Memoria)</span>
           </button>
         </div>
       )}

@@ -1,6 +1,40 @@
 "use server";
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+
+async function getBrandGuidelines(): Promise<string> {
+  try {
+    const supabase = createServerSupabaseClient();
+    const { data } = await supabase
+      .from("settings")
+      .select("value")
+      .eq("key", "nora_brand_guidelines")
+      .maybeSingle();
+    return data?.value || "";
+  } catch (e) {
+    console.error("Error fetching brand guidelines:", e);
+    return "";
+  }
+}
+
+export async function fetchBrandGuidelines(): Promise<string> {
+  return await getBrandGuidelines();
+}
+
+export async function saveBrandGuidelines(text: string): Promise<boolean> {
+  try {
+    const supabase = createServerSupabaseClient();
+    const { error } = await supabase
+      .from("settings")
+      .upsert([{ key: "nora_brand_guidelines", value: text }], { onConflict: "key" });
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.error("Error saving brand guidelines:", e);
+    return false;
+  }
+}
 
 // Se instanciará genAI de forma dinámica dentro de cada Server Action
 // para evitar problemas de variables de entorno globales en Vercel Serverless.
@@ -63,13 +97,17 @@ export async function askNoraEditor(title: string, content: string, operatorName
   if (!apiKey) return { error: "Nora está desconectada (API Key faltante en Vercel)." };
   
   try {
+    const guidelines = await getBrandGuidelines();
     const genAI = new GoogleGenerativeAI(apiKey);
     const modelId = process.env.GEMINI_MODEL || "gemini-2.5-flash";
     const model = genAI.getGenerativeModel({ 
       model: modelId,
       generationConfig: { responseMimeType: "application/json" }
     });
-    const prompt = PROMPT_EDITORA.replace(/\[OPERATOR_NAME\]/g, operatorName);
+    let prompt = PROMPT_EDITORA.replace(/\[OPERATOR_NAME\]/g, operatorName);
+    if (guidelines) {
+      prompt += `\n\n<MEMORIA_Y_ENTRENAMIENTO_DE_NORA>\nEstas son las ideas de campaña, directrices de marca e instrucciones de entrenamiento específicas cargadas por el equipo de Nexativa:\n${guidelines}\n</MEMORIA_Y_ENTRENAMIENTO_DE_NORA>\n`;
+    }
     const fullPrompt = `Sistema: ${prompt}\n\nRevisa esta noticia:\n\nTITULAR ORIGINAL: ${title}\n\nCONTENIDO: ${content}`;
     const result = await model.generateContent(fullPrompt);
     let textRes = result.response.text();
@@ -86,12 +124,16 @@ export async function askNoraEditor(title: string, content: string, operatorName
   } catch (error: any) {
     if ((error.message?.includes("429") || error.message?.includes("503") || error.message?.includes("500") || error.message?.includes("502")) && process.env.GEMINI_API_KEY_FALLBACK) {
       try {
+        const guidelines = await getBrandGuidelines();
         const fallbackGenAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY_FALLBACK);
         const fallbackModel = fallbackGenAI.getGenerativeModel({ 
           model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
           generationConfig: { responseMimeType: "application/json" }
         });
-        const prompt = PROMPT_EDITORA.replace(/\[OPERATOR_NAME\]/g, operatorName);
+        let prompt = PROMPT_EDITORA.replace(/\[OPERATOR_NAME\]/g, operatorName);
+        if (guidelines) {
+          prompt += `\n\n<MEMORIA_Y_ENTRENAMIENTO_DE_NORA>\nEstas son las ideas de campaña, directrices de marca e instrucciones de entrenamiento específicas cargadas por el equipo de Nexativa:\n${guidelines}\n</MEMORIA_Y_ENTRENAMIENTO_DE_NORA>\n`;
+        }
         const fullPrompt = `Sistema: ${prompt}\n\nRevisa esta noticia:\n\nTITULAR ORIGINAL: ${title}\n\nCONTENIDO: ${content}`;
         const fallbackResult = await fallbackModel.generateContent(fullPrompt);
         let fallbackTextRes = fallbackResult.response.text();
@@ -117,19 +159,27 @@ export async function askNoraCM(title: string, content: string, operatorName: st
   if (!apiKey) return { error: "Nora está desconectada (API Key faltante en Vercel)." };
   
   try {
+    const guidelines = await getBrandGuidelines();
     const genAI = new GoogleGenerativeAI(apiKey);
     const modelId = process.env.GEMINI_MODEL || "gemini-2.5-flash";
     const model = genAI.getGenerativeModel({ model: modelId });
-    const prompt = PROMPT_CM.replace(/\[OPERATOR_NAME\]/g, operatorName);
+    let prompt = PROMPT_CM.replace(/\[OPERATOR_NAME\]/g, operatorName);
+    if (guidelines) {
+      prompt += `\n\n<MEMORIA_Y_ENTRENAMIENTO_DE_NORA>\nEstas son las ideas de campaña, directrices de marca e instrucciones de entrenamiento específicas cargadas por el equipo de Nexativa:\n${guidelines}\n</MEMORIA_Y_ENTRENAMIENTO_DE_NORA>\n`;
+    }
     const fullPrompt = `Sistema: ${prompt}\n\nGenera contenido viral para esta noticia:\n\nTITULAR: ${title}\n\nCONTENIDO: ${content}`;
     const result = await model.generateContent(fullPrompt);
     return { success: true, text: result.response.text() };
   } catch (error: any) {
     if ((error.message?.includes("429") || error.message?.includes("503") || error.message?.includes("500") || error.message?.includes("502")) && process.env.GEMINI_API_KEY_FALLBACK) {
       try {
+        const guidelines = await getBrandGuidelines();
         const fallbackGenAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY_FALLBACK);
         const fallbackModel = fallbackGenAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || "gemini-2.5-flash" });
-        const prompt = PROMPT_CM.replace(/\[OPERATOR_NAME\]/g, operatorName);
+        let prompt = PROMPT_CM.replace(/\[OPERATOR_NAME\]/g, operatorName);
+        if (guidelines) {
+          prompt += `\n\n<MEMORIA_Y_ENTRENAMIENTO_DE_NORA>\nEstas son las ideas de campaña, directrices de marca e instrucciones de entrenamiento específicas cargadas por el equipo de Nexativa:\n${guidelines}\n</MEMORIA_Y_ENTRENAMIENTO_DE_NORA>\n`;
+        }
         const fullPrompt = `Sistema: ${prompt}\n\nGenera contenido viral para esta noticia:\n\nTITULAR: ${title}\n\nCONTENIDO: ${content}`;
         const fallbackResult = await fallbackModel.generateContent(fullPrompt);
         return { success: true, text: fallbackResult.response.text() };
@@ -210,10 +260,14 @@ export async function askNoraMarketing(title: string, content: string, operatorN
   if (!apiKey) return { error: "Nora está desconectada (API Key faltante en Vercel)." };
   
   try {
+    const guidelines = await getBrandGuidelines();
     const genAI = new GoogleGenerativeAI(apiKey);
     const modelId = process.env.GEMINI_MODEL || "gemini-2.5-flash";
     const model = genAI.getGenerativeModel({ model: modelId, generationConfig: { responseMimeType: "application/json" } });
-    const prompt = PROMPT_MARKETING.replace(/\[OPERATOR_NAME\]/g, operatorName);
+    let prompt = PROMPT_MARKETING.replace(/\[OPERATOR_NAME\]/g, operatorName);
+    if (guidelines) {
+      prompt += `\n\n<MEMORIA_Y_ENTRENAMIENTO_DE_NORA>\nEstas son las ideas de campaña, directrices de marca e instrucciones de entrenamiento específicas cargadas por el equipo de Nexativa:\n${guidelines}\n</MEMORIA_Y_ENTRENAMIENTO_DE_NORA>\n`;
+    }
     const fullPrompt = `Sistema: ${prompt}\n\nGenera una ESTRATEGIA DE MARKETING de alto nivel para este proyecto:\n\nCLIENTE/CAMPAÑA: ${title}\n\nIDEA BASE: ${content}`;
     const result = await model.generateContent(fullPrompt);
     let textRes = result.response.text();
@@ -229,9 +283,13 @@ export async function askNoraMarketing(title: string, content: string, operatorN
   } catch (error: any) {
     if ((error.message?.includes("429") || error.message?.includes("503") || error.message?.includes("500") || error.message?.includes("502")) && process.env.GEMINI_API_KEY_FALLBACK) {
       try {
+        const guidelines = await getBrandGuidelines();
         const fallbackGenAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY_FALLBACK);
         const fallbackModel = fallbackGenAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || "gemini-2.5-flash", generationConfig: { responseMimeType: "application/json" } });
-        const prompt = PROMPT_MARKETING.replace(/\[OPERATOR_NAME\]/g, operatorName);
+        let prompt = PROMPT_MARKETING.replace(/\[OPERATOR_NAME\]/g, operatorName);
+        if (guidelines) {
+          prompt += `\n\n<MEMORIA_Y_ENTRENAMIENTO_DE_NORA>\nEstas son las ideas de campaña, directrices de marca e instrucciones de entrenamiento específicas cargadas por el equipo de Nexativa:\n${guidelines}\n</MEMORIA_Y_ENTRENAMIENTO_DE_NORA>\n`;
+        }
         const fullPrompt = `Sistema: ${prompt}\n\nGenera una ESTRATEGIA DE MARKETING de alto nivel para este proyecto:\n\nCLIENTE/CAMPAÑA: ${title}\n\nIDEA BASE: ${content}`;
         const fallbackResult = await fallbackModel.generateContent(fullPrompt);
         let fallbackTextRes = fallbackResult.response.text();

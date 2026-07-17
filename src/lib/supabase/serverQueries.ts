@@ -134,4 +134,33 @@ export async function saveNoraComplaint(history: any[], finalMessage: string, no
     return false;
   }
 }
+export interface MarketingCampaign {
+  id: string;
+  client_name: string;
+  campaign_name: string;
+  content: string;
+  image_url: string;
+  target_audience?: string;
+  status: string;
+  created_at?: string;
+}
 
+export async function getActiveCampaigns(): Promise<MarketingCampaign[]> {
+  try {
+    const supabase = createServerSupabaseClient();
+    const { data, error } = await supabase
+      .from("marketing_campaigns")
+      .select("*")
+      .eq("status", "active")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching active campaigns:", error);
+      return [];
+    }
+    return (data || []) as MarketingCampaign[];
+  } catch (error) {
+    console.error("Error in getActiveCampaigns:", error);
+    return [];
+  }
+}

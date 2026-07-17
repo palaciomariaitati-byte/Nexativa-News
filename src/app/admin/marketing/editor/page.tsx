@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import NoraAssistant from "@/components/NoraAssistant";
 import MediaUploader from "@/components/MediaUploader";
-import { Sparkles, Film } from "lucide-react";
+import { Sparkles, Film, Share2 } from "lucide-react";
 import VideoSpotCreator from "@/components/VideoSpotCreator";
 
 export const maxDuration = 60; // Allow long LLM calls
@@ -471,6 +471,84 @@ export default function MarketingEditorPage() {
             onApplyChanges={handleApplyNoraChanges}
             onPublishDirectly={handlePublishDirectly}
           />
+          
+          {/* Manual Share Assistant */}
+          {(formData.content || formData.image_url) && (
+            <div className="mt-6 bg-black/40 border border-white/10 rounded-xl p-5 space-y-4">
+              <h4 className="text-xs uppercase text-purple-300 font-extrabold tracking-wider flex items-center gap-1.5">
+                <Share2 className="w-3.5 h-3.5" /> Publicación Manual en Redes
+              </h4>
+              <p className="text-[10px] text-white/40 leading-relaxed font-sans">
+                ¿Problemas de conexión con Make? Copia el copy y descarga el spot para publicarlo manualmente en tus perfiles:
+              </p>
+              
+              <div className="space-y-3 text-xs">
+                {/* 1. Copy text */}
+                <div className="space-y-1">
+                  <span className="text-[10px] uppercase text-white/45 font-bold block">Copia el Texto:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(formData.content);
+                      alert("¡Copy de Nora copiado con éxito!");
+                    }}
+                    className="w-full text-left bg-black/50 border border-white/10 rounded px-2.5 py-1.5 text-white text-[11px] truncate flex items-center justify-between hover:border-purple-500/40 transition-colors cursor-pointer"
+                  >
+                    <span className="truncate mr-2">{formData.content || "Copiar texto del anuncio"}</span>
+                    <span className="text-[9px] uppercase font-bold text-purple-400 shrink-0">Copiar</span>
+                  </button>
+                </div>
+
+                {/* 2. Download media */}
+                {formData.image_url && (
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase text-white/45 font-bold block">Descarga el Spot / Imagen:</span>
+                    <a
+                      href={formData.image_url}
+                      download={`spot_${formData.campaign_name || "campania"}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full bg-purple-600/20 hover:bg-purple-600/35 border border-purple-500/45 rounded px-3 py-2 text-white font-bold flex items-center justify-center gap-1.5 transition-colors uppercase tracking-wider text-[10px] cursor-pointer"
+                    >
+                      Descargar Spot / Archivo 📥
+                    </a>
+                  </div>
+                )}
+
+                {/* 3. Direct links to social networks */}
+                <div className="pt-2 border-t border-white/5 space-y-2">
+                  <span className="text-[10px] uppercase text-white/45 font-bold block">Abrir Redes del Medio:</span>
+                  <div className="grid grid-cols-2 gap-2 text-[10px] font-bold uppercase tracking-wider">
+                    <a
+                      href="https://instagram.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-gradient-to-r from-purple-500 to-pink-500 text-white py-2 rounded text-center hover:scale-105 transition-transform"
+                    >
+                      Instagram
+                    </a>
+                    <a
+                      href="https://facebook.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-blue-600 text-white py-2 rounded text-center hover:scale-105 transition-transform"
+                    >
+                      Facebook
+                    </a>
+                    <a
+                      href="https://web.whatsapp.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-green-600 text-white py-2 rounded text-center hover:scale-105 transition-transform col-span-2"
+                    >
+                      WhatsApp Web / Business
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <p className="text-xs text-white/50 mt-4 px-2">
             <strong>Tip:</strong> Escribe tu idea en "Copy" y pídele a Nora (Estratega) que diseñe la campaña. Ella cargará un prompt de imagen y creará el copy profesional para vos en español.
           </p>

@@ -62,6 +62,13 @@ export default async function NewsArticlePage({ params }: PageProps) {
     .select("*")
     .limit(10);
 
+  // Fetch active campaigns for dynamic ads
+  const { data: campaigns } = await supabase
+    .from("marketing_campaigns")
+    .select("*")
+    .eq("status", "active")
+    .limit(10);
+
   const videoUrl = article.video_url;
   const isDirectVideo = videoUrl?.match(/\.(mp4|webm|ogg)$/i) || article.image_url?.match(/\.(mp4|webm|ogg)$/i);
   const isYouTube = videoUrl?.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
@@ -159,7 +166,7 @@ export default async function NewsArticlePage({ params }: PageProps) {
           prose-p:text-gray-300 prose-p:leading-relaxed prose-a:text-[var(--color-brand-accent)] 
           prose-strong:text-white prose-blockquote:border-[var(--color-brand-accent)] prose-blockquote:bg-white/5 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:rounded-r-lg"
         >
-          {renderContentWithAds(article.content || "", sponsors || [])}
+          {renderContentWithAds(article.content || "", sponsors || [], campaigns || [])}
         </div>
 
         {/* Cierre y Aviso Legal */}
@@ -191,8 +198,44 @@ export default async function NewsArticlePage({ params }: PageProps) {
 // ----------------------------------------------------------------------
 // Función Auxiliar para Renderizar Publicidad Intercalada
 // ----------------------------------------------------------------------
-function renderContentWithAds(htmlContent: string, sponsors: Sponsor[]) {
-  if (!sponsors || sponsors.length === 0 || !htmlContent) {
+interface AdItem {
+  type: "sponsor" | "campaign";
+  id: string;
+  name: string;
+  slogan?: string | null;
+  logo_url?: string | null;
+  image_url?: string | null;
+  content?: string | null;
+  instagram_url?: string | null;
+  website_url?: string | null;
+}
+
+// ----------------------------------------------------------------------
+// Función Auxiliar para Renderizar Publicidad Intercalada
+// ----------------------------------------------------------------------
+function renderContentWithAds(htmlContent: string, sponsors: Sponsor[], campaigns: any[]) {
+  const sponsorAds: AdItem[] = (sponsors || []).map(s => ({
+    type: "sponsor",
+    id: s.id,
+    name: s.name,
+    slogan: s.slogan,
+    logo_url: s.logo_url,
+    instagram_url: s.instagram_url,
+    website_url: s.website_url
+  }));
+
+  const campaignAds: AdItem[] = (campaigns || []).map(c => ({
+    type: "campaign",
+    id: c.id,
+    name: c.client_name,
+    slogan: c.campaign_name,
+    image_url: c.image_url,
+    content: c.content
+  }));
+
+  const allAds = [...campaignAds, ...sponsorAds];
+
+  if (allAds.length === 0 || !htmlContent) {
     return <div dangerouslySetInnerHTML={{ __html: htmlContent }} />;
   }
   
@@ -200,11 +243,11 @@ function renderContentWithAds(htmlContent: string, sponsors: Sponsor[]) {
   const parts = htmlContent.split('</p>');
   
   if (parts.length <= 2) {
-    const randomSponsor = sponsors[Math.floor(Math.random() * sponsors.length)];
+    const randomAd = allAds[Math.floor(Math.random() * allAds.length)];
     return (
       <>
         <div dangerouslySetInnerHTML={{ __html: htmlContent }} />
-        <AdBlock sponsor={randomSponsor} />
+        <AdBlock ad={randomAd} />
       </>
     );
   }
@@ -214,55 +257,79 @@ function renderContentWithAds(htmlContent: string, sponsors: Sponsor[]) {
   const firstHalf = parts.slice(0, middleIndex).join('</p>') + '</p>';
   const secondHalf = parts.slice(middleIndex).join('</p>');
 
-  // Elegir 2 sponsors (distintos si es posible)
-  const sponsor1 = sponsors[Math.floor(Math.random() * sponsors.length)];
-  const remainingSponsors = sponsors.filter(s => s.id !== sponsor1.id);
-  const sponsor2 = remainingSponsors.length > 0 
-    ? remainingSponsors[Math.floor(Math.random() * remainingSponsors.length)]
-    : sponsor1;
+  // Elegir 2 ads (distintos si es posible)
+  const ad1 = allAds[Math.floor(Math.random() * allAds.length)];
+  const remainingAds = allAds.filter(a => a.id !== ad1.id || a.type !== ad1.type);
+  const ad2 = remainingAds.length > 0 
+    ? remainingAds[Math.floor(Math.random() * remainingAds.length)]
+    : ad1;
 
   return (
     <>
       <div dangerouslySetInnerHTML={{ __html: firstHalf }} />
       <div className="my-12">
-        <AdBlock sponsor={sponsor1} />
+        <AdBlock ad={ad1} />
       </div>
       <div dangerouslySetInnerHTML={{ __html: secondHalf }} />
       <div className="mt-16 mb-8">
-        <AdBlock sponsor={sponsor2} />
+        <AdBlock ad={ad2} />
       </div>
     </>
   );
 }
 
-function AdBlock({ sponsor }: { sponsor: Sponsor }) {
+function AdBlock({ ad }: { ad: AdItem }) {
+  const isVideo = ad.image_url?.match(/\.(mp4|webm|ogg)$/i);
   return (
-    <div className="w-full bg-white/5 border border-white/10 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-center gap-6 shadow-2xl hover:border-[var(--color-brand-accent)] transition-colors group relative overflow-hidden">
+    <div className="w-full bg-white/5 border border-white/10 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-center gap-6 shadow-2xl hover:border-purple-500/40 transition-colors group relative overflow-hidden text-left">
       {/* Etiqueta de Publicidad */}
-      <div className="absolute top-0 left-0 bg-white/10 text-white/50 text-[10px] uppercase font-bold tracking-widest px-3 py-1 rounded-br-lg">
-        Espacio Publicitario
+      <div className="absolute top-0 left-0 bg-purple-500/20 text-purple-300 text-[10px] uppercase font-bold tracking-widest px-3 py-1 rounded-br-lg">
+        {ad.type === "campaign" ? `Patrocinado por ${ad.name}` : "Espacio Publicitario"}
       </div>
 
-      <div className="w-32 h-32 md:w-40 md:h-40 rounded-xl overflow-hidden bg-white shrink-0 p-2 flex items-center justify-center">
-        <img src={sponsor.logo_url} alt={sponsor.name} className="max-w-full max-h-full object-contain" />
-      </div>
+      {ad.logo_url && (
+        <div className="w-24 h-24 rounded-xl overflow-hidden bg-white shrink-0 p-2 flex items-center justify-center">
+          <img src={ad.logo_url} alt={ad.name} className="max-w-full max-h-full object-contain" />
+        </div>
+      )}
       
-      <div className="flex-1 text-center md:text-left flex flex-col items-center md:items-start justify-center">
-        <h3 className="text-2xl font-black text-white uppercase tracking-widest mb-2 group-hover:text-[var(--color-brand-accent)] transition-colors">
-          {sponsor.name}
+      <div className="flex-1 text-center md:text-left flex flex-col items-center md:items-start justify-center w-full">
+        <h3 className="text-xl font-black text-white uppercase tracking-widest mb-2 group-hover:text-purple-300 transition-colors">
+          {ad.type === "campaign" ? ad.slogan : ad.name}
         </h3>
-        {sponsor.slogan && (
-          <p className="text-gray-400 italic mb-6">"{sponsor.slogan}"</p>
+        <p className="text-gray-300 text-sm leading-relaxed mb-4">
+          {ad.type === "campaign" ? ad.content : ad.slogan ? `"${ad.slogan}"` : ""}
+        </p>
+        
+        {ad.image_url && (
+          <div className="w-full max-w-md aspect-video rounded-xl overflow-hidden border border-white/5 bg-black/40 relative mb-4 shrink-0">
+            {isVideo ? (
+              <video 
+                src={ad.image_url} 
+                autoPlay 
+                loop 
+                muted 
+                playsInline 
+                className="w-full h-full object-cover" 
+              />
+            ) : (
+              <img 
+                src={ad.image_url} 
+                alt={ad.name} 
+                className="w-full h-full object-cover" 
+              />
+            )}
+          </div>
         )}
         
         <div className="flex flex-wrap gap-3 justify-center md:justify-start mt-auto">
-          {sponsor.instagram_url && (
-            <a href={sponsor.instagram_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-lg hover:scale-105 transition-transform shadow-lg">
+          {ad.instagram_url && (
+            <a href={ad.instagram_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-lg hover:scale-105 transition-transform shadow-lg">
               Instagram
             </a>
           )}
-          {sponsor.website_url && (
-            <a href={sponsor.website_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-white/10 text-white hover:bg-white/20 text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-lg transition-colors">
+          {ad.website_url && (
+            <a href={ad.website_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-white/10 text-white hover:bg-white/20 text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-lg transition-colors">
               <ExternalLink className="w-4 h-4" /> Sitio Web
             </a>
           )}

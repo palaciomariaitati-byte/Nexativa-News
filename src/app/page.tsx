@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import Image from "next/image";
 import Link from "next/link";
 import React, { Suspense } from "react";
-import { getPublishedArticles, getProducts, getSponsors } from "@/lib/supabase/serverQueries";
+import { getPublishedArticles, getProducts, getSponsors, getActiveCampaigns } from "@/lib/supabase/serverQueries";
 import type { Product, Sponsor } from "@/lib/types";
 import NewsTabs from "@/components/NewsTabs/NewsTabs";
 import VideoSection from "@/components/VideoSection";
@@ -12,6 +12,7 @@ import SponsorsMarquee from "@/components/SponsorsMarquee";
 import TopBusBar from "@/components/TopBusBar";
 import SponsorTabs from "@/components/SponsorTabs";
 import AlientoPatrio from "@/components/AlientoPatrio";
+import { Sparkles } from "lucide-react";
 // -----------------------------------------------------------------
 // Mock data (static) — kept for non-news columns
 // -----------------------------------------------------------------
@@ -96,10 +97,11 @@ function NewsTabsSkeleton() {
 // -----------------------------------------------------------------
 export default async function HomePage() {
   // Fetch everything in parallel on the server
-  const [initialArticles, products, sponsors] = await Promise.all([
+  const [initialArticles, products, sponsors, activeCampaigns] = await Promise.all([
     getPublishedArticles("nacional"),
     getProducts(),
     getSponsors(),
+    getActiveCampaigns(),
   ]);
 
   // Sticky video logic moved to <StickyVideo /> client component
@@ -147,6 +149,59 @@ export default async function HomePage() {
             </div>
           </Suspense>
         </section>
+
+        {/* 📢 Campañas / Spots Publicitarios Activos */}
+        {activeCampaigns && activeCampaigns.length > 0 && (
+          <section className="w-full">
+            <h3 className="text-white text-xl sm:text-2xl font-bold mb-6 border-b border-purple-500/20 pb-2 flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-purple-400 animate-pulse" /> Campañas & Lanzamientos Destacados
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {activeCampaigns.slice(0, 4).map((camp) => (
+                <div key={camp.id} className="relative group overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-purple-950/20 to-black p-6 flex flex-col justify-between hover:border-purple-500/40 transition-all duration-300">
+                  <div className="absolute top-0 right-0 bg-purple-500/20 text-purple-300 text-[9px] uppercase font-black tracking-widest px-3 py-1 rounded-bl-xl border-l border-b border-purple-500/20">
+                    Patrocinado por {camp.client_name}
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-purple-500/10 p-2.5 rounded-lg text-purple-400 font-extrabold text-xs uppercase tracking-wider">
+                        {camp.client_name.substring(0, 2)}
+                      </div>
+                      <div>
+                        <h4 className="text-white font-black text-lg group-hover:text-purple-300 transition-colors">{camp.campaign_name}</h4>
+                        <p className="text-[10px] text-gray-500 uppercase tracking-wider">Espacio Patrocinado</p>
+                      </div>
+                    </div>
+                    
+                    <p className="text-gray-300 text-sm leading-relaxed line-clamp-3">{camp.content}</p>
+                    
+                    {camp.image_url && (
+                      <div className="aspect-video rounded-xl overflow-hidden border border-white/5 bg-black/40 relative">
+                        {camp.image_url.match(/\.(mp4|webm|ogg)$/i) ? (
+                          <video 
+                            src={camp.image_url} 
+                            autoPlay 
+                            loop 
+                            muted 
+                            playsInline 
+                            className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500" 
+                          />
+                        ) : (
+                          <img 
+                            src={camp.image_url} 
+                            alt={camp.campaign_name} 
+                            className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500" 
+                          />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* 4️⃣ Tienda (Grid o Carrusel Horizontal Móvil) */}
         <section className="w-full">
