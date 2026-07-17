@@ -93,8 +93,11 @@ export class NewsGenerator {
       }
     }
 
-    if (!this.genAI) {
-      console.warn("No GEMINI_API_KEY found, returning raw item as fallback (not recommended for copyright).");
+    const apiKey = process.env.GEMINI_API_KEY;
+    const fallbackApiKey = process.env.GEMINI_API_KEY_FALLBACK;
+
+    if (!apiKey && !fallbackApiKey) {
+      console.warn("No GEMINI_API_KEY or GEMINI_API_KEY_FALLBACK found, returning raw item as fallback (not recommended for copyright).");
       return {
         title,
         excerpt: rawContent.substring(0, 100) + "...",
@@ -106,16 +109,14 @@ export class NewsGenerator {
       };
     }
 
-    try {
-      const model = this.genAI.getGenerativeModel({ model: GEMINI_MODEL });
+    const prompt = `
+Eres NORA, una redactora periodística de Nexativa News, de gran trayectoria y con la mentalidad y el sentido común de una profesional de nivel internacional de Argentina.
+Tu tarea es tomar la noticia provista y reescribirla de manera completa, inteligente y original, interpretando y procesando la información sustancial en lugar de hacer una mera traducción o paráfrasis directa, asegurando que se respeten los derechos de autor ("fair use") y aportando verdadero valor e interpretación periodística.
 
-      const prompt = `
-Eres Nora, una redactora periodística profesional de NexativaNews. 
-Tu tarea es reescribir la siguiente noticia para que sea 100% original, respetando los derechos de autor ("fair use") y aportando valor.
-Usa un tono periodístico pero accesible para una audiencia local.
-Crea un nuevo título atrapante.
+Usa un tono periodístico impecable, riguroso pero natural y fluido, al nivel de los principales portales de noticias de Argentina y con llegada internacional.
+Crea un nuevo título atrapante y profesional.
 Genera un resumen corto (excerpt) de no más de 150 caracteres.
-Genera el contenido de la noticia en formato HTML válido (usando <p>, <strong>, etc.), pero NO incluyas un link a la fuente original en tu respuesta, yo lo agregaré programáticamente.
+Genera el contenido de la noticia estructurado de forma lógica en formato HTML válido (usando <p>, <strong>, etc.), pero NO incluyas un link a la fuente original en tu respuesta, yo lo agregaré programáticamente.
 
 Noticia original a reescribir:
 Título: ${title}
@@ -129,37 +130,52 @@ Devuelve la respuesta ESTRICTAMENTE en este formato JSON, sin markdown ni backti
 }
       `;
 
+    const runCall = async (key: string) => {
+      const genAI = new GoogleGenerativeAI(key);
+      const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
       const result = await model.generateContent(prompt);
       const textResponse = result.response.text().trim();
       
       // Intentar parsear el JSON
-      let parsed = null;
-      try {
-        // En caso de que Gemini devuelva backticks de markdown
-        const cleanedText = textResponse.replace(/^\`\`\`json/m, '').replace(/^\`\`\`/m, '').trim();
-        parsed = JSON.parse(cleanedText);
-      } catch (e) {
-        console.error("Error parsing Gemini JSON:", e, textResponse);
-        return null;
+      const cleanedText = textResponse.replace(/^\`\`\`json/m, '').replace(/^\`\`\`/m, '').trim();
+      return JSON.parse(cleanedText);
+    };
+
+    let parsed = null;
+    try {
+      if (apiKey) {
+        try {
+          parsed = await runCall(apiKey);
+        } catch (apiError: any) {
+          console.warn("[Nora News Generator] Primary API Key failed, attempting fallback:", apiError.message);
+          if (fallbackApiKey) {
+            parsed = await runCall(fallbackApiKey);
+          } else {
+            throw apiError;
+          }
+        }
+      } else if (fallbackApiKey) {
+        parsed = await runCall(fallbackApiKey);
       }
-
-      // Añadimos la atribución programáticamente
-      const finalHtmlContent = `${parsed.htmlContent}\n\n<p><i>Fuente original: <a href="${link}" target="_blank" rel="noopener noreferrer">Leer nota completa aquí</a></i></p>`;
-
-      return {
-        title: parsed.newTitle || title,
-        excerpt: parsed.excerpt || title,
-        content: finalHtmlContent,
-        image_url: imageUrl,
-        external_url: link,
-        category: 'internacional', // O se podría detectar dinámicamente
-        status: 'published',
-        author_id: null
-      };
-
     } catch (error) {
-      console.error("[Nora News Generator] Error con Gemini:", error);
+      console.error("[Nora News Generator] Error con Gemini (ambas keys si aplica):", error);
       return null;
     }
+
+    if (!parsed) return null;
+
+    // Añadimos la atribución programáticamente
+    const finalHtmlContent = `${parsed.htmlContent}\n\n<p><i>Fuente original: <a href="${link}" target="_blank" rel="noopener noreferrer">Leer nota completa aquí</a></i></p>`;
+
+    return {
+      title: parsed.newTitle || title,
+      excerpt: parsed.excerpt || title,
+      content: finalHtmlContent,
+      image_url: imageUrl,
+      external_url: link,
+      category: 'internacional', // O se podría detectar dinámicamente
+      status: 'published',
+      author_id: null
+    };
   }
 }

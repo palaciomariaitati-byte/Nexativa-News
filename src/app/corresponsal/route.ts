@@ -6,12 +6,12 @@ import supabaseAdmin from "@/lib/supabase/admin";
 // Volatile audio transcription using Gemini 2.5 Flash
 async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY no está configurada en las variables de entorno.");
-  }
-  const genAI = new GoogleGenerativeAI(apiKey);
+  const fallbackApiKey = process.env.GEMINI_API_KEY_FALLBACK;
   const modelId = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-  const model = genAI.getGenerativeModel({ model: modelId });
+
+  if (!apiKey && !fallbackApiKey) {
+    throw new Error("Ni GEMINI_API_KEY ni GEMINI_API_KEY_FALLBACK están configuradas.");
+  }
 
   const prompt = `
 Escucha atentamente este audio de un corresponsal de prensa de Nexativa News en Ituzaingó, Corrientes.
@@ -20,56 +20,76 @@ Elimina muletillas (como "eh", "este", "bueno"), tartamudeos, risas, ruidos de f
 Devuelve ÚNICAMENTE la transcripción limpia y corregida del mensaje periodístico. No añadas introducciones, explicaciones, markdown ni comentarios en tu respuesta.
 `;
 
-  const result = await model.generateContent([
-    {
-      inlineData: {
-        data: audioBuffer.toString("base64"),
-        mimeType: mimeType
-      }
-    },
-    prompt
-  ]);
+  const runCall = async (key: string) => {
+    const genAI = new GoogleGenerativeAI(key);
+    const model = genAI.getGenerativeModel({ model: modelId });
+    const result = await model.generateContent([
+      {
+        inlineData: {
+          data: audioBuffer.toString("base64"),
+          mimeType: mimeType
+        }
+      },
+      prompt
+    ]);
+    return result.response.text().trim();
+  };
 
-  return result.response.text().trim();
+  try {
+    if (apiKey) {
+      return await runCall(apiKey);
+    } else {
+      return await runCall(fallbackApiKey!);
+    }
+  } catch (apiError: any) {
+    console.warn("[Corresponsal API] Falló transcripción con API Key primaria, intentando fallback:", apiError.message);
+    if (apiKey && fallbackApiKey) {
+      try {
+        return await runCall(fallbackApiKey);
+      } catch (fallbackError: any) {
+        throw new Error(`Ambas API Keys fallaron. Error primario: ${apiError.message}. Error secundario: ${fallbackError.message}`);
+      }
+    } else {
+      throw apiError;
+    }
+  }
 }
 
 // Cognitive copywriting generating exactly TWO independent versions in a single pass
 async function generateArticles(transcription: string, locationContext: string, operatorName: string): Promise<any> {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY no está configurada en las variables de entorno.");
-  }
-  const genAI = new GoogleGenerativeAI(apiKey);
+  const fallbackApiKey = process.env.GEMINI_API_KEY_FALLBACK;
   const modelId = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-  const model = genAI.getGenerativeModel({
-    model: modelId,
-    generationConfig: { responseMimeType: "application/json" }
-  });
+
+  if (!apiKey && !fallbackApiKey) {
+    throw new Error("Ni GEMINI_API_KEY ni GEMINI_API_KEY_FALLBACK están configuradas.");
+  }
 
   const prompt = `
-Eres Nora, la redactora periodística experta de Nexativa News (Ituzaingó, Corrientes). Tu tarea es procesar el siguiente reporte de un corresponsal y generar exactamente DOS versiones periodísticas independientes en español de la noticia.
+Eres NORA, una redactora periodística de Nexativa News (Ituzaingó, Corrientes) con la mentalidad y el sentido común de un verdadero periodista de nivel internacional de Argentina. Tu tarea es procesar el reporte de corresponsalía provisto e interpretar los hechos a fondo para generar exactamente DOS versiones periodísticas independientes en español, bien desarrolladas, naturales y con un lenguaje sumamente fiable y profesional.
 
 Reporte original del corresponsal:
 "${transcription}"
 
 ${locationContext}
 
-Instrucciones de redacción:
-1. Contextualiza la noticia usando la ubicación geográfica suministrada. Incorpora nombres de calles, rutas (por ejemplo, Ruta 12) u otros puntos de referencia locales relevantes para que el texto sea geográficamente preciso y coherente para los lectores de Corrientes/Ituzaingó.
+Instrucciones de redacción y procesamiento:
+1. ANÁLISIS E INTERPRETACIÓN PERIODÍSTICA: No te limites a hacer una edición directa sobre el original o una transcripción superficial. Procesa la información, asocia las ideas, estructúrala de forma lógica usando el formato de pirámide invertida (respondiendo con claridad a qué, quién, cuándo, dónde, por qué y cómo) y redacta la noticia con un lenguaje fluido, natural y de alta calidad periodística.
+2. Contextualiza la noticia usando la ubicación geográfica suministrada. Incorpora nombres de calles, rutas (por ejemplo, Ruta 12) u otros puntos de referencia locales relevantes para que el texto sea geográficamente preciso y coherente para los lectores de Corrientes/Ituzaingó.
    - REGLA DE DISTANCIA: Si el texto de ubicación indica que la distancia al punto de referencia es de más de 200 metros (por ejemplo, "a 980m de Puerto de Ituzaingó"), NO redactes un titular ni afirmes en la noticia que el suceso ocurrió "en el puerto" o "cerca del puerto" de forma directa como si estuviera al lado, ya que esto confundirá a los lectores locales. En su lugar, usa expresiones como "en las inmediaciones de...", "en un sector residencial de Ituzaingó", o simplemente "Ituzaingó". Evita mencionar el hito lejano en el título de la noticia.
 
-2. Genera exactamente dos versiones independientes en formato HTML limpio para el cuerpo de la noticia:
+3. Genera exactamente dos versiones independientes en formato HTML limpio para el cuerpo de la noticia:
 
 A) VERSION_NEXATIVA (Master Copy):
-   - Tono: Profesional, inmediato, multimedia-oriented.
-   - Estructura: Pirámide invertida de periodismo. Título impactante y optimizado para SEO para Nexativa News. Copete (Deck/Excerpt) corto y atrapante de no más de 150 caracteres. Cuerpo detallado formateado en HTML (usa <p> y <strong>).
+   - Tono: Profesional, riguroso, de alta gama e inmediato.
+   - Estructura: Título impactante y optimizado para SEO para Nexativa News. Copete (Deck/Excerpt) corto y atrapante de no más de 150 caracteres. Cuerpo detallado formateado en HTML (usa <p> y <strong>).
    - Tags: Genera exactamente 5 palabras clave de meta-etiquetas de SEO locales y geolocalizadas.
 
 B) VERSION_PARTNER (Syndicated Alternative Copy):
-   - Tono: Objetivo, profesional y con un vocabulario distinto.
+   - Tono: Objetivo, sumamente profesional, con un enfoque y vocabulario de redacción alternativos.
    - Estrategia: Reescribe la noticia completamente usando sintaxis alternativa, verbos diferentes y estructuras de oraciones distintas para lograr una duplicación léxica del 0% con respecto a la Versión A. Esto es crucial para saltar los filtros de contenido duplicado de Google.
    
-3. PIE DE ATRIBUCIÓN DINÁMICO (para Version B):
+4. PIE DE ATRIBUCIÓN DINÁMICO (para Version B):
    - El nombre o medio del corresponsal que envía la cobertura es: "${operatorName}".
    - Analiza si el nombre del corresponsal indica que pertenece a otro medio de comunicación (por ejemplo, si menciona "Radio", "FM", "Cable", "Canal", "Diario", "Portal", o nombres de periodistas o medios colaboradores externos).
    - Si pertenece a otro medio: redacta un pie de atribución que mencione la cobertura especial de ese medio/periodista y agradezca la colaboración en redacción o soporte técnico a "Nora, la inteligencia artificial de Nexativa News" o a "Nexativanews.com.ar" (ej: "Cobertura especial de FM Ituzaingó, redactado con soporte técnico de Nora de Nexativanews.com.ar").
@@ -91,13 +111,39 @@ Devuelve la respuesta ESTRICTAMENTE en este formato JSON, sin markdown ni backti
 }
 `;
 
-  const result = await model.generateContent(prompt);
-  let text = result.response.text().trim();
-  
-  // Clean potential markdown blocks
-  text = text.replace(/```json/gi, "").replace(/```/g, "").trim();
-  
-  return JSON.parse(text);
+  const runCall = async (key: string) => {
+    const genAI = new GoogleGenerativeAI(key);
+    const model = genAI.getGenerativeModel({
+      model: modelId,
+      generationConfig: { responseMimeType: "application/json" }
+    });
+    const result = await model.generateContent(prompt);
+    let text = result.response.text().trim();
+    
+    // Clean potential markdown blocks
+    text = text.replace(/```json/gi, "").replace(/```/g, "").trim();
+    
+    return JSON.parse(text);
+  };
+
+  try {
+    if (apiKey) {
+      return await runCall(apiKey);
+    } else {
+      return await runCall(fallbackApiKey!);
+    }
+  } catch (apiError: any) {
+    console.warn("[Corresponsal API] Falló generación con API Key primaria, intentando fallback:", apiError.message);
+    if (apiKey && fallbackApiKey) {
+      try {
+        return await runCall(fallbackApiKey);
+      } catch (fallbackError: any) {
+        throw new Error(`Ambas API Keys fallaron. Error primario: ${apiError.message}. Error secundario: ${fallbackError.message}`);
+      }
+    } else {
+      throw apiError;
+    }
+  }
 }
 
 export async function POST(request: Request) {

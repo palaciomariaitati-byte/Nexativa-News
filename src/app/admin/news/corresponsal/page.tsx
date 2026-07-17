@@ -12,7 +12,8 @@ import {
   getPartnersList,
   savePartnersList,
   StagingQueueItem,
-  EditorialAlert
+  EditorialAlert,
+  archiveStagingItem
 } from "../../actions/corresponsal";
 import { 
   MapPin, 
@@ -33,9 +34,11 @@ import {
   ChevronDown,
   ChevronUp,
   Plus,
-  Globe
+  Globe,
+  Archive
 } from "lucide-react";
 import { getClosestLocation, parseCoordinates } from "@/lib/location-db";
+import { supabase } from "@/lib/supabase/client";
 
 export default function CorresponsalStagingPage() {
   const [queue, setQueue] = useState<StagingQueueItem[]>([]);
@@ -58,6 +61,8 @@ export default function CorresponsalStagingPage() {
   const [editPartnerTitle, setEditPartnerTitle] = useState("");
   const [editPartnerContent, setEditPartnerContent] = useState("");
   const [editPartnerFooter, setEditPartnerFooter] = useState("");
+  const [editMediaUrls, setEditMediaUrls] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
 
   // UI state for showing/hiding transcriptions
   const [showTranscript, setShowTranscript] = useState<Record<string, boolean>>({});
@@ -67,6 +72,9 @@ export default function CorresponsalStagingPage() {
   // Error/Success banners
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
+
+  // Active vs Archive queue tab
+  const [currentQueueTab, setCurrentQueueTab] = useState<'active' | 'archive'>('active');
 
   useEffect(() => {
     loadPageData();
@@ -163,10 +171,45 @@ export default function CorresponsalStagingPage() {
     setEditPartnerTitle(item.version_partner?.title || "");
     setEditPartnerContent(item.version_partner?.content || "");
     setEditPartnerFooter(item.version_partner?.attribution_footer || "");
+    setEditMediaUrls(item.attached_media_url || []);
   };
 
   const handleCancelEdit = () => {
     setEditingId(null);
+  };
+
+  const handleImageUpload = async (file: File) => {
+    setIsUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const filePath = `articles/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage.from('uploads').upload(filePath, file);
+      
+      if (uploadError) {
+        throw new Error(uploadError.message);
+      }
+
+      const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(filePath);
+      const imageUrl = publicUrlData.publicUrl;
+
+      setEditMediaUrls(prev => {
+        const next = [...prev];
+        if (next.length > 0) {
+          next[0] = imageUrl;
+        } else {
+          next.push(imageUrl);
+        }
+        return next;
+      });
+
+      setSuccessBanner("Imagen de portada subida con éxito.");
+      setTimeout(() => setSuccessBanner(null), 3000);
+    } catch (e: any) {
+      console.error(e);
+      alert("Error subiendo la imagen: " + e.message);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleSaveEdit = async (id: string) => {
@@ -189,7 +232,7 @@ export default function CorresponsalStagingPage() {
         attribution_footer: editPartnerFooter
       } : null;
 
-      await updateStagingItem(id, updatedNexativa, updatedPartner);
+      await updateStagingItem(id, updatedNexativa, updatedPartner, editMediaUrls);
       
       // Update local state
       setQueue(queue.map(q => {
@@ -197,7 +240,8 @@ export default function CorresponsalStagingPage() {
           return {
             ...q,
             version_nexativa: updatedNexativa,
-            version_partner: updatedPartner
+            version_partner: updatedPartner,
+            attached_media_url: editMediaUrls
           };
         }
         return q;
@@ -208,6 +252,31 @@ export default function CorresponsalStagingPage() {
       setTimeout(() => setSuccessBanner(null), 3000);
     } catch (err: any) {
       setErrorBanner("Error al guardar cambios: " + err.message);
+      setTimeout(() => setErrorBanner(null), 4000);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleArchive = async (id: string, archive: boolean) => {
+    try {
+      setActionLoadingId(id);
+      await archiveStagingItem(id, archive);
+      
+      setQueue(queue.map(q => {
+        if (q.id === id) {
+          return {
+            ...q,
+            status: archive ? 'ARCHIVED' : 'PENDING_REVIEW'
+          };
+        }
+        return q;
+      }));
+      
+      setSuccessBanner(archive ? "Reporte enviado al archivo histórico." : "Reporte devuelto a la bandeja de entrada.");
+      setTimeout(() => setSuccessBanner(null), 3000);
+    } catch (err: any) {
+      setErrorBanner("Error al archivar: " + err.message);
       setTimeout(() => setErrorBanner(null), 4000);
     } finally {
       setActionLoadingId(null);
@@ -444,19 +513,66 @@ export default function CorresponsalStagingPage() {
         </div>
       )}
 
-      {/* Main Grid */}
+      {/* Main Grid Tabs */}
+      {!loading && (
+        <div className="flex border-b border-white/10 gap-6 text-sm font-bold uppercase tracking-wider mb-6">
+          <button
+            onClick={() => setCurrentQueueTab('active')}
+            className={`pb-3 border-b-2 transition-all flex items-center gap-2 ${
+              currentQueueTab === 'active'
+                ? 'text-[var(--color-brand-accent)] border-[var(--color-brand-accent)] font-black'
+                : 'text-white/40 border-transparent hover:text-white/70'
+            }`}
+          >
+            <Layers className="w-4 h-4" />
+            Bandeja de Entrada
+            <span className="bg-amber-600/30 text-amber-300 text-[10px] px-2 py-0.5 rounded-full ml-1 font-mono font-bold">
+              {queue.filter(q => q.status === 'PENDING_REVIEW' || q.status === 'AUDIO_ERROR_MANUAL_REVIEW_REQUIRED').length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setCurrentQueueTab('archive')}
+            className={`pb-3 border-b-2 transition-all flex items-center gap-2 ${
+              currentQueueTab === 'archive'
+                ? 'text-purple-400 border-purple-500 font-black'
+                : 'text-white/40 border-transparent hover:text-white/70'
+            }`}
+          >
+            <Archive className="w-4 h-4" />
+            Biblioteca / Archivo Histórico
+            <span className="bg-purple-900/30 text-purple-300 text-[10px] px-2 py-0.5 rounded-full ml-1 font-mono font-bold">
+              {queue.filter(q => q.status !== 'PENDING_REVIEW' && q.status !== 'AUDIO_ERROR_MANUAL_REVIEW_REQUIRED').length}
+            </span>
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div className="text-center p-12 text-white/50 uppercase tracking-widest text-sm animate-pulse">
           <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4" />
           Cargando cola de corresponsalía...
         </div>
-      ) : queue.length === 0 ? (
-        <div className="text-center p-12 bg-black/10 border border-white/5 rounded-xl text-white/50 uppercase tracking-widest text-sm">
-          No hay reportes de corresponsales en la cola de revisión.
-        </div>
-      ) : (
-        <div className="space-y-8">
-          {queue.map((item) => {
+      ) : (() => {
+        const filteredQueue = queue.filter(item => {
+          const isActive = item.status === 'PENDING_REVIEW' || item.status === 'AUDIO_ERROR_MANUAL_REVIEW_REQUIRED';
+          return currentQueueTab === 'active' ? isActive : !isActive;
+        });
+
+        if (filteredQueue.length === 0) {
+          return (
+            <div className="text-center p-12 bg-black/10 border border-white/5 rounded-xl text-white/50 uppercase tracking-widest text-sm">
+              {currentQueueTab === 'active'
+                ? "No hay reportes de corresponsales activos en la bandeja de entrada."
+                : "No hay reportes archivados ni publicados en la biblioteca histórica."
+              }
+            </div>
+          );
+        }
+
+        return (
+          <div className="space-y-8">
+            {filteredQueue.map((item) => {
             const coords = parseCoordinates(item.geolocation_coordinates);
             const location = getClosestLocation(coords.lat, coords.lng);
             const isEditing = editingId === item.id;
@@ -664,6 +780,85 @@ export default function CorresponsalStagingPage() {
                               onChange={(e) => setEditPartnerFooter(e.target.value)}
                               className="w-full bg-black/40 border border-white/20 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
                             />
+                          </div>
+                        </div>
+
+                        {/* Edit Cover Image */}
+                        <div className="lg:col-span-2 border-t border-white/5 pt-4 space-y-4">
+                          <div className="flex items-center gap-2 border-b border-white/5 pb-2">
+                            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-md shadow-amber-500/50" />
+                            <h4 className="font-bold text-sm uppercase text-white/80">Editar Imagen de Portada</h4>
+                          </div>
+                          
+                          <div className="flex flex-col md:flex-row gap-6 items-center bg-black/20 p-4 rounded-lg border border-white/5">
+                            {/* Preview */}
+                            <div className="w-full md:w-48 aspect-video border border-white/10 bg-black/40 rounded-lg overflow-hidden flex items-center justify-center shrink-0">
+                              {editMediaUrls.length > 0 && editMediaUrls[0] ? (
+                                <img 
+                                  src={editMediaUrls[0]} 
+                                  alt="Vista previa de portada" 
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <span className="text-xs text-white/30 italic">Sin portada</span>
+                              )}
+                            </div>
+                            
+                            <div className="flex-1 w-full space-y-3">
+                              <div className="space-y-1">
+                                <label className="block text-xs uppercase text-white/50 font-bold">URL de la Imagen de Portada</label>
+                                <input
+                                  type="text"
+                                  value={editMediaUrls[0] || ""}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setEditMediaUrls(prev => {
+                                      const next = [...prev];
+                                      if (next.length > 0) {
+                                        next[0] = val;
+                                      } else {
+                                        next.push(val);
+                                      }
+                                      return next;
+                                    });
+                                  }}
+                                  placeholder="https://ejemplo.com/imagen.jpg"
+                                  className="w-full bg-black/40 border border-white/20 rounded px-3 py-2 text-white text-xs focus:outline-none focus:border-amber-500"
+                                />
+                              </div>
+                              
+                              <div className="flex items-center gap-3">
+                                <label className="bg-amber-600 hover:bg-amber-500 text-black px-4 py-2 rounded text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-2">
+                                  {isUploading ? "Subiendo..." : "Subir nueva imagen"}
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    disabled={isUploading}
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) handleImageUpload(file);
+                                    }}
+                                  />
+                                </label>
+                                
+                                {editMediaUrls.length > 0 && editMediaUrls[0] && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditMediaUrls(prev => {
+                                        const next = [...prev];
+                                        next[0] = "";
+                                        return next;
+                                      });
+                                    }}
+                                    className="bg-red-500/15 hover:bg-red-500/30 border border-red-500/30 text-red-300 px-4 py-2 rounded text-xs font-bold uppercase tracking-wider transition-colors"
+                                  >
+                                    Quitar Portada
+                                  </button>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         </div>
 

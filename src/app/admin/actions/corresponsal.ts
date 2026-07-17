@@ -11,7 +11,7 @@ export interface StagingQueueItem {
   geolocation_coordinates: string;
   attached_media_url: string[];
   audio_url: string | null;
-  status: 'PENDING_REVIEW' | 'APPROVED_NEXATIVA_ONLY' | 'APPROVED_PARTNER_ONLY' | 'APPROVED_ALL_SIMULTANEOUS' | 'AUDIO_ERROR_MANUAL_REVIEW_REQUIRED';
+  status: 'PENDING_REVIEW' | 'APPROVED_NEXATIVA_ONLY' | 'APPROVED_PARTNER_ONLY' | 'APPROVED_ALL_SIMULTANEOUS' | 'AUDIO_ERROR_MANUAL_REVIEW_REQUIRED' | 'ARCHIVED';
   version_nexativa: {
     title: string;
     excerpt: string;
@@ -111,17 +111,28 @@ export async function deleteStagingItem(id: string): Promise<boolean> {
 /**
  * Update the copies inside a staging queue item (allowing the admin to edit before publishing).
  */
-export async function updateStagingItem(id: string, versionNexativa: any, versionPartner: any): Promise<boolean> {
+export async function updateStagingItem(
+  id: string, 
+  versionNexativa: any, 
+  versionPartner: any,
+  attachedMediaUrl?: string[]
+): Promise<boolean> {
   const role = await getStaffRole();
   if (!role) throw new Error("No autorizado");
 
+  const updateData: any = {
+    version_nexativa: versionNexativa,
+    version_partner: versionPartner,
+    updated_at: new Date().toISOString()
+  };
+
+  if (attachedMediaUrl !== undefined) {
+    updateData.attached_media_url = attachedMediaUrl;
+  }
+
   const { error } = await supabaseAdmin
     .from("editorial_staging_queue")
-    .update({
-      version_nexativa: versionNexativa,
-      version_partner: versionPartner,
-      updated_at: new Date().toISOString()
-    })
+    .update(updateData)
     .eq("id", id);
 
   if (error) throw error;
@@ -422,4 +433,22 @@ export async function approveStagingItem(
     success: true, 
     webhookError: webhookErrMessage || undefined 
   };
+}
+
+/**
+ * Archive or unarchive a staging queue item.
+ */
+export async function archiveStagingItem(id: string, archive: boolean): Promise<boolean> {
+  const role = await getStaffRole();
+  if (!role) throw new Error("No autorizado");
+
+  const newStatus = archive ? "ARCHIVED" : "PENDING_REVIEW";
+
+  const { error } = await supabaseAdmin
+    .from("editorial_staging_queue")
+    .update({ status: newStatus, updated_at: new Date().toISOString() })
+    .eq("id", id);
+
+  if (error) throw error;
+  return true;
 }
