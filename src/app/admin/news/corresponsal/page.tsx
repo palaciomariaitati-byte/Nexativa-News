@@ -967,15 +967,35 @@ export default function CorresponsalStagingPage() {
                 </div>
 
                 {/* Actions Footer */}
-                {(item.status === 'PENDING_REVIEW' || item.status === 'AUDIO_ERROR_MANUAL_REVIEW_REQUIRED') && (
+                {(item.status === 'PENDING_REVIEW' || item.status === 'AUDIO_ERROR_MANUAL_REVIEW_REQUIRED' || item.status === 'ARCHIVED') && (
                   <div className="bg-white/[0.02] border-t border-white/10 px-6 py-4 flex flex-wrap justify-between items-center gap-4">
-                    <button
-                      onClick={() => handleDeleteItem(item.id)}
-                      disabled={actionLoadingId !== null}
-                      className="bg-red-500/10 hover:bg-red-500/30 border border-red-500/30 text-red-300 px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50"
-                    >
-                      <Trash2 className="w-4 h-4" /> Descartar Reporte
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleDeleteItem(item.id)}
+                        disabled={actionLoadingId !== null}
+                        className="bg-red-500/10 hover:bg-red-500/30 border border-red-500/30 text-red-300 px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50"
+                      >
+                        <Trash2 className="w-4 h-4" /> Descartar
+                      </button>
+
+                      {item.status === 'ARCHIVED' ? (
+                        <button
+                          onClick={() => handleArchive(item.id, false)}
+                          disabled={actionLoadingId !== null}
+                          className="bg-amber-600 hover:bg-amber-500 text-black px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50"
+                        >
+                          <RefreshCw className="w-4 h-4" /> Desarchivar
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleArchive(item.id, true)}
+                          disabled={actionLoadingId !== null}
+                          className="bg-white/5 hover:bg-white/10 border border-white/10 text-white px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50"
+                        >
+                          <Archive className="w-4 h-4" /> Archivar
+                        </button>
+                      )}
+                    </div>
 
                     <div className="flex flex-wrap items-center gap-3">
                       {/* Checkboxes for selected partners */}
@@ -1037,7 +1057,8 @@ export default function CorresponsalStagingPage() {
             );
           })}
         </div>
-      )}
+      );
+    })()}
 
       {/* Webhook Alerts Panel */}
       {alerts.length > 0 && (
