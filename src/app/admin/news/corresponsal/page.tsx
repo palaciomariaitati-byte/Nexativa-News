@@ -39,8 +39,10 @@ import {
 } from "lucide-react";
 import { getClosestLocation, parseCoordinates } from "@/lib/location-db";
 import { supabase } from "@/lib/supabase/client";
+import { getStaffRole } from "../../actions";
 
 export default function CorresponsalStagingPage() {
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [queue, setQueue] = useState<StagingQueueItem[]>([]);
   const [alerts, setAlerts] = useState<EditorialAlert[]>([]);
   const [partners, setPartners] = useState<{ id: string; name: string; url: string }[]>([]);
@@ -84,6 +86,9 @@ export default function CorresponsalStagingPage() {
     setLoading(true);
     setMigrationRequired(false);
     try {
+      const roleVal = await getStaffRole();
+      setUserRole(roleVal);
+
       const queueData = await fetchStagingQueue();
       setQueue(queueData);
       
@@ -402,13 +407,15 @@ export default function CorresponsalStagingPage() {
           <p className="text-xs text-white/50 uppercase tracking-widest mt-1">Staging Buffer Editorial & Copias Periodísticas</p>
         </div>
         
-        <button
-          onClick={() => setSettingsOpen(!settingsOpen)}
-          className="bg-white/5 hover:bg-white/10 border border-white/10 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors flex-shrink-0 flex items-center gap-2"
-        >
-          <Settings className="w-4 h-4 text-[var(--color-brand-accent)]" />
-          {settingsOpen ? "Cerrar Configuración" : "Configurar Socios (Portales)"}
-        </button>
+        {userRole && !userRole.startsWith("partner:") && (
+          <button
+            onClick={() => setSettingsOpen(!settingsOpen)}
+            className="bg-white/5 hover:bg-white/10 border border-white/10 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors flex-shrink-0 flex items-center gap-2"
+          >
+            <Settings className="w-4 h-4 text-[var(--color-brand-accent)]" />
+            {settingsOpen ? "Cerrar Configuración" : "Configurar Socios (Portales)"}
+          </button>
+        )}
       </div>
 
       {/* Settings Form */}

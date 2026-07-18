@@ -9,6 +9,7 @@ export default function AdminStaffPage() {
   const [newName, setNewName] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newRole, setNewRole] = useState("redactor");
+  const [partnerId, setPartnerId] = useState("");
 
   async function fetchStaff() {
     setLoading(true);
@@ -30,10 +31,21 @@ export default function AdminStaffPage() {
     e.preventDefault();
     if (!newName || !newPassword) return;
 
+    let finalRole = newRole;
+    if (newRole === "partner:") {
+      const cleanedId = partnerId.toLowerCase().replace(/[^a-z0-9_-]/g, "").trim();
+      if (!cleanedId) {
+        alert("Por favor ingresa un ID de socio válido (solo letras y números).");
+        return;
+      }
+      finalRole = `partner:${cleanedId}`;
+    }
+
     try {
-      await createStaffKey(newName, newPassword, newRole);
+      await createStaffKey(newName, newPassword, finalRole);
       setNewName("");
       setNewPassword("");
+      setPartnerId("");
       fetchStaff();
     } catch (error: Error | unknown) {
       const err = error as Error;
@@ -73,8 +85,15 @@ export default function AdminStaffPage() {
             <option value="redactor">Redactor (Solo Noticias)</option>
             <option value="operator">Operador (Noticias + Tienda + Streaming)</option>
             <option value="admin">Administrador (Todo + Contabilidad)</option>
+            <option value="partner:">Socio / Portal Asociado (Ingresar ID)</option>
           </select>
         </div>
+        {newRole === "partner:" && (
+          <div className="flex-1 animate-fadeIn">
+            <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase tracking-wide">ID de Socio (sin espacios)</label>
+            <input required type="text" value={partnerId} onChange={e => setPartnerId(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)]" placeholder="Ej: ituzaingo" />
+          </div>
+        )}
         <button type="submit" className="bg-[var(--color-brand-accent)] hover:bg-[var(--color-brand-accent-hover)] text-black font-bold uppercase tracking-widest py-3 px-8 rounded-lg transition-colors h-[50px]">
           Crear Acceso
         </button>
@@ -101,7 +120,9 @@ export default function AdminStaffPage() {
                 <tr key={person.id} className="hover:bg-white/5 transition-colors">
                   <td className="p-4 font-medium text-white">{person.name}</td>
                   <td className="p-4">
-                    <span className="bg-white/10 text-white/70 border border-white/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">{person.role}</span>
+                    <span className="bg-white/10 text-white/70 border border-white/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+                      {person.role.startsWith("partner:") ? `Socio: ${person.role.split(":")[1].toUpperCase()}` : person.role}
+                    </span>
                   </td>
                   <td className="p-4 text-sm text-white/50">
                     {new Date(person.created_at).toLocaleDateString('es-AR')}

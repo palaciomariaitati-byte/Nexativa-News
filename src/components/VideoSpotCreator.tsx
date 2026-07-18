@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Play, Square, Download, UploadCloud, X, Film, Volume2, Info, CheckCircle2, Music, Upload, Link as LinkIcon, Layers } from "lucide-react";
+import { Play, Square, Download, UploadCloud, X, Film, Volume2, Info, CheckCircle2, Music, Upload, Link as LinkIcon, Layers, Plus } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 interface VideoSpotCreatorProps {
@@ -235,6 +235,10 @@ export default function VideoSpotCreator({
   const sequencerRef = useRef<SynthSequencer | null>(null);
   const customAudioSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
 
+  // Source video refs and nodes
+  const sourceVideoRef = useRef<HTMLVideoElement | null>(null);
+  const videoAudioSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+
   const [isPlaying, setIsPlaying] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -249,10 +253,81 @@ export default function VideoSpotCreator({
   const [customAudioUrl, setCustomAudioUrl] = useState("");
   const [customAudioObjectUrl, setCustomAudioObjectUrl] = useState<string | null>(null);
 
+  // Aspect ratio state (horizontal 16:9 vs vertical 9:16)
+  const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16">("16:9");
+
+  // Video clipping / source states
+  const [videoSrc, setVideoSrc] = useState<"none" | "file" | "url">("none");
+  const [videoUrl, setVideoUrl] = useState("");
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoObjectUrl, setVideoObjectUrl] = useState<string | null>(null);
+  const [videoStart, setVideoStart] = useState(0);
+  const [videoEnd, setVideoEnd] = useState(15);
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [proxyLoading, setProxyLoading] = useState(false);
+
   // New animation states
   const [animationStyle, setAnimationStyle] = useState("kenburns");
 
-  const durationLimit = 10; // Spot duration: 10 seconds
+  const [editImages, setEditImages] = useState<string[]>([]);
+  const [loadedImages, setLoadedImages] = useState<HTMLImageElement[]>([]);
+  const [imageUploadingIndex, setImageUploadingIndex] = useState<number | null>(null);
+
+  // Initialize slides list
+  useEffect(() => {
+    if (imageUrl) {
+      const urls = imageUrl.split(",").map(u => u.trim()).filter(Boolean);
+      setEditImages(urls.length > 0 ? urls : [imageUrl]);
+    } else {
+      setEditImages([]);
+    }
+  }, [imageUrl]);
+
+  // Sync slides list back to campaign's image_url prop so they are not lost on close
+  useEffect(() => {
+    if (editImages.length > 0) {
+      const urlsStr = editImages.join(", ");
+      if (urlsStr !== imageUrl) {
+        onUploadFinished(urlsStr);
+      }
+    }
+  }, [editImages, imageUrl, onUploadFinished]);
+
+  // Pre-load images
+  useEffect(() => {
+    const urls = editImages.filter(u => u && u.trim() !== "");
+    const loaded: HTMLImageElement[] = [];
+    let loadedCount = 0;
+    
+    if (urls.length === 0) {
+      setLoadedImages([]);
+      return;
+    }
+
+    urls.forEach((url, index) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.src = url;
+      img.onload = () => {
+        loadedCount++;
+        loaded[index] = img;
+        if (loadedCount === urls.length) {
+          setLoadedImages(loaded.filter(Boolean));
+        }
+      };
+      img.onerror = () => {
+        loadedCount++;
+        if (loadedCount === urls.length) {
+          setLoadedImages(loaded.filter(Boolean));
+        }
+      };
+    });
+  }, [editImages]);
+
+  const secondsPerImage = 3;
+  const durationLimit = videoSrc !== "none"
+    ? Math.min(Math.max(videoEnd - videoStart, 1), 30)
+    : (editImages.length > 0 ? editImages.length * secondsPerImage : 10);
 
   // Initialize and run canvas rendering loop
   useEffect(() => {
@@ -261,10 +336,6 @@ export default function VideoSpotCreator({
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.src = imageUrl || "/banner-nexativa.jpg";
 
     const logoImg = new Image();
     if (clientLogoUrl) {
@@ -278,40 +349,116 @@ export default function VideoSpotCreator({
       if (!ctx || !canvas) return;
 
       const elapsed = (Date.now() - startTime) / 1000;
-      const progress = (elapsed % durationLimit) / durationLimit;
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Draw background image with selected animation style
-      if (img.complete && img.naturalWidth > 0) {
-        ctx.save();
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-
-        if (animationStyle === "kenburns") {
-          const scale = 1 + progress * 0.15;
-          const panX = -progress * 25;
-          const panY = -progress * 15;
-          ctx.translate(panX, panY);
-          ctx.scale(scale, scale);
-        } else if (animationStyle === "paneo") {
-          const panX = -30 + progress * 60;
-          ctx.translate(panX, 0);
-          ctx.scale(1.12, 1.12);
+      const totalImages = loadedImages.length;
+      
+      const applyAnim = (c: CanvasRenderingContext2D, prog: number) => {
+        if (animationStyle === "kenburns" && videoSrc === "none") {
+          const scale = 1 + prog * 0.15;
+          const panX = -prog * 25;
+          const panY = -prog * 15;
+          c.translate(panX, panY);
+          c.scale(scale, scale);
+        } else if (animationStyle === "paneo" && videoSrc === "none") {
+          const panX = -30 + prog * 60;
+          c.translate(panX, 0);
+          c.scale(1.12, 1.12);
         } else if (animationStyle === "pulsante") {
           const track = MUSIC_TRACKS.find(t => t.id === selectedTrack.id) || MUSIC_TRACKS[0];
           const tempo = audioType === "synth" ? track.bpm : 120;
           const bps = tempo / 60;
           const pulse = Math.abs(Math.sin(elapsed * Math.PI * bps)) * 0.05;
-          ctx.scale(1.05 + pulse, 1.05 + pulse);
+          c.scale(1.03 + pulse, 1.03 + pulse);
         } else if (animationStyle === "giro") {
-          const rotate = Math.sin(elapsed * 0.8) * 0.035;
-          ctx.rotate(rotate);
-          ctx.scale(1.08 + progress * 0.07, 1.08 + progress * 0.07);
+          const rotate = Math.sin(elapsed * 0.8) * 0.025;
+          c.rotate(rotate);
+          c.scale(1.05, 1.05);
+        }
+      };
+
+      const drawContent = (element: HTMLImageElement | HTMLVideoElement, prog: number) => {
+        ctx.save();
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        applyAnim(ctx, prog);
+
+        const elW = (element as any).naturalWidth || (element as any).videoWidth || canvas.width;
+        const elH = (element as any).naturalHeight || (element as any).videoHeight || canvas.height;
+        const aspect = elW / elH;
+        const canvasAspect = canvas.width / canvas.height;
+
+        let drawW = canvas.width;
+        let drawH = canvas.height;
+
+        if (canvasAspect > aspect) {
+          drawW = canvas.width;
+          drawH = canvas.width / aspect;
+        } else {
+          drawH = canvas.height;
+          drawW = canvas.height * aspect;
         }
 
-        ctx.drawImage(img, -canvas.width / 2, -canvas.height / 2, canvas.width, canvas.height);
+        ctx.drawImage(element, -drawW / 2, -drawH / 2, drawW, drawH);
         ctx.restore();
+      };
+
+      // 1. Draw background content (video or slideshow)
+      if (videoSrc !== "none") {
+        const video = sourceVideoRef.current;
+        if (video && (video.readyState >= 2 || video.currentTime > 0)) {
+          // Loop video clip between videoStart and videoEnd
+          if (video.currentTime > videoEnd || video.currentTime < videoStart) {
+            video.currentTime = videoStart;
+          }
+          if (isPlaying && video.paused) {
+            video.play().catch(e => console.warn(e));
+          }
+          drawContent(video, 0);
+        } else {
+          const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+          grad.addColorStop(0, "#111827");
+          grad.addColorStop(1, "#311042");
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = "#ffffff";
+          ctx.font = "bold 13px sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillText("Cargando video...", canvas.width / 2, canvas.height / 2);
+        }
+      } else if (totalImages > 0) {
+        const currentImageIndex = Math.floor(elapsed / secondsPerImage) % totalImages;
+        const nextImageIndex = (currentImageIndex + 1) % totalImages;
+        const timeInSlide = elapsed % secondsPerImage;
+        const progress = timeInSlide / secondsPerImage;
+
+        const activeImg = loadedImages[currentImageIndex];
+        const nextImg = loadedImages[nextImageIndex];
+        const transitionDuration = 0.5; // 0.5s cross-fade
+
+        if (timeInSlide > (secondsPerImage - transitionDuration) && totalImages > 1) {
+          const transitionProgress = (timeInSlide - (secondsPerImage - transitionDuration)) / transitionDuration;
+
+          // Draw active image
+          if (activeImg && activeImg.complete && activeImg.naturalWidth > 0) {
+            drawContent(activeImg, progress);
+          }
+
+          // Draw next image with alpha
+          if (nextImg && nextImg.complete && nextImg.naturalWidth > 0) {
+            ctx.save();
+            ctx.globalAlpha = transitionProgress;
+            drawContent(nextImg, transitionProgress * 0.5);
+            ctx.restore();
+          }
+        } else {
+          // Draw active image normally
+          if (activeImg && activeImg.complete && activeImg.naturalWidth > 0) {
+            drawContent(activeImg, progress);
+          }
+        }
       } else {
+        // Gradient fallback
         const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
         grad.addColorStop(0, "#1e1b4b");
         grad.addColorStop(1, "#311042");
@@ -319,7 +466,7 @@ export default function VideoSpotCreator({
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
 
-      // Draw top header brand ribbon (Dark Translucent bar with gold bottom line)
+      // 2. Draw top header brand ribbon (adapted to aspect ratio)
       ctx.fillStyle = "rgba(0, 0, 0, 0.82)";
       ctx.fillRect(0, 0, canvas.width, 42);
       ctx.fillStyle = "#d4af37";
@@ -327,7 +474,7 @@ export default function VideoSpotCreator({
 
       // Client name on left
       ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 13px sans-serif";
+      ctx.font = aspectRatio === "16:9" ? "bold 13px sans-serif" : "bold 10px sans-serif";
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
       ctx.fillText(`📣  ${clientName.toUpperCase()}`, 15, 22);
@@ -337,8 +484,8 @@ export default function VideoSpotCreator({
       ctx.textAlign = "right";
       const ctaPulse = 1 + Math.abs(Math.sin(elapsed * Math.PI * 1.5)) * 0.04;
       ctx.fillStyle = "#22c55e"; // Success green
-      ctx.font = `bold ${Math.floor(11 * ctaPulse)}px sans-serif`;
-      ctx.fillText("¡CONSULTAR AHORA! 📲", canvas.width - 60, 22);
+      ctx.font = `bold ${Math.floor((aspectRatio === "16:9" ? 11 : 8) * ctaPulse)}px sans-serif`;
+      ctx.fillText("¡CONSULTAR AHORA! 📲", canvas.width - (clientLogoUrl ? 60 : 20), 22);
       ctx.restore();
 
       // Draw logo in circle frame top-right (on the bar)
@@ -357,22 +504,20 @@ export default function VideoSpotCreator({
         ctx.stroke();
       }
 
-      // Main Campaign Title Overlay in middle-bottom
-      // Rendered with thick black outline for 100% legibility on any image without dark blocks!
+      // 3. Main Campaign Title Overlay in middle-bottom
       ctx.save();
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillStyle = "#ffffff";
       ctx.strokeStyle = "#000000";
-      ctx.lineWidth = 5;
-      ctx.font = "900 32px sans-serif";
+      ctx.lineWidth = aspectRatio === "16:9" ? 5 : 3;
+      ctx.font = aspectRatio === "16:9" ? "900 32px sans-serif" : "900 20px sans-serif";
       const displayTitle = title.toUpperCase();
       ctx.strokeText(displayTitle, canvas.width / 2, canvas.height - 75);
       ctx.fillText(displayTitle, canvas.width / 2, canvas.height - 75);
       ctx.restore();
 
-      // TELEVISION-STYLE NEWS TICKER (Scrolling Text Marquee)
-      // Only occupies 35px at the bottom of the canvas, keeping the graphic image completely visible.
+      // 4. TELEVISION-STYLE NEWS TICKER (Scrolling Text Marquee)
       const tickerHeight = 35;
       const tickerY = canvas.height - tickerHeight;
 
@@ -407,7 +552,6 @@ export default function VideoSpotCreator({
       animationFrameRef.current = requestAnimationFrame(render);
     };
 
-    img.onload = render;
     if (clientLogoUrl) logoImg.onload = render;
 
     render();
@@ -417,7 +561,7 @@ export default function VideoSpotCreator({
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [imageUrl, title, copyText, clientName, clientLogoUrl, animationStyle, audioType, selectedTrack]);
+  }, [editImages, loadedImages, title, copyText, clientName, clientLogoUrl, animationStyle, audioType, selectedTrack, durationLimit, aspectRatio, videoSrc, videoObjectUrl, videoUrl, videoStart, videoEnd, isPlaying]);
 
   // Clean up references
   useEffect(() => {
@@ -430,6 +574,21 @@ export default function VideoSpotCreator({
 
   // Setup Audio Nodes dynamically
   const setupAudioRoute = (ctx: AudioContext, targetDest: AudioNode) => {
+    // 1. Connect video audio if video source is active
+    if (videoSrc !== "none") {
+      const video = sourceVideoRef.current;
+      if (video) {
+        if (!videoAudioSourceRef.current) {
+          videoAudioSourceRef.current = ctx.createMediaElementSource(video);
+        }
+        videoAudioSourceRef.current.disconnect();
+        videoAudioSourceRef.current.connect(targetDest);
+        video.currentTime = videoStart;
+        video.play().catch(e => console.warn("Fallo al reproducir video original:", e));
+      }
+    }
+
+    // 2. Connect background soundtrack
     if (audioType === "synth") {
       const seq = new SynthSequencer(ctx, targetDest, selectedTrack.id);
       sequencerRef.current = seq;
@@ -460,6 +619,9 @@ export default function VideoSpotCreator({
       }
       if (customAudioRef.current) {
         customAudioRef.current.pause();
+      }
+      if (sourceVideoRef.current) {
+        sourceVideoRef.current.pause();
       }
       setIsPlaying(false);
     } else {
@@ -540,6 +702,9 @@ export default function VideoSpotCreator({
     if (customAudioRef.current) {
       customAudioRef.current.pause();
     }
+    if (sourceVideoRef.current) {
+      sourceVideoRef.current.pause();
+    }
 
     setRecordingError(null);
     setVideoBlob(null);
@@ -597,6 +762,9 @@ export default function VideoSpotCreator({
         }
         if (customAudioRef.current) {
           customAudioRef.current.pause();
+        }
+        if (sourceVideoRef.current) {
+          sourceVideoRef.current.pause();
         }
 
         // Auto-upload to Supabase storage to update the campaign form link immediately
@@ -707,6 +875,24 @@ export default function VideoSpotCreator({
           className="hidden"
         />
 
+        {/* Hidden video element for source rendering */}
+        {videoObjectUrl || videoUrl ? (
+          <video
+            ref={sourceVideoRef}
+            src={videoSrc === "file" ? (videoObjectUrl || "") : videoUrl}
+            crossOrigin="anonymous"
+            className="hidden"
+            muted
+            playsInline
+            loop={false}
+            onLoadedMetadata={(e) => {
+              const dur = e.currentTarget.duration || 0;
+              setVideoDuration(dur);
+              setVideoEnd(Math.min(dur, 15));
+            }}
+          />
+        ) : null}
+
         {/* Header */}
         <div className="flex items-center gap-2 border-b border-white/10 pb-3">
           <Film className="text-purple-400 w-5 h-5" />
@@ -717,23 +903,253 @@ export default function VideoSpotCreator({
         <div className="bg-purple-950/20 border border-purple-500/20 rounded-xl p-3 text-xs text-purple-200 flex items-start gap-2">
           <Info className="w-4 h-4 shrink-0 text-purple-400 mt-0.5" />
           <p>
-            El spot muestra la imagen completa sin obstrucciones. El copy se desliza de forma elegante en una marquesina informativa abajo, y el título principal cuenta con trazo grueso para una excelente lectura.
+            El spot muestra la imagen o video completo sin obstrucciones. El copy se desliza de forma elegante en una marquesina informativa abajo, y el título cuenta con excelente lectura.
           </p>
         </div>
 
+        {/* Configuración de Formato y Origen */}
+        <div className="bg-black/40 border border-white/10 p-3 rounded-xl flex flex-col md:flex-row gap-3 justify-between items-start md:items-center">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] uppercase font-extrabold text-purple-300 tracking-wider">Formato:</span>
+            <div className="flex bg-white/5 rounded-lg p-0.5 border border-white/10">
+              <button
+                type="button"
+                onClick={() => setAspectRatio("16:9")}
+                className={`text-[10px] font-bold px-2 py-1 rounded-md transition-all ${aspectRatio === "16:9" ? "bg-purple-600 text-white" : "text-gray-400 hover:text-white"}`}
+              >
+                Horizontal (16:9)
+              </button>
+              <button
+                type="button"
+                onClick={() => setAspectRatio("9:16")}
+                className={`text-[10px] font-bold px-2 py-1 rounded-md transition-all ${aspectRatio === "9:16" ? "bg-purple-600 text-white" : "text-gray-400 hover:text-white"}`}
+              >
+                Vertical (9:16) Reels
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] uppercase font-extrabold text-purple-300 tracking-wider">Origen:</span>
+            <div className="flex bg-white/5 rounded-lg p-0.5 border border-white/10">
+              <button
+                type="button"
+                onClick={() => setVideoSrc("none")}
+                className={`text-[10px] font-bold px-2 py-1 rounded-md transition-all ${videoSrc === "none" ? "bg-purple-600 text-white" : "text-gray-400 hover:text-white"}`}
+              >
+                Fotos
+              </button>
+              <button
+                type="button"
+                onClick={() => setVideoSrc("file")}
+                className={`text-[10px] font-bold px-2 py-1 rounded-md transition-all ${videoSrc === "file" ? "bg-purple-600 text-white" : "text-gray-400 hover:text-white"}`}
+              >
+                Subir Video
+              </button>
+              <button
+                type="button"
+                onClick={() => setVideoSrc("url")}
+                className={`text-[10px] font-bold px-2 py-1 rounded-md transition-all ${videoSrc === "url" ? "bg-purple-600 text-white" : "text-gray-400 hover:text-white"}`}
+              >
+                Enlace MP4
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Video Source Controls */}
+        {videoSrc !== "none" && (
+          <div className="bg-black/40 border border-white/10 p-4 rounded-xl space-y-3">
+            <div className="flex justify-between items-center border-b border-white/5 pb-2">
+              <span className="text-xs uppercase font-extrabold text-purple-300 tracking-wider flex items-center gap-1.5">
+                📹 Trimmer de Video (Recortes)
+              </span>
+              <span className="text-[10px] font-mono text-gray-400">Duración: {durationLimit.toFixed(1)}s (Máx. 30s)</span>
+            </div>
+
+            {videoSrc === "file" ? (
+              <div className="space-y-2">
+                <label className="block text-[10px] font-bold text-gray-400">Seleccionar Archivo de Video local (MP4/WebM):</label>
+                <input
+                  type="file"
+                  accept="video/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (videoObjectUrl) URL.revokeObjectURL(videoObjectUrl);
+                    setVideoFile(file);
+                    const objUrl = URL.createObjectURL(file);
+                    setVideoObjectUrl(objUrl);
+                    if (isPlaying) setIsPlaying(false);
+                  }}
+                  className="w-full text-xs text-gray-400 bg-white/5 border border-white/10 rounded-lg p-2 file:bg-purple-600 file:border-none file:text-white file:rounded file:px-3 file:py-1 file:mr-3 hover:file:bg-purple-700 cursor-pointer"
+                />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <label className="block text-[10px] font-bold text-gray-400">Pegar Enlace Directo de Video (Cualquier servidor o URL pública):</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={videoUrl}
+                    onChange={(e) => setVideoUrl(e.target.value)}
+                    placeholder="https://ejemplo.com/video.mp4"
+                    className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!videoUrl.trim()) return;
+                      setProxyLoading(true);
+                      try {
+                        const proxied = `/api/video-proxy?url=${encodeURIComponent(videoUrl.trim())}`;
+                        if (videoObjectUrl) URL.revokeObjectURL(videoObjectUrl);
+                        setVideoObjectUrl(proxied);
+                        if (isPlaying) setIsPlaying(false);
+                        alert("¡Video enlazado mediante Proxy CORS con éxito! 🔗");
+                      } catch (err) {
+                        alert("Error de enlace proxy.");
+                      } finally {
+                        setProxyLoading(false);
+                      }
+                    }}
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-4 py-1.5 rounded-lg text-xs transition-colors shrink-0"
+                  >
+                    {proxyLoading ? "Cargando..." : "Aplicar"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {videoObjectUrl && (
+              <div className="space-y-3 pt-2">
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="block font-bold text-gray-400 mb-1">Inicio del Recorte (segundos):</label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      max={videoDuration}
+                      value={videoStart}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        setVideoStart(Math.max(0, val));
+                        if (isPlaying) setIsPlaying(false);
+                      }}
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-gray-400 mb-1">Fin del Recorte (segundos):</label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0.5"
+                      max={videoDuration || 60}
+                      value={videoEnd}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 15;
+                        setVideoEnd(Math.min(videoDuration || 60, val));
+                        if (isPlaying) setIsPlaying(false);
+                      }}
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="bg-white/5 rounded-lg p-2.5 text-[11px] text-gray-400 space-y-1">
+                  <p>🔹 Duración del video original: <span className="font-mono text-white">{videoDuration.toFixed(1)} segundos</span></p>
+                  <p>🔹 Rango de corte: <span className="font-mono text-white">{videoStart}s a {videoEnd}s</span></p>
+                  <p>⚠️ El clip final no debe superar los 30 segundos para cumplir el formato Reel.</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Main Canvas preview */}
         <div className="flex justify-center w-full">
-          <div className="relative aspect-video w-full max-w-[480px] rounded-xl overflow-hidden border border-white/10 bg-black shadow-inner">
+          <div className={`relative w-full max-w-[480px] rounded-xl overflow-hidden border border-white/10 bg-black shadow-inner ${aspectRatio === "9:16" ? "aspect-[9/16] max-h-[480px]" : "aspect-video"}`}>
             <canvas
               ref={canvasRef}
-              width={640}
-              height={360}
+              width={aspectRatio === "16:9" ? 640 : 360}
+              height={aspectRatio === "16:9" ? 360 : 640}
               className="w-full h-full object-contain"
             />
             {isRecording && (
               <div className="absolute top-3 left-3 bg-red-600 text-white font-extrabold text-xs px-2.5 py-1 rounded-md flex items-center gap-1.5 animate-pulse tracking-wider">
                 <span className="w-2 h-2 bg-white rounded-full animate-ping" />
                 GRABANDO: {recordingSeconds}s / {durationLimit}s
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Slideshow Manager */}
+        <div className="bg-black/40 border border-white/10 p-4 rounded-xl space-y-3">
+          <div className="flex justify-between items-center border-b border-white/5 pb-2">
+            <span className="text-xs uppercase font-extrabold text-purple-300 tracking-wider flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5" /> Secuencia de Segmentos / Platos ({editImages.length})
+            </span>
+            <span className="text-[10px] text-gray-400 font-mono">Grabación: {durationLimit}s de spot</span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            {editImages.map((imgUrl, idx) => (
+              <div key={idx} className="relative w-16 h-16 rounded-lg border border-white/10 overflow-hidden bg-black/40 group shrink-0">
+                {imgUrl ? (
+                  <>
+                    <img src={imgUrl} alt={`Plato ${idx + 1}`} className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditImages(prev => prev.filter((_, i) => i !== idx));
+                      }}
+                      className="absolute inset-0 bg-red-600/80 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-[10px] uppercase font-black"
+                    >
+                      Quitar
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-xs text-white/30 flex items-center justify-center h-full">...</span>
+                )}
+              </div>
+            ))}
+
+            {editImages.length < 6 && (
+              <label className="w-16 h-16 rounded-lg border border-dashed border-white/20 hover:border-purple-500 bg-white/5 hover:bg-white/10 flex flex-col items-center justify-center text-purple-400 cursor-pointer transition-all shrink-0">
+                <Plus className="w-5 h-5" />
+                <span className="text-[9px] uppercase font-bold mt-1">Agregar</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setImageUploadingIndex(editImages.length);
+                    try {
+                      const supabase = getSupabaseBrowserClient();
+                      const fileExt = file.name.split('.').pop();
+                      const filePath = `spots/slide_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
+                      const { error: uploadError } = await supabase.storage.from("media").upload(filePath, file);
+                      if (uploadError) throw uploadError;
+                      const { data: publicUrlData } = supabase.storage.from("media").getPublicUrl(filePath);
+                      setEditImages(prev => [...prev, publicUrlData.publicUrl]);
+                    } catch (err: any) {
+                      alert("Error al subir imagen: " + err.message);
+                    } finally {
+                      setImageUploadingIndex(null);
+                    }
+                  }}
+                />
+              </label>
+            )}
+
+            {imageUploadingIndex !== null && (
+              <div className="w-16 h-16 rounded-lg border border-white/5 bg-black/40 flex items-center justify-center text-xs text-purple-400 animate-pulse shrink-0">
+                Cargando...
               </div>
             )}
           </div>

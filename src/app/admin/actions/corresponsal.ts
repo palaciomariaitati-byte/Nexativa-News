@@ -57,10 +57,14 @@ export async function fetchStagingQueue(): Promise<StagingQueueItem[]> {
 
   try {
     await checkTableExists("editorial_staging_queue");
-    const { data, error } = await supabaseAdmin
-      .from("editorial_staging_queue")
-      .select("*")
-      .order("created_at", { ascending: false });
+    let query = supabaseAdmin.from("editorial_staging_queue").select("*");
+
+    if (role.startsWith("partner:")) {
+      const partnerId = role.split(":")[1];
+      query = query.eq("operator_id", partnerId);
+    }
+
+    const { data, error } = await query.order("created_at", { ascending: false });
 
     if (error) throw error;
     return data as StagingQueueItem[];
@@ -103,6 +107,18 @@ export async function deleteStagingItem(id: string): Promise<boolean> {
   const role = await getStaffRole();
   if (!role) throw new Error("No autorizado");
 
+  if (role.startsWith("partner:")) {
+    const partnerId = role.split(":")[1];
+    const { data: checkItem } = await supabaseAdmin
+      .from("editorial_staging_queue")
+      .select("operator_id")
+      .eq("id", id)
+      .single();
+    if (!checkItem || checkItem.operator_id !== partnerId) {
+      throw new Error("No autorizado para este artículo.");
+    }
+  }
+
   const { error } = await supabaseAdmin.from("editorial_staging_queue").delete().eq("id", id);
   if (error) throw error;
   return true;
@@ -119,6 +135,18 @@ export async function updateStagingItem(
 ): Promise<boolean> {
   const role = await getStaffRole();
   if (!role) throw new Error("No autorizado");
+
+  if (role.startsWith("partner:")) {
+    const partnerId = role.split(":")[1];
+    const { data: checkItem } = await supabaseAdmin
+      .from("editorial_staging_queue")
+      .select("operator_id")
+      .eq("id", id)
+      .single();
+    if (!checkItem || checkItem.operator_id !== partnerId) {
+      throw new Error("No autorizado para este artículo.");
+    }
+  }
 
   const updateData: any = {
     version_nexativa: versionNexativa,
@@ -323,6 +351,13 @@ export async function approveStagingItem(
     return { success: false, error: fetchError?.message || "Artículo no encontrado en la cola de staging." };
   }
 
+  if (role.startsWith("partner:")) {
+    const partnerId = role.split(":")[1];
+    if (item.operator_id !== partnerId) {
+      return { success: false, error: "No tienes autorización para gestionar este artículo." };
+    }
+  }
+
   const stagingItem = item as StagingQueueItem;
   const featuredImage = stagingItem.attached_media_url && stagingItem.attached_media_url.length > 0 
     ? stagingItem.attached_media_url[0] 
@@ -441,6 +476,18 @@ export async function approveStagingItem(
 export async function archiveStagingItem(id: string, archive: boolean): Promise<boolean> {
   const role = await getStaffRole();
   if (!role) throw new Error("No autorizado");
+
+  if (role.startsWith("partner:")) {
+    const partnerId = role.split(":")[1];
+    const { data: checkItem } = await supabaseAdmin
+      .from("editorial_staging_queue")
+      .select("operator_id")
+      .eq("id", id)
+      .single();
+    if (!checkItem || checkItem.operator_id !== partnerId) {
+      throw new Error("No autorizado para este artículo.");
+    }
+  }
 
   const newStatus = archive ? "ARCHIVED" : "PENDING_REVIEW";
 

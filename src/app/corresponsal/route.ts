@@ -56,7 +56,7 @@ Devuelve ÚNICAMENTE la transcripción limpia y corregida del mensaje periodíst
 }
 
 // Cognitive copywriting generating exactly TWO independent versions in a single pass
-async function generateArticles(transcription: string, locationContext: string, operatorName: string): Promise<any> {
+export async function generateArticles(transcription: string, locationContext: string, operatorName: string): Promise<any> {
   const apiKey = process.env.GEMINI_API_KEY;
   const fallbackApiKey = process.env.GEMINI_API_KEY_FALLBACK;
   const modelId = process.env.GEMINI_MODEL || "gemini-2.5-flash";

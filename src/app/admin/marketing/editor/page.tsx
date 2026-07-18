@@ -167,8 +167,19 @@ export default function MarketingEditorPage() {
 
       // 4. Get public URL and set it in form
       const { data: publicUrlData } = supabase.storage.from("media").getPublicUrl(fileName);
-      setFormData(prev => ({ ...prev, image_url: publicUrlData.publicUrl }));
-      alert("¡Imagen de campaña generada y guardada con éxito! 🎨");
+      const newUrl = publicUrlData.publicUrl;
+      const keepBoth = formData.image_url ? confirm("¿Deseas agregar esta imagen como una nueva diapositiva/segmento en la secuencia del video?\n\n(Aceptar para agregarla a la secuencia, Cancelar para reemplazar la imagen actual)") : false;
+
+      setFormData(prev => {
+        if (keepBoth) {
+          const currentUrls = prev.image_url.split(",").map(u => u.trim()).filter(Boolean);
+          currentUrls.push(newUrl);
+          return { ...prev, image_url: currentUrls.join(", ") };
+        } else {
+          return { ...prev, image_url: newUrl };
+        }
+      });
+      alert(keepBoth ? "¡Imagen añadida a la secuencia del video con éxito! 🎨" : "¡Imagen de campaña reemplazada con éxito! 🎨");
     } catch (err: any) {
       console.error(err);
       alert("Error al generar imagen: " + err.message);
@@ -365,7 +376,18 @@ export default function MarketingEditorPage() {
               />
               <MediaUploader 
                 label="O sube tu archivo directamente a Supabase"
-                onUploadSuccess={(url) => setFormData({ ...formData, image_url: url })}
+                onUploadSuccess={(url) => {
+                  const keepBoth = formData.image_url ? confirm("¿Deseas agregar esta imagen subida como una nueva diapositiva/segmento en la secuencia del video?\n\n(Aceptar para agregarla a la secuencia, Cancelar para reemplazar la imagen actual)") : false;
+                  setFormData(prev => {
+                    if (keepBoth) {
+                      const currentUrls = prev.image_url.split(",").map(u => u.trim()).filter(Boolean);
+                      currentUrls.push(url);
+                      return { ...prev, image_url: currentUrls.join(", ") };
+                    } else {
+                      return { ...prev, image_url: url };
+                    }
+                  });
+                }}
               />
             </div>
 
@@ -404,7 +426,7 @@ export default function MarketingEditorPage() {
               </div>
 
               {/* Botón para crear Spot de Video */}
-              {formData.image_url && (
+              {(formData.campaign_name || formData.content) && (
                 <div className="pt-2 border-t border-white/5 flex justify-end">
                   <button
                     type="button"
