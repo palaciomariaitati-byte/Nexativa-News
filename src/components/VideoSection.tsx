@@ -54,6 +54,7 @@ export default function VideoSection() {
   useEffect(() => {
     const a = document.createElement("audio");
     a.preload = "none";
+    a.crossOrigin = "anonymous";
     a.style.display = "none";
     document.body.appendChild(a);
     audioRef.current = a;
@@ -102,6 +103,9 @@ export default function VideoSection() {
               actualUrl.includes("pistarinconsonado.com.ar")) {
             actualUrl = "https://miestacion.turadioonline.com.ar/8180/stream";
           }
+          // Force HTTPS to prevent Mixed Content security blocking
+          actualUrl = actualUrl.replace("http://", "https://");
+
           const cleanUrl = actualUrl.split('nocache=')[0].replace(/[?&]$/, '');
           const separator = cleanUrl.includes('?') ? '&' : '?';
           const freshUrl = `${cleanUrl}${separator}nocache=${Date.now()}`;
