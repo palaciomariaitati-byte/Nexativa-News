@@ -440,15 +440,24 @@ export default function MarketingEditorPage() {
               )}
             </div>
 
-            {formData.image_url && (
-              <div className="mt-4 aspect-video rounded-lg overflow-hidden border border-white/10 relative h-48 w-full max-w-sm">
-                {formData.image_url.match(/\.(mp4|webm|ogg)$/i) ? (
-                  <video src={formData.image_url} controls className="object-cover w-full h-full" />
-                ) : (
-                  <img src={formData.image_url} alt="Preview" className="object-cover w-full h-full" />
-                )}
-              </div>
-            )}
+            {formData.image_url && (() => {
+              const firstUrl = formData.image_url.split(",")[0].trim();
+              const isVideo = firstUrl.match(/\.(mp4|webm|ogg)$/i);
+              return (
+                <div className="mt-4 aspect-video rounded-lg overflow-hidden border border-white/10 relative h-48 w-full max-w-sm bg-black/40">
+                  {isVideo ? (
+                    <video src={firstUrl} controls className="object-cover w-full h-full" />
+                  ) : (
+                    <img src={firstUrl} alt="Preview" className="object-cover w-full h-full" />
+                  )}
+                  {formData.image_url.includes(",") && (
+                    <div className="absolute bottom-2 right-2 bg-purple-600/90 text-white text-[10px] uppercase font-black tracking-wider px-2.5 py-1 rounded-full">
+                      +{formData.image_url.split(",").length - 1} más
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           <div>

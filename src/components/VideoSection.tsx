@@ -98,9 +98,9 @@ export default function VideoSection() {
         setIsRadioBuffering(true);
         if (radioUrl) {
           let actualUrl = radioUrl;
-          if (actualUrl.includes("pistarinconsoñado.com.ar") || 
-              actualUrl.includes("xn--pistarinconsoado-jub.com.ar") || 
-              actualUrl.includes("pistarinconsonado.com.ar")) {
+          const lowerUrl = actualUrl.toLowerCase();
+          if (lowerUrl.includes("pistarincon") || 
+              lowerUrl.includes("xn--pistarinconsoado")) {
             actualUrl = "https://miestacion.turadioonline.com.ar/8180/stream";
           }
           // Force HTTPS to prevent Mixed Content security blocking
