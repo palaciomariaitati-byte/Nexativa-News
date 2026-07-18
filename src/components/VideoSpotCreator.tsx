@@ -1090,7 +1090,7 @@ export default function VideoSpotCreator({
         <div className="bg-black/40 border border-white/10 p-4 rounded-xl space-y-3">
           <div className="flex justify-between items-center border-b border-white/5 pb-2">
             <span className="text-xs uppercase font-extrabold text-purple-300 tracking-wider flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5" /> Secuencia de Segmentos / Platos ({editImages.length})
+              <Layers className="w-3.5 h-3.5" /> Secuencia de Diapositivas / Imágenes ({editImages.length})
             </span>
             <span className="text-[10px] text-gray-400 font-mono">Grabación: {durationLimit}s de spot</span>
           </div>
@@ -1100,7 +1100,7 @@ export default function VideoSpotCreator({
               <div key={idx} className="relative w-16 h-16 rounded-lg border border-white/10 overflow-hidden bg-black/40 group shrink-0">
                 {imgUrl ? (
                   <>
-                    <img src={imgUrl} alt={`Plato ${idx + 1}`} className="w-full h-full object-cover" />
+                    <img src={imgUrl} alt={`Imagen ${idx + 1}`} className="w-full h-full object-cover" />
                     <button
                       type="button"
                       onClick={() => {
