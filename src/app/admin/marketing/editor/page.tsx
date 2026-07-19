@@ -426,18 +426,16 @@ export default function MarketingEditorPage() {
               </div>
 
               {/* Botón para crear Spot de Video */}
-              {(formData.campaign_name || formData.content) && (
-                <div className="pt-2 border-t border-white/5 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setShowVideoSpotCreator(true)}
-                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-extrabold text-xs px-5 py-2.5 rounded-lg transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Film className="w-3.5 h-3.5" />
-                    Crear Spot de Video 🎥
-                  </button>
-                </div>
-              )}
+              <div className="pt-2 border-t border-white/5 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowVideoSpotCreator(true)}
+                  className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-extrabold text-xs px-5 py-2.5 rounded-lg transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Film className="w-3.5 h-3.5" />
+                  Crear Spot de Video 🎥
+                </button>
+              </div>
             </div>
 
             {formData.image_url && (() => {
