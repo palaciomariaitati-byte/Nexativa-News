@@ -263,6 +263,11 @@ export default function VideoSpotCreator({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+
+  const isLocalHost = typeof window !== "undefined" && 
+    (window.location.hostname === "localhost" || 
+     window.location.hostname === "127.0.0.1" || 
+     window.location.hostname.includes("192.168."));
   
   // Custom audio elements and nodes
   const customAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -1259,33 +1264,65 @@ export default function VideoSpotCreator({
             )}
 
             {videoSrc === "youtube" && (
-              <div className="space-y-2 animate-fadeIn">
-                <label className="block text-[10px] font-bold text-gray-400">Pegar Enlace de Video (YouTube, Twitch, TikTok, etc):</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={ytUrl}
-                    onChange={(e) => setYtUrl(e.target.value)}
-                    placeholder="https://www.youtube.com/watch?v=..."
-                    className="flex-grow bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-purple-500"
-                  />
-                  <button
-                    type="button"
-                    disabled={downloadingYt}
-                    onClick={handleDownloadYtVideo}
-                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-4 py-1.5 rounded-lg text-xs transition-colors shrink-0 disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
-                  >
-                    {downloadingYt ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Descargando...
-                      </>
-                    ) : "Descargar Video"}
-                  </button>
+              isLocalHost ? (
+                <div className="space-y-2 animate-fadeIn">
+                  <label className="block text-[10px] font-bold text-gray-400">Pegar Enlace de Video (YouTube, Twitch, TikTok, etc):</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={ytUrl}
+                      onChange={(e) => setYtUrl(e.target.value)}
+                      placeholder="https://www.youtube.com/watch?v=..."
+                      className="flex-grow bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-purple-500"
+                    />
+                    <button
+                      type="button"
+                      disabled={downloadingYt}
+                      onClick={handleDownloadYtVideo}
+                      className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-4 py-1.5 rounded-lg text-xs transition-colors shrink-0 disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                    >
+                      {downloadingYt ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Descargando...
+                        </>
+                      ) : "Descargar Video"}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-gray-500 leading-normal">
+                    El video se procesará en tu computadora local a través de yt-dlp y se cargará en el trimmer de forma inmediata.
+                  </p>
                 </div>
-                <p className="text-[10px] text-gray-500 leading-normal">
-                  El video se procesará en tu computadora local a través de yt-dlp y se cargará en el trimmer de forma inmediata.
-                </p>
-              </div>
+              ) : (
+                <div className="bg-purple-950/30 border border-purple-500/20 rounded-xl p-3 text-xs space-y-2.5 animate-fadeIn">
+                  <div className="flex items-center gap-1.5 text-purple-300 font-bold uppercase tracking-wider text-[10px]">
+                    <Info className="w-3.5 h-3.5 text-purple-400" /> Asistente de Video en la Nube
+                  </div>
+                  <p className="text-gray-300 text-[11px] leading-normal">
+                    Como estás usando la web en producción, el descargador directo está desactivado en la nube para mantener la velocidad del servidor. Sigue estos pasos súper fáciles:
+                  </p>
+                  <div className="space-y-2 text-[11px] pl-1">
+                    <div className="flex items-start gap-2">
+                      <span className="w-4 h-4 rounded-full bg-purple-600/30 border border-purple-500/50 flex items-center justify-center font-bold text-purple-300 text-[9px] mt-0.5 shrink-0">1</span>
+                      <span>
+                        Hacé clic aquí para abrir el descargador limpio y libre de virus/anuncios:{" "}
+                        <a href="https://cobalt.tools" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:text-purple-300 underline font-black cursor-pointer">
+                          cobalt.tools 🔗
+                        </a>
+                      </span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="w-4 h-4 rounded-full bg-purple-600/30 border border-purple-500/50 flex items-center justify-center font-bold text-purple-300 text-[9px] mt-0.5 shrink-0">2</span>
+                      <span>Pegá tu enlace de YouTube, seleccioná <strong>MP4</strong> y descargalo a tu computadora.</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="w-4 h-4 rounded-full bg-purple-600/30 border border-purple-500/50 flex items-center justify-center font-bold text-purple-300 text-[9px] mt-0.5 shrink-0">3</span>
+                      <span>
+                        Volvé a este panel, andá a la pestaña de arriba que dice <strong>Subir Video</strong>, cargá tu archivo MP4 y ¡listo!
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )
             )}
 
             {videoObjectUrl && (
@@ -1579,30 +1616,62 @@ export default function VideoSpotCreator({
             )}
 
             {audioType === "youtube" && (
-              <div className="space-y-2 animate-fade-in">
-                <p className="text-[10px] text-gray-400">Pegar enlace de YouTube para descargar e importar el audio:</p>
-                <div className="flex gap-1.5">
-                  <input
-                    type="text"
-                    value={ytAudioUrl}
-                    onChange={(e) => setYtAudioUrl(e.target.value)}
-                    placeholder="https://www.youtube.com/watch?v=..."
-                    className="flex-grow bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-purple-500"
-                  />
-                  <button
-                    type="button"
-                    disabled={downloadingYtAudio}
-                    onClick={handleDownloadYtAudio}
-                    className="bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs px-3 py-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1 shrink-0"
-                  >
-                    {downloadingYtAudio ? (
-                      <>
-                        <Loader2 className="w-3 h-3 animate-spin" /> Descargando...
-                      </>
-                    ) : "Descargar"}
-                  </button>
+              isLocalHost ? (
+                <div className="space-y-2 animate-fade-in">
+                  <p className="text-[10px] text-gray-400">Pegar enlace de YouTube para descargar e importar el audio:</p>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      value={ytAudioUrl}
+                      onChange={(e) => setYtAudioUrl(e.target.value)}
+                      placeholder="https://www.youtube.com/watch?v=..."
+                      className="flex-grow bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-purple-500"
+                    />
+                    <button
+                      type="button"
+                      disabled={downloadingYtAudio}
+                      onClick={handleDownloadYtAudio}
+                      className="bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs px-3 py-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1 shrink-0"
+                    >
+                      {downloadingYtAudio ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin" /> Descargando...
+                        </>
+                      ) : "Descargar"}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="bg-purple-950/30 border border-purple-500/20 rounded-xl p-3 text-xs space-y-2.5 animate-fadeIn">
+                  <div className="flex items-center gap-1.5 text-purple-300 font-bold uppercase tracking-wider text-[10px]">
+                    <Info className="w-3.5 h-3.5 text-purple-400" /> Asistente de Audio en la Nube
+                  </div>
+                  <p className="text-gray-300 text-[11px] leading-normal">
+                    Como estás usando la web en producción, el descargador de audio directo está desactivado en la nube. Seguí estos pasos rápidos:
+                  </p>
+                  <div className="space-y-2 text-[11px] pl-1">
+                    <div className="flex items-start gap-2">
+                      <span className="w-4 h-4 rounded-full bg-purple-600/30 border border-purple-500/50 flex items-center justify-center font-bold text-purple-300 text-[9px] mt-0.5 shrink-0">1</span>
+                      <span>
+                        Hacé clic aquí para abrir el convertidor limpio de música:{" "}
+                        <a href="https://cobalt.tools" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:text-purple-300 underline font-black cursor-pointer">
+                          cobalt.tools 🔗
+                        </a>
+                      </span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="w-4 h-4 rounded-full bg-purple-600/30 border border-purple-500/50 flex items-center justify-center font-bold text-purple-300 text-[9px] mt-0.5 shrink-0">2</span>
+                      <span>Pegá tu enlace de YouTube, seleccioná la pestaña <strong>AUDIO</strong> y descargalo a tu computadora.</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="w-4 h-4 rounded-full bg-purple-600/30 border border-purple-500/50 flex items-center justify-center font-bold text-purple-300 text-[9px] mt-0.5 shrink-0">3</span>
+                      <span>
+                        Volvé a este panel, andá a la pestaña de arriba que dice <strong>Subir MP3</strong>, cargá tu archivo de audio y ¡listo!
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )
             )}
 
           </div>
