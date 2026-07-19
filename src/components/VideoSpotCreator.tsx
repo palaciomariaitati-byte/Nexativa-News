@@ -1293,10 +1293,23 @@ export default function VideoSpotCreator({
                   </p>
                 </div>
               ) : (
-                <div className="bg-purple-950/30 border border-purple-500/20 rounded-xl p-3 text-xs space-y-2.5 animate-fadeIn">
+                <div className="bg-purple-950/30 border border-purple-500/20 rounded-xl p-3 text-xs space-y-3 animate-fadeIn">
                   <div className="flex items-center gap-1.5 text-purple-300 font-bold uppercase tracking-wider text-[10px]">
                     <Info className="w-3.5 h-3.5 text-purple-400" /> Asistente de Video en la Nube
                   </div>
+                  
+                  <div className="bg-purple-900/40 border border-purple-500/20 rounded-lg p-2 flex flex-col sm:flex-row items-center justify-between gap-2">
+                    <span className="text-[10px] font-bold text-purple-200">¿Estás en la PC de la radio con el servidor local encendido?</span>
+                    <a 
+                      href="http://localhost:3000/admin/marketing/editor" 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-[9px] uppercase px-2 py-1 rounded transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                    >
+                      Ir al Panel Local 💻
+                    </a>
+                  </div>
+
                   <p className="text-gray-300 text-[11px] leading-normal">
                     Como estás usando la web en producción, el descargador directo está desactivado en la nube para mantener la velocidad del servidor. Sigue estos pasos súper fáciles:
                   </p>
@@ -1646,10 +1659,23 @@ export default function VideoSpotCreator({
                   </div>
                 </div>
               ) : (
-                <div className="bg-purple-950/30 border border-purple-500/20 rounded-xl p-3 text-xs space-y-2.5 animate-fadeIn">
+                <div className="bg-purple-950/30 border border-purple-500/20 rounded-xl p-3 text-xs space-y-3 animate-fadeIn">
                   <div className="flex items-center gap-1.5 text-purple-300 font-bold uppercase tracking-wider text-[10px]">
                     <Info className="w-3.5 h-3.5 text-purple-400" /> Asistente de Audio en la Nube
                   </div>
+
+                  <div className="bg-purple-900/40 border border-purple-500/20 rounded-lg p-2 flex flex-col sm:flex-row items-center justify-between gap-2">
+                    <span className="text-[10px] font-bold text-purple-200">¿Estás en la PC de la radio con el servidor local encendido?</span>
+                    <a 
+                      href="http://localhost:3000/admin/marketing/editor" 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-[9px] uppercase px-2.5 py-1 rounded transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                    >
+                      Ir al Panel Local 💻
+                    </a>
+                  </div>
+
                   <p className="text-gray-300 text-[11px] leading-normal">
                     Como estás usando la web en producción, el descargador de audio directo está desactivado en la nube. Seguí estos pasos rápidos:
                   </p>
