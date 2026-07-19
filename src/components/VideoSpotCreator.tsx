@@ -284,9 +284,38 @@ export default function VideoSpotCreator({
   const [recordingError, setRecordingError] = useState<string | null>(null);
 
   // New audio states: Custom tracks
-  const [audioType, setAudioType] = useState<"synth" | "file" | "url">("synth");
+  const [audioType, setAudioType] = useState<"synth" | "file" | "url" | "youtube">("synth");
   const [customAudioUrl, setCustomAudioUrl] = useState("");
   const [customAudioObjectUrl, setCustomAudioObjectUrl] = useState<string | null>(null);
+
+  // YouTube audio downloader states and handler
+  const [ytAudioUrl, setYtAudioUrl] = useState("");
+  const [downloadingYtAudio, setDownloadingYtAudio] = useState(false);
+
+  const handleDownloadYtAudio = async () => {
+    if (!ytAudioUrl.trim()) return;
+    setDownloadingYtAudio(true);
+    try {
+      const res = await fetch("/api/video-downloader", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: ytAudioUrl.trim(), type: "audio" })
+      });
+      const data = await res.json();
+      if (data.success && data.downloadUrl) {
+        setCustomAudioUrl(data.downloadUrl);
+        setAudioType("url");
+        if (isPlaying) setIsPlaying(false);
+        alert("¡Audio de YouTube descargado e importado con éxito! 🎵");
+      } else {
+        alert("Error de descarga de audio: " + (data.error || "Fallo desconocido."));
+      }
+    } catch (err: any) {
+      alert("Error de red al intentar descargar audio: " + err.message);
+    } finally {
+      setDownloadingYtAudio(false);
+    }
+  };
 
   // Aspect ratio state (horizontal 16:9 vs vertical 9:16)
   const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16">("16:9");
@@ -1458,7 +1487,7 @@ export default function VideoSpotCreator({
             </label>
 
             {/* Audio Mode Tabs */}
-            <div className="flex bg-black/40 border border-white/10 p-0.5 rounded-lg text-[10px] font-bold uppercase">
+            <div className="flex bg-black/40 border border-white/10 p-0.5 rounded-lg text-[10px] font-bold uppercase flex-wrap gap-0.5">
               <button
                 type="button"
                 onClick={() => setAudioType("synth")}
@@ -1479,6 +1508,13 @@ export default function VideoSpotCreator({
                 className={`flex-1 py-1.5 rounded transition-all cursor-pointer ${audioType === "url" ? "bg-purple-600 text-white" : "text-gray-400 hover:text-white"}`}
               >
                 Pegar Link
+              </button>
+              <button
+                type="button"
+                onClick={() => setAudioType("youtube")}
+                className={`flex-1 py-1.5 rounded transition-all cursor-pointer ${audioType === "youtube" ? "bg-purple-600 text-white" : "text-gray-400 hover:text-white"}`}
+              >
+                Descargar YouTube
               </button>
             </div>
 
@@ -1541,6 +1577,34 @@ export default function VideoSpotCreator({
                 </div>
               </div>
             )}
+
+            {audioType === "youtube" && (
+              <div className="space-y-2 animate-fade-in">
+                <p className="text-[10px] text-gray-400">Pegar enlace de YouTube para descargar e importar el audio:</p>
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    value={ytAudioUrl}
+                    onChange={(e) => setYtAudioUrl(e.target.value)}
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    className="flex-grow bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-purple-500"
+                  />
+                  <button
+                    type="button"
+                    disabled={downloadingYtAudio}
+                    onClick={handleDownloadYtAudio}
+                    className="bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs px-3 py-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1 shrink-0"
+                  >
+                    {downloadingYtAudio ? (
+                      <>
+                        <Loader2 className="w-3 h-3 animate-spin" /> Descargando...
+                      </>
+                    ) : "Descargar"}
+                  </button>
+                </div>
+              </div>
+            )}
+
           </div>
 
           {/* Column 2: Animation & Actions */}
