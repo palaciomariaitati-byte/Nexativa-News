@@ -1304,9 +1304,13 @@ export default function VideoSpotCreator({
                     <div className="flex items-start gap-2">
                       <span className="w-4 h-4 rounded-full bg-purple-600/30 border border-purple-500/50 flex items-center justify-center font-bold text-purple-300 text-[9px] mt-0.5 shrink-0">1</span>
                       <span>
-                        Hacé clic aquí para abrir el descargador limpio y libre de virus/anuncios:{" "}
-                        <a href="https://cobalt.tools" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:text-purple-300 underline font-black cursor-pointer">
-                          cobalt.tools 🔗
+                        Hacé clic en cualquiera de estos descargadores (si se abre una pestaña con publicidad, simplemente cierrala):{" "}
+                        <a href="https://es.savefrom.net" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:text-purple-300 underline font-black cursor-pointer mr-1">
+                          SaveFrom 🔗
+                        </a>
+                        {" "}o{" "}
+                        <a href="https://y2mate.is" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:text-purple-300 underline font-black cursor-pointer ml-1">
+                          Y2Mate 🔗
                         </a>
                       </span>
                     </div>
@@ -1653,9 +1657,13 @@ export default function VideoSpotCreator({
                     <div className="flex items-start gap-2">
                       <span className="w-4 h-4 rounded-full bg-purple-600/30 border border-purple-500/50 flex items-center justify-center font-bold text-purple-300 text-[9px] mt-0.5 shrink-0">1</span>
                       <span>
-                        Hacé clic aquí para abrir el convertidor limpio de música:{" "}
-                        <a href="https://cobalt.tools" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:text-purple-300 underline font-black cursor-pointer">
-                          cobalt.tools 🔗
+                        Hacé clic en cualquiera de estos convertidores (si se abre una pestaña con publicidad, simplemente cierrala):{" "}
+                        <a href="https://es.savefrom.net" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:text-purple-300 underline font-black cursor-pointer mr-1">
+                          SaveFrom 🔗
+                        </a>
+                        {" "}o{" "}
+                        <a href="https://y2mate.is" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:text-purple-300 underline font-black cursor-pointer ml-1">
+                          Y2Mate 🔗
                         </a>
                       </span>
                     </div>
