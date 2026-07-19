@@ -1301,12 +1301,12 @@ export default function VideoSpotCreator({
                   <div className="bg-purple-900/40 border border-purple-500/20 rounded-lg p-2 flex flex-col sm:flex-row items-center justify-between gap-2">
                     <span className="text-[10px] font-bold text-purple-200">¿Estás en la PC de la radio con el servidor local encendido?</span>
                     <a 
-                      href="http://localhost:3000/admin/marketing/editor" 
+                      href="http://localhost:9025/admin/marketing/editor" 
                       target="_blank" 
                       rel="noopener noreferrer" 
                       className="bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-[9px] uppercase px-2 py-1 rounded transition-all cursor-pointer whitespace-nowrap active:scale-95"
                     >
-                      Ir al Panel Local 💻
+                      Ir al Panel Local (Puerto 9025) 💻
                     </a>
                   </div>
 
@@ -1667,12 +1667,12 @@ export default function VideoSpotCreator({
                   <div className="bg-purple-900/40 border border-purple-500/20 rounded-lg p-2 flex flex-col sm:flex-row items-center justify-between gap-2">
                     <span className="text-[10px] font-bold text-purple-200">¿Estás en la PC de la radio con el servidor local encendido?</span>
                     <a 
-                      href="http://localhost:3000/admin/marketing/editor" 
+                      href="http://localhost:9025/admin/marketing/editor" 
                       target="_blank" 
                       rel="noopener noreferrer" 
                       className="bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-[9px] uppercase px-2.5 py-1 rounded transition-all cursor-pointer whitespace-nowrap active:scale-95"
                     >
-                      Ir al Panel Local 💻
+                      Ir al Panel Local (Puerto 9025) 💻
                     </a>
                   </div>
 
