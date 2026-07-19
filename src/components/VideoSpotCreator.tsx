@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Play, Square, Download, UploadCloud, X, Film, Volume2, Info, CheckCircle2, Music, Upload, Link as LinkIcon, Layers, Plus } from "lucide-react";
+import { Play, Square, Download, UploadCloud, X, Film, Volume2, Info, CheckCircle2, Music, Upload, Link as LinkIcon, Layers, Plus, Loader2 } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 interface VideoSpotCreatorProps {
@@ -257,7 +257,7 @@ export default function VideoSpotCreator({
   const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16">("16:9");
 
   // Video clipping / source states
-  const [videoSrc, setVideoSrc] = useState<"none" | "file" | "url">("none");
+  const [videoSrc, setVideoSrc] = useState<"none" | "file" | "url" | "youtube">("none");
   const [videoUrl, setVideoUrl] = useState("");
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoObjectUrl, setVideoObjectUrl] = useState<string | null>(null);
@@ -265,6 +265,35 @@ export default function VideoSpotCreator({
   const [videoEnd, setVideoEnd] = useState(15);
   const [videoDuration, setVideoDuration] = useState(0);
   const [proxyLoading, setProxyLoading] = useState(false);
+
+  // YouTube / Twitch downloader states and function
+  const [ytUrl, setYtUrl] = useState("");
+  const [downloadingYt, setDownloadingYt] = useState(false);
+
+  const handleDownloadYtVideo = async () => {
+    if (!ytUrl.trim()) return;
+    setDownloadingYt(true);
+    try {
+      const res = await fetch("/api/video-downloader", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: ytUrl.trim() })
+      });
+      const data = await res.json();
+      if (data.success && data.downloadUrl) {
+        if (videoObjectUrl) URL.revokeObjectURL(videoObjectUrl);
+        setVideoObjectUrl(data.downloadUrl);
+        if (isPlaying) setIsPlaying(false);
+        alert("¡Video descargado y cargado en el trimmer con éxito! 🎥");
+      } else {
+        alert("Error de descarga: " + (data.error || "Fallo desconocido. Asegúrate de que el servidor esté en local y que la URL sea pública."));
+      }
+    } catch (err: any) {
+      alert("Error de red al intentar descargar: " + err.message);
+    } finally {
+      setDownloadingYt(false);
+    }
+  };
 
   // New animation states
   const [animationStyle, setAnimationStyle] = useState("kenburns");
@@ -931,27 +960,34 @@ export default function VideoSpotCreator({
 
           <div className="flex items-center gap-2">
             <span className="text-[10px] uppercase font-extrabold text-purple-300 tracking-wider">Origen:</span>
-            <div className="flex bg-white/5 rounded-lg p-0.5 border border-white/10">
+            <div className="flex bg-white/5 rounded-lg p-0.5 border border-white/10 flex-wrap gap-1">
               <button
                 type="button"
                 onClick={() => setVideoSrc("none")}
-                className={`text-[10px] font-bold px-2 py-1 rounded-md transition-all ${videoSrc === "none" ? "bg-purple-600 text-white" : "text-gray-400 hover:text-white"}`}
+                className={`text-[10px] font-bold px-2 py-1 rounded-md transition-all cursor-pointer ${videoSrc === "none" ? "bg-purple-600 text-white" : "text-gray-400 hover:text-white"}`}
               >
                 Fotos
               </button>
               <button
                 type="button"
                 onClick={() => setVideoSrc("file")}
-                className={`text-[10px] font-bold px-2 py-1 rounded-md transition-all ${videoSrc === "file" ? "bg-purple-600 text-white" : "text-gray-400 hover:text-white"}`}
+                className={`text-[10px] font-bold px-2 py-1 rounded-md transition-all cursor-pointer ${videoSrc === "file" ? "bg-purple-600 text-white" : "text-gray-400 hover:text-white"}`}
               >
                 Subir Video
               </button>
               <button
                 type="button"
                 onClick={() => setVideoSrc("url")}
-                className={`text-[10px] font-bold px-2 py-1 rounded-md transition-all ${videoSrc === "url" ? "bg-purple-600 text-white" : "text-gray-400 hover:text-white"}`}
+                className={`text-[10px] font-bold px-2 py-1 rounded-md transition-all cursor-pointer ${videoSrc === "url" ? "bg-purple-600 text-white" : "text-gray-400 hover:text-white"}`}
               >
                 Enlace MP4
+              </button>
+              <button
+                type="button"
+                onClick={() => setVideoSrc("youtube")}
+                className={`text-[10px] font-bold px-2 py-1 rounded-md transition-all cursor-pointer ${videoSrc === "youtube" ? "bg-purple-600 text-white" : "text-gray-400 hover:text-white"}`}
+              >
+                Descargar YouTube/Twitch
               </button>
             </div>
           </div>
@@ -959,7 +995,7 @@ export default function VideoSpotCreator({
 
         {/* Video Source Controls */}
         {videoSrc !== "none" && (
-          <div className="bg-black/40 border border-white/10 p-4 rounded-xl space-y-3">
+          <div className="bg-black/40 border border-white/10 p-4 rounded-xl space-y-3 animate-fadeIn">
             <div className="flex justify-between items-center border-b border-white/5 pb-2">
               <span className="text-xs uppercase font-extrabold text-purple-300 tracking-wider flex items-center gap-1.5">
                 📹 Trimmer de Video (Recortes)
@@ -967,8 +1003,8 @@ export default function VideoSpotCreator({
               <span className="text-[10px] font-mono text-gray-400">Duración: {durationLimit.toFixed(1)}s (Máx. 30s)</span>
             </div>
 
-            {videoSrc === "file" ? (
-              <div className="space-y-2">
+            {videoSrc === "file" && (
+              <div className="space-y-2 animate-fadeIn">
                 <label className="block text-[10px] font-bold text-gray-400">Seleccionar Archivo de Video local (MP4/WebM):</label>
                 <input
                   type="file"
@@ -985,8 +1021,10 @@ export default function VideoSpotCreator({
                   className="w-full text-xs text-gray-400 bg-white/5 border border-white/10 rounded-lg p-2 file:bg-purple-600 file:border-none file:text-white file:rounded file:px-3 file:py-1 file:mr-3 hover:file:bg-purple-700 cursor-pointer"
                 />
               </div>
-            ) : (
-              <div className="space-y-2">
+            )}
+
+            {videoSrc === "url" && (
+              <div className="space-y-2 animate-fadeIn">
                 <label className="block text-[10px] font-bold text-gray-400">Pegar Enlace Directo de Video (Cualquier servidor o URL pública):</label>
                 <div className="flex gap-2">
                   <input
@@ -1013,11 +1051,41 @@ export default function VideoSpotCreator({
                         setProxyLoading(false);
                       }
                     }}
-                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-4 py-1.5 rounded-lg text-xs transition-colors shrink-0"
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-4 py-1.5 rounded-lg text-xs transition-colors shrink-0 cursor-pointer"
                   >
                     {proxyLoading ? "Cargando..." : "Aplicar"}
                   </button>
                 </div>
+              </div>
+            )}
+
+            {videoSrc === "youtube" && (
+              <div className="space-y-2 animate-fadeIn">
+                <label className="block text-[10px] font-bold text-gray-400">Pegar Enlace de Video (YouTube, Twitch, TikTok, etc):</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={ytUrl}
+                    onChange={(e) => setYtUrl(e.target.value)}
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    className="flex-grow bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-purple-500"
+                  />
+                  <button
+                    type="button"
+                    disabled={downloadingYt}
+                    onClick={handleDownloadYtVideo}
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-4 py-1.5 rounded-lg text-xs transition-colors shrink-0 disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    {downloadingYt ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Descargando...
+                      </>
+                    ) : "Descargar Video"}
+                  </button>
+                </div>
+                <p className="text-[10px] text-gray-500 leading-normal">
+                  El video se procesará en tu computadora local a través de yt-dlp y se cargará en el trimmer de forma inmediata.
+                </p>
               </div>
             )}
 
