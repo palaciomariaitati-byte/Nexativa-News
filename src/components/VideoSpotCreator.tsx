@@ -15,6 +15,41 @@ interface VideoSpotCreatorProps {
   onClose: () => void;
 }
 
+export interface VideoSegment {
+  id: string;
+  src: "file" | "url" | "youtube";
+  videoUrl: string;
+  videoObjectUrl: string | null;
+  start: number;
+  end: number;
+  duration: number;
+}
+
+const getSegmentAtTime = (time: number, segmentsList: VideoSegment[]) => {
+  let cumulative = 0;
+  for (let i = 0; i < segmentsList.length; i++) {
+    const seg = segmentsList[i];
+    const segDuration = seg.end - seg.start;
+    if (time >= cumulative && time < cumulative + segDuration) {
+      return {
+        segment: seg,
+        index: i,
+        relativeTime: seg.start + (time - cumulative)
+      };
+    }
+    cumulative += segDuration;
+  }
+  if (segmentsList.length > 0) {
+    const last = segmentsList[segmentsList.length - 1];
+    return {
+      segment: last,
+      index: segmentsList.length - 1,
+      relativeTime: last.end
+    };
+  }
+  return null;
+};
+
 const MUSIC_TRACKS = [
   { id: "motivador", name: "Comercial Energético 🔥 (Dance)", bpm: 125 },
   { id: "alegre", name: "Moderno & Comercial 📈 (Pop/Groove)", bpm: 108 },
@@ -295,6 +330,101 @@ export default function VideoSpotCreator({
     }
   };
 
+  // Multi-clip sequencer states
+  const [segments, setSegments] = useState<VideoSegment[]>([]);
+  const [activeSegmentIndex, setActiveSegmentIndex] = useState<number>(0);
+  const currentSegmentIndexRef = useRef<number>(-1);
+
+  // Initialize segments list if empty but video is configured
+  useEffect(() => {
+    if (segments.length === 0 && videoSrc !== "none" && (videoObjectUrl || videoUrl)) {
+      setSegments([
+        {
+          id: Math.random().toString(36).substring(2, 9),
+          src: videoSrc === "youtube" ? "youtube" : videoSrc,
+          videoUrl: videoUrl,
+          videoObjectUrl: videoObjectUrl,
+          start: videoStart,
+          end: videoEnd,
+          duration: videoDuration
+        }
+      ]);
+      setActiveSegmentIndex(0);
+    }
+  }, [videoSrc, videoObjectUrl, videoUrl, segments.length]);
+
+  // Sync index switches from sequencer to editor controls
+  useEffect(() => {
+    const active = segments[activeSegmentIndex];
+    if (active) {
+      setVideoSrc(active.src);
+      setVideoUrl(active.videoUrl);
+      setVideoObjectUrl(active.videoObjectUrl);
+      setVideoStart(active.start);
+      setVideoEnd(active.end);
+      setVideoDuration(active.duration);
+    }
+  }, [activeSegmentIndex, segments]);
+
+  // Sync edits in editor back to segments list
+  useEffect(() => {
+    if (segments[activeSegmentIndex]) {
+      const active = segments[activeSegmentIndex];
+      if (
+        active.src !== videoSrc ||
+        active.videoUrl !== videoUrl ||
+        active.videoObjectUrl !== videoObjectUrl ||
+        active.start !== videoStart ||
+        active.end !== videoEnd ||
+        active.duration !== videoDuration
+      ) {
+        setSegments(prev => {
+          const copy = [...prev];
+          if (copy[activeSegmentIndex]) {
+            copy[activeSegmentIndex] = {
+              ...copy[activeSegmentIndex],
+              src: videoSrc === "none" ? "file" : videoSrc,
+              videoUrl,
+              videoObjectUrl,
+              start: videoStart,
+              end: videoEnd,
+              duration: videoDuration
+            };
+          }
+          return copy;
+        });
+      }
+    }
+  }, [videoSrc, videoUrl, videoObjectUrl, videoStart, videoEnd, videoDuration, activeSegmentIndex, segments]);
+
+  const handleAddSegment = () => {
+    const newSeg: VideoSegment = {
+      id: Math.random().toString(36).substring(2, 9),
+      src: "file",
+      videoUrl: "",
+      videoObjectUrl: null,
+      start: 0,
+      end: 10,
+      duration: 0
+    };
+    setSegments(prev => [...prev, newSeg]);
+    setActiveSegmentIndex(segments.length);
+    setVideoSrc("file");
+    setVideoUrl("");
+    setVideoObjectUrl(null);
+    setVideoStart(0);
+    setVideoEnd(10);
+    setVideoDuration(0);
+  };
+
+  const handleDeleteSegment = (index: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (segments.length <= 1) return;
+    const nextList = segments.filter((_, i) => i !== index);
+    setSegments(nextList);
+    setActiveSegmentIndex(Math.max(0, index - 1));
+  };
+
   // New animation states
   const [animationStyle, setAnimationStyle] = useState("kenburns");
 
@@ -355,7 +485,7 @@ export default function VideoSpotCreator({
 
   const secondsPerImage = 3;
   const durationLimit = videoSrc !== "none"
-    ? Math.min(Math.max(videoEnd - videoStart, 1), 30)
+    ? Math.min(segments.reduce((sum, seg) => sum + Math.max(0, seg.end - seg.start), 0) || 15, 30)
     : (editImages.length > 0 ? editImages.length * secondsPerImage : 10);
 
   // Initialize and run canvas rendering loop
@@ -435,15 +565,53 @@ export default function VideoSpotCreator({
       // 1. Draw background content (video or slideshow)
       if (videoSrc !== "none") {
         const video = sourceVideoRef.current;
-        if (video && (video.readyState >= 2 || video.currentTime > 0)) {
-          // Loop video clip between videoStart and videoEnd
-          if (video.currentTime > videoEnd || video.currentTime < videoStart) {
-            video.currentTime = videoStart;
+        if (video) {
+          if (isPlaying) {
+            const currentInfo = getSegmentAtTime(elapsed, segments);
+            if (currentInfo) {
+              const { segment, index, relativeTime } = currentInfo;
+              const segmentSrc = (segment.src === "file" || segment.src === "youtube") ? (segment.videoObjectUrl || "") : segment.videoUrl;
+
+              // Check if we need to switch the video source
+              if (currentSegmentIndexRef.current !== index) {
+                currentSegmentIndexRef.current = index;
+                video.src = segmentSrc;
+                video.load();
+                video.currentTime = relativeTime;
+                video.play().catch(e => console.warn("Sync play start error:", e));
+              } else {
+                // If already playing this source, keep it in sync
+                const drift = Math.abs(video.currentTime - relativeTime);
+                if (drift > 0.35) {
+                  video.currentTime = relativeTime;
+                }
+                if (video.paused && elapsed < durationLimit) {
+                  video.play().catch(e => console.warn("Sync play resume error:", e));
+                }
+              }
+              drawContent(video, 0);
+            } else {
+              video.pause();
+            }
+          } else {
+            // When editing (not playing), show the active segment
+            const activeSeg = segments[activeSegmentIndex];
+            if (activeSeg) {
+              const segSrc = (activeSeg.src === "file" || activeSeg.src === "youtube") ? (activeSeg.videoObjectUrl || "") : activeSeg.videoUrl;
+              
+              if (currentSegmentIndexRef.current !== activeSegmentIndex) {
+                currentSegmentIndexRef.current = activeSegmentIndex;
+                video.src = segSrc;
+                video.load();
+                video.currentTime = videoStart;
+              }
+
+              if (video.currentTime > videoEnd || video.currentTime < videoStart) {
+                video.currentTime = videoStart;
+              }
+              drawContent(video, 0);
+            }
           }
-          if (isPlaying && video.paused) {
-            video.play().catch(e => console.warn(e));
-          }
-          drawContent(video, 0);
         } else {
           const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
           grad.addColorStop(0, "#111827");
@@ -590,7 +758,7 @@ export default function VideoSpotCreator({
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [editImages, loadedImages, title, copyText, clientName, clientLogoUrl, animationStyle, audioType, selectedTrack, durationLimit, aspectRatio, videoSrc, videoObjectUrl, videoUrl, videoStart, videoEnd, isPlaying]);
+  }, [editImages, loadedImages, title, copyText, clientName, clientLogoUrl, animationStyle, audioType, selectedTrack, durationLimit, aspectRatio, videoSrc, videoObjectUrl, videoUrl, videoStart, videoEnd, isPlaying, segments, activeSegmentIndex]);
 
   // Clean up references
   useEffect(() => {
@@ -655,6 +823,7 @@ export default function VideoSpotCreator({
       setIsPlaying(false);
     } else {
       setIsPlaying(true);
+      currentSegmentIndexRef.current = -1;
       
       if (!audioContextRef.current) {
         audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -740,6 +909,7 @@ export default function VideoSpotCreator({
     setSuccess(false);
     setIsRecording(true);
     setRecordingSeconds(0);
+    currentSegmentIndexRef.current = -1;
 
     try {
       const canvasStream = canvas.captureStream(30);
@@ -908,7 +1078,7 @@ export default function VideoSpotCreator({
         {videoObjectUrl || videoUrl ? (
           <video
             ref={sourceVideoRef}
-            src={videoSrc === "file" ? (videoObjectUrl || "") : videoUrl}
+            src={(videoSrc === "file" || videoSrc === "youtube") ? (videoObjectUrl || "") : videoUrl}
             crossOrigin="anonymous"
             className="hidden"
             muted
@@ -1155,73 +1325,128 @@ export default function VideoSpotCreator({
         </div>
 
         {/* Slideshow Manager */}
-        <div className="bg-black/40 border border-white/10 p-4 rounded-xl space-y-3">
-          <div className="flex justify-between items-center border-b border-white/5 pb-2">
-            <span className="text-xs uppercase font-extrabold text-purple-300 tracking-wider flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5" /> Secuencia de Diapositivas / Imágenes ({editImages.length})
-            </span>
-            <span className="text-[10px] text-gray-400 font-mono">Grabación: {durationLimit}s de spot</span>
-          </div>
+        {videoSrc === "none" && (
+          <div className="bg-black/40 border border-white/10 p-4 rounded-xl space-y-3">
+            <div className="flex justify-between items-center border-b border-white/5 pb-2">
+              <span className="text-xs uppercase font-extrabold text-purple-300 tracking-wider flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5" /> Secuencia de Diapositivas / Imágenes ({editImages.length})
+              </span>
+              <span className="text-[10px] text-gray-400 font-mono">Grabación: {durationLimit}s de spot</span>
+            </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            {editImages.map((imgUrl, idx) => (
-              <div key={idx} className="relative w-16 h-16 rounded-lg border border-white/10 overflow-hidden bg-black/40 group shrink-0">
-                {imgUrl ? (
-                  <>
-                    <img src={imgUrl} alt={`Imagen ${idx + 1}`} className="w-full h-full object-cover" />
+            <div className="flex flex-wrap items-center gap-3">
+              {editImages.map((imgUrl, idx) => (
+                <div key={idx} className="relative w-16 h-16 rounded-lg border border-white/10 overflow-hidden bg-black/40 group shrink-0">
+                  {imgUrl ? (
+                    <>
+                      <img src={imgUrl} alt={`Imagen ${idx + 1}`} className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditImages(prev => prev.filter((_, i) => i !== idx));
+                        }}
+                        className="absolute inset-0 bg-red-600/80 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-[10px] uppercase font-black"
+                      >
+                        Quitar
+                      </button>
+                    </>
+                  ) : (
+                    <span className="text-xs text-white/30 flex items-center justify-center h-full">...</span>
+                  )}
+                </div>
+              ))}
+
+              {editImages.length < 6 && (
+                <label className="w-16 h-16 rounded-lg border border-dashed border-white/20 hover:border-purple-500 bg-white/5 hover:bg-white/10 flex flex-col items-center justify-center text-purple-400 cursor-pointer transition-all shrink-0">
+                  <Plus className="w-5 h-5" />
+                  <span className="text-[9px] uppercase font-bold mt-1">Agregar</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setImageUploadingIndex(editImages.length);
+                      try {
+                        const supabase = getSupabaseBrowserClient();
+                        const fileExt = file.name.split('.').pop();
+                        const filePath = `spots/slide_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
+                        const { error: uploadError } = await supabase.storage.from("media").upload(filePath, file);
+                        if (uploadError) throw uploadError;
+                        const { data: publicUrlData } = supabase.storage.from("media").getPublicUrl(filePath);
+                        setEditImages(prev => [...prev, publicUrlData.publicUrl]);
+                      } catch (err: any) {
+                        alert("Error al subir imagen: " + err.message);
+                      } finally {
+                        setImageUploadingIndex(null);
+                      }
+                    }}
+                  />
+                </label>
+              )}
+
+              {imageUploadingIndex !== null && (
+                <div className="w-16 h-16 rounded-lg border border-white/5 bg-black/40 flex items-center justify-center text-xs text-purple-400 animate-pulse shrink-0">
+                  Cargando...
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Videos Sequencer Manager (Multiclips) */}
+        {videoSrc !== "none" && (
+          <div className="bg-black/40 border border-white/10 p-4 rounded-xl space-y-3 animate-fadeIn">
+            <div className="flex justify-between items-center border-b border-white/5 pb-2">
+              <span className="text-xs uppercase font-extrabold text-purple-300 tracking-wider flex items-center gap-1.5">
+                <Film className="w-3.5 h-3.5" /> Secuencia de Clips de Video ({segments.length})
+              </span>
+              <span className="text-[10px] text-gray-400 font-mono">Duración Total: {durationLimit.toFixed(1)}s / 30s máx</span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              {segments.map((seg, idx) => (
+                <div 
+                  key={seg.id} 
+                  onClick={() => setActiveSegmentIndex(idx)}
+                  className={`relative w-24 h-16 rounded-lg border overflow-hidden bg-black/40 cursor-pointer transition-all flex flex-col justify-between p-1.5 ${
+                    activeSegmentIndex === idx 
+                      ? "border-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.3)] bg-purple-950/20" 
+                      : "border-white/10 hover:border-white/20"
+                  }`}
+                >
+                  <span className="text-[10px] font-bold text-gray-400 block">Clip {idx + 1}</span>
+                  <span className="text-[9px] text-white font-mono bg-black/50 px-1 rounded self-start mt-0.5 truncate max-w-full">
+                    {seg.src === "youtube" ? "🎬 YouTube" : seg.src === "file" ? "📁 Local" : "🔗 Enlace"}
+                  </span>
+                  <span className="text-[10px] font-extrabold text-purple-300 font-mono text-right block">
+                    {(seg.end - seg.start).toFixed(1)}s
+                  </span>
+                  {segments.length > 1 && (
                     <button
                       type="button"
-                      onClick={() => {
-                        setEditImages(prev => prev.filter((_, i) => i !== idx));
-                      }}
-                      className="absolute inset-0 bg-red-600/80 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-[10px] uppercase font-black"
+                      onClick={(e) => handleDeleteSegment(idx, e)}
+                      className="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white rounded p-0.5 transition-colors cursor-pointer"
+                      title="Eliminar Clip"
                     >
-                      Quitar
+                      <X className="w-3 h-3" />
                     </button>
-                  </>
-                ) : (
-                  <span className="text-xs text-white/30 flex items-center justify-center h-full">...</span>
-                )}
-              </div>
-            ))}
+                  )}
+                </div>
+              ))}
 
-            {editImages.length < 6 && (
-              <label className="w-16 h-16 rounded-lg border border-dashed border-white/20 hover:border-purple-500 bg-white/5 hover:bg-white/10 flex flex-col items-center justify-center text-purple-400 cursor-pointer transition-all shrink-0">
-                <Plus className="w-5 h-5" />
-                <span className="text-[9px] uppercase font-bold mt-1">Agregar</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    setImageUploadingIndex(editImages.length);
-                    try {
-                      const supabase = getSupabaseBrowserClient();
-                      const fileExt = file.name.split('.').pop();
-                      const filePath = `spots/slide_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
-                      const { error: uploadError } = await supabase.storage.from("media").upload(filePath, file);
-                      if (uploadError) throw uploadError;
-                      const { data: publicUrlData } = supabase.storage.from("media").getPublicUrl(filePath);
-                      setEditImages(prev => [...prev, publicUrlData.publicUrl]);
-                    } catch (err: any) {
-                      alert("Error al subir imagen: " + err.message);
-                    } finally {
-                      setImageUploadingIndex(null);
-                    }
-                  }}
-                />
-              </label>
-            )}
-
-            {imageUploadingIndex !== null && (
-              <div className="w-16 h-16 rounded-lg border border-white/5 bg-black/40 flex items-center justify-center text-xs text-purple-400 animate-pulse shrink-0">
-                Cargando...
-              </div>
-            )}
+              <button
+                type="button"
+                onClick={handleAddSegment}
+                className="w-24 h-16 rounded-lg border border-dashed border-white/20 hover:border-purple-500 hover:bg-white/5 transition-all flex flex-col items-center justify-center text-gray-400 hover:text-white shrink-0 cursor-pointer gap-1"
+              >
+                <Plus className="w-4 h-4 text-purple-400" />
+                <span className="text-[9px] font-bold uppercase tracking-wider">Añadir Clip</span>
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Controls Layout Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
