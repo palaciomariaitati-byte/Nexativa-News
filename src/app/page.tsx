@@ -124,7 +124,7 @@ export default async function HomePage() {
       )}
 
       <div className="w-full max-w-7xl px-2 sm:px-4 lg:px-8 mt-8 sm:mt-12 space-y-10 sm:space-y-16 relative">
-        {/* 🇦🇷 Altar de Aliento Patriótico */}
+        {/* ⚽ Central de Resultados & Fútbol Mundial */}
         <AlientoPatrio />
 
         {/* 2️⃣ Streaming (Prominent at top) */}

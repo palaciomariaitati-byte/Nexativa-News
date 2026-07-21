@@ -18,7 +18,6 @@ import GlobalRealtimeListener from "@/components/GlobalRealtimeListener";
 import Providers from "@/components/Providers";
 import CartButton from "@/components/CartButton";
 import NoraAgent from "@/components/Nora/NoraAgent";
-import NationalRibbon from "@/components/NationalRibbon";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -95,7 +94,6 @@ export default function RootLayout({
         <Providers>
           <GlobalRealtimeListener />
           <ModernLayoutWrapper>
-            <NationalRibbon />
             <Navbar />
             <ExternalNewsCarousel />
           </ModernLayoutWrapper>
