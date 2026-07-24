@@ -1236,10 +1236,36 @@ export default function VideoSpotCreator({
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
-                    if (videoObjectUrl) URL.revokeObjectURL(videoObjectUrl);
+                    if (videoObjectUrl && videoObjectUrl.startsWith("blob:")) {
+                      URL.revokeObjectURL(videoObjectUrl);
+                    }
                     setVideoFile(file);
                     const objUrl = URL.createObjectURL(file);
                     setVideoObjectUrl(objUrl);
+                    setVideoSrc("file");
+                    
+                    // Update segment list instantly so canvas knows the source
+                    setSegments(prev => {
+                      const copy = [...prev];
+                      const idx = activeSegmentIndex < copy.length ? activeSegmentIndex : 0;
+                      if (copy[idx]) {
+                        copy[idx] = {
+                          ...copy[idx],
+                          src: "file",
+                          videoObjectUrl: objUrl,
+                          start: 0,
+                          end: 15
+                        };
+                      }
+                      return copy;
+                    });
+
+                    if (sourceVideoRef.current) {
+                      sourceVideoRef.current.src = objUrl;
+                      sourceVideoRef.current.load();
+                      sourceVideoRef.current.currentTime = 0;
+                    }
+
                     if (isPlaying) setIsPlaying(false);
                   }}
                   className="w-full text-xs text-gray-400 bg-white/5 border border-white/10 rounded-lg p-2 file:bg-purple-600 file:border-none file:text-white file:rounded file:px-3 file:py-1 file:mr-3 hover:file:bg-purple-700 cursor-pointer"

@@ -31,71 +31,91 @@ export async function POST(request: Request) {
     }
 
     const timestamp = Date.now();
+    const flags = `--no-check-certificates --no-playlist --extractor-args "youtube:player_client=android,web"`;
 
     if (type === "audio") {
-      // Download best audio quality stream (m4a, webm, aac, etc.)
-      const command = `python -m yt_dlp -f "bestaudio/best" --no-playlist -o "${downloadDir}/audio_${timestamp}.%(ext)s" "${url}"`;
-      console.log(`[Audio Downloader] Executing: ${command}`);
+      const outputPattern = path.join(downloadDir, `audio_${timestamp}.%(ext)s`);
+      const commands = [
+        `yt-dlp ${flags} -f "bestaudio/best" -o "${outputPattern}" "${url}"`,
+        `python -m yt_dlp ${flags} -f "bestaudio/best" -o "${outputPattern}" "${url}"`,
+        `py -m yt_dlp ${flags} -f "bestaudio/best" -o "${outputPattern}" "${url}"`,
+        `npx --yes @distube/yt-dlp ${flags} -f "bestaudio/best" -o "${outputPattern}" "${url}"`
+      ];
 
       return new Promise((resolve) => {
-        exec(command, (error, stdout, stderr) => {
-          if (error) {
-            console.error("[Audio Downloader] Error during download:", error, stderr);
+        let cmdIdx = 0;
+        const tryNextCommand = () => {
+          if (cmdIdx >= commands.length) {
             resolve(NextResponse.json({
               success: false,
-              error: `Error al descargar el audio. Detalle: ${error.message}`
+              error: "No se encontró yt-dlp instalado en tu sistema. Instala yt-dlp ejecutando: pip install yt-dlp en tu terminal local."
             }));
             return;
           }
+          const command = commands[cmdIdx];
+          console.log(`[Audio Downloader] Intento ${cmdIdx + 1}: ${command}`);
+          
+          exec(command, (error, stdout, stderr) => {
+            const files = fs.readdirSync(downloadDir);
+            const matchedFile = files.find(f => f.startsWith(`audio_${timestamp}`));
 
-          // Scan downloads directory to locate the file with its downloaded extension
-          const files = fs.readdirSync(downloadDir);
-          const matchedFile = files.find(f => f.startsWith(`audio_${timestamp}`));
-
-          if (matchedFile) {
-            resolve(NextResponse.json({
-              success: true,
-              downloadUrl: `/downloads/${matchedFile}`,
-              filename: matchedFile
-            }));
-          } else {
-            resolve(NextResponse.json({
-              success: false,
-              error: "El descargador de audio finalizó pero no se encontró el archivo resultante."
-            }));
-          }
-        });
+            if (matchedFile) {
+              resolve(NextResponse.json({
+                success: true,
+                downloadUrl: `/downloads/${matchedFile}`,
+                filename: matchedFile
+              }));
+            } else {
+              cmdIdx++;
+              tryNextCommand();
+            }
+          });
+        };
+        tryNextCommand();
       });
     } else {
       const outputFilename = `download_${timestamp}.mp4`;
       const outputPath = path.join(downloadDir, outputFilename);
-      const command = `python -m yt_dlp -f "best[ext=mp4]/best" --no-playlist -o "${outputPath}" "${url}"`;
-      console.log(`[Video Downloader] Executing: ${command}`);
+      const outputPattern = path.join(downloadDir, `download_${timestamp}.%(ext)s`);
+
+      const commands = [
+        `yt-dlp ${flags} -f "best[ext=mp4]/best" -o "${outputPath}" "${url}"`,
+        `python -m yt_dlp ${flags} -f "best[ext=mp4]/best" -o "${outputPath}" "${url}"`,
+        `py -m yt_dlp ${flags} -f "best[ext=mp4]/best" -o "${outputPath}" "${url}"`,
+        `yt-dlp ${flags} -f "best" -o "${outputPattern}" "${url}"`,
+        `python -m yt_dlp ${flags} -f "best" -o "${outputPattern}" "${url}"`
+      ];
 
       return new Promise((resolve) => {
-        exec(command, (error, stdout, stderr) => {
-          if (error) {
-            console.error("[Video Downloader] Error during download:", error, stderr);
+        let cmdIdx = 0;
+        const tryNextCommand = () => {
+          if (cmdIdx >= commands.length) {
             resolve(NextResponse.json({
               success: false,
-              error: `Error al descargar el video. Detalle: ${error.message}`
+              error: "No se encontró yt-dlp en tu sistema local o la URL no es accesible. Instálalo con: pip install yt-dlp"
             }));
             return;
           }
+          const command = commands[cmdIdx];
+          console.log(`[Video Downloader] Intento ${cmdIdx + 1}: ${command}`);
 
-          if (fs.existsSync(outputPath)) {
-            resolve(NextResponse.json({
-              success: true,
-              downloadUrl: `/downloads/${outputFilename}`,
-              filename: outputFilename
-            }));
-          } else {
-            resolve(NextResponse.json({
-              success: false,
-              error: "El descargador de video finalizó pero no se encontró el archivo resultante."
-            }));
-          }
-        });
+          exec(command, (error, stdout, stderr) => {
+            const files = fs.readdirSync(downloadDir);
+            const matchedFile = files.find(f => f.startsWith(`download_${timestamp}`));
+
+            if (matchedFile) {
+              resolve(NextResponse.json({
+                success: true,
+                downloadUrl: `/downloads/${matchedFile}`,
+                filename: matchedFile
+              }));
+            } else {
+              cmdIdx++;
+              tryNextCommand();
+            }
+          });
+        };
+        tryNextCommand();
       });
     }
 
