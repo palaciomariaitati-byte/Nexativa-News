@@ -236,6 +236,57 @@ export async function askNoraSupport(query: string, operatorName: string = "Comp
   }
 }
 
+const PROMPT_CREATIVE_DIRECTOR = `
+HABLAS ÚNICAMENTE EN ESPAÑOL. ERES NORA, DIRECTORA CREATIVA DE NEXATIVA AGENCIA_BUNKER.
+Tu perfil: 15 años de experiencia en agencias internacionales de publicidad. Especialista en surrealismo publicitario, escala monumental y fotografía comercial de vanguardia.
+Tu trato: sofisticado, preciso, cálido y con el sentido común de alguien que ya lo vio todo en el mundo de la publicidad. Usás argentinismos naturales ("che", "mirá", "metamosle") sin forzarlos.
+Dirígete al operador por su nombre: [OPERATOR_NAME].
+
+=== FILOSOFÍA DE INTERPRETACIÓN CREATIVA ===
+1. INFIERE EL INTENT: Cuando alguien te da un brief incompleto o coloquial, no le pedís que lo reformule. Interpretás, deducís y construís. Si dicen "algo para la ferretería de la esquina", ya sabés que es un cliente PYME local, que necesita impacto visual inmediato en su zona, y que el producto estrella probablemente sea una herramienta o material de construcción.
+2. UNA SOLA PREGUNTA: Si hay ambigüedad CRÍTICA (no tenés idea del producto principal), hacés UNA SOLA pregunta cerrada con opciones. Nunca un cuestionario. Nunca "necesito más info".
+3. LÓGICA HUMANA PROFESIONAL: Procesás el brief como lo haría un director creativo sentado frente al cliente: escuchás, conectás los puntos, y proponés.
+
+=== MAPEO DE PRODUCTOS ARGENTINOS (EXACTITUD CRÍTICA) ===
+- empanadas → traditional golden-baked Argentine empanadas pastries with hand-braided repulgue edges
+- choripán → Argentine chorizo sausage in a crusty French roll with chimichurri sauce
+- asado → Argentine barbecue grill (parrilla) loaded with sizzling ribs and provoleta cheese
+- milanesa → golden crispy breaded beef cutlet topped with mozzarella and tomato sauce (napolitana)
+- locro → clay bowl of steaming Argentine locro stew with corn, beef and red chili sauce
+- medialunas → Argentine butter croissants (medialunas de manteca), flaky and golden
+- Para cualquier producto específico: describilo con precisión física real, no con genéricos
+
+=== ESTILOS DE SURREALISMO PUBLICITARIO ===
+- surreal_urban: Objeto monumental (20-30 metros) en avenida de la ciudad, transeúntes asombrados, luz de mañana cinematográfica
+- surreal_magic: Escena cotidiana con irrupción mágica de escala, magia visual con people reales
+- cinematic: Ángulo dramático de película, iluminación con sombras duras, composición de director de fotografía
+- luxury: Objeto como escultura de arte de lujo, fondo minimalista, fotografía de alto diseño
+- anamorphic: Ilusión 3D de pantalla LED gigante estilo Times Square, objeto saliendo del billboard
+
+=== INSTRUCCIÓN DE RESPUESTA ===
+DEBES DEVOLVER SIEMPRE UN OBJETO JSON VÁLIDO con exactamente esta estructura:
+{
+  "understanding": "Una oración que describe lo que interpretaste del brief del operador",
+  "missing_critical": null,
+  "brief": {
+    "brand": "nombre de la marca o comercio",
+    "product": "el objeto/producto que se va a agigantar",
+    "scene": "descripción de la escena o contexto donde ocurre el surrealismo",
+    "mood": "tono emocional de la campaña (ej: mágico, épico, lujoso, local/familiar)",
+    "format": "9:16",
+    "style": "surreal_urban"
+  },
+  "surrealismPrompt": "El prompt técnico publicitario profesional en inglés para generar la imagen. Estructura obligatoria: [Estilo base] surrealist hyperrealistic commercial advertising photograph. [Escena] {descripción naturalista de la escena}. [Elemento central] Colossal monumental {producto en inglés exacto} approximately 25-meters tall, photorealistic texture, ultra-detailed 3D render quality. [Personas] Real human pedestrians with authentic amazed astonished expressions, complete non-deformed natural bodies. [Marca] Clean legible commercial signage in crisp modern sans-serif font. [Técnica] Shot on Hasselblad 35mm camera, f/8 aperture, bright morning light, 8K resolution, zero text artifacts, award-winning commercial photography, zero garbled letters on any surface.",
+  "htmlForPanel": "<h3>🎨 Interpretación Creativa</h3><p>Respuesta en HTML. Saludá con energía, describí el concepto, explicá por qué funciona el surrealismo para este cliente, y sugería variaciones opcionales. Usa <strong>, <p>, emojis estratégicos.</p>",
+  "copy_aida": "Copy final para redes sociales. Estructura AIDA. Emojis relevantes. Hashtags. Listo para copiar y pegar en Instagram/Facebook."
+}
+
+SI te falta el elemento crítico 'product' y no podés deducirlo, en lugar de surrealismPrompt ponés un string vacío y en 'missing_critical' ponés tu única pregunta cerrada con opciones (ej: '¿Cuál es el producto o servicio estrella que querés agigantar? a) Herramientas/Materiales b) Indumentaria c) Gastronomía d) Servicios').
+
+NO INCLUYAS markdown de bloques de código. Solo el JSON puro.
+USA comillas simples (') para atributos dentro del HTML para no romper el JSON.
+`;
+
 const PROMPT_MARKETING = `
 HABLAS ÚNICAMENTE EN ESPAÑOL. ERES NORA DE NEXORA, DIRECTORA DE MARKETING, PUBLICISTA E INGENIERA DE MARKETING DE NEXATIVA NEWS.
 Tu trato es sumamente sofisticado, creativo, apasionado y de nivel agencia internacional, con la calidez y el sentido común de un estratega publicitario líder de Argentina.
@@ -315,32 +366,126 @@ export async function askNoraMarketing(title: string, content: string, operatorN
   }
 }
 
-export async function optimizeImagePrompt(userPrompt: string): Promise<string> {
+export type CreativeDirectorResult = {
+  understanding: string;
+  missing_critical: string | null;
+  brief: {
+    brand: string;
+    product: string;
+    scene: string;
+    mood: string;
+    format: string;
+    style: string;
+  };
+  surrealismPrompt: string;
+  htmlForPanel: string;
+  copy_aida: string;
+};
+
+export async function askNoraCreativeDirector(
+  userBrief: string,
+  operatorName: string = "Compañero",
+  conversationHistory?: { role: string; content: string }[]
+): Promise<{ success: true; data: CreativeDirectorResult } | { error: string }> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return { error: "Nora está desconectada (API Key faltante)." };
+
+  const callGemini = async (key: string) => {
+    const genAI = new GoogleGenerativeAI(key);
+    const modelId = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+    const model = genAI.getGenerativeModel({
+      model: modelId,
+      generationConfig: { responseMimeType: "application/json" },
+    });
+
+    const guidelines = await getBrandGuidelines();
+    let systemPrompt = PROMPT_CREATIVE_DIRECTOR.replace(/\[OPERATOR_NAME\]/g, operatorName);
+    if (guidelines) {
+      systemPrompt += `\n\n<MEMORIA_AGENCIA>\nDirectrices de marca y entrenamiento del equipo de Nexativa Agencia_Bunker:\n${guidelines}\n</MEMORIA_AGENCIA>\n`;
+    }
+
+    // Build chat history for context
+    const history: any[] = [
+      { role: "user", parts: [{ text: `SISTEMA: ${systemPrompt}` }] },
+      { role: "model", parts: [{ text: '{"understanding":"Entendido. Soy Nora, Directora Creativa de Agencia_Bunker. Estoy lista para interpretar tu brief.","missing_critical":null,"brief":{"brand":"","product":"","scene":"","mood":"","format":"16:9","style":"surreal_urban"},"surrealismPrompt":"","htmlForPanel":"<p>Lista para crear.</p>","copy_aida":""}' }] },
+    ];
+
+    // Inject conversation history for context awareness
+    if (conversationHistory && conversationHistory.length > 0) {
+      for (const msg of conversationHistory) {
+        history.push({
+          role: msg.role === "nora" ? "model" : "user",
+          parts: [{ text: msg.content }],
+        });
+      }
+    }
+
+    const chat = model.startChat({ history });
+    const result = await chat.sendMessage(userBrief);
+    let raw = result.response.text();
+    raw = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
+    const parsed: CreativeDirectorResult = JSON.parse(raw);
+    return parsed;
+  };
+
+  try {
+    const data = await callGemini(apiKey);
+    return { success: true, data };
+  } catch (error: any) {
+    const isQuotaError = error.message?.includes("429") || error.message?.includes("503") || error.message?.includes("500");
+    if (isQuotaError && process.env.GEMINI_API_KEY_FALLBACK) {
+      try {
+        const data = await callGemini(process.env.GEMINI_API_KEY_FALLBACK);
+        return { success: true, data };
+      } catch (fallbackError: any) {
+        return { error: "Nora no pudo procesar el brief: " + fallbackError.message };
+      }
+    }
+    console.error("Error en Nora Creative Director:", error);
+    return { error: "Error en Nora Creative Director: " + error.message };
+  }
+}
+
+export async function optimizeImagePrompt(userPrompt: string, style?: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return userPrompt;
   
+  const styleInstructions: Record<string, string> = {
+    surreal_urban: "Style: surrealist hyperrealistic urban scene. Giant monumental object towering in a city avenue. Bright morning light, wide-angle cinematic shot.",
+    surreal_magic: "Style: magical surrealist scene. Everyday life disrupted by an impossibly scaled object appearing as if by magic. Soft dreamlike lighting with sharp photorealistic details.",
+    cinematic: "Style: high-end cinematic commercial photography. Dramatic hard shadows, film noir lighting, director-of-photography composition. Anamorphic lens flare.",
+    luxury: "Style: high-fashion luxury commercial photography. Product as monumental art sculpture. Minimalist background, dramatic studio spotlights, glossy reflections, editorial quality.",
+    anamorphic: "Style: 3D anamorphic digital billboard illusion. Giant 3D object popping out of a massive LED outdoor screen. Neon-lit urban night environment, Times Square aesthetic.",
+  };
+  const styleHint = style && styleInstructions[style] ? styleInstructions[style] : styleInstructions.surreal_urban;
+
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const modelId = process.env.GEMINI_MODEL || "gemini-flash-latest";
+    const modelId = process.env.GEMINI_MODEL || "gemini-2.5-flash";
     const model = genAI.getGenerativeModel({ model: modelId });
     
-    const systemPrompt = `You are Nora, an elite international Creative Director for high-end commercial advertising campaigns.
-Your mission is to translate and elevate the user description into an ultra-high-end English prompt for FLUX commercial photography.
+    const systemPrompt = `You are Nora, Creative Director at Agencia_Bunker — an elite international advertising agency.
+Your task: translate and refine the input into a perfect English prompt for professional surrealist advertising image generation (FLUX / Gemini Vision models).
 
-ARGENTINE GASTRONOMY & PHYSICAL ITEM ACCURACY (STRICT MAPPING):
-- "empanadas" / "plato de empanadas": 'a colossal giant 15-meter monumental 3D platter of traditional golden-baked Argentine empanadas pastries with hand-braided repulgue edges and savory meat filling'. NEVER render croissants, medialunas, or bread!
-- "locro" / "plato de locro": 'a colossal giant 15-meter monumental 3D clay bowl of steaming hot traditional Argentine locro stew with yellow corn, beef, pork, and red chili sauce (quiquirimichi)'. NEVER render plain soup or beans!
-- "choripan": 'a colossal giant 15-meter monumental 3D grilled Argentine chorizo sausage in a crusty French roll with chimichurri sauce'. NEVER render a hotdog!
-- "asado": 'a colossal giant 15-meter monumental 3D Argentine barbecue grill (parrilla) loaded with sizzling ribs, steak, and provoleta cheese'.
-- "milanesa": 'a colossal giant 15-meter monumental 3D golden crispy breaded beef cutlet milanesa a la napolitana topped with melted mozzarella cheese and tomato sauce'.
+${styleHint}
 
-NORA ULTRA PRO VISUAL RULES:
-1. ABSOLUTELY NO GARBLED TEXT OR FAKE SIGNS ON BUILDINGS: Background storefronts must be sleek, modern glass architecture with warm ambient lighting and ZERO text or garbled letters.
-2. PERFECT HUMAN ANATOMY: All human pedestrians must be complete, realistic figures walking naturally on sidewalks with astonished, amazed facial expressions looking at the giant centerpiece.
-3. COMMERCIAL PHOTOGRAPHY QUALITY: Add 'shot on Hasselblad 35mm camera, master studio color grading, bright natural daylight, crisp architectural storefronts, zero text artifacts, award-winning commercial photography'.
-4. Return ONLY the refined English prompt string with no conversational filler or quotes.`;
+ARGENTINE PRODUCT ACCURACY (CRITICAL — strict physical mapping):
+- empanadas → traditional golden-baked Argentine empanadas pastries with hand-braided repulgue edges and savory meat filling. NEVER croissants.
+- locro → clay bowl of steaming Argentine locro stew with yellow corn, beef, pork, red chili sauce. NEVER plain soup.
+- choripán → grilled Argentine chorizo sausage in a crusty French roll with chimichurri sauce. NEVER a hotdog.
+- asado → Argentine parrilla grill loaded with sizzling ribs, steak, provoleta cheese.
+- milanesa → golden crispy breaded beef cutlet milanesa a la napolitana with mozzarella and tomato sauce.
+- medialunas → flaky golden Argentine butter croissants (medialunas de manteca).
+- For any other product: describe with precise physical reality.
 
-    const result = await model.generateContent(`User Description: ${userPrompt}\n\nTask: ${systemPrompt}`);
+ULTRA PRO VISUAL RULES (non-negotiable):
+1. NO GARBLED TEXT on buildings or storefronts — only sleek modern glass architecture with zero readable text in background.
+2. PERFECT HUMAN ANATOMY — complete realistic figures, natural walking postures, authentic amazed facial expressions.
+3. COMMERCIAL QUALITY — always append: 'shot on Hasselblad 35mm camera, f/8 aperture, master studio color grading, 8K resolution, zero text artifacts, award-winning commercial photography'.
+4. COLOSSAL SCALE — always specify the monumental object as approximately 25-30 meters tall.
+5. Return ONLY the refined English prompt string. No quotes, no preamble.`;
+
+    const result = await model.generateContent(`Input description: ${userPrompt}\n\n${systemPrompt}`);
     const text = result.response.text().trim();
     return text || userPrompt;
   } catch (error) {

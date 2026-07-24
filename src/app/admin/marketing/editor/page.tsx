@@ -7,6 +7,7 @@ import NoraAssistant from "@/components/NoraAssistant";
 import MediaUploader from "@/components/MediaUploader";
 import { Sparkles, Film, Share2 } from "lucide-react";
 import VideoSpotCreator from "@/components/VideoSpotCreator";
+import CreativeStudio from "@/components/CreativeStudio/CreativeStudio";
 import { optimizeImagePrompt } from "@/app/admin/actions/nora";
 
 export const maxDuration = 60; // Allow long LLM calls
@@ -541,142 +542,23 @@ Estructura la respuesta en texto plano en español:
               </div>
             </div>
 
-            {/* Estudio de Gigantografías Surrealistas & Escala Monumental por IA (Universal) */}
-            <div className="bg-gradient-to-br from-amber-950/30 via-purple-950/30 to-black/60 border border-amber-500/30 rounded-xl p-5 space-y-4 mt-4 shadow-xl">
-              <div className="flex flex-wrap justify-between items-center border-b border-white/10 pb-3 gap-2">
-                <span className="text-xs uppercase font-extrabold tracking-wider text-amber-400 flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" /> Estudio de Gigantografías Surrealistas (Escala Monumental IA)
-                </span>
-                
-                {(() => {
-                  const selectedSponsor = sponsors.find(s => s.id === selectedSponsorId);
-                  const activeLogo = clientLogoUrl || selectedSponsor?.logo_url;
-                  const activeName = formData.client_name || selectedSponsor?.name;
-                  return (
-                    <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-lg">
-                      {activeLogo && <img src={activeLogo} alt="Logo" className="w-4 h-4 object-contain rounded" />}
-                      <span className="text-[10px] text-amber-300 font-bold uppercase">
-                        {activeName ? `Marca: ${activeName}` : "Comercio Generico"}
-                      </span>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[11px] font-bold text-gray-300 uppercase tracking-wide block mb-1">
-                    Artículo / Producto a Agigantar:
-                  </label>
-                  <input
-                    type="text"
-                    value={customItemArticle}
-                    onChange={(e) => setCustomItemArticle(e.target.value)}
-                    placeholder="Ej: Cartera de cuero, Zapatilla de diseño, Hamburguesa, Auto..."
-                    className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-xs text-white outline-none focus:border-amber-500"
-                  />
-                  <p className="text-[10px] text-gray-400 mt-1 italic">
-                    El objeto del comercio que se agigantará mágicamente en la historia.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-bold text-gray-300 uppercase tracking-wide block mb-1">
-                    Escenario / Contexto de la Historia Cotidiana:
-                  </label>
-                  <input
-                    type="text"
-                    value={customStoryContext}
-                    onChange={(e) => setCustomStoryContext(e.target.value)}
-                    placeholder="Ej: Una mujer paseando a su perro por la plaza frente a la tienda..."
-                    className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-xs text-white outline-none focus:border-amber-500"
-                  />
-                  <p className="text-[10px] text-gray-400 mt-1 italic">
-                    Describe la escena donde ocurre la sorpresa visual del transeúnte.
-                  </p>
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="text-[11px] font-bold text-gray-300 uppercase tracking-wide block mb-1">
-                    Efecto de Escala Publicitaria Internacional:
-                  </label>
-                  <select
-                    value={selectedGigantoStyle}
-                    onChange={(e) => setSelectedGigantoStyle(e.target.value)}
-                    className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-xs text-white outline-none focus:border-amber-500 cursor-pointer font-bold"
-                  >
-                    <option value="story_reallife">✨ Historia Cotidiana & Asombro Mágico (Objeto que se Agiganta + Transeúntes Impactados)</option>
-                    <option value="urban">🏙️ Gigantismo Urbano Monumental (Objeto de 20m en la Ciudad)</option>
-                    <option value="character">👤 Escala Gigante con Personaje Principal (Spot Dramático)</option>
-                    <option value="anamorphic">🌆 Cartelería Digital 3D Anamórfica (Efecto Ilusión 3D)</option>
-                    <option value="gala">🌟 Escenario de Gala / Fotografía Comercial de Lujo</option>
-                  </select>
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="text-[11px] font-bold text-gray-300 uppercase tracking-wide block mb-1">
-                    Formato Optimizado por Red Social / Canal:
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedAspectRatio("9:16")}
-                      className={`p-2.5 rounded-lg border text-xs font-bold text-center transition-all cursor-pointer ${selectedAspectRatio === "9:16" ? "bg-amber-500 text-black border-amber-400 shadow-md" : "bg-black/40 text-gray-300 border-white/10 hover:bg-white/5"}`}
-                    >
-                      📱 9:16 Vertical
-                      <span className="block text-[9px] font-normal opacity-80 mt-0.5">Reels / TikTok / Stories</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setSelectedAspectRatio("1:1")}
-                      className={`p-2.5 rounded-lg border text-xs font-bold text-center transition-all cursor-pointer ${selectedAspectRatio === "1:1" ? "bg-amber-500 text-black border-amber-400 shadow-md" : "bg-black/40 text-gray-300 border-white/10 hover:bg-white/5"}`}
-                    >
-                      🟦 1:1 Cuadrado
-                      <span className="block text-[9px] font-normal opacity-80 mt-0.5">Instagram / Feed FB</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setSelectedAspectRatio("16:9")}
-                      className={`p-2.5 rounded-lg border text-xs font-bold text-center transition-all cursor-pointer ${selectedAspectRatio === "16:9" ? "bg-amber-500 text-black border-amber-400 shadow-md" : "bg-black/40 text-gray-300 border-white/10 hover:bg-white/5"}`}
-                    >
-                      🖥️ 16:9 Horizontal
-                      <span className="block text-[9px] font-normal opacity-80 mt-0.5">Banners Portal / YouTube</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setSelectedAspectRatio("3:1")}
-                      className={`p-2.5 rounded-lg border text-xs font-bold text-center transition-all cursor-pointer ${selectedAspectRatio === "3:1" ? "bg-amber-500 text-black border-amber-400 shadow-md" : "bg-black/40 text-gray-300 border-white/10 hover:bg-white/5"}`}
-                    >
-                      🏙️ 3:1 Megabanner
-                      <span className="block text-[9px] font-normal opacity-80 mt-0.5">Cabeceras / Gigantografías</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-white/5">
-                <button
-                  type="button"
-                  disabled={generatingAIDACopy}
-                  onClick={handleGenerateAIDACopy}
-                  className="bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold px-4 py-2 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
-                >
-                  ✍️ {generatingAIDACopy ? "Redactando..." : "Redactar Copy AIDA (Atención, Interés, Deseo, Acción)"}
-                </button>
-
-                <button
-                  type="button"
-                  disabled={generatingImage}
-                  onClick={handleGenerateGigantografia}
-                  className="bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-extrabold text-xs px-5 py-2.5 rounded-lg transition-all shadow-lg flex items-center gap-1.5 cursor-pointer"
-                >
-                  {generatingImage ? "Esculpiendo Gigantografía..." : "Generar Gigantografía IA 🏙️✨"}
-                </button>
-              </div>
-            </div>
+            {/* Creative Studio — Nora Directora Creativa (reemplaza Gigantografías antiguas) */}
+            <CreativeStudio
+              brandName={formData.client_name || sponsors.find(s => s.id === selectedSponsorId)?.name}
+              clientLogoUrl={clientLogoUrl || sponsors.find(s => s.id === selectedSponsorId)?.logo_url}
+              onImageGenerated={(url, copyAida) => {
+                const keepBoth = formData.image_url
+                  ? confirm("¿Agregar esta imagen como nueva diapositiva en la secuencia?\n(Aceptar = agregar, Cancelar = reemplazar)")
+                  : false;
+                setFormData(prev => {
+                  const updatedImage = keepBoth
+                    ? [...prev.image_url.split(",").map(u => u.trim()).filter(Boolean), url].join(", ")
+                    : url;
+                  const updatedContent = copyAida && !prev.content ? copyAida : prev.content;
+                  return { ...prev, image_url: updatedImage, content: updatedContent };
+                });
+              }}
+            />
 
             {formData.image_url && (() => {
               const firstUrl = formData.image_url.split(",")[0].trim();
