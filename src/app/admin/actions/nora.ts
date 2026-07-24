@@ -330,7 +330,7 @@ Your mission is to translate and elevate the following user description into an 
 HUMAN-LIKE INTERPRETATION & FIDELITY RULES:
 1. FAITHFUL NARRATIVE ACCURACY: Carefully preserve and interpret every human detail requested by the user: specific characters (people, animals, walking in parks or plazas), specific commercial products (handbags, shoes, food, cars), brand store names, and exact emotional reactions (amazement, emotion, awe, fascination).
 2. SURREAL SCALE SHIFT & MAGICAL IMPACT: If an object is described as magically enlarging or scaling colossally, vividly portray its monumental 3D scale in front of the store, golden glow, and pedestrians/characters looking up with genuine astonished expressions.
-3. BRAND & STORE INTEGRATION: Include clean storefront brand signage, neon logos, or store names whenever mentioned by the user.
+3. BRAND SIGNAGE & SPANISH TYPOGRAPHY: Any storefront text, signs, neon billboards, or posters MUST be written strictly in SPANISH with clean, crisp, legible typography (e.g. text explicitly written as "${userPrompt.toUpperCase()}"). NEVER generate alien, gibberish, or garbled pseudo-letters.
 4. CINEMATIC REALISM: Include professional advertising parameters: "cinematic movie spot lighting, photorealistic 8k resolution, volumetric atmospheric depth of field, hyper-detailed textures".
 5. Return ONLY the refined English prompt string with no intro, conversational filler, or quotation marks.`;
 

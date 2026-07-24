@@ -256,7 +256,7 @@ export default function MarketingEditorPage() {
 
     setGeneratingAIDACopy(true);
     const aidaPrompt = `Eres Nora IA, experta redactora de publicidad internacional. Genera un copy publicitario estructurado estrictamente bajo la regla AIDA para el cliente "${brandName}", enfocado en "${itemArticle}" dirigido a "${audience}".
-Estructura la respuesta exactamente en estas 4 secciones:
+Estructura la respuesta en texto plano en español:
 [ATENCIÓN]: Titular de alto impacto
 [INTERÉS]: Gancho con el beneficio clave
 [DESEO]: Conexión emocional y propuesta de valor
@@ -272,7 +272,15 @@ Estructura la respuesta exactamente en estas 4 secciones:
       });
       const data = await res.json();
       if (data.reply) {
-        setFormData(prev => ({ ...prev, content: data.reply }));
+        let cleanText = data.reply || "";
+        if (cleanText.trim().startsWith("{")) {
+          try {
+            const parsed = JSON.parse(cleanText);
+            cleanText = parsed.newContent || parsed.content || parsed.text || parsed.reply || cleanText;
+          } catch (e) {}
+        }
+        cleanText = cleanText.replace(/```(json|html)?/gi, "").replace(/```/g, "").trim();
+        setFormData(prev => ({ ...prev, content: cleanText }));
         alert("¡Estrategia y Copy AIDA generado por Nora IA con éxito! ✍️");
       }
     } catch (err: any) {
