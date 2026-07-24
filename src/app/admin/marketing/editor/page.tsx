@@ -195,12 +195,16 @@ export default function MarketingEditorPage() {
   };
 
   const handleGenerateGigantografia = async () => {
-    const itemArticle = customItemArticle.trim() || formData.client_name || "producto publicitario comercial";
+    const selectedSponsor = sponsors.find(s => s.id === selectedSponsorId);
+    const clientBrand = formData.client_name || selectedSponsor?.name || "Comercio Asociado";
+    const clientCategory = selectedSponsor?.category || "Local Comercial";
+    const itemArticle = customItemArticle.trim() || (selectedSponsor ? `${selectedSponsor.category} de ${selectedSponsor.name}` : clientBrand);
+
     const scaleStylePromptMap: Record<string, string> = {
-      urban: `Gigantic monumental scaled ${itemArticle}, towering 20 meters high in the middle of a bustling modern city avenue, surrounded by amazed people looking up, cinematic lighting, photorealistic 3D anamorphic billboard style, ultra realistic detailed textures, 8k resolution`,
-      character: `Surreal forced scale advertisement, a colossal giant ${itemArticle} dwarfing a main character holding or interacting with it, dramatic forced perspective angle, cinematic movie spot lighting, hyper-realistic depth of field`,
-      anamorphic: `3D anamorphic digital billboard illusion of a giant 3D ${itemArticle} popping out of a giant outdoor screen in Times Square, night neon lights, crowds watching, photorealistic 8k render`,
-      gala: `High fashion luxury advertisement spot featuring a giant magnificent ${itemArticle} as a monumental centerpiece sculpture, studio dramatic spotlights, glossy reflections, award-winning commercial photography`
+      urban: `Gigantic monumental scaled 3D artwork for business '${clientBrand}' (${clientCategory}), featuring a giant 20-meter high ${itemArticle} and brand logo emblem towering in the middle of a bustling city avenue, amazed crowds looking up, cinematic lighting, photorealistic 8k resolution`,
+      character: `Surreal forced scale commercial for '${clientBrand}' featuring a colossal giant ${itemArticle} dwarfing a main character, branded background signage for ${clientBrand}, dramatic forced perspective, movie spot lighting`,
+      anamorphic: `3D anamorphic digital billboard illusion for store '${clientBrand}', giant 3D ${itemArticle} popping out of a giant LED outdoor screen in Times Square with neon illuminated brand logo '${clientBrand}', 8k render`,
+      gala: `High fashion luxury advertisement spot for '${clientBrand}' (${clientCategory}), magnificent giant 3D ${itemArticle} and logo emblem as a monumental centerpiece sculpture, studio dramatic spotlights, glossy reflections`
     };
 
     const ratioDimensions: Record<string, { width: number; height: number }> = {
@@ -211,10 +215,10 @@ export default function MarketingEditorPage() {
     };
     const dims = ratioDimensions[selectedAspectRatio] || ratioDimensions["16:9"];
 
-    const selectedPrompt = scaleStylePromptMap[selectedGigantoStyle] || scaleStylePromptMap.urban;
+    const promptText = scaleStylePromptMap[selectedGigantoStyle] || scaleStylePromptMap.urban;
     setGeneratingImage(true);
     try {
-      const optimizedPrompt = await optimizeImagePrompt(selectedPrompt);
+      const optimizedPrompt = await optimizeImagePrompt(promptText);
       const encodedPrompt = encodeURIComponent(optimizedPrompt);
       const imageUrl = `https://image.pollinations.ai/p/${encodedPrompt}?width=${dims.width}&height=${dims.height}&nologo=true&seed=${Math.floor(Math.random() * 100000)}`;
 
@@ -233,7 +237,7 @@ export default function MarketingEditorPage() {
       const newUrl = publicUrlData.publicUrl;
 
       setFormData(prev => ({ ...prev, image_url: newUrl }));
-      alert("¡Gigantografía Surrealista IA generada con éxito! 🏙️✨");
+      alert(`¡Gigantografía Surrealista IA creada para "${clientBrand}" con éxito! 🏙️✨`);
     } catch (err: any) {
       console.error(err);
       alert("Error al generar gigantografía: " + err.message);
@@ -527,13 +531,24 @@ Estructura la respuesta exactamente en estas 4 secciones:
 
             {/* Estudio de Gigantografías Surrealistas & Escala Monumental por IA (Universal) */}
             <div className="bg-gradient-to-br from-amber-950/30 via-purple-950/30 to-black/60 border border-amber-500/30 rounded-xl p-5 space-y-4 mt-4 shadow-xl">
-              <div className="flex justify-between items-center border-b border-white/10 pb-3">
+              <div className="flex flex-wrap justify-between items-center border-b border-white/10 pb-3 gap-2">
                 <span className="text-xs uppercase font-extrabold tracking-wider text-amber-400 flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" /> Estudio de Gigantografías Surrealistas (Escala Monumental IA)
                 </span>
-                <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold uppercase">
-                  Universal (Cualquier Artículo)
-                </span>
+                
+                {(() => {
+                  const selectedSponsor = sponsors.find(s => s.id === selectedSponsorId);
+                  const activeLogo = clientLogoUrl || selectedSponsor?.logo_url;
+                  const activeName = formData.client_name || selectedSponsor?.name;
+                  return (
+                    <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-lg">
+                      {activeLogo && <img src={activeLogo} alt="Logo" className="w-4 h-4 object-contain rounded" />}
+                      <span className="text-[10px] text-amber-300 font-bold uppercase">
+                        {activeName ? `Marca: ${activeName}` : "Comercio Generico"}
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
