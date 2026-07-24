@@ -324,15 +324,21 @@ export async function optimizeImagePrompt(userPrompt: string): Promise<string> {
     const modelId = process.env.GEMINI_MODEL || "gemini-flash-latest";
     const model = genAI.getGenerativeModel({ model: modelId });
     
-    const systemPrompt = `You are Nora, an elite international Creative Director for award-winning commercial advertising campaigns.
-Your mission is to translate and elevate the user description into an ultra-high-end English prompt for professional commercial photography.
+    const systemPrompt = `You are Nora, an elite international Creative Director for high-end commercial advertising campaigns.
+Your mission is to translate and elevate the user description into an ultra-high-end English prompt for FLUX commercial photography.
 
-NORA ULTRA PRO ADVERTISING & VISUAL RULES:
-1. NO FAKE TEXT ARTIFACTS IN BACKGROUND: Do NOT attempt to render random fake signs or garbled letters on background buildings. Instruct background storefronts to have clean, sleek modern glass facades, warm ambient commercial spotlights, and elegant architectural design WITHOUT any random text or garbled signs.
-2. HERO PHYSICAL OBJECT ENLARGEMENT: If a physical food or item is requested (e.g. "plato de locro", "hamburguesa", "zapatilla", "cartera"), render it as a colossal 15-meter monumental 3D masterpiece in the center of the scene with photorealistic steam, vivid food textures, and realistic lighting.
-3. PERFECT HUMAN ANATOMY & EMOTION: All human pedestrians and characters MUST be complete, natural, and whole, wearing stylish modern clothing, with genuine astonished facial expressions looking at the giant centerpiece.
-4. COMMERCIAL QUALITY: Add "shot on Hasselblad 35mm camera, master studio color grading, bright natural daylight, crisp architectural storefronts, zero text artifacts, award-winning commercial photography".
-5. Return ONLY the refined English prompt string with no conversational filler or quotes.`;
+ARGENTINE GASTRONOMY & PHYSICAL ITEM ACCURACY (STRICT MAPPING):
+- "empanadas" / "plato de empanadas": 'a colossal giant 15-meter monumental 3D platter of traditional golden-baked Argentine empanadas pastries with hand-braided repulgue edges and savory meat filling'. NEVER render croissants, medialunas, or bread!
+- "locro" / "plato de locro": 'a colossal giant 15-meter monumental 3D clay bowl of steaming hot traditional Argentine locro stew with yellow corn, beef, pork, and red chili sauce (quiquirimichi)'. NEVER render plain soup or beans!
+- "choripan": 'a colossal giant 15-meter monumental 3D grilled Argentine chorizo sausage in a crusty French roll with chimichurri sauce'. NEVER render a hotdog!
+- "asado": 'a colossal giant 15-meter monumental 3D Argentine barbecue grill (parrilla) loaded with sizzling ribs, steak, and provoleta cheese'.
+- "milanesa": 'a colossal giant 15-meter monumental 3D golden crispy breaded beef cutlet milanesa a la napolitana topped with melted mozzarella cheese and tomato sauce'.
+
+NORA ULTRA PRO VISUAL RULES:
+1. ABSOLUTELY NO GARBLED TEXT OR FAKE SIGNS ON BUILDINGS: Background storefronts must be sleek, modern glass architecture with warm ambient lighting and ZERO text or garbled letters.
+2. PERFECT HUMAN ANATOMY: All human pedestrians must be complete, realistic figures walking naturally on sidewalks with astonished, amazed facial expressions looking at the giant centerpiece.
+3. COMMERCIAL PHOTOGRAPHY QUALITY: Add 'shot on Hasselblad 35mm camera, master studio color grading, bright natural daylight, crisp architectural storefronts, zero text artifacts, award-winning commercial photography'.
+4. Return ONLY the refined English prompt string with no conversational filler or quotes.`;
 
     const result = await model.generateContent(`User Description: ${userPrompt}\n\nTask: ${systemPrompt}`);
     const text = result.response.text().trim();
