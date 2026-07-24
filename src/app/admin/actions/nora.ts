@@ -212,7 +212,7 @@ export async function askNoraSupport(query: string, operatorName: string = "Comp
   
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const modelId = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+    const modelId = process.env.GEMINI_MODEL || "gemini-flash-latest";
     const model = genAI.getGenerativeModel({ model: modelId });
     const prompt = PROMPT_SOPORTE.replace(/\[OPERATOR_NAME\]/g, operatorName);
     const fullPrompt = `Sistema: ${prompt}\n\nConsulta técnica del Operador:\n${query}`;
@@ -222,7 +222,7 @@ export async function askNoraSupport(query: string, operatorName: string = "Comp
     if ((error.message?.includes("429") || error.message?.includes("503") || error.message?.includes("500") || error.message?.includes("502")) && process.env.GEMINI_API_KEY_FALLBACK) {
       try {
         const fallbackGenAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY_FALLBACK);
-        const fallbackModel = fallbackGenAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || "gemini-2.5-flash" });
+        const fallbackModel = fallbackGenAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || "gemini-flash-latest" });
         const prompt = PROMPT_SOPORTE.replace(/\[OPERATOR_NAME\]/g, operatorName);
         const fullPrompt = `Sistema: ${prompt}\n\nConsulta técnica del Operador:\n${query}`;
         const fallbackResult = await fallbackModel.generateContent(fullPrompt);
@@ -266,7 +266,7 @@ export async function askNoraMarketing(title: string, content: string, operatorN
   try {
     const guidelines = await getBrandGuidelines();
     const genAI = new GoogleGenerativeAI(apiKey);
-    const modelId = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+    const modelId = process.env.GEMINI_MODEL || "gemini-flash-latest";
     const model = genAI.getGenerativeModel({ model: modelId, generationConfig: { responseMimeType: "application/json" } });
     let prompt = PROMPT_MARKETING.replace(/\[OPERATOR_NAME\]/g, operatorName);
     if (guidelines) {
@@ -289,7 +289,7 @@ export async function askNoraMarketing(title: string, content: string, operatorN
       try {
         const guidelines = await getBrandGuidelines();
         const fallbackGenAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY_FALLBACK);
-        const fallbackModel = fallbackGenAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || "gemini-2.5-flash", generationConfig: { responseMimeType: "application/json" } });
+        const fallbackModel = fallbackGenAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || "gemini-flash-latest", generationConfig: { responseMimeType: "application/json" } });
         let prompt = PROMPT_MARKETING.replace(/\[OPERATOR_NAME\]/g, operatorName);
         if (guidelines) {
           prompt += `\n\n<MEMORIA_Y_ENTRENAMIENTO_DE_NORA>\nEstas son las ideas de campaña, directrices de marca e instrucciones de entrenamiento específicas cargadas por el equipo de Nexativa:\n${guidelines}\n</MEMORIA_Y_ENTRENAMIENTO_DE_NORA>\n`;
@@ -317,19 +317,24 @@ export async function askNoraMarketing(title: string, content: string, operatorN
 
 export async function optimizeImagePrompt(userPrompt: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return userPrompt; // Fallback to raw prompt if key missing
+  if (!apiKey) return userPrompt;
   
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const modelId = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+    const modelId = process.env.GEMINI_MODEL || "gemini-flash-latest";
     const model = genAI.getGenerativeModel({ model: modelId });
     
-    const systemPrompt = `Translate and optimize the following image description into a professional commercial advertising prompt in English for an AI image generator. 
-Make it look like a high-end product shot or commercial photography. Add parameters like "studio lighting, photorealistic, 8k resolution, clean background, depth of field". 
-CRITICAL: Do not include any text, brands, or words in the image. 
-Return ONLY the English prompt string, with no introduction, no conversational text, and no quotation marks.`;
+    const systemPrompt = `You are Nora, a highly intuitive human-like AI creative director for commercial advertising and visual storytelling.
+Your mission is to translate and elevate the following user description into an ultra-high-fidelity English prompt for an AI image generator.
 
-    const result = await model.generateContent(`Sistema: ${systemPrompt}\n\nDescripción del usuario: ${userPrompt}`);
+HUMAN-LIKE INTERPRETATION & FIDELITY RULES:
+1. FAITHFUL NARRATIVE ACCURACY: Carefully preserve and interpret every human detail requested by the user: specific characters (people, animals, walking in parks or plazas), specific commercial products (handbags, shoes, food, cars), brand store names, and exact emotional reactions (amazement, emotion, awe, fascination).
+2. SURREAL SCALE SHIFT & MAGICAL IMPACT: If an object is described as magically enlarging or scaling colossally, vividly portray its monumental 3D scale in front of the store, golden glow, and pedestrians/characters looking up with genuine astonished expressions.
+3. BRAND & STORE INTEGRATION: Include clean storefront brand signage, neon logos, or store names whenever mentioned by the user.
+4. CINEMATIC REALISM: Include professional advertising parameters: "cinematic movie spot lighting, photorealistic 8k resolution, volumetric atmospheric depth of field, hyper-detailed textures".
+5. Return ONLY the refined English prompt string with no intro, conversational filler, or quotation marks.`;
+
+    const result = await model.generateContent(`User Description: ${userPrompt}\n\nTask: ${systemPrompt}`);
     const text = result.response.text().trim();
     return text || userPrompt;
   } catch (error) {
