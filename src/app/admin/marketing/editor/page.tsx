@@ -200,14 +200,13 @@ export default function MarketingEditorPage() {
     const clientBrand = formData.client_name || selectedSponsor?.name || "Comercio Asociado";
     const clientCategory = selectedSponsor?.category || "Local Comercial";
     const itemArticle = customItemArticle.trim() || (selectedSponsor ? `producto estrella de ${selectedSponsor.name}` : "producto de la tienda");
-    const storyContext = customStoryContext.trim() || `Una persona caminando por la plaza frente al comercio '${clientBrand}'`;
-
+    const storyContext = customStoryContext.trim() || formData.content.trim() || `Una persona caminando por la calle frente al comercio '${clientBrand}'`;
     const scaleStylePromptMap: Record<string, string> = {
-      story_reallife: `Surreal marketing commercial spot for store '${clientBrand}' (${clientCategory}): ${storyContext}. Suddenly, a magnificent giant 3D ${itemArticle} magically expands in scale to a colossal monumental size right in front of the store storefront, casting a golden glow. The main character and passing pedestrians stop in awe, with genuine emotional expressions of amazement, wonder, and excitement looking at the giant ${itemArticle} and logo of '${clientBrand}'. Photorealistic cinematic movie scene, hyper-detailed, 8k resolution`,
-      urban: `Gigantic monumental scaled 3D artwork for business '${clientBrand}' (${clientCategory}), featuring a giant 20-meter high ${itemArticle} and brand logo emblem towering in the middle of a bustling city avenue, amazed crowds looking up, cinematic lighting, photorealistic 8k resolution`,
-      character: `Surreal forced scale commercial for '${clientBrand}' featuring a colossal giant ${itemArticle} dwarfing a main character, branded background signage for ${clientBrand}, dramatic forced perspective, movie spot lighting`,
-      anamorphic: `3D anamorphic digital billboard illusion for store '${clientBrand}', giant 3D ${itemArticle} popping out of a giant LED outdoor screen in Times Square with neon illuminated brand logo '${clientBrand}', 8k render`,
-      gala: `High fashion luxury advertisement spot for '${clientBrand}' (${clientCategory}), magnificent giant 3D ${itemArticle} and logo emblem as a monumental centerpiece sculpture, studio dramatic spotlights, glossy reflections`
+      story_reallife: `Surreal marketing commercial spot for store '${clientBrand}' (${clientCategory}): ${storyContext}. Feature giant monumental 3D ${itemArticle} with clear legible SPANISH text reading "${clientBrand.toUpperCase()}". Pedestrians and spectators looking up with amazed astonished faces. High resolution commercial photography.`,
+      urban: `Gigantic monumental scaled 3D artwork for business '${clientBrand}' (${clientCategory}), featuring a giant 20-meter high ${itemArticle} and brand logo emblem with clean legible SPANISH text reading "${clientBrand.toUpperCase()}" towering in the middle of a bustling city avenue, amazed crowds looking up, cinematic lighting, photorealistic 8k resolution`,
+      character: `Surreal forced scale commercial for '${clientBrand}' featuring a colossal giant ${itemArticle} dwarfing a main character, branded background signage in clean SPANISH text for "${clientBrand.toUpperCase()}", dramatic forced perspective, movie spot lighting`,
+      anamorphic: `3D anamorphic digital billboard illusion for store '${clientBrand}', giant 3D ${itemArticle} popping out of a giant LED outdoor screen in Times Square with neon illuminated SPANISH brand logo "${clientBrand.toUpperCase()}", 8k render`,
+      gala: `High fashion luxury advertisement spot for '${clientBrand}' (${clientCategory}), magnificent giant 3D ${itemArticle} and logo emblem as a monumental centerpiece sculpture, clean SPANISH typography for "${clientBrand.toUpperCase()}", studio dramatic spotlights, glossy reflections`
     };
 
     const ratioDimensions: Record<string, { width: number; height: number }> = {
@@ -218,7 +217,9 @@ export default function MarketingEditorPage() {
     };
     const dims = ratioDimensions[selectedAspectRatio] || ratioDimensions["16:9"];
 
-    const promptText = scaleStylePromptMap[selectedGigantoStyle] || scaleStylePromptMap.story_reallife;
+    const promptText = (customStoryContext.trim() || formData.content.trim())
+      ? `Commercial advertising spot for brand '${clientBrand}' (${clientCategory}): ${storyContext}. Bright sunny spring morning daylight, natural outdoor lighting. Feature giant monumental 3D text and logo with clear legible SPANISH block letters reading "${clientBrand.toUpperCase()}". Pedestrians and spectators looking up with amazed astonished face expressions. High resolution commercial photography, 8k.`
+      : (scaleStylePromptMap[selectedGigantoStyle] || scaleStylePromptMap.story_reallife);
     setGeneratingImage(true);
     try {
       const optimizedPrompt = await optimizeImagePrompt(promptText);

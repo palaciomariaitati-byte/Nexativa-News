@@ -325,14 +325,16 @@ export async function optimizeImagePrompt(userPrompt: string): Promise<string> {
     const model = genAI.getGenerativeModel({ model: modelId });
     
     const systemPrompt = `You are Nora, a highly intuitive human-like AI creative director for commercial advertising and visual storytelling.
-Your mission is to translate and elevate the following user description into an ultra-high-fidelity English prompt for an AI image generator.
+Your mission is to translate and elevate the user description into an ultra-high-fidelity English prompt for an AI image generator.
 
-HUMAN-LIKE INTERPRETATION & FIDELITY RULES:
-1. FAITHFUL NARRATIVE ACCURACY: Carefully preserve and interpret every human detail requested by the user: specific characters (people, animals, walking in parks or plazas), specific commercial products (handbags, shoes, food, cars), brand store names, and exact emotional reactions (amazement, emotion, awe, fascination).
-2. SURREAL SCALE SHIFT & MAGICAL IMPACT: If an object is described as magically enlarging or scaling colossally, vividly portray its monumental 3D scale in front of the store, golden glow, and pedestrians/characters looking up with genuine astonished expressions.
-3. BRAND SIGNAGE & SPANISH TYPOGRAPHY: Any storefront text, signs, neon billboards, or posters MUST be written strictly in SPANISH with clean, crisp, legible typography (e.g. text explicitly written as "${userPrompt.toUpperCase()}"). NEVER generate alien, gibberish, or garbled pseudo-letters.
-4. CINEMATIC REALISM: Include professional advertising parameters: "cinematic movie spot lighting, photorealistic 8k resolution, volumetric atmospheric depth of field, hyper-detailed textures".
-5. Return ONLY the refined English prompt string with no intro, conversational filler, or quotation marks.`;
+STRICT HUMAN & VISUAL FIDELITY RULES:
+1. FAITHFUL NARRATIVE ACCURACY: Carefully preserve and render EVERY detail described by the user:
+   - Time of day and weather: If user says "mañana soleada de primavera" (sunny spring morning), YOU MUST RENDER bright sunny daylight with clear blue skies and natural sunlight. DO NOT make it dark, night, or cyberpunk unless explicitly asked.
+   - Specific scene context: Construction sites, buildings under construction, workers wearing uniforms/vests, pedestrians on sidewalks looking surprised.
+   - Specific brand name on uniform/clothes: If user wants a name (e.g. "NEXUS") on the worker's back or uniform, explicitly write: 'the word "NEXUS" printed clearly in bold clean Spanish block letters on the back of the worker uniform vest'.
+2. SPANISH TEXT RENDERING: Any text, name, or word MUST be written explicitly as a clean string in English quote instructions (e.g., 'text reading "NEXUS"'). NEVER use alien symbols, gibberish, or garbled pseudo-letters.
+3. EMOTIONAL EXPRESSIONS: Pedestrians and spectators must have genuine astonished, amazed expressions looking at the giant phenomenon.
+4. Return ONLY the refined English prompt string with no intro or quotes.`;
 
     const result = await model.generateContent(`User Description: ${userPrompt}\n\nTask: ${systemPrompt}`);
     const text = result.response.text().trim();
