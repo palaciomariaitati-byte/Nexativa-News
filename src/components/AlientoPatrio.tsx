@@ -390,20 +390,26 @@ export default function AlientoPatrio() {
             <div className="flex items-center justify-between gap-2 my-4 bg-black/30 p-4 rounded-2xl border border-white/5">
               {/* Home Team */}
               <div className="text-center flex-1">
-                <span className="text-2xl block mb-1">{selectedMatch.homeLogo}</span>
+                <div className="h-8 flex items-center justify-center mb-1">
+                  {selectedMatch.homeLogo.startsWith("http") ? (
+                    <img src={selectedMatch.homeLogo} alt={selectedMatch.homeTeam} className="w-8 h-8 object-contain" />
+                  ) : (
+                    <span className="text-2xl">{selectedMatch.homeLogo}</span>
+                  )}
+                </div>
                 <span className="text-xs font-bold text-gray-200 block line-clamp-1">{selectedMatch.homeTeam}</span>
                 
                 <div className="flex items-center justify-center gap-2 mt-3">
                   <button
                     onClick={() => setHomePred(Math.max(0, homePred - 1))}
-                    className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-sm"
+                    className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-sm cursor-pointer"
                   >
                     -
                   </button>
                   <span className="text-xl font-black font-mono text-amber-400 w-6">{homePred}</span>
                   <button
                     onClick={() => setHomePred(homePred + 1)}
-                    className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-sm"
+                    className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-sm cursor-pointer"
                   >
                     +
                   </button>
@@ -414,7 +420,13 @@ export default function AlientoPatrio() {
 
               {/* Away Team */}
               <div className="text-center flex-1">
-                <span className="text-2xl block mb-1">{selectedMatch.awayLogo}</span>
+                <div className="h-8 flex items-center justify-center mb-1">
+                  {selectedMatch.awayLogo.startsWith("http") ? (
+                    <img src={selectedMatch.awayLogo} alt={selectedMatch.awayTeam} className="w-8 h-8 object-contain" />
+                  ) : (
+                    <span className="text-2xl">{selectedMatch.awayLogo}</span>
+                  )}
+                </div>
                 <span className="text-xs font-bold text-gray-200 block line-clamp-1">{selectedMatch.awayTeam}</span>
                 
                 <div className="flex items-center justify-center gap-2 mt-3">
