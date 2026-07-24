@@ -628,12 +628,12 @@ export default function VideoSpotCreator({
               video.pause();
             }
           } else {
-            // When editing (not playing), show the active segment
+            // When editing (not playing), show the active segment frame
             const activeSeg = segments[activeSegmentIndex];
             if (activeSeg) {
               const segSrc = (activeSeg.src === "file" || activeSeg.src === "youtube") ? (activeSeg.videoObjectUrl || "") : activeSeg.videoUrl;
               
-              if (currentSegmentIndexRef.current !== activeSegmentIndex) {
+              if (segSrc && currentSegmentIndexRef.current !== activeSegmentIndex) {
                 currentSegmentIndexRef.current = activeSegmentIndex;
                 video.src = segSrc;
                 video.load();
@@ -643,7 +643,21 @@ export default function VideoSpotCreator({
               if (video.currentTime > videoEnd || video.currentTime < videoStart) {
                 video.currentTime = videoStart;
               }
-              drawContent(video, 0);
+
+              if (video.readyState >= 2) {
+                drawContent(video, 0);
+              } else {
+                // Video frame still loading -> draw gradient loading placeholder
+                const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+                grad.addColorStop(0, "#111827");
+                grad.addColorStop(1, "#311042");
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "#a855f7";
+                ctx.font = "bold 13px sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText("📹 Cargando fotograma del video...", canvas.width / 2, canvas.height / 2);
+              }
             }
           }
         } else {
@@ -1117,11 +1131,17 @@ export default function VideoSpotCreator({
             className="hidden"
             muted
             playsInline
+            preload="auto"
             loop={false}
             onLoadedMetadata={(e) => {
               const dur = e.currentTarget.duration || 0;
               setVideoDuration(dur);
               setVideoEnd(Math.min(dur, 15));
+            }}
+            onCanPlay={(e) => {
+              if (e.currentTarget && !isPlaying) {
+                e.currentTarget.currentTime = videoStart;
+              }
             }}
           />
         ) : null}
