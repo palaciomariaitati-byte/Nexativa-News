@@ -57,6 +57,7 @@ const MUSIC_TRACKS = [
 ];
 
 const ANIMATION_STYLES = [
+  { id: "none", name: "Ninguna (Fondo Estático / Video)" },
   { id: "kenburns", name: "Zoom Cinemático (Ken Burns)" },
   { id: "paneo", name: "Desplazamiento Horizontal" },
   { id: "pulsante", name: "Pulsante Rítmico (Sincro Beat)" },
@@ -460,7 +461,7 @@ export default function VideoSpotCreator({
   };
 
   // New animation states
-  const [animationStyle, setAnimationStyle] = useState("kenburns");
+  const [animationStyle, setAnimationStyle] = useState("none");
 
   const [editImages, setEditImages] = useState<string[]>([]);
   const [loadedImages, setLoadedImages] = useState<HTMLImageElement[]>([]);
@@ -606,17 +607,19 @@ export default function VideoSpotCreator({
               const { segment, index, relativeTime } = currentInfo;
               const segmentSrc = (segment.src === "file" || segment.src === "youtube") ? (segment.videoObjectUrl || "") : segment.videoUrl;
 
-              // Check if we need to switch the video source
+              // Check if we need to switch the video source using segment ID
               if (currentSegmentIndexRef.current !== index) {
                 currentSegmentIndexRef.current = index;
-                video.src = segmentSrc;
-                video.load();
+                if (segmentSrc && video.src !== segmentSrc) {
+                  video.src = segmentSrc;
+                  video.load();
+                }
                 video.currentTime = relativeTime;
                 video.play().catch(e => console.warn("Sync play start error:", e));
               } else {
-                // If already playing this source, keep it in sync
+                // If already playing this source, keep it in sync with current segment's relative time
                 const drift = Math.abs(video.currentTime - relativeTime);
-                if (drift > 0.35) {
+                if (drift > 0.4) {
                   video.currentTime = relativeTime;
                 }
                 if (video.paused && elapsed < durationLimit) {
