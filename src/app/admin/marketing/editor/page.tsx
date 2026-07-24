@@ -155,9 +155,9 @@ export default function MarketingEditorPage() {
       // 1. Optimize user description with Gemini (turns Spanish slang or queries into professional English prompts)
       const optimizedPrompt = await optimizeImagePrompt(prompt);
       
-      // 2. Build Pollinations URL (encoded)
+      // 2. Build Pollinations URL (encoded with FLUX model)
       const encodedPrompt = encodeURIComponent(optimizedPrompt);
-      const imageUrl = `https://image.pollinations.ai/p/${encodedPrompt}?width=1024&height=768&nologo=true&seed=${Math.floor(Math.random() * 100000)}`;
+      const imageUrl = `https://image.pollinations.ai/p/${encodedPrompt}?width=1024&height=768&nologo=true&model=flux&seed=${Math.floor(Math.random() * 100000)}`;
 
       // 3. Fetch the image as a Blob to store it in Supabase
       const response = await fetch(imageUrl);
@@ -224,7 +224,7 @@ export default function MarketingEditorPage() {
     try {
       const optimizedPrompt = await optimizeImagePrompt(promptText);
       const encodedPrompt = encodeURIComponent(optimizedPrompt);
-      const imageUrl = `https://image.pollinations.ai/p/${encodedPrompt}?width=${dims.width}&height=${dims.height}&nologo=true&seed=${Math.floor(Math.random() * 100000)}`;
+      const imageUrl = `https://image.pollinations.ai/p/${encodedPrompt}?width=${dims.width}&height=${dims.height}&nologo=true&model=flux&seed=${Math.floor(Math.random() * 100000)}`;
 
       const response = await fetch(imageUrl);
       if (!response.ok) throw new Error("Fallo al descargar la gigantografía generada.");

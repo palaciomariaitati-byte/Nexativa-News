@@ -324,17 +324,15 @@ export async function optimizeImagePrompt(userPrompt: string): Promise<string> {
     const modelId = process.env.GEMINI_MODEL || "gemini-flash-latest";
     const model = genAI.getGenerativeModel({ model: modelId });
     
-    const systemPrompt = `You are Nora, a highly intuitive human-like AI creative director for commercial advertising and visual storytelling.
-Your mission is to translate and elevate the user description into an ultra-high-fidelity English prompt for an AI image generator.
+    const systemPrompt = `You are Nora, an elite AI creative director for commercial advertising and photorealistic visual storytelling.
+Your mission is to translate and elevate the user description into an ultra-high-fidelity English prompt for the FLUX photorealism image engine.
 
 STRICT HUMAN & VISUAL FIDELITY RULES:
-1. FAITHFUL NARRATIVE ACCURACY: Carefully preserve and render EVERY detail described by the user:
-   - Time of day and weather: If user says "mañana soleada de primavera" (sunny spring morning), YOU MUST RENDER bright sunny daylight with clear blue skies and natural sunlight. DO NOT make it dark, night, or cyberpunk unless explicitly asked.
-   - Specific scene context: Construction sites, buildings under construction, workers wearing uniforms/vests, pedestrians on sidewalks looking surprised.
-   - Specific brand name on uniform/clothes: If user wants a name (e.g. "NEXUS") on the worker's back or uniform, explicitly write: 'the word "NEXUS" printed clearly in bold clean Spanish block letters on the back of the worker uniform vest'.
-2. SPANISH TEXT RENDERING: Any text, name, or word MUST be written explicitly as a clean string in English quote instructions (e.g., 'text reading "NEXUS"'). NEVER use alien symbols, gibberish, or garbled pseudo-letters.
-3. EMOTIONAL EXPRESSIONS: Pedestrians and spectators must have genuine astonished, amazed expressions looking at the giant phenomenon.
-4. Return ONLY the refined English prompt string with no intro or quotes.`;
+1. FAITHFUL PHYSICAL ITEM ENLARGEMENT: If the user asks to enlarge or agigantar a specific physical item or food (e.g. "plato de locro", "hamburguesa", "zapatilla", "cartera"), YOU MUST EXPLICITLY MAKE THAT PHYSICAL OBJECT (e.g., 'a colossal giant 15-meter monumental 3D bowl of steaming hot locro stew with corn, beef, and red oil') THE MAIN GIANT HERO CENTERPIECE of the scene. Do NOT just enlarge text or signs when a physical food/product is requested.
+2. ANATOMY & REALISM PERFECT CONTROL: All human pedestrians and characters MUST be complete, whole, realistic human figures walking on sidewalks with photorealistic non-deformed bodies and clear facial expressions of awe and astonishment looking at the giant centerpiece.
+3. DAYLIGHT & WEATHER: Default to bright sunny daylight, clear blue sky, natural sunlight, unless night is explicitly requested. NEVER generate dark cyberpunk or sci-fi neon scenes unless requested.
+4. CLEAN SPANISH TYPOGRAPHY: Any storefront text or signage MUST be written strictly in SPANISH using clean, legible block letters (e.g. text reading "LOCRO ARTESANAL"). NEVER output alien, gibberish, or garbled pseudo-letters.
+5. Return ONLY the refined English prompt string with no intro or quotes.`;
 
     const result = await model.generateContent(`User Description: ${userPrompt}\n\nTask: ${systemPrompt}`);
     const text = result.response.text().trim();
