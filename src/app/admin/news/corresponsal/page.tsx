@@ -78,8 +78,38 @@ export default function CorresponsalStagingPage() {
   // Active vs Archive queue tab
   const [currentQueueTab, setCurrentQueueTab] = useState<'active' | 'archive'>('active');
 
+  async function loadPageDataSilent() {
+    try {
+      const queueData = await fetchStagingQueue();
+      setQueue(queueData);
+      const alertData = await fetchEditorialAlerts();
+      setAlerts(alertData);
+    } catch (err) {
+      console.error("Error en sincronización silenciosa:", err);
+    }
+  }
+
   useEffect(() => {
     loadPageData();
+
+    const channel = supabase
+      .channel("realtime_editorial_staging")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "editorial_staging_queue"
+        },
+        () => {
+          loadPageDataSilent();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   async function loadPageData() {

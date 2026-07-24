@@ -23,6 +23,12 @@ export default function MarketingEditorPage() {
   const [generatingImage, setGeneratingImage] = useState(false);
   const [customImagePrompt, setCustomImagePrompt] = useState("");
   const [showVideoSpotCreator, setShowVideoSpotCreator] = useState(false);
+
+  // Gigantografías Surrealistas & Escala Monumental por IA
+  const [customItemArticle, setCustomItemArticle] = useState("");
+  const [selectedGigantoStyle, setSelectedGigantoStyle] = useState("urban");
+  const [selectedAspectRatio, setSelectedAspectRatio] = useState("16:9");
+  const [generatingAIDACopy, setGeneratingAIDACopy] = useState(false);
   
   const [formData, setFormData] = useState({
     client_name: "",
@@ -185,6 +191,87 @@ export default function MarketingEditorPage() {
       alert("Error al generar imagen: " + err.message);
     } finally {
       setGeneratingImage(false);
+    }
+  };
+
+  const handleGenerateGigantografia = async () => {
+    const itemArticle = customItemArticle.trim() || formData.client_name || "producto publicitario comercial";
+    const scaleStylePromptMap: Record<string, string> = {
+      urban: `Gigantic monumental scaled ${itemArticle}, towering 20 meters high in the middle of a bustling modern city avenue, surrounded by amazed people looking up, cinematic lighting, photorealistic 3D anamorphic billboard style, ultra realistic detailed textures, 8k resolution`,
+      character: `Surreal forced scale advertisement, a colossal giant ${itemArticle} dwarfing a main character holding or interacting with it, dramatic forced perspective angle, cinematic movie spot lighting, hyper-realistic depth of field`,
+      anamorphic: `3D anamorphic digital billboard illusion of a giant 3D ${itemArticle} popping out of a giant outdoor screen in Times Square, night neon lights, crowds watching, photorealistic 8k render`,
+      gala: `High fashion luxury advertisement spot featuring a giant magnificent ${itemArticle} as a monumental centerpiece sculpture, studio dramatic spotlights, glossy reflections, award-winning commercial photography`
+    };
+
+    const ratioDimensions: Record<string, { width: number; height: number }> = {
+      "16:9": { width: 1280, height: 720 },
+      "9:16": { width: 720, height: 1280 },
+      "1:1": { width: 1024, height: 1024 },
+      "3:1": { width: 1200, height: 400 }
+    };
+    const dims = ratioDimensions[selectedAspectRatio] || ratioDimensions["16:9"];
+
+    const selectedPrompt = scaleStylePromptMap[selectedGigantoStyle] || scaleStylePromptMap.urban;
+    setGeneratingImage(true);
+    try {
+      const optimizedPrompt = await optimizeImagePrompt(selectedPrompt);
+      const encodedPrompt = encodeURIComponent(optimizedPrompt);
+      const imageUrl = `https://image.pollinations.ai/p/${encodedPrompt}?width=${dims.width}&height=${dims.height}&nologo=true&seed=${Math.floor(Math.random() * 100000)}`;
+
+      const response = await fetch(imageUrl);
+      if (!response.ok) throw new Error("Fallo al descargar la gigantografía generada.");
+      const blob = await response.blob();
+
+      const fileName = `campaigns/gigantografia_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.jpg`;
+      const { data, error: uploadError } = await supabase.storage
+        .from("media")
+        .upload(fileName, blob, { contentType: "image/jpeg", cacheControl: "3600" });
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage.from("media").getPublicUrl(fileName);
+      const newUrl = publicUrlData.publicUrl;
+
+      setFormData(prev => ({ ...prev, image_url: newUrl }));
+      alert("¡Gigantografía Surrealista IA generada con éxito! 🏙️✨");
+    } catch (err: any) {
+      console.error(err);
+      alert("Error al generar gigantografía: " + err.message);
+    } finally {
+      setGeneratingImage(false);
+    }
+  };
+
+  const handleGenerateAIDACopy = async () => {
+    const brandName = formData.client_name || "Marca Registrada";
+    const itemArticle = customItemArticle.trim() || "nuestros productos/servicios";
+    const audience = formData.target_audience || "Público general";
+
+    setGeneratingAIDACopy(true);
+    const aidaPrompt = `Eres Nora IA, experta redactora de publicidad internacional. Genera un copy publicitario estructurado estrictamente bajo la regla AIDA para el cliente "${brandName}", enfocado en "${itemArticle}" dirigido a "${audience}".
+Estructura la respuesta exactamente en estas 4 secciones:
+[ATENCIÓN]: Titular de alto impacto
+[INTERÉS]: Gancho con el beneficio clave
+[DESEO]: Conexión emocional y propuesta de valor
+[ACCIÓN]: Llamado a la acción (CTA) directo`;
+
+    try {
+      const res = await fetch("/api/nora-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [{ role: "user", content: aidaPrompt }]
+        })
+      });
+      const data = await res.json();
+      if (data.reply) {
+        setFormData(prev => ({ ...prev, content: data.reply }));
+        alert("¡Estrategia y Copy AIDA generado por Nora IA con éxito! ✍️");
+      }
+    } catch (err: any) {
+      alert("Error al generar copy AIDA: " + err.message);
+    } finally {
+      setGeneratingAIDACopy(false);
     }
   };
 
@@ -434,6 +521,115 @@ export default function MarketingEditorPage() {
                 >
                   <Film className="w-3.5 h-3.5" />
                   Crear Spot de Video 🎥
+                </button>
+              </div>
+            </div>
+
+            {/* Estudio de Gigantografías Surrealistas & Escala Monumental por IA (Universal) */}
+            <div className="bg-gradient-to-br from-amber-950/30 via-purple-950/30 to-black/60 border border-amber-500/30 rounded-xl p-5 space-y-4 mt-4 shadow-xl">
+              <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                <span className="text-xs uppercase font-extrabold tracking-wider text-amber-400 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" /> Estudio de Gigantografías Surrealistas (Escala Monumental IA)
+                </span>
+                <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold uppercase">
+                  Universal (Cualquier Artículo)
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[11px] font-bold text-gray-300 uppercase tracking-wide block mb-1">
+                    Artículo / Producto a Agigantar:
+                  </label>
+                  <input
+                    type="text"
+                    value={customItemArticle}
+                    onChange={(e) => setCustomItemArticle(e.target.value)}
+                    placeholder="Ej: Choripán, Zapatilla, Smartphone, Botella de Vino, Auto..."
+                    className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-xs text-white outline-none focus:border-amber-500"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1 italic">
+                    Universal: Funciona con cualquier objeto, producto o servicio del cliente.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-gray-300 uppercase tracking-wide block mb-1">
+                    Efecto de Escala Publicitaria Internacional:
+                  </label>
+                  <select
+                    value={selectedGigantoStyle}
+                    onChange={(e) => setSelectedGigantoStyle(e.target.value)}
+                    className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-xs text-white outline-none focus:border-amber-500 cursor-pointer"
+                  >
+                    <option value="urban">🏙️ Gigantismo Urbano Monumental (Objeto de 20m en la Ciudad)</option>
+                    <option value="character">👤 Escala Gigante con Personaje Principal (Spot Dramático)</option>
+                    <option value="anamorphic">🌆 Cartelería Digital 3D Anamórfica (Efecto Ilusión 3D)</option>
+                    <option value="gala">🌟 Escenario de Gala / Fotografía Comercial de Lujo</option>
+                  </select>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="text-[11px] font-bold text-gray-300 uppercase tracking-wide block mb-1">
+                    Formato Optimizado por Red Social / Canal:
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAspectRatio("9:16")}
+                      className={`p-2.5 rounded-lg border text-xs font-bold text-center transition-all cursor-pointer ${selectedAspectRatio === "9:16" ? "bg-amber-500 text-black border-amber-400 shadow-md" : "bg-black/40 text-gray-300 border-white/10 hover:bg-white/5"}`}
+                    >
+                      📱 9:16 Vertical
+                      <span className="block text-[9px] font-normal opacity-80 mt-0.5">Reels / TikTok / Stories</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAspectRatio("1:1")}
+                      className={`p-2.5 rounded-lg border text-xs font-bold text-center transition-all cursor-pointer ${selectedAspectRatio === "1:1" ? "bg-amber-500 text-black border-amber-400 shadow-md" : "bg-black/40 text-gray-300 border-white/10 hover:bg-white/5"}`}
+                    >
+                      🟦 1:1 Cuadrado
+                      <span className="block text-[9px] font-normal opacity-80 mt-0.5">Instagram / Feed FB</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAspectRatio("16:9")}
+                      className={`p-2.5 rounded-lg border text-xs font-bold text-center transition-all cursor-pointer ${selectedAspectRatio === "16:9" ? "bg-amber-500 text-black border-amber-400 shadow-md" : "bg-black/40 text-gray-300 border-white/10 hover:bg-white/5"}`}
+                    >
+                      🖥️ 16:9 Horizontal
+                      <span className="block text-[9px] font-normal opacity-80 mt-0.5">Banners Portal / YouTube</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAspectRatio("3:1")}
+                      className={`p-2.5 rounded-lg border text-xs font-bold text-center transition-all cursor-pointer ${selectedAspectRatio === "3:1" ? "bg-amber-500 text-black border-amber-400 shadow-md" : "bg-black/40 text-gray-300 border-white/10 hover:bg-white/5"}`}
+                    >
+                      🏙️ 3:1 Megabanner
+                      <span className="block text-[9px] font-normal opacity-80 mt-0.5">Cabeceras / Gigantografías</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-white/5">
+                <button
+                  type="button"
+                  disabled={generatingAIDACopy}
+                  onClick={handleGenerateAIDACopy}
+                  className="bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold px-4 py-2 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  ✍️ {generatingAIDACopy ? "Redactando..." : "Redactar Copy AIDA (Atención, Interés, Deseo, Acción)"}
+                </button>
+
+                <button
+                  type="button"
+                  disabled={generatingImage}
+                  onClick={handleGenerateGigantografia}
+                  className="bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-extrabold text-xs px-5 py-2.5 rounded-lg transition-all shadow-lg flex items-center gap-1.5 cursor-pointer"
+                >
+                  {generatingImage ? "Esculpiendo Gigantografía..." : "Generar Gigantografía IA 🏙️✨"}
                 </button>
               </div>
             </div>
