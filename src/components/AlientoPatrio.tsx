@@ -146,10 +146,11 @@ const INITIAL_COMMENTS: FanComment[] = [
 export default function AlientoPatrio() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [selectedLeague, setSelectedLeague] = useState<string>("all");
-  const [matches] = useState<Match[]>(INITIAL_MATCHES);
+  const [matches, setMatches] = useState<Match[]>(INITIAL_MATCHES);
+  const [loadingScores, setLoadingScores] = useState<boolean>(true);
 
   // Predictor state
-  const [predMatchId, setPredMatchId] = useState<string>("m-5");
+  const [predMatchId, setPredMatchId] = useState<string>("m-1");
   const [homePred, setHomePred] = useState(2);
   const [awayPred, setAwayPred] = useState(1);
   const [showShareToast, setShowShareToast] = useState(false);
@@ -158,6 +159,29 @@ export default function AlientoPatrio() {
   const [comments, setComments] = useState<FanComment[]>([]);
   const [userName, setUserName] = useState("");
   const [userText, setUserText] = useState("");
+
+  useEffect(() => {
+    async function fetchLiveScores() {
+      try {
+        const res = await fetch("/api/sports/scores");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.matches) && data.matches.length > 0) {
+            setMatches(data.matches);
+            setPredMatchId(data.matches[0].id);
+          }
+        }
+      } catch (err) {
+        console.error("Error cargando marcadores en vivo:", err);
+      } finally {
+        setLoadingScores(false);
+      }
+    }
+
+    fetchLiveScores();
+    const interval = setInterval(fetchLiveScores, 120000); // 2 minutos
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem("futbolComentarios");
@@ -304,18 +328,32 @@ export default function AlientoPatrio() {
                   </div>
 
                   <div className="flex items-center justify-between font-bold text-sm text-gray-100">
-                    <div className="flex items-center gap-2 flex-1">
-                      <span className="text-base">{m.homeLogo}</span>
-                      <span className="line-clamp-1">{m.homeTeam}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl shrink-0 font-bold">
+                        {m.homeLogo.startsWith("http") ? (
+                          <img src={m.homeLogo} alt={m.homeTeam} className="w-6 h-6 object-contain inline-block" />
+                        ) : (
+                          m.homeLogo
+                        )}
+                      </span>
+                      <span className="text-sm font-semibold text-white truncate max-w-[130px] sm:max-w-[160px]">
+                        {m.homeTeam}
+                      </span>
                     </div>
-
                     <div className="px-3 py-1 bg-black/40 rounded-lg font-mono text-lg font-black text-amber-400 border border-white/5 mx-2">
                       {m.status === "PRÓXIMO" ? "VS" : `${m.homeScore} - ${m.awayScore}`}
                     </div>
-
-                    <div className="flex items-center justify-end gap-2 flex-1 text-right">
-                      <span className="line-clamp-1">{m.awayTeam}</span>
-                      <span className="text-base">{m.awayLogo}</span>
+                    <div className="flex items-center justify-end gap-3">
+                      <span className="text-sm font-semibold text-white truncate max-w-[130px] sm:max-w-[160px] text-right">
+                        {m.awayTeam}
+                      </span>
+                      <span className="text-xl shrink-0 font-bold">
+                        {m.awayLogo.startsWith("http") ? (
+                          <img src={m.awayLogo} alt={m.awayTeam} className="w-6 h-6 object-contain inline-block" />
+                        ) : (
+                          m.awayLogo
+                        )}
+                      </span>
                     </div>
                   </div>
                 </div>

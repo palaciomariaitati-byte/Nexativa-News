@@ -48,7 +48,7 @@ export default function ExternalNewsCarousel() {
           }
         }
 
-        // Fetch System Announcement
+        // Fetch System Announcement & Active Sponsors/Campaigns
         const supabase = getSupabaseBrowserClient();
         const { data: settingData } = await supabase.from("settings").select("value").eq("key", "system_announcement").single();
         if (settingData && settingData.value && settingData.value.trim() !== "") {
@@ -60,7 +60,20 @@ export default function ExternalNewsCarousel() {
           });
         }
 
-        // Shuffle or sort by date (sorting by date here)
+        // Fetch Sponsors for live ad broadcasting
+        const { data: sponsorsData } = await supabase.from("sponsors").select("name, description, website").limit(5);
+        if (sponsorsData && sponsorsData.length > 0) {
+          sponsorsData.forEach((sp) => {
+            allNews.push({
+              title: `📣 ${sp.name}: ${sp.description || "Auspiciante Oficial de Nexativa News"}`,
+              link: sp.website || "#sponsors-section-wrapper",
+              pubDate: new Date().toISOString(),
+              source: "PAUTA ADHERIDA",
+            });
+          });
+        }
+
+        // Shuffle or sort by date
         allNews.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
         setNews(allNews);
       } catch (error) {
@@ -100,14 +113,18 @@ export default function ExternalNewsCarousel() {
             <a
               key={idx}
               href={item.link}
-              target="_blank"
+              target={item.link === "#" ? "_self" : "_blank"}
               rel="noopener noreferrer"
-              className="flex items-center space-x-2 hover:text-[var(--color-brand-accent)] transition-colors"
+              className={`flex items-center space-x-2 transition-colors ${
+                item.source === "PAUTA ADHERIDA"
+                  ? "text-amber-300 font-bold bg-amber-500/10 px-3 py-1 rounded-lg border border-amber-500/30"
+                  : "hover:text-[var(--color-brand-accent)]"
+              }`}
             >
-              <span className="text-[var(--color-brand-accent)] font-bold text-sm uppercase tracking-wider">
+              <span className={`font-bold text-xs uppercase tracking-wider ${item.source === "PAUTA ADHERIDA" ? "text-amber-400" : "text-[var(--color-brand-accent)]"}`}>
                 [{item.source}]
               </span>
-              <span className="text-xl font-medium">{item.title}</span>
+              <span className="text-base sm:text-lg font-medium">{item.title}</span>
               <span className="text-white/30 mx-4">•</span>
             </a>
           ))}
