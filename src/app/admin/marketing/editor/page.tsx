@@ -26,7 +26,8 @@ export default function MarketingEditorPage() {
 
   // Gigantografías Surrealistas & Escala Monumental por IA
   const [customItemArticle, setCustomItemArticle] = useState("");
-  const [selectedGigantoStyle, setSelectedGigantoStyle] = useState("urban");
+  const [customStoryContext, setCustomStoryContext] = useState("");
+  const [selectedGigantoStyle, setSelectedGigantoStyle] = useState("story_reallife");
   const [selectedAspectRatio, setSelectedAspectRatio] = useState("16:9");
   const [generatingAIDACopy, setGeneratingAIDACopy] = useState(false);
   
@@ -198,9 +199,11 @@ export default function MarketingEditorPage() {
     const selectedSponsor = sponsors.find(s => s.id === selectedSponsorId);
     const clientBrand = formData.client_name || selectedSponsor?.name || "Comercio Asociado";
     const clientCategory = selectedSponsor?.category || "Local Comercial";
-    const itemArticle = customItemArticle.trim() || (selectedSponsor ? `${selectedSponsor.category} de ${selectedSponsor.name}` : clientBrand);
+    const itemArticle = customItemArticle.trim() || (selectedSponsor ? `producto estrella de ${selectedSponsor.name}` : "producto de la tienda");
+    const storyContext = customStoryContext.trim() || `Una persona caminando por la plaza frente al comercio '${clientBrand}'`;
 
     const scaleStylePromptMap: Record<string, string> = {
+      story_reallife: `Surreal marketing commercial spot for store '${clientBrand}' (${clientCategory}): ${storyContext}. Suddenly, a magnificent giant 3D ${itemArticle} magically expands in scale to a colossal monumental size right in front of the store storefront, casting a golden glow. The main character and passing pedestrians stop in awe, with genuine emotional expressions of amazement, wonder, and excitement looking at the giant ${itemArticle} and logo of '${clientBrand}'. Photorealistic cinematic movie scene, hyper-detailed, 8k resolution`,
       urban: `Gigantic monumental scaled 3D artwork for business '${clientBrand}' (${clientCategory}), featuring a giant 20-meter high ${itemArticle} and brand logo emblem towering in the middle of a bustling city avenue, amazed crowds looking up, cinematic lighting, photorealistic 8k resolution`,
       character: `Surreal forced scale commercial for '${clientBrand}' featuring a colossal giant ${itemArticle} dwarfing a main character, branded background signage for ${clientBrand}, dramatic forced perspective, movie spot lighting`,
       anamorphic: `3D anamorphic digital billboard illusion for store '${clientBrand}', giant 3D ${itemArticle} popping out of a giant LED outdoor screen in Times Square with neon illuminated brand logo '${clientBrand}', 8k render`,
@@ -215,7 +218,7 @@ export default function MarketingEditorPage() {
     };
     const dims = ratioDimensions[selectedAspectRatio] || ratioDimensions["16:9"];
 
-    const promptText = scaleStylePromptMap[selectedGigantoStyle] || scaleStylePromptMap.urban;
+    const promptText = scaleStylePromptMap[selectedGigantoStyle] || scaleStylePromptMap.story_reallife;
     setGeneratingImage(true);
     try {
       const optimizedPrompt = await optimizeImagePrompt(promptText);
@@ -237,7 +240,7 @@ export default function MarketingEditorPage() {
       const newUrl = publicUrlData.publicUrl;
 
       setFormData(prev => ({ ...prev, image_url: newUrl }));
-      alert(`¡Gigantografía Surrealista IA creada para "${clientBrand}" con éxito! 🏙️✨`);
+      alert(`¡Escena Surrealista IA de Asombro Creada para "${clientBrand}" con Éxito! 🏙️✨`);
     } catch (err: any) {
       console.error(err);
       alert("Error al generar gigantografía: " + err.message);
@@ -560,23 +563,40 @@ Estructura la respuesta exactamente en estas 4 secciones:
                     type="text"
                     value={customItemArticle}
                     onChange={(e) => setCustomItemArticle(e.target.value)}
-                    placeholder="Ej: Choripán, Zapatilla, Smartphone, Botella de Vino, Auto..."
+                    placeholder="Ej: Cartera de cuero, Zapatilla de diseño, Hamburguesa, Auto..."
                     className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-xs text-white outline-none focus:border-amber-500"
                   />
                   <p className="text-[10px] text-gray-400 mt-1 italic">
-                    Universal: Funciona con cualquier objeto, producto o servicio del cliente.
+                    El objeto del comercio que se agigantará mágicamente en la historia.
                   </p>
                 </div>
 
                 <div>
+                  <label className="text-[11px] font-bold text-gray-300 uppercase tracking-wide block mb-1">
+                    Escenario / Contexto de la Historia Cotidiana:
+                  </label>
+                  <input
+                    type="text"
+                    value={customStoryContext}
+                    onChange={(e) => setCustomStoryContext(e.target.value)}
+                    placeholder="Ej: Una mujer paseando a su perro por la plaza frente a la tienda..."
+                    className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-xs text-white outline-none focus:border-amber-500"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1 italic">
+                    Describe la escena donde ocurre la sorpresa visual del transeúnte.
+                  </p>
+                </div>
+
+                <div className="md:col-span-2">
                   <label className="text-[11px] font-bold text-gray-300 uppercase tracking-wide block mb-1">
                     Efecto de Escala Publicitaria Internacional:
                   </label>
                   <select
                     value={selectedGigantoStyle}
                     onChange={(e) => setSelectedGigantoStyle(e.target.value)}
-                    className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-xs text-white outline-none focus:border-amber-500 cursor-pointer"
+                    className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-xs text-white outline-none focus:border-amber-500 cursor-pointer font-bold"
                   >
+                    <option value="story_reallife">✨ Historia Cotidiana & Asombro Mágico (Objeto que se Agiganta + Transeúntes Impactados)</option>
                     <option value="urban">🏙️ Gigantismo Urbano Monumental (Objeto de 20m en la Ciudad)</option>
                     <option value="character">👤 Escala Gigante con Personaje Principal (Spot Dramático)</option>
                     <option value="anamorphic">🌆 Cartelería Digital 3D Anamórfica (Efecto Ilusión 3D)</option>
