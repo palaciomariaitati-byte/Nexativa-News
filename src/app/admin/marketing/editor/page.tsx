@@ -218,7 +218,7 @@ export default function MarketingEditorPage() {
     const dims = ratioDimensions[selectedAspectRatio] || ratioDimensions["16:9"];
 
     const promptText = (customStoryContext.trim() || formData.content.trim())
-      ? `Commercial advertising spot for brand '${clientBrand}' (${clientCategory}): ${storyContext}. Bright sunny spring morning daylight, natural outdoor lighting. Feature giant monumental 3D text and logo with clear legible SPANISH block letters reading "${clientBrand.toUpperCase()}". Pedestrians and spectators looking up with amazed astonished face expressions. High resolution commercial photography, 8k.`
+      ? `High-end commercial advertisement photograph for '${clientBrand}' (${clientCategory}): ${storyContext}. Central giant centerpiece is a colossal 15-meter monumental 3D ${itemArticle} floating above a sunny city street. Clean modern glass architectural storefronts in background without any text or garbled letters. Real human pedestrians walking with full non-deformed bodies and amazed face expressions. Bright sunny morning light, Hasselblad 35mm photography, zero text artifacts, 8k.`
       : (scaleStylePromptMap[selectedGigantoStyle] || scaleStylePromptMap.story_reallife);
     setGeneratingImage(true);
     try {

@@ -324,15 +324,15 @@ export async function optimizeImagePrompt(userPrompt: string): Promise<string> {
     const modelId = process.env.GEMINI_MODEL || "gemini-flash-latest";
     const model = genAI.getGenerativeModel({ model: modelId });
     
-    const systemPrompt = `You are Nora, an elite AI creative director for commercial advertising and photorealistic visual storytelling.
-Your mission is to translate and elevate the user description into an ultra-high-fidelity English prompt for the FLUX photorealism image engine.
+    const systemPrompt = `You are Nora, an elite international Creative Director for award-winning commercial advertising campaigns.
+Your mission is to translate and elevate the user description into an ultra-high-end English prompt for professional commercial photography.
 
-STRICT HUMAN & VISUAL FIDELITY RULES:
-1. FAITHFUL PHYSICAL ITEM ENLARGEMENT: If the user asks to enlarge or agigantar a specific physical item or food (e.g. "plato de locro", "hamburguesa", "zapatilla", "cartera"), YOU MUST EXPLICITLY MAKE THAT PHYSICAL OBJECT (e.g., 'a colossal giant 15-meter monumental 3D bowl of steaming hot locro stew with corn, beef, and red oil') THE MAIN GIANT HERO CENTERPIECE of the scene. Do NOT just enlarge text or signs when a physical food/product is requested.
-2. ANATOMY & REALISM PERFECT CONTROL: All human pedestrians and characters MUST be complete, whole, realistic human figures walking on sidewalks with photorealistic non-deformed bodies and clear facial expressions of awe and astonishment looking at the giant centerpiece.
-3. DAYLIGHT & WEATHER: Default to bright sunny daylight, clear blue sky, natural sunlight, unless night is explicitly requested. NEVER generate dark cyberpunk or sci-fi neon scenes unless requested.
-4. CLEAN SPANISH TYPOGRAPHY: Any storefront text or signage MUST be written strictly in SPANISH using clean, legible block letters (e.g. text reading "LOCRO ARTESANAL"). NEVER output alien, gibberish, or garbled pseudo-letters.
-5. Return ONLY the refined English prompt string with no intro or quotes.`;
+NORA ULTRA PRO ADVERTISING & VISUAL RULES:
+1. NO FAKE TEXT ARTIFACTS IN BACKGROUND: Do NOT attempt to render random fake signs or garbled letters on background buildings. Instruct background storefronts to have clean, sleek modern glass facades, warm ambient commercial spotlights, and elegant architectural design WITHOUT any random text or garbled signs.
+2. HERO PHYSICAL OBJECT ENLARGEMENT: If a physical food or item is requested (e.g. "plato de locro", "hamburguesa", "zapatilla", "cartera"), render it as a colossal 15-meter monumental 3D masterpiece in the center of the scene with photorealistic steam, vivid food textures, and realistic lighting.
+3. PERFECT HUMAN ANATOMY & EMOTION: All human pedestrians and characters MUST be complete, natural, and whole, wearing stylish modern clothing, with genuine astonished facial expressions looking at the giant centerpiece.
+4. COMMERCIAL QUALITY: Add "shot on Hasselblad 35mm camera, master studio color grading, bright natural daylight, crisp architectural storefronts, zero text artifacts, award-winning commercial photography".
+5. Return ONLY the refined English prompt string with no conversational filler or quotes.`;
 
     const result = await model.generateContent(`User Description: ${userPrompt}\n\nTask: ${systemPrompt}`);
     const text = result.response.text().trim();
