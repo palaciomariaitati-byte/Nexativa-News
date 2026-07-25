@@ -631,20 +631,18 @@ export default function VideoSpotCreator({
               video.pause();
             }
           } else {
-            // When editing (not playing), show the active segment frame
+            // When editing (not playing), show the active segment frame without constant seeking
             const activeSeg = segments[activeSegmentIndex];
             if (activeSeg) {
               const segSrc = (activeSeg.src === "file" || activeSeg.src === "youtube") ? (activeSeg.videoObjectUrl || "") : activeSeg.videoUrl;
               
               if (segSrc && currentSegmentIndexRef.current !== activeSegmentIndex) {
                 currentSegmentIndexRef.current = activeSegmentIndex;
-                video.src = segSrc;
-                video.load();
-                video.currentTime = videoStart;
-              }
-
-              if (video.currentTime > videoEnd || video.currentTime < videoStart) {
-                video.currentTime = videoStart;
+                if (video.src !== segSrc) {
+                  video.src = segSrc;
+                  video.load();
+                  video.currentTime = activeSeg.start;
+                }
               }
 
               if (video.readyState >= 2) {
@@ -1126,28 +1124,22 @@ export default function VideoSpotCreator({
         />
 
         {/* Hidden video element for source rendering */}
-        {videoObjectUrl || videoUrl ? (
-          <video
-            ref={sourceVideoRef}
-            src={(videoSrc === "file" || videoSrc === "youtube") ? (videoObjectUrl || "") : videoUrl}
-            crossOrigin="anonymous"
-            className="hidden"
-            muted
-            playsInline
-            preload="auto"
-            loop={false}
-            onLoadedMetadata={(e) => {
-              const dur = e.currentTarget.duration || 0;
-              setVideoDuration(dur);
+        <video
+          ref={sourceVideoRef}
+          crossOrigin="anonymous"
+          className="hidden"
+          muted
+          playsInline
+          preload="auto"
+          loop={false}
+          onLoadedMetadata={(e) => {
+            const dur = e.currentTarget.duration || 0;
+            setVideoDuration(dur);
+            if (videoEnd === 0 || videoEnd > dur) {
               setVideoEnd(Math.min(dur, 15));
-            }}
-            onCanPlay={(e) => {
-              if (e.currentTarget && !isPlaying) {
-                e.currentTarget.currentTime = videoStart;
-              }
-            }}
-          />
-        ) : null}
+            }
+          }}
+        />
 
         {/* Header */}
         <div className="flex items-center gap-2 border-b border-white/10 pb-3">
