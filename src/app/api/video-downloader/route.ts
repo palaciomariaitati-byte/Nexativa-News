@@ -31,31 +31,33 @@ export async function POST(request: Request) {
     }
 
     const timestamp = Date.now();
-    const flags = `--no-check-certificates --no-playlist --extractor-args "youtube:player_client=android,web"`;
 
     if (type === "audio") {
       const outputPattern = path.join(downloadDir, `audio_${timestamp}.%(ext)s`);
       const commands = [
-        `yt-dlp ${flags} -f "bestaudio/best" -o "${outputPattern}" "${url}"`,
-        `python -m yt_dlp ${flags} -f "bestaudio/best" -o "${outputPattern}" "${url}"`,
-        `py -m yt_dlp ${flags} -f "bestaudio/best" -o "${outputPattern}" "${url}"`,
-        `npx --yes @distube/yt-dlp ${flags} -f "bestaudio/best" -o "${outputPattern}" "${url}"`
+        `python -m yt_dlp --no-check-certificates --no-playlist -f "bestaudio/best" -o "${outputPattern}" "${url}"`,
+        `yt-dlp --no-check-certificates --no-playlist -f "bestaudio/best" -o "${outputPattern}" "${url}"`,
+        `py -m yt_dlp --no-check-certificates --no-playlist -f "bestaudio/best" -o "${outputPattern}" "${url}"`
       ];
 
       return new Promise((resolve) => {
         let cmdIdx = 0;
+        let lastErr = "";
         const tryNextCommand = () => {
           if (cmdIdx >= commands.length) {
             resolve(NextResponse.json({
               success: false,
-              error: "No se encontró yt-dlp instalado en tu sistema. Instala yt-dlp ejecutando: pip install yt-dlp en tu terminal local."
+              error: lastErr || "No se pudo procesar la URL de YouTube. Verifica que la URL sea pública."
             }));
             return;
           }
           const command = commands[cmdIdx];
-          console.log(`[Audio Downloader] Intento ${cmdIdx + 1}: ${command}`);
+          console.log(`[Audio Downloader] Executing (${cmdIdx + 1}): ${command}`);
           
-          exec(command, (error, stdout, stderr) => {
+          exec(command, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
+            if (error) {
+              lastErr = stderr || error.message;
+            }
             const files = fs.readdirSync(downloadDir);
             const matchedFile = files.find(f => f.startsWith(`audio_${timestamp}`));
 
@@ -79,27 +81,30 @@ export async function POST(request: Request) {
       const outputPattern = path.join(downloadDir, `download_${timestamp}.%(ext)s`);
 
       const commands = [
-        `yt-dlp ${flags} -f "best[ext=mp4]/best" -o "${outputPath}" "${url}"`,
-        `python -m yt_dlp ${flags} -f "best[ext=mp4]/best" -o "${outputPath}" "${url}"`,
-        `py -m yt_dlp ${flags} -f "best[ext=mp4]/best" -o "${outputPath}" "${url}"`,
-        `yt-dlp ${flags} -f "best" -o "${outputPattern}" "${url}"`,
-        `python -m yt_dlp ${flags} -f "best" -o "${outputPattern}" "${url}"`
+        `python -m yt_dlp --no-check-certificates --no-playlist -f "best[ext=mp4]/best" -o "${outputPath}" "${url}"`,
+        `yt-dlp --no-check-certificates --no-playlist -f "best[ext=mp4]/best" -o "${outputPath}" "${url}"`,
+        `python -m yt_dlp --no-check-certificates --no-playlist -f "best" -o "${outputPattern}" "${url}"`,
+        `yt-dlp --no-check-certificates --no-playlist -f "best" -o "${outputPattern}" "${url}"`
       ];
 
       return new Promise((resolve) => {
         let cmdIdx = 0;
+        let lastErr = "";
         const tryNextCommand = () => {
           if (cmdIdx >= commands.length) {
             resolve(NextResponse.json({
               success: false,
-              error: "No se encontró yt-dlp en tu sistema local o la URL no es accesible. Instálalo con: pip install yt-dlp"
+              error: lastErr || "Error al descargar el video de YouTube. Verifica que la URL sea pública."
             }));
             return;
           }
           const command = commands[cmdIdx];
-          console.log(`[Video Downloader] Intento ${cmdIdx + 1}: ${command}`);
+          console.log(`[Video Downloader] Executing (${cmdIdx + 1}): ${command}`);
 
-          exec(command, (error, stdout, stderr) => {
+          exec(command, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
+            if (error) {
+              lastErr = stderr || error.message;
+            }
             const files = fs.readdirSync(downloadDir);
             const matchedFile = files.find(f => f.startsWith(`download_${timestamp}`));
 
