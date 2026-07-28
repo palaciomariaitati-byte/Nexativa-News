@@ -81,7 +81,14 @@ export default async function NewsArticlePage({ params }: PageProps) {
       {/* Cabecera / Media */}
       <div className="w-full relative border-b border-[var(--color-brand-accent)] shadow-[0_0_30px_rgba(212,175,55,0.15)] bg-black overflow-hidden flex flex-col justify-end min-h-[50vh] md:min-h-[60vh]">
         <div className="absolute inset-0 w-full h-full z-10">
-          {youtubeId ? (
+          {videoUrl && videoUrl.includes("youtube.com/embed/") ? (
+            <iframe
+              src={videoUrl}
+              className="w-full h-full object-cover pointer-events-auto"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          ) : youtubeId ? (
             <iframe
               src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&mute=1&loop=1&playlist=${youtubeId}&controls=1`}
               className="w-full h-full object-cover pointer-events-auto"
