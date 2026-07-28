@@ -3,6 +3,23 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export async function POST(request: Request) {
   try {
+    // 0. Validar origen/dominio autorizado (Seguridad y Control de Licencia)
+    const origin = request.headers.get("origin") || request.headers.get("referer") || "";
+    if (origin) {
+      const lowerOrigin = origin.toLowerCase();
+      const isAllowed = 
+        lowerOrigin.includes("cadena4.com.ar") || 
+        lowerOrigin.includes("nexativanews.com.ar") ||
+        lowerOrigin.includes("nexativa-news-digital.vercel.app") ||
+        lowerOrigin.includes("localhost") || 
+        lowerOrigin.includes("127.0.0.1");
+      
+      if (!isAllowed) {
+        console.warn(`[Nora Live Security] Intento de acceso bloqueado desde dominio no autorizado: ${origin}`);
+        return NextResponse.json({ error: "Dominio no autorizado para usar la licencia de Nora Live." }, { status: 403 });
+      }
+    }
+
     const { message, currentDraft, image, audio } = await request.json();
     
     if (!message && !image && !audio) {
