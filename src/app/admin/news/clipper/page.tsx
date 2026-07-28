@@ -84,13 +84,21 @@ export default function NoraClipperAdminPage() {
     try {
       const ytId = getYouTubeId(youtubeUrl);
       const embedUrl = ytId ? `https://www.youtube.com/embed/${ytId}?start=${clip.start_time_seconds}&autoplay=1` : youtubeUrl;
+      const thumbnailUrl = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null;
+
+      // Normalize category to standard tabs ("nacional", "internacional", "local")
+      let cat = (clip.category || "nacional").toLowerCase();
+      if (cat.includes("local") || cat.includes("corrientes") || cat.includes("provinc")) cat = "local";
+      else if (cat.includes("inter") || cat.includes("mund")) cat = "internacional";
+      else cat = "nacional";
 
       const { error } = await supabase.from("articles").insert({
         title: clip.title,
         excerpt: clip.summary,
         content: `<p><strong>${clip.title}</strong></p><p>${clip.summary}</p><br><iframe width="100%" height="400" src="${embedUrl}" frameborder="0" allowfullscreen></iframe><br><p><em>Clip destacado de la cobertura periodística en vivo (Nora Auto-Clipper).</em></p>`,
         status: "published",
-        category: clip.category || "nacionales",
+        category: cat,
+        image_url: thumbnailUrl,
         video_url: embedUrl
       });
 
@@ -98,6 +106,7 @@ export default function NoraClipperAdminPage() {
         alert("Error al publicar la noticia: " + error.message);
       } else {
         setPublishedId(clip.clip_id);
+        alert("🎉 ¡Clip publicado exitosamente en la portada de Nexativa News! (Categoría: " + cat.toUpperCase() + ")");
       }
     } catch (e: any) {
       alert("Error de publicación: " + e.message);
