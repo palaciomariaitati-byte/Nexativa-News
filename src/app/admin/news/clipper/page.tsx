@@ -83,7 +83,7 @@ export default function NoraClipperAdminPage() {
     setPublishingId(clip.clip_id);
     try {
       const ytId = getYouTubeId(youtubeUrl);
-      const embedUrl = ytId ? `https://www.youtube.com/embed/${ytId}?start=${clip.start_time_seconds}&autoplay=1` : youtubeUrl;
+      const embedUrl = ytId ? `https://www.youtube.com/embed/${ytId}?start=${clip.start_time_seconds}&end=${clip.end_time_seconds}&autoplay=1` : youtubeUrl;
       const thumbnailUrl = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null;
 
       // Normalize category to standard tabs ("nacional", "internacional", "local")
@@ -211,7 +211,7 @@ export default function NoraClipperAdminPage() {
                   {ytId ? (
                     <iframe
                       key={activeClip ? activeClip.start_time_seconds : "default"}
-                      src={`https://www.youtube.com/embed/${ytId}?start=${activeClip ? activeClip.start_time_seconds : 0}&autoplay=1`}
+                      src={`https://www.youtube.com/embed/${ytId}?start=${activeClip ? activeClip.start_time_seconds : 0}&end=${activeClip ? activeClip.end_time_seconds : 0}&autoplay=1`}
                       className="w-full h-full"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                       allowFullScreen
