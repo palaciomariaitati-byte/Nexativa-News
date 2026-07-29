@@ -3,7 +3,7 @@
  * Plugin Name: Nora Live Exteriores - Cadena 4 & Nexativa
  * Plugin URI: https://cadena4.com.ar
  * Description: Herramienta de cobertura periodística en vivo, emisión de Flash Noticiosos (1-5 min) y túnel directo de envío de videos a Estudio Nexativa por MyJNexoraVisual.
- * Version: 1.2.0
+ * Version: 1.3.0
  * Author: MyJNexoraVisual & Nexativa News
  */
 
@@ -200,7 +200,7 @@ function nora_live_admin_page() {
                 
                 <div class="nora-chat-messages" id="noraChat">
                     <div class="nora-msg nora">
-                        <strong>Nora (Redactora Jefa IA):</strong> Hola corresponsal. Envíame lo que esté sucediendo (texto, fotos o audios de voz) y redactaré la noticia inmediatamente.
+                        <strong>Nora (Redactora Jefa IA):</strong> Hola corresponsal. Envíame lo que esté sucediendo (texto, fotos o audios de voz grabados o subidos desde tu celular) y redactaré la noticia inmediatamente.
                     </div>
                 </div>
 
@@ -213,6 +213,10 @@ function nora_live_admin_page() {
                     <label class="button" style="display:flex; align-items:center; gap:5px; cursor:pointer;">
                         📷 Subir Foto
                         <input type="file" id="noraImage" accept="image/*" style="display:none;" />
+                    </label>
+                    <label class="button" style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+                        🎵 Subir Audio
+                        <input type="file" id="noraAudioFile" accept="audio/*" style="display:none;" />
                     </label>
                     <button type="button" class="button" id="btnAudioRec" style="display:flex; align-items:center; gap:5px;">
                         🎙️ Grabar Audio
@@ -328,7 +332,7 @@ function nora_live_admin_page() {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             partner_name: 'Cadena 4',
-                            title: 'Cobertera Enviada por Cliente',
+                            title: 'Cobertura Enviada por Cliente',
                             video_url: videoUrl,
                             notes: notes
                         })
@@ -437,6 +441,7 @@ function nora_live_admin_page() {
             const btnSend = document.getElementById('btnSend');
             const btnPublish = document.getElementById('btnPublish');
             const imageInput = document.getElementById('noraImage');
+            const audioFileInput = document.getElementById('noraAudioFile');
             const btnAudioRec = document.getElementById('btnAudioRec');
 
             function addMessage(role, text) {
@@ -472,7 +477,7 @@ function nora_live_admin_page() {
                     }
                     addMessage('nora', data.reply || 'Borrador de la noticia actualizado.');
                 } catch (e) {
-                    addMessage('nora', 'Error de comunicación con la IA. Verifica tu conexión a internet.');
+                    addMessage('nora', 'Error de conexión con la IA. Detalle: ' + (e.message || e));
                 } finally {
                     isProcessing = false;
                     btnSend.disabled = false;
@@ -494,7 +499,17 @@ function nora_live_admin_page() {
                 if (!file) return;
                 const reader = new FileReader();
                 reader.onload = function(evt) {
-                    sendToNora('Imagen adjunta tomada desde el lugar de los hechos', evt.target.result, null);
+                    sendToNora('Imagen adjunta tomada desde el lugar de los hechos (' + file.name + ')', evt.target.result, null);
+                };
+                reader.readAsDataURL(file);
+            });
+
+            audioFileInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    sendToNora('Audio de voz adjunto desde dispositivo (' + file.name + ')', null, evt.target.result);
                 };
                 reader.readAsDataURL(file);
             });

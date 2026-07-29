@@ -1,34 +1,26 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, X-WP-Nonce",
+};
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 export async function POST(request: Request) {
   try {
-    // 0. Validar origen/dominio autorizado (Seguridad y Control de Licencia)
-    const origin = request.headers.get("origin") || request.headers.get("referer") || "";
-    if (origin) {
-      const lowerOrigin = origin.toLowerCase();
-      const isAllowed = 
-        lowerOrigin.includes("cadena4.com.ar") || 
-        lowerOrigin.includes("nexativanews.com.ar") ||
-        lowerOrigin.includes("nexativa-news-digital.vercel.app") ||
-        lowerOrigin.includes("localhost") || 
-        lowerOrigin.includes("127.0.0.1");
-      
-      if (!isAllowed) {
-        console.warn(`[Nora Live Security] Intento de acceso bloqueado desde dominio no autorizado: ${origin}`);
-        return NextResponse.json({ error: "Dominio no autorizado para usar la licencia de Nora Live." }, { status: 403 });
-      }
-    }
-
     const { message, currentDraft, image, audio } = await request.json();
     
     if (!message && !image && !audio) {
-      return NextResponse.json({ error: "No input provided (message, image or audio is required)" }, { status: 400 });
+      return NextResponse.json(
+        { error: "No input provided (message, image or audio is required)" },
+        { status: 400, headers: corsHeaders }
+      );
     }
-
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-    const modelId = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-    const model = genAI.getGenerativeModel({ model: modelId });
 
     const prompt = `Eres NORA, la Redactora Jefa de Nexativa News. Sos una periodista argentina de gran trayectoria y nivel internacional, con un agudo sentido común y una pluma exquisita.
 Tu periodista está en la calle, en el lugar de los hechos, y te envía reportes de texto rápidos, imágenes y/o audios.
@@ -36,7 +28,7 @@ Tu tarea es trabajar en conjunto con él para redactar y perfeccionar el BORRADO
 
 Tienes una gran capacidad sensorial, visual y auditiva:
 - Al recibir una imagen, analízala críticamente como lo haría un periodista de investigación: detecta los elementos informativos implícitos (clima, expresiones de las personas, daños materiales, presencia de servicios de emergencia, señalizaciones, contexto geográfico) y deduce/conecta lógicamente lo que ocurre, integrándolo de manera narrativa y natural al artículo.
-- Al recibir un audio, escúchalo con atención, extrayendo el fondo informativo sustancial (ignora titubeos o ruidos), e incorpora la información procesada al borrador con un lenguaje fluido.
+- Al recibir un audio (grabado o subido en formato de voz/dispositivo), escúchalo con atención, extrayendo el fondo informativo sustancial (ignora titubeos o ruidos), e incorpora la información procesada al borrador con un lenguaje fluido.
 
 REGLAS DE REDACCIÓN, RIGOR PERIODÍSTICO Y LEGAL:
 1. MENTALIDAD PERIODÍSTICA PROFESIONAL: No repitas mecánicamente frases del operador. Procesa y estructura la información en formato de pirámide invertida (Qué, Quién, Cuándo, Dónde, Por qué y Cómo). Busca el "ángulo periodístico" que sea relevante y confiable para el público.
@@ -72,7 +64,7 @@ ${message || "(No envió mensaje de texto, revisa las imágenes o audios adjunto
       if (imgParts.length === 2) {
         const meta = imgParts[0];
         const base64Data = imgParts[1];
-        const mimeType = meta.split(":")[1].split(";")[0];
+        const mimeType = meta.split(":")[1].split(";")[0] || "image/jpeg";
         
         parts.push({
           inlineData: {
@@ -88,7 +80,8 @@ ${message || "(No envió mensaje de texto, revisa las imágenes o audios adjunto
       if (audioParts.length === 2) {
         const meta = audioParts[0];
         const base64Data = audioParts[1];
-        const mimeType = meta.split(":")[1].split(";")[0];
+        let mimeType = meta.split(":")[1].split(";")[0] || "audio/mp3";
+        if (mimeType.includes("octet-stream")) mimeType = "audio/mp3";
         
         parts.push({
           inlineData: {
@@ -158,10 +151,13 @@ ${message || "(No envió mensaje de texto, revisa las imágenes o audios adjunto
       }
     }
 
-    return NextResponse.json({ newDraft, reply });
+    return NextResponse.json({ newDraft, reply }, { headers: corsHeaders });
   } catch (error: any) {
     console.error("Nora Live API Error:", error);
     const errorMsg = error?.message || "Error desconocido en el servidor";
-    return NextResponse.json({ error: "Failed to process message", reply: `Error de conexión con mi cerebro: ${errorMsg}` }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to process message", reply: `Error de conexión con mi cerebro: ${errorMsg}` },
+      { status: 500, headers: corsHeaders }
+    );
   }
 }
