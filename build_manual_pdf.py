@@ -104,30 +104,31 @@ def generate_pdf():
     story = []
 
     # Title Banner
-    story.append(Paragraph("🔴 Manual Oficial de Instalación y Uso: Nora Live Exteriores (v1.3.0)", title_style))
+    story.append(Paragraph("🔴 Manual Oficial de Instalación y Uso: Nora Live Exteriores (v1.5.0)", title_style))
     story.append(Paragraph("Infraestructura de Inteligencia Artificial Periodística por <b>MyJNexoraVisual</b> para Cadena 4 & Nexativa News", subtitle_style))
     story.append(HRFlowable(width="100%", thickness=2, color=colors.HexColor('#EF4444'), spaceAfter=15))
 
     # Section 1
     story.append(Paragraph("📌 1. ¿Qué es Nora Live Exteriores?", h2_style))
-    story.append(Paragraph("Es una plataforma periodística con Inteligencia Artificial (Redactora Jefa IA) desarrollada por <b>MyJNexoraVisual</b> para que los corresponsales, movileros, vecinos y redactores de <b>Cadena 4</b> puedan convertir reportes de voz, fotos de la calle, notas de texto, audios guardados o noticieros en artículos periodísticos terminados y listos para publicar en su diario digital en segundos.", body_style))
+    story.append(Paragraph("Es una plataforma periodística con Inteligencia Artificial (Redactora Jefa IA) desarrollada por <b>MyJNexoraVisual</b> para que los corresponsales, movileros, vecinos y redactores de <b>Cadena 4</b> puedan redactar coberturas en vivo y ensamblar autónomamente Noticieros Flash (1 a 5 min) mezclando recortes de sus propios programas de radio/TV del día.", body_style))
 
     # Section 2
     story.append(Paragraph("🛠️ 2. Guía de Instalación Rápida (Para el Administrador del sitio)", h2_style))
-    story.append(Paragraph("<b>Step 1: Descargar el Plugin</b><br/>Archivo comprimido oficial: <code>nora-live-exteriores.zip</code> (Versión 1.3.0)", bullet_style))
-    story.append(Paragraph("<b>Step 2: Subir a WordPress</b><br/>1. Inicia sesión en tu panel: <code>https://cadena4.com.ar/wp-admin</code><br/>2. Ve a <b>Plugins</b> &gt; <b>Añadir nuevo</b> &gt; <b>Subir plugin</b>.<br/>3. Selecciona el archivo <code>nora-live-exteriores.zip</code> y presiona <b>Instalar ahora</b>.", bullet_style))
-    story.append(Paragraph("<b>Step 3: Activar el Plugin</b><br/>Haz clic en el botón azul <b>Activar plugin</b>. Aparecerá en el menú lateral la opción <b>Nora Live 🔴</b>.", bullet_style))
+    story.append(Paragraph("<b>Paso 1: Descargar el Plugin</b><br/>Archivo comprimido oficial: <code>nora-live-exteriores.zip</code> (Versión 1.5.0)", bullet_style))
+    story.append(Paragraph("<b>Paso 2: Subir a WordPress</b><br/>1. Inicia sesión en tu panel: <code>https://cadena4.com.ar/wp-admin</code><br/>2. Ve a <b>Plugins</b> &gt; <b>Añadir nuevo</b> &gt; <b>Subir plugin</b>.<br/>3. Selecciona el archivo <code>nora-live-exteriores.zip</code> y presiona <b>Instalar ahora</b>.", bullet_style))
+    story.append(Paragraph("<b>Paso 3: Activar el Plugin</b><br/>Haz clic en el botón azul <b>Activar plugin</b>. Aparecerá en el menú lateral la opción <b>Nora Live 🔴</b>.", bullet_style))
 
     # Section 3
     story.append(Paragraph("📱 3. Guía de Uso para Movileros y Periodistas de Calle", h2_style))
     story.append(Paragraph("Pestaña 1: 🎤 Cobertura & Redacción en Vivo", h3_style))
-    story.append(Paragraph("• <b>Enviar por Texto:</b> Escribe los datos clave y presiona Enviar.<br/>• <b>Enviar por Foto:</b> Toca 📷 Subir Foto para que Nora analice la escena visualmente.<br/>• <b>Enviar por Grabación de Voz:</b> Toca 🎙️ Grabar Audio para dictar el reporte directo desde la calle.<br/>• <b>Enviar por Archivo de Audio:</b> Toca 🎵 Subir Audio para seleccionar audios grabados en el dispositivo (.mp3, .wav, .m4a, .aac, .ogg). Nora los escuchará e integrará.", bullet_style))
+    story.append(Paragraph("• <b>Enviar por Texto:</b> Escribe los datos clave y presiona Enviar.<br/>• <b>Enviar por Foto:</b> Toca 📷 Subir Foto para que Nora analice la escena visualmente.<br/>• <b>Enviar por Grabación de Voz:</b> Toca 🎙️ Grabar Audio para dictar el reporte directo desde la calle.<br/>• <b>Enviar por Archivo de Audio:</b> Toca 🎵 Subir Audio para seleccionar audios grabados en el dispositivo (.mp3, .wav, .m4a, .aac, .ogg).", bullet_style))
     story.append(Paragraph("• <b>Publicación Instantánea:</b> Revisa el borrador en vivo en la columna derecha y presiona el botón rojo <b>¡PUBLICAR EN CADENA 4!</b>.", bullet_style))
 
     # Section 4
-    story.append(Paragraph("🔴 4. Noticieros Rápidos (Flash de Noticias 1 a 5 min)", h2_style))
-    story.append(Paragraph("Pestaña 2: 🔴 Flash de Noticias (1-5 min)", h3_style))
-    story.append(Paragraph("• <b>Explorar Flashes:</b> Revisa en tiempo real los noticieros rápidos de 1 a 5 minutos emitidos por Nora AI.<br/>• <b>Publicar con 1 Clic:</b> Presiona <i>'¡PUBLICAR ESTE FLASH EN MI DIARIO!'</i> para insertarlo en la portada con el reproductor limpio Nexativa Clean Player.<br/>• <b>Túnel Directo de Video:</b> En la caja <i>'Enviar Video de Cobertura a Estudio Nexativa'</i>, pega enlaces de transmisiones largas para que el equipo edite tu Flash.", bullet_style))
+    story.append(Paragraph("🔴 4. Creador Autónomo de Flashes (Pestaña Flash de Noticias 1 a 5 min)", h2_style))
+    story.append(Paragraph("Pestaña 2: 🔴 Flash de Noticias (1-5 min) - Autonomía Total para el Socio", h3_style))
+    story.append(Paragraph("• <b>Paso 1 (Ingresar enlaces):</b> Pega las URLs de tus programas o transmisiones del día (hasta 5 links, 1 por línea) en la caja <i>'⚡ Analizador & Creador Autónomo'</i>.<br/>• <b>Paso 2 (Analizar con Nora IA):</b> Presiona <i>'⚡ Analizar mis Programas con Nora IA'</i>. En segundos, Nora decodificará los mejores recortes periodísticos.<br/>• <b>Paso 3 (Seleccionar & Publicar):</b> Marca las casillas de los recortes que deseas combinar (con contador de tiempo en vivo hasta 5 min) y presiona <b>'🚀 PUBLICAR MI NOTICIERO FLASH EN MI DIARIO'</b>. Se insertará en tu portada con el reproductor exclusivo Nexativa Clean Player.", bullet_style))
+    story.append(Paragraph("• <b>Asistencia de Estudio (Opcional):</b> Si lo prefieres, también puedes enviar tus enlaces por el Túnel Directo para que el equipo de Estudio Nexativa edite tus recortes por ti.", bullet_style))
 
     # Section 5
     story.append(Paragraph("📱 5. Periodismo Ciudadano (Periodista Vecino & Código QR)", h2_style))

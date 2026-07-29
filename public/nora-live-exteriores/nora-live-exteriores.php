@@ -2,8 +2,8 @@
 /**
  * Plugin Name: Nora Live Exteriores - Cadena 4 & Nexativa
  * Plugin URI: https://cadena4.com.ar
- * Description: Herramienta de cobertura periodística en vivo, emisión de Flash Noticiosos (1-5 min) y túnel directo multi-programa a Estudio Nexativa por MyJNexoraVisual.
- * Version: 1.4.0
+ * Description: Cobertura periodística en vivo, creador autónomo de Noticieros Flash (1-5 min) y túnel directo a Estudio Nexativa por MyJNexoraVisual.
+ * Version: 1.5.0
  * Author: MyJNexoraVisual & Nexativa News
  */
 
@@ -88,7 +88,7 @@ function nora_live_admin_page() {
         <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #e2e8f0; pb-10px; margin-bottom: 15px;">
             <div>
                 <h1 style="display:flex; align-items:center; gap:10px; margin-bottom: 5px; margin-top:0;">
-                    <span style="color:#e53e3e;">🔴</span> Nora Live Exteriores & Flash Multi-Programa
+                    <span style="color:#e53e3e;">🔴</span> Nora Live Exteriores & Flash Producer
                     <span style="font-size:12px; background:#2563eb; color:#fff; padding:3px 10px; border-radius:12px; font-weight:bold;">Cadena 4 & Nexativa</span>
                 </h1>
                 <p style="color:#666; font-size:13px; margin-top:0;">Infraestructura Periodística Digital & IA por <strong>MyJNexoraVisual</strong> © Nexativa News. Todos los derechos reservados.</p>
@@ -188,6 +188,24 @@ function nora_live_admin_page() {
                 padding: 15px;
                 margin-bottom: 20px;
             }
+            .self-clipper-box {
+                background: #fef2f2;
+                border: 1px solid #fca5a5;
+                border-radius: 10px;
+                padding: 15px;
+                margin-bottom: 20px;
+            }
+            .clip-select-item {
+                background: #fff;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 10px;
+                margin-bottom: 8px;
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 10px;
+            }
         </style>
 
         <!-- SECTION 1: LIVE EDITOR -->
@@ -237,33 +255,59 @@ function nora_live_admin_page() {
             </div>
         </div>
 
-        <!-- SECTION 2: FLASH DE NOTICIAS & TÚNEL MULTI-PROGRAMA -->
+        <!-- SECTION 2: FLASH DE NOTICIAS & CREADOR AUTÓNOMO -->
         <div id="nora-flashes-container" style="display:none;">
             <div class="nora-box" style="max-width:100%;">
                 
-                <!-- TÚNEL DIRECTO: Enviar Hasta 5 Programas a Estudio Nexativa -->
-                <div class="partner-send-box">
-                    <h3 style="margin-top:0; color:#0369a1; font-size:15px; display:flex; align-items:center; gap:8px;">
-                        📹 Enviar Programas / Transmisiones del Día (Túnel Multi-Video)
+                <!-- CREADOR AUTÓNOMO DE FLASHES (SELF-SERVICE) -->
+                <div class="self-clipper-box">
+                    <h3 style="margin-top:0; color:#b91c1c; font-size:15px; display:flex; align-items:center; gap:8px;">
+                        ⚡ Analizador & Creador Autónomo de Flashes (Hasta 5 Programas)
                     </h3>
-                    <p style="font-size:12px; color:#334155; margin-top:0;">Pega hasta 5 enlaces de tus programas emitidos durante el día (un link por línea). Nora IA extraerá lo más importante de cada emisión para armar tu Flash Noticioso Combinado (1 a 5 min).</p>
+                    <p style="font-size:12px; color:#334155; margin-top:0;">Pega las URLs de tus programas o transmisiones del día. Nora IA analizará el contenido, extraerá los mejores clips y te permitirá elegir cuáles combinar en tu propio Flash Noticioso de 1 a 5 minutos.</p>
 
                     <div style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">
-                        <textarea id="partnerVideoUrl" rows="3" placeholder="Pega los enlaces de tus programas del día (hasta 5 links, 1 por línea):&#10;https://www.youtube.com/watch?v=... (Noticiero Mañana)&#10;https://www.youtube.com/watch?v=... (Noticiero Noche)" style="padding:8px 12px; border-radius:6px; border:1px solid #93c5fd; width:100%; font-size:13px; font-family:monospace; resize:vertical;"></textarea>
-                        <input type="text" id="partnerVideoNotes" placeholder="Notas o instrucciones para la Redactora Jefa Nora..." style="padding:8px 12px; border-radius:6px; border:1px solid #93c5fd; width:100%; font-size:13px;" />
+                        <textarea id="selfAnalyzeUrls" rows="3" placeholder="Pega los enlaces de tus programas (hasta 5 links, 1 por línea):&#10;https://www.youtube.com/watch?v=... (Noticiero Mañana)&#10;https://www.youtube.com/watch?v=... (Noticiero Noche)" style="padding:8px 12px; border-radius:6px; border:1px solid #fca5a5; width:100%; font-size:13px; font-family:monospace; resize:vertical;"></textarea>
                         
-                        <button type="button" id="btnSendPartnerVideo" class="button button-primary" style="background:#0284c7; border-color:#0284c7; font-weight:bold; align-self:flex-start;">
-                            🚀 Enviar Programas a Estudio Nexativa para Edición & Flash
+                        <button type="button" id="btnAnalyzeSelf" class="button button-primary" style="background:#dc2626; border-color:#dc2626; font-weight:bold; align-self:flex-start;">
+                            ⚡ Analizar mis Programas con Nora IA
                         </button>
-                        <span id="partnerVideoMsg" style="font-size:12px; font-weight:bold; color:#059669; display:none;"></span>
+                    </div>
+
+                    <!-- RESULTADOS Y SELECTOR DE CLIPS -->
+                    <div id="selfAnalysisResults" style="display:none; margin-top:15px; pt-15px; border-top:1px solid #fca5a5;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                            <h4 style="margin:0; font-size:14px; color:#991b1b;">Recortes Encontrados por Nora IA:</h4>
+                            <span id="selfCumulativeDuration" style="font-weight:bold; color:#d97706; font-size:12px;">Duración: 0m 0s / 5m 0s</span>
+                        </div>
+
+                        <div id="selfClipsContainer" style="max-height:300px; overflow-y:auto; margin-bottom:12px;"></div>
+
+                        <div style="display:flex; flex-direction:column; gap:8px;">
+                            <input type="text" id="selfFlashTitle" placeholder="Título de tu Flash Noticioso..." style="padding:8px 12px; border-radius:6px; border:1px solid #cbd5e1; width:100%; font-weight:bold; font-size:13px;" />
+                            <button type="button" id="btnPublishSelfFlash" class="nora-btn-publish" style="align-self:flex-start;">
+                                🚀 PUBLICAR MI NOTICIERO FLASH EN MI DIARIO
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                    <h2 style="margin:0; font-size:16px; color:#dc2626;">🔴 Noticieros Rápidos Disponibles (Flash 1 a 5 min)</h2>
-                    <button type="button" class="button" id="btnReloadFlashes">🔄 Cargar Últimos Flashes</button>
+                <!-- TÚNEL DIRECTO: Enviar a Estudio Nexativa -->
+                <div class="partner-send-box">
+                    <h3 style="margin-top:0; color:#0369a1; font-size:14px;">
+                        📹 O enviar videos a Estudio Nexativa para que los editemos por ti
+                    </h3>
+                    <div style="display:flex; gap:10px; margin-top:5px;">
+                        <input type="text" id="partnerVideoUrl" placeholder="Link de transmisión..." style="padding:6px 10px; border-radius:6px; border:1px solid #93c5fd; flex:1; font-size:12px;" />
+                        <button type="button" id="btnSendPartnerVideo" class="button" style="font-size:12px;">Enviar a Estudio</button>
+                    </div>
+                    <span id="partnerVideoMsg" style="font-size:11px; font-weight:bold; color:#059669; display:none; margin-top:4px;"></span>
                 </div>
-                <p style="color:#64748b; font-size:13px; margin-top:0;">Selecciona cualquier Flash emitido por Nora AI y publícalo instantáneamente en la portada de tu portal WordPress.</p>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                    <h2 style="margin:0; font-size:16px; color:#dc2626;">🔴 Flashes Emitidos & Sindicados</h2>
+                    <button type="button" class="button" id="btnReloadFlashes">🔄 Cargar Lista</button>
+                </div>
 
                 <div id="flashesList" style="margin-top:15px;">
                     <p style="color:#94a3b8;">Cargando lista de Flashes...</p>
@@ -279,12 +323,16 @@ function nora_live_admin_page() {
         (function() {
             const apiEndpoint = '<?php echo esc_js($api_url); ?>/api/nora-live';
             const flashesApiEndpoint = '<?php echo esc_js($api_url); ?>/api/flashes?limit=10&partner_only=true';
+            const postFlashEndpoint = '<?php echo esc_js($api_url); ?>/api/flashes';
+            const clipApiEndpoint = '<?php echo esc_js($api_url); ?>/api/nora-clip';
             const partnerVideosEndpoint = '<?php echo esc_js($api_url); ?>/api/partner-videos';
             const wpRestEndpoint = '/wp-json/nora-live/v1/publish';
             const wpNonce = '<?php echo esc_js($nonce); ?>';
             
             let currentDraft = '';
             let isProcessing = false;
+            let currentSelfClips = [];
+            let selectedSelfClipIds = [];
 
             // Tab switching logic
             const tabLiveBtn = document.getElementById('tabLiveBtn');
@@ -307,24 +355,173 @@ function nora_live_admin_page() {
                 loadFlashes();
             });
 
+            // SELF-SERVICE FLASH CREATOR LOGIC
+            const btnAnalyzeSelf = document.getElementById('btnAnalyzeSelf');
+            const selfAnalyzeUrlsInput = document.getElementById('selfAnalyzeUrls');
+            const selfAnalysisResults = document.getElementById('selfAnalysisResults');
+            const selfClipsContainer = document.getElementById('selfClipsContainer');
+            const selfCumulativeDuration = document.getElementById('selfCumulativeDuration');
+            const selfFlashTitleInput = document.getElementById('selfFlashTitle');
+            const btnPublishSelfFlash = document.getElementById('btnPublishSelfFlash');
+
+            btnAnalyzeSelf.addEventListener('click', async function() {
+                const urlsText = selfAnalyzeUrlsInput.value.trim();
+                const urlsList = urlsText.split('\n').map(u => u.trim()).filter(Boolean);
+
+                if (urlsList.length === 0) {
+                    alert('Por favor ingresa al menos 1 enlace de video de YouTube.');
+                    return;
+                }
+
+                btnAnalyzeSelf.disabled = true;
+                btnAnalyzeSelf.innerText = '⚡ Nora IA Analizando Programas...';
+                selfAnalysisResults.style.display = 'none';
+
+                try {
+                    const res = await fetch(clipApiEndpoint, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            urls: urlsList,
+                            videoTitle: 'Programas de Cadena 4'
+                        })
+                    });
+                    const json = await res.json();
+                    if (json.success && json.data && json.data.clips) {
+                        currentSelfClips = json.data.clips;
+                        selectedSelfClipIds = json.data.suggested_news_flash?.clip_ids || currentSelfClips.slice(0, 5).map(c => c.clip_id);
+                        selfFlashTitleInput.value = json.data.suggested_news_flash?.title || '🔴 FLASH NOTICIOSO CADENA 4';
+                        
+                        renderSelfClips();
+                        selfAnalysisResults.style.display = 'block';
+                    } else {
+                        alert('Error en análisis: ' + (json.error || 'Revisa las URLs enviadas.'));
+                    }
+                } catch(e) {
+                    alert('Error de conexión con la IA de Nora.');
+                } finally {
+                    btnAnalyzeSelf.disabled = false;
+                    btnAnalyzeSelf.innerText = '⚡ Analizar mis Programas con Nora IA';
+                }
+            });
+
+            function renderSelfClips() {
+                selfClipsContainer.innerHTML = '';
+                let cumulativeSecs = 0;
+
+                currentSelfClips.forEach(clip => {
+                    const isChecked = selectedSelfClipIds.includes(clip.clip_id);
+                    if (isChecked) cumulativeSecs += clip.duration_seconds;
+
+                    const div = document.createElement('div');
+                    div.className = 'clip-select-item';
+                    div.innerHTML = `
+                        <div style="flex:1;">
+                            <span style="font-size:10px; background:#e0f2fe; color:#0369a1; padding:2px 6px; border-radius:4px; font-weight:bold; uppercase">${clip.source_title || 'Programa'}</span>
+                            <span style="font-size:11px; color:#d97706; font-weight:bold; margin-left:6px;">${clip.start_timestamp} - ${clip.end_timestamp}</span>
+                            <h5 style="margin:4px 0 2px 0; font-size:13px;">${clip.title}</h5>
+                            <p style="margin:0; font-size:11px; color:#64748b;">${clip.summary}</p>
+                        </div>
+                        <input type="checkbox" class="chkSelfClip" data-id="${clip.clip_id}" ${isChecked ? 'checked' : ''} style="transform:scale(1.2); cursor:pointer;" />
+                    `;
+                    selfClipsContainer.appendChild(div);
+                });
+
+                const durationMin = Math.floor(cumulativeSecs / 60);
+                const durationSec = cumulativeSecs % 60;
+                selfCumulativeDuration.innerText = `Duración: ${durationMin}m ${durationSec}s / 5m 0s`;
+
+                document.querySelectorAll('.chkSelfClip').forEach(chk => {
+                    chk.addEventListener('change', function() {
+                        const id = parseInt(this.getAttribute('data-id'), 10);
+                        if (this.checked) {
+                            if (!selectedSelfClipIds.includes(id)) selectedSelfClipIds.push(id);
+                        } else {
+                            selectedSelfClipIds = selectedSelfClipIds.filter(i => i !== id);
+                        }
+                        renderSelfClips();
+                    });
+                });
+            }
+
+            btnPublishSelfFlash.addEventListener('click', async function() {
+                const selectedClips = currentSelfClips.filter(c => selectedSelfClipIds.includes(c.clip_id));
+                if (selectedClips.length === 0) {
+                    alert('Selecciona al menos 1 recorte para publicar.');
+                    return;
+                }
+
+                const title = selfFlashTitleInput.value.trim() || '🔴 FLASH NOTICIOSO CADENA 4';
+                const cumulativeSecs = selectedClips.reduce((acc, c) => acc + c.duration_seconds, 0);
+                const firstClip = selectedClips[0];
+
+                btnPublishSelfFlash.disabled = true;
+                btnPublishSelfFlash.innerText = 'Publicando...';
+
+                try {
+                    const embedUrl = firstClip.video_url || 'https://www.youtube.com/embed/';
+                    const summary = selectedClips.map(c => `• [${c.source_title || 'Programa'}] ${c.title}: ${c.summary}`).join('\n');
+
+                    // 1. Post to Nexativa Flashes API
+                    const apiRes = await fetch(postFlashEndpoint, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            title: title,
+                            summary: summary,
+                            duration_seconds: cumulativeSecs,
+                            video_url: firstClip.video_url || '',
+                            embed_url: embedUrl,
+                            segments: selectedClips,
+                            category: firstClip.category || 'nacional',
+                            partner_visible: true,
+                            status: 'published'
+                        })
+                    });
+
+                    // 2. Post to WP Rest Endpoint
+                    const content = `<h2>${title}</h2><p>${summary}</p><br><iframe width="100%" height="450" src="${embedUrl}" frameborder="0" allowfullscreen></iframe>`;
+                    const wpRes = await fetch(wpRestEndpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-WP-Nonce': wpNonce
+                        },
+                        body: JSON.stringify({
+                            title: title,
+                            content: content,
+                            excerpt: summary.substring(0, 150)
+                        })
+                    });
+
+                    const wpData = await wpRes.json();
+                    if (wpData.success) {
+                        alert('🎉 ¡Flash Noticioso publicado con éxito en tu WordPress!\n\nLink: ' + wpData.permalink);
+                        selfAnalysisResults.style.display = 'none';
+                        selfAnalyzeUrlsInput.value = '';
+                        loadFlashes();
+                    } else {
+                        alert('Error publicando en WordPress: ' + (wpData.message || 'Error en servidor'));
+                    }
+                } catch(e) {
+                    alert('Error en la publicación.');
+                } finally {
+                    btnPublishSelfFlash.disabled = false;
+                    btnPublishSelfFlash.innerText = '🚀 PUBLICAR MI NOTICIERO FLASH EN MI DIARIO';
+                }
+            });
+
             // Handle Partner Video Upload / Submit to Nexativa Studio
             const btnSendPartnerVideo = document.getElementById('btnSendPartnerVideo');
             const partnerVideoUrlInput = document.getElementById('partnerVideoUrl');
-            const partnerVideoNotesInput = document.getElementById('partnerVideoNotes');
             const partnerVideoMsg = document.getElementById('partnerVideoMsg');
 
             btnSendPartnerVideo.addEventListener('click', async function() {
                 const videoUrl = partnerVideoUrlInput.value.trim();
-                const notes = partnerVideoNotesInput.value.trim();
-
-                if (!videoUrl) {
-                    alert('Por favor ingresa la URL de tus transmisiones del día.');
-                    return;
-                }
+                if (!videoUrl) return;
 
                 btnSendPartnerVideo.disabled = true;
-                btnSendPartnerVideo.innerText = 'Enviando a Estudio Nexativa...';
-                partnerVideoMsg.style.display = 'none';
+                btnSendPartnerVideo.innerText = 'Enviando...';
 
                 try {
                     const res = await fetch(partnerVideosEndpoint, {
@@ -332,25 +529,19 @@ function nora_live_admin_page() {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             partner_name: 'Cadena 4',
-                            title: 'Lote de Programas del Día',
-                            video_url: videoUrl,
-                            notes: notes
+                            title: 'Cobertura Enviada por Cliente',
+                            video_url: videoUrl
                         })
                     });
                     const json = await res.json();
                     if (json.success) {
-                        partnerVideoMsg.innerText = '🎉 ¡Programas recibidos en Estudio Nexativa! El equipo los procesará y armará tu Flash Noticioso Combinado a la brevedad.';
+                        partnerVideoMsg.innerText = '🎉 ¡Video recibido en Estudio!';
                         partnerVideoMsg.style.display = 'block';
                         partnerVideoUrlInput.value = '';
-                        partnerVideoNotesInput.value = '';
-                    } else {
-                        alert('Error al enviar videos: ' + (json.error || 'Fallo de servidor'));
                     }
-                } catch(e) {
-                    alert('Error de conexión con Estudio Nexativa.');
-                } finally {
+                } catch(e) {} finally {
                     btnSendPartnerVideo.disabled = false;
-                    btnSendPartnerVideo.innerText = '🚀 Enviar Programas a Estudio Nexativa para Edición & Flash';
+                    btnSendPartnerVideo.innerText = 'Enviar a Estudio';
                 }
             });
 
