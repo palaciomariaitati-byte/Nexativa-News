@@ -35,8 +35,11 @@ import {
   ChevronUp,
   Plus,
   Globe,
-  Archive
+  Archive,
+  QrCode,
+  ShieldAlert
 } from "lucide-react";
+import Link from "next/link";
 import { getClosestLocation, parseCoordinates } from "@/lib/location-db";
 import { supabase } from "@/lib/supabase/client";
 import { getStaffRole } from "../../actions";
@@ -437,15 +440,25 @@ export default function CorresponsalStagingPage() {
           <p className="text-xs text-white/50 uppercase tracking-widest mt-1">Staging Buffer Editorial & Copias Periodísticas</p>
         </div>
         
-        {userRole && !userRole.startsWith("partner:") && (
-          <button
-            onClick={() => setSettingsOpen(!settingsOpen)}
-            className="bg-white/5 hover:bg-white/10 border border-white/10 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors flex-shrink-0 flex items-center gap-2"
+        <div className="flex items-center gap-3">
+          <Link
+            href="/admin/news/qr"
+            className="bg-red-600/20 hover:bg-red-600/30 border border-red-500/40 text-red-300 px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2"
           >
-            <Settings className="w-4 h-4 text-[var(--color-brand-accent)]" />
-            {settingsOpen ? "Cerrar Configuración" : "Configurar Socios (Portales)"}
-          </button>
-        )}
+            <QrCode className="w-4 h-4 text-red-400" />
+            📱 Generar QR Periodismo Ciudadano
+          </Link>
+
+          {userRole && !userRole.startsWith("partner:") && (
+            <button
+              onClick={() => setSettingsOpen(!settingsOpen)}
+              className="bg-white/5 hover:bg-white/10 border border-white/10 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors flex-shrink-0 flex items-center gap-2"
+            >
+              <Settings className="w-4 h-4 text-[var(--color-brand-accent)]" />
+              {settingsOpen ? "Cerrar Configuración" : "Configurar Socios (Portales)"}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Settings Form */}

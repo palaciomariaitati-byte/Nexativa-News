@@ -56,6 +56,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
             Cola de Corresponsal
           </Link>
+          <Link href="/admin/news/qr" className={`px-4 py-2 rounded-lg text-sm transition-colors text-emerald-400 font-bold hover:bg-white/10 flex items-center gap-2`}>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            📱 QR Periodismo Ciudadano
+          </Link>
           <Link href="/admin/culture" className={`px-4 py-2 rounded-lg text-sm transition-colors hover:bg-white/10`}>
             Espacio Cultural
           </Link>
