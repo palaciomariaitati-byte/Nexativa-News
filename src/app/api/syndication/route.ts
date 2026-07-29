@@ -130,8 +130,8 @@ export async function POST(request: Request) {
         audio_url: null,
         status,
         transcription: transcriptionText,
-        version_nexativa,
-        version_partner,
+        version_nexativa: versionNexativa,
+        version_partner: versionPartner,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }])

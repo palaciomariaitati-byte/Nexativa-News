@@ -40,7 +40,7 @@ export async function POST(request: Request) {
         `py -m yt_dlp --no-check-certificates --no-playlist -f "bestaudio/best" -o "${outputPattern}" "${url}"`
       ];
 
-      return new Promise((resolve) => {
+      return new Promise<Response>((resolve) => {
         let cmdIdx = 0;
         let lastErr = "";
         const tryNextCommand = () => {
@@ -87,7 +87,7 @@ export async function POST(request: Request) {
         `yt-dlp --no-check-certificates --no-playlist -f "best" -o "${outputPattern}" "${url}"`
       ];
 
-      return new Promise((resolve) => {
+      return new Promise<Response>((resolve) => {
         let cmdIdx = 0;
         let lastErr = "";
         const tryNextCommand = () => {
