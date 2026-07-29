@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import Image from "next/image";
 import Link from "next/link";
 import React, { Suspense } from "react";
-import { getPublishedArticles, getProducts, getSponsors, getActiveCampaigns } from "@/lib/supabase/serverQueries";
+import { getPublishedArticles, getProducts, getSponsors, getActiveCampaigns, getLatestNewsFlashes } from "@/lib/supabase/serverQueries";
 import type { Product, Sponsor } from "@/lib/types";
 import NewsTabs from "@/components/NewsTabs/NewsTabs";
 import VideoSection from "@/components/VideoSection";
@@ -12,6 +12,7 @@ import SponsorsMarquee from "@/components/SponsorsMarquee";
 import TopBusBar from "@/components/TopBusBar";
 import SponsorTabs from "@/components/SponsorTabs";
 import AlientoPatrio from "@/components/AlientoPatrio";
+import NewsFlashHomeWidget from "@/components/NewsFlashHomeWidget";
 import { Sparkles } from "lucide-react";
 // -----------------------------------------------------------------
 // Mock data (static) — kept for non-news columns
@@ -97,11 +98,12 @@ function NewsTabsSkeleton() {
 // -----------------------------------------------------------------
 export default async function HomePage() {
   // Fetch everything in parallel on the server
-  const [initialArticles, products, sponsors, activeCampaigns] = await Promise.all([
+  const [initialArticles, products, sponsors, activeCampaigns, newsFlashes] = await Promise.all([
     getPublishedArticles("nacional"),
     getProducts(),
     getSponsors(),
     getActiveCampaigns(),
+    getLatestNewsFlashes(5),
   ]);
 
   // Sticky video logic moved to <StickyVideo /> client component
@@ -126,6 +128,11 @@ export default async function HomePage() {
       <div className="w-full max-w-7xl px-2 sm:px-4 lg:px-8 mt-8 sm:mt-12 space-y-10 sm:space-y-16 relative">
         {/* ⚽ Central de Resultados & Fútbol Mundial */}
         <AlientoPatrio />
+
+        {/* 🔴 Flash Noticioso Widget (Si hay noticieros publicados) */}
+        {newsFlashes && newsFlashes.length > 0 && (
+          <NewsFlashHomeWidget flashes={newsFlashes} />
+        )}
 
         {/* 2️⃣ Streaming (Prominent at top) */}
         <section className="w-full relative">

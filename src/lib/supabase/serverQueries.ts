@@ -23,6 +23,28 @@ export async function getPublishedArticles(category: string): Promise<Article[]>
   }
 }
 
+export async function getLatestNewsFlashes(limit = 5): Promise<any[]> {
+  try {
+    const supabase = createServerSupabaseClient();
+    const { data, error } = await supabase
+      .from("news_flashes")
+      .select("*")
+      .eq("status", "published")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      if (error.code === "42P01") return [];
+      console.error("Error fetching news flashes:", error);
+      return [];
+    }
+    return data || [];
+  } catch (error) {
+    console.error("Error in getLatestNewsFlashes:", error);
+    return [];
+  }
+}
+
 export async function getProducts(): Promise<Product[]> {
   try {
     const supabase = createServerSupabaseClient();
