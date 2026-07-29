@@ -129,8 +129,10 @@ export default async function HomePage() {
         {/* ⚽ Central de Resultados & Fútbol Mundial */}
         <AlientoPatrio />
 
-        {/* 🔴 Flash Noticioso Widget */}
-        <NewsFlashHomeWidget flashes={newsFlashes} />
+        {/* 🔴 Flash Noticioso Widget (Solo visible si hay noticieros publicados) */}
+        {newsFlashes && newsFlashes.length > 0 && (
+          <NewsFlashHomeWidget flashes={newsFlashes} />
+        )}
 
         {/* 2️⃣ Streaming (Prominent at top) */}
         <section className="w-full relative">
