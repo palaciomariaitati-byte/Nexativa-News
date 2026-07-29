@@ -33,6 +33,13 @@ export default async function AdminOverviewPage() {
             </h3>
             <p className="text-sm text-white/70">Redactora Jefa en vivo para coberturas móviles desde tu celular.</p>
           </Link>
+          <Link href="/admin/news/flashes" className="bg-gradient-to-br from-red-950/40 to-slate-900 hover:from-red-900/50 border border-red-500/40 hover:border-red-500 p-4 rounded-lg transition-all block shadow-lg">
+            <h3 className="font-bold mb-2 flex items-center gap-2 text-red-400 uppercase tracking-wider">
+              <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
+              Flash de Noticias (1-5 min)
+            </h3>
+            <p className="text-sm text-white/70">Emite y reproduce los noticieros rápidos ensamblados con Nora Clipper para la portada y socios.</p>
+          </Link>
           <Link href="/admin/culture" className="bg-black/20 hover:bg-black/40 border border-transparent hover:border-white/10 p-4 rounded-lg transition-all block">
             <h3 className="font-bold mb-2">Espacio Cultural</h3>
             <p className="text-sm text-white/70">Gestiona los artículos de arte, cultura e historia local. (Todos los roles)</p>

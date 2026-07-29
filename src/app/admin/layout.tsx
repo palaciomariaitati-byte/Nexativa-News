@@ -44,6 +44,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
             Nora Live Editor
           </Link>
+          <Link href="/admin/news/flashes" className={`px-4 py-2 rounded-lg text-sm transition-colors text-red-400 font-bold hover:bg-white/10 flex items-center gap-2`}>
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+            Flash de Noticias (1-5 min)
+          </Link>
           <Link href="/admin/news/clipper" className={`px-4 py-2 rounded-lg text-sm transition-colors text-purple-400 font-bold hover:bg-white/10 flex items-center gap-2`}>
             <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
             Nora Auto-Clipper Pro

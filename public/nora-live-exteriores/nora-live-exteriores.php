@@ -2,8 +2,8 @@
 /**
  * Plugin Name: Nora Live Exteriores - Cadena 4 & Nexativa
  * Plugin URI: https://cadena4.com.ar
- * Description: Herramienta de cobertura periodística en vivo con Inteligencia Artificial (NORA) para corresponsales y movileros de Cadena 4 y Nexativa News.
- * Version: 1.0.0
+ * Description: Herramienta de cobertura periodística en vivo y emisor de Flash de Noticias (1-5 min) con Inteligencia Artificial (NORA).
+ * Version: 1.1.0
  * Author: Nexativa News & Cadena 4
  */
 
@@ -86,20 +86,25 @@ function nora_live_admin_page() {
     ?>
     <div class="wrap">
         <h1 style="display:flex; align-items:center; gap:10px; margin-bottom: 5px;">
-            <span style="color:#e53e3e;">🔴</span> Nora Live Exteriores
+            <span style="color:#e53e3e;">🔴</span> Nora Live Exteriores & Flash Noticioso
             <span style="font-size:12px; background:#2563eb; color:#fff; padding:3px 10px; border-radius:12px; font-weight:bold;">Cadena 4 & Nexativa</span>
         </h1>
-        <p style="color:#666; font-size:14px; margin-top:0;">Redactora Jefa con Inteligencia Artificial para movileros y corresponsales en el lugar de los hechos.</p>
+        <p style="color:#666; font-size:14px; margin-top:0;">Redactora Jefa con Inteligencia Artificial & Emisor de Noticieros Rápidos (1 a 5 min).</p>
+
+        <!-- Navigation Tabs -->
+        <div style="display:flex; gap:10px; border-bottom:2px solid #e2e8f0; margin-bottom:20px; padding-bottom:10px;">
+            <button type="button" id="tabLiveBtn" class="button button-primary" style="font-weight:bold;">🎤 Cobertura & Redacción en Vivo</button>
+            <button type="button" id="tabFlashBtn" class="button" style="font-weight:bold; color:#dc2626;">🔴 Flash de Noticias (1-5 min)</button>
+        </div>
         
         <style>
-            #nora-live-container {
+            #nora-live-container, #nora-flashes-container {
                 display: flex;
                 gap: 20px;
-                margin-top: 20px;
                 max-width: 1200px;
             }
             @media (max-width: 768px) {
-                #nora-live-container {
+                #nora-live-container, #nora-flashes-container {
                     flex-direction: column;
                 }
             }
@@ -149,9 +154,6 @@ function nora_live_admin_page() {
                 line-height: 1.6;
                 outline: none;
             }
-            .nora-draft-area:focus {
-                border-color: #3b82f6;
-            }
             .nora-btn-publish {
                 background: #dc2626 !important;
                 color: #fff !important;
@@ -164,15 +166,20 @@ function nora_live_admin_page() {
                 text-transform: uppercase;
                 letter-spacing: 0.5px;
             }
-            .nora-btn-publish:hover {
-                background: #b91c1c !important;
-            }
             .nora-btn-publish:disabled {
                 opacity: 0.5;
                 cursor: not-allowed;
             }
+            .flash-card {
+                border: 1px solid #cbd5e1;
+                border-radius: 10px;
+                padding: 15px;
+                margin-bottom: 15px;
+                background: #f8fafc;
+            }
         </style>
 
+        <!-- SECTION 1: LIVE EDITOR -->
         <div id="nora-live-container">
             <!-- Columna Izquierda: Reporte del Movilero -->
             <div class="nora-box">
@@ -215,14 +222,132 @@ function nora_live_admin_page() {
             </div>
         </div>
 
+        <!-- SECTION 2: FLASH DE NOTICIAS -->
+        <div id="nora-flashes-container" style="display:none;">
+            <div class="nora-box" style="max-width:100%;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                    <h2 style="margin:0; font-size:16px; color:#dc2626;">🔴 Noticieros Rápidos Disponibles (Flash 1 a 5 min)</h2>
+                    <button type="button" class="button" id="btnReloadFlashes">🔄 Cargar Últimos Flashes</button>
+                </div>
+                <p style="color:#64748b; font-size:13px; margin-top:0;">Selecciona cualquier Flash emitido por Nora AI y publícalo instantáneamente en la portada de tu portal WordPress.</p>
+
+                <div id="flashesList" style="margin-top:15px;">
+                    <p style="color:#94a3b8;">Cargando lista de Flashes...</p>
+                </div>
+            </div>
+        </div>
+
         <script>
         (function() {
             const apiEndpoint = '<?php echo esc_js($api_url); ?>/api/nora-live';
+            const flashesApiEndpoint = '<?php echo esc_js($api_url); ?>/api/flashes?limit=10&partner_only=true';
             const wpRestEndpoint = '/wp-json/nora-live/v1/publish';
             const wpNonce = '<?php echo esc_js($nonce); ?>';
             
             let currentDraft = '';
             let isProcessing = false;
+
+            // Tab switching logic
+            const tabLiveBtn = document.getElementById('tabLiveBtn');
+            const tabFlashBtn = document.getElementById('tabFlashBtn');
+            const liveContainer = document.getElementById('nora-live-container');
+            const flashesContainer = document.getElementById('nora-flashes-container');
+
+            tabLiveBtn.addEventListener('click', function() {
+                tabLiveBtn.className = 'button button-primary';
+                tabFlashBtn.className = 'button';
+                liveContainer.style.display = 'flex';
+                flashesContainer.style.display = 'none';
+            });
+
+            tabFlashBtn.addEventListener('click', function() {
+                tabFlashBtn.className = 'button button-primary';
+                tabLiveBtn.className = 'button';
+                liveContainer.style.display = 'none';
+                flashesContainer.style.display = 'flex';
+                loadFlashes();
+            });
+
+            const btnReloadFlashes = document.getElementById('btnReloadFlashes');
+            btnReloadFlashes.addEventListener('click', loadFlashes);
+
+            async function loadFlashes() {
+                const listEl = document.getElementById('flashesList');
+                listEl.innerHTML = '<p style="color:#94a3b8;">Cargando últimos Flashes de Noticias...</p>';
+                try {
+                    const res = await fetch(flashesApiEndpoint);
+                    const json = await res.json();
+                    if (json.success && json.flashes && json.flashes.length > 0) {
+                        listEl.innerHTML = '';
+                        json.flashes.forEach(flash => {
+                            const durationMin = Math.floor(flash.duration_seconds / 60);
+                            const durationSec = flash.duration_seconds % 60;
+                            const embedUrl = flash.embed_url || flash.video_url;
+
+                            const card = document.createElement('div');
+                            card.className = 'flash-card';
+                            card.innerHTML = `
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                                    <span style="font-weight:bold; color:#dc2626; text-transform:uppercase; font-size:12px;">🔴 FLASH (${durationMin}m ${durationSec}s)</span>
+                                    <span style="font-size:11px; color:#64748b;">${new Date(flash.created_at).toLocaleDateString()}</span>
+                                </div>
+                                <h3 style="margin:0 0 8px 0; font-size:16px;">${flash.title}</h3>
+                                <p style="font-size:13px; color:#334155; margin-bottom:12px;">${flash.summary}</p>
+                                <div style="margin-bottom:12px; background:#000; border-radius:8px; overflow:hidden; aspect-ratio:16/9;">
+                                    <iframe src="${embedUrl}" width="100%" height="280" frameborder="0" allowfullscreen></iframe>
+                                </div>
+                                <button type="button" class="nora-btn-publish btnPublishFlash" data-title="${encodeURIComponent(flash.title)}" data-summary="${encodeURIComponent(flash.summary)}" data-embed="${encodeURIComponent(embedUrl)}">
+                                    ¡PUBLICAR ESTE FLASH EN MI DIARIO!
+                                </button>
+                            `;
+                            listEl.appendChild(card);
+                        });
+
+                        document.querySelectorAll('.btnPublishFlash').forEach(btn => {
+                            btn.addEventListener('click', async function() {
+                                const title = decodeURIComponent(this.getAttribute('data-title'));
+                                const summary = decodeURIComponent(this.getAttribute('data-summary'));
+                                const embed = decodeURIComponent(this.getAttribute('data-embed'));
+                                
+                                this.disabled = true;
+                                this.innerText = 'Publicando...';
+
+                                const content = `<h2>${title}</h2><p>${summary}</p><br><iframe width="100%" height="450" src="${embed}" frameborder="0" allowfullscreen></iframe>`;
+
+                                try {
+                                    const res = await fetch(wpRestEndpoint, {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'X-WP-Nonce': wpNonce
+                                        },
+                                        body: JSON.stringify({
+                                            title: title,
+                                            content: content,
+                                            excerpt: summary.substring(0, 150)
+                                        })
+                                    });
+                                    const data = await res.json();
+                                    if (data.success) {
+                                        alert('🎉 ¡Flash de Noticias publicado con éxito en tu WordPress!\n\nLink: ' + data.permalink);
+                                    } else {
+                                        alert('Error al publicar: ' + (data.message || 'Error en servidor'));
+                                    }
+                                } catch(e) {
+                                    alert('Error de comunicación con WordPress.');
+                                } finally {
+                                    this.disabled = false;
+                                    this.innerText = '¡PUBLICAR ESTE FLASH EN MI DIARIO!';
+                                }
+                            });
+                        });
+                    } else {
+                        listEl.innerHTML = '<p style="color:#64748b;">No hay Flashes de noticias disponibles por el momento.</p>';
+                    }
+                } catch(e) {
+                    listEl.innerHTML = '<p style="color:#dc2626;">Error cargando Flashes de Noticias desde la API de Nexativa.</p>';
+                }
+            }
 
             const chatEl = document.getElementById('noraChat');
             const inputEl = document.getElementById('noraInput');
