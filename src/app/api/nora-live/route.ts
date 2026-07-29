@@ -99,27 +99,44 @@ ${message || "(No envió mensaje de texto, revisa las imágenes o audios adjunto
       }
     }
 
+    const candidateKeys = Array.from(new Set([
+      process.env.GEMINI_API_KEY,
+      process.env.GEMINI_API_KEY_FALLBACK,
+      process.env.GEMINI_API_KEY_FALLBACK_2,
+      process.env.GEMINI_API_KEY_TERTIARY
+    ].filter(Boolean))) as string[];
+
+    const primaryModel = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+    const candidateModels = Array.from(new Set([primaryModel, "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]));
+
     let text = "";
-    try {
-      const result = await model.generateContent(parts);
-      const response = await result.response;
-      text = response.text();
-    } catch (apiError: any) {
-      console.warn("Nora Live primary API error, attempting fallback:", apiError.message);
-      if (process.env.GEMINI_API_KEY_FALLBACK) {
-        try {
-          const fallbackGenAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY_FALLBACK);
-          const fallbackModel = fallbackGenAI.getGenerativeModel({ model: modelId });
-          const fallbackResult = await fallbackModel.generateContent(parts);
-          const fallbackResponse = await fallbackResult.response;
-          text = fallbackResponse.text();
-        } catch (fallbackError: any) {
-          console.error("Nora Live fallback API error:", fallbackError);
-          throw new Error(`Ambas API Keys fallaron. Error primario: ${apiError.message}. Error secundario: ${fallbackError.message}`);
+    let lastError: any = null;
+
+    for (const modelName of candidateModels) {
+      if (text) break;
+      for (const key of candidateKeys) {
+        if (text) break;
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          try {
+            const genAI = new GoogleGenerativeAI(key);
+            const model = genAI.getGenerativeModel({ model: modelName });
+            const result = await model.generateContent(parts);
+            const response = await result.response;
+            text = response.text();
+            if (text) break;
+          } catch (err: any) {
+            lastError = err;
+            console.warn(`[Nora Live API] Falló ${modelName} (intento ${attempt}):`, err.message);
+            if (attempt < 2 && (err.message?.includes("503") || err.message?.includes("high demand") || err.message?.includes("429"))) {
+              await new Promise(res => setTimeout(res, 1000));
+            }
+          }
         }
-      } else {
-        throw apiError;
       }
+    }
+
+    if (!text) {
+      throw new Error(`Todas las API Keys / modelos de respaldo fallaron: ${lastError?.message || lastError}`);
     }
 
     let reply = "Borrador actualizado.";

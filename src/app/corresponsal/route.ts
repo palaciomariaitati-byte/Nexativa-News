@@ -5,9 +5,12 @@ import supabaseAdmin from "@/lib/supabase/admin";
 
 // Volatile audio transcription using multi-model fallback
 async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  const fallbackApiKey = process.env.GEMINI_API_KEY_FALLBACK;
-  const candidateKeys = [apiKey, fallbackApiKey].filter(Boolean) as string[];
+  const candidateKeys = Array.from(new Set([
+    process.env.GEMINI_API_KEY,
+    process.env.GEMINI_API_KEY_FALLBACK,
+    process.env.GEMINI_API_KEY_FALLBACK_2,
+    process.env.GEMINI_API_KEY_TERTIARY
+  ].filter(Boolean))) as string[];
 
   if (candidateKeys.length === 0) {
     throw new Error("Ni GEMINI_API_KEY ni GEMINI_API_KEY_FALLBACK están configuradas.");
@@ -58,9 +61,12 @@ Devuelve ÚNICAMENTE la transcripción limpia y corregida del mensaje periodíst
 
 // Cognitive copywriting generating exactly TWO independent versions in a single pass
 export async function generateArticles(transcription: string, locationContext: string, operatorName: string): Promise<any> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  const fallbackApiKey = process.env.GEMINI_API_KEY_FALLBACK;
-  const candidateKeys = [apiKey, fallbackApiKey].filter(Boolean) as string[];
+  const candidateKeys = Array.from(new Set([
+    process.env.GEMINI_API_KEY,
+    process.env.GEMINI_API_KEY_FALLBACK,
+    process.env.GEMINI_API_KEY_FALLBACK_2,
+    process.env.GEMINI_API_KEY_TERTIARY
+  ].filter(Boolean))) as string[];
 
   if (candidateKeys.length === 0) {
     throw new Error("Ni GEMINI_API_KEY ni GEMINI_API_KEY_FALLBACK están configuradas.");
