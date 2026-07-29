@@ -1,6 +1,19 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: corsHeaders,
+  });
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -15,7 +28,7 @@ export async function POST(request: Request) {
     }
 
     if (videoUrlsList.length === 0 && !rawText) {
-      return NextResponse.json({ error: "Se requiere al menos 1 URL de video de YouTube o transcripción." }, { status: 400 });
+      return NextResponse.json({ error: "Se requiere al menos 1 URL de video de YouTube o transcripción." }, { status: 400, headers: corsHeaders });
     }
 
     const candidateKeys = Array.from(new Set([
@@ -142,12 +155,12 @@ IMPORTANTE: Responde ÚNICAMENTE con el objeto JSON válido.
       success: true,
       data: parsedData,
       video_urls: videoUrlsList
-    });
+    }, { headers: corsHeaders });
   } catch (error: any) {
     console.error("[Nora Clip Multi-Video Error]:", error);
     return NextResponse.json({
       success: false,
       error: error.message || "Error procesando el lote de videos."
-    }, { status: 500 });
+    }, { status: 500, headers: corsHeaders });
   }
 }

@@ -3,6 +3,19 @@ import supabaseAdmin from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: corsHeaders,
+  });
+}
+
 // GET: Fetch published News Flashes
 export async function GET(request: Request) {
   try {
@@ -26,14 +39,14 @@ export async function GET(request: Request) {
     if (error) {
       // If table doesn't exist yet, return empty list gracefully
       if (error.code === "42P01") {
-        return NextResponse.json({ success: true, flashes: [] });
+        return NextResponse.json({ success: true, flashes: [] }, { headers: corsHeaders });
       }
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return NextResponse.json({ success: false, error: error.message }, { status: 500, headers: corsHeaders });
     }
 
-    return NextResponse.json({ success: true, flashes: data || [] });
+    return NextResponse.json({ success: true, flashes: data || [] }, { headers: corsHeaders });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message || "Error de servidor" }, { status: 500 });
+    return NextResponse.json({ success: false, error: err.message || "Error de servidor" }, { status: 500, headers: corsHeaders });
   }
 }
 
@@ -42,27 +55,23 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const {
-      title,
-      summary,
+      title = "🔴 FLASH DE NOTICIAS NEXATIVA",
+      summary = "",
       duration_seconds = 180,
-      video_url,
-      thumbnail_url,
-      embed_url,
+      video_url = "",
+      thumbnail_url = "",
+      embed_url = "",
       segments = [],
-      category = "nacional",
+      category = "general",
       partner_visible = true,
       status = "published"
     } = body;
-
-    if (!title || !video_url) {
-      return NextResponse.json({ success: false, error: "El título y la URL del video son requeridos." }, { status: 400 });
-    }
 
     const { data, error } = await supabaseAdmin
       .from("news_flashes")
       .insert([{
         title,
-        summary: summary || title,
+        summary,
         duration_seconds,
         video_url,
         thumbnail_url,
@@ -77,12 +86,16 @@ export async function POST(request: Request) {
       .single();
 
     if (error) {
-      console.error("[News Flashes API] Error guardando flash:", error.message);
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      console.error("[News Flashes API] Error guardando Flash:", error.message);
+      return NextResponse.json({ success: false, error: error.message }, { status: 500, headers: corsHeaders });
     }
 
-    return NextResponse.json({ success: true, flash: data });
+    return NextResponse.json({
+      success: true,
+      message: "Flash Noticioso guardado y emitido con éxito.",
+      flash: data
+    }, { headers: corsHeaders });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message || "Error interno de servidor" }, { status: 500 });
+    return NextResponse.json({ success: false, error: err.message || "Error interno de servidor" }, { status: 500, headers: corsHeaders });
   }
 }
