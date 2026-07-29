@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Play, Sparkles, Copy, Check, Video, Clock, Share2, Film, Loader2, ArrowRight, Zap, Radio, Download, Inbox, ShieldCheck } from "lucide-react";
+import { Play, Sparkles, Copy, Check, Video, Clock, Share2, Film, Loader2, ArrowRight, Zap, Radio, Download, Inbox, ShieldCheck, Layers, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import CleanFlashPlayer from "@/components/CleanFlashPlayer";
 
 type ClipItem = {
   clip_id: number;
+  video_url?: string;
+  source_title?: string;
   title: string;
   start_time_seconds: number;
   end_time_seconds: number;
@@ -44,14 +46,12 @@ type PartnerVideo = {
 };
 
 export default function NoraClipperAdminPage() {
-  const [youtubeUrl, setYoutubeUrl] = useState("");
+  const [youtubeUrlsText, setYoutubeUrlsText] = useState("");
   const [videoTitle, setVideoTitle] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [resultData, setResultData] = useState<ClipperResponse | null>(null);
   const [activeClip, setActiveClip] = useState<ClipItem | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
-  const [publishingId, setPublishingId] = useState<number | null>(null);
-  const [publishedId, setPublishedId] = useState<number | null>(null);
 
   // Partner Videos Inbox State
   const [partnerVideos, setPartnerVideos] = useState<PartnerVideo[]>([]);
@@ -83,14 +83,24 @@ export default function NoraClipperAdminPage() {
     fetchPartnerVideos();
   }, []);
 
-  const getYouTubeId = (url: string) => {
+  const getYouTubeId = (url?: string) => {
+    if (!url) return null;
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
     const match = url.match(regExp);
     return (match && match[2].length === 11) ? match[2] : null;
   };
 
   const handleAnalyze = async () => {
-    if (!youtubeUrl.trim()) return;
+    const urlsList = youtubeUrlsText
+      .split(/[\n,]+/)
+      .map(u => u.trim())
+      .filter(Boolean);
+
+    if (urlsList.length === 0) {
+      alert("Por favor ingresa al menos 1 enlace de video de YouTube/transmisión.");
+      return;
+    }
+
     setIsAnalyzing(true);
     setResultData(null);
     setActiveClip(null);
@@ -102,8 +112,8 @@ export default function NoraClipperAdminPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          url: youtubeUrl,
-          videoTitle: videoTitle || "Video de Cobertura Periodística"
+          urls: urlsList,
+          videoTitle: videoTitle || "Coberturas y Noticieros del Día"
         })
       });
 
@@ -112,12 +122,12 @@ export default function NoraClipperAdminPage() {
         setResultData(json.data);
         if (json.data.clips && json.data.clips.length > 0) {
           setActiveClip(json.data.clips[0]);
-          const defaultFlashIds = json.data.suggested_news_flash?.clip_ids || json.data.clips.slice(0, 3).map((c: ClipItem) => c.clip_id);
+          const defaultFlashIds = json.data.suggested_news_flash?.clip_ids || json.data.clips.slice(0, 5).map((c: ClipItem) => c.clip_id);
           setSelectedFlashClipIds(defaultFlashIds);
-          setFlashTitle(json.data.suggested_news_flash?.title || `🔴 FLASH DE NOTICIAS: ${videoTitle || "Resumen Periodístico"}`);
+          setFlashTitle(json.data.suggested_news_flash?.title || `🔴 FLASH MULTI-NOTICIAS: ${videoTitle || "Resumen del Día"}`);
         }
       } else {
-        alert("Error analizando el video: " + (json.error || "Revisa el enlace enviado."));
+        alert("Error analizando los videos: " + (json.error || "Revisa los enlaces enviados."));
       }
     } catch (e: any) {
       alert("Error de conexión: " + e.message);
@@ -127,15 +137,9 @@ export default function NoraClipperAdminPage() {
   };
 
   const handleProcessPartnerVideo = (pv: PartnerVideo) => {
-    setYoutubeUrl(pv.video_url);
+    setYoutubeUrlsText(pv.video_url);
     setVideoTitle(`${pv.partner_name}: ${pv.title}`);
     window.scrollTo({ top: 300, behavior: "smooth" });
-  };
-
-  const handleCopyCaption = (clip: ClipItem) => {
-    navigator.clipboard.writeText(clip.social_caption);
-    setCopiedId(clip.clip_id);
-    setTimeout(() => setCopiedId(null), 2000);
   };
 
   const handleToggleFlashClip = (clipId: number) => {
@@ -159,27 +163,24 @@ export default function NoraClipperAdminPage() {
     setFlashSuccessMsg(null);
 
     try {
-      const ytId = getYouTubeId(youtubeUrl);
       const firstClip = selectedClipsList[0];
-      const lastClip = selectedClipsList[selectedClipsList.length - 1];
-      const startSec = firstClip.start_time_seconds;
-      const endSec = lastClip.end_time_seconds;
-
+      const primaryUrl = firstClip.video_url || youtubeUrlsText.split("\n")[0];
+      const ytId = getYouTubeId(primaryUrl);
       const embedUrl = ytId
-        ? `https://www.youtube.com/embed/${ytId}?start=${startSec}&end=${endSec}&autoplay=1`
-        : youtubeUrl;
+        ? `https://www.youtube.com/embed/${ytId}?start=${firstClip.start_time_seconds}&end=${firstClip.end_time_seconds}&autoplay=1`
+        : primaryUrl;
       const thumbnailUrl = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null;
 
-      const combinedSummary = selectedClipsList.map(c => `• ${c.title}: ${c.summary}`).join("\n");
+      const combinedSummary = selectedClipsList.map(c => `• [${c.source_title || "Programa"}] ${c.title}: ${c.summary}`).join("\n");
 
       const res = await fetch("/api/flashes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: flashTitle.trim() || "🔴 Flash de Noticias Nexativa",
+          title: flashTitle.trim() || "🔴 Flash de Noticias Multi-Programa Nexativa",
           summary: combinedSummary,
           duration_seconds: cumulativeDurationSeconds,
-          video_url: youtubeUrl,
+          video_url: primaryUrl,
           thumbnail_url: thumbnailUrl,
           embed_url: embedUrl,
           segments: selectedClipsList,
@@ -191,7 +192,7 @@ export default function NoraClipperAdminPage() {
 
       const json = await res.json();
       if (json.success) {
-        setFlashSuccessMsg("🎉 ¡Flash de Noticias (1-5 min) publicado con éxito con el reproductor limpio Nexativa Clean Player (Desarrollado por MyJNexoraVisual)!");
+        setFlashSuccessMsg("🎉 ¡Flash Noticioso Multi-Programa (1-5 min) publicado con éxito! Transmitiendo con el reproductor limpio Nexativa Clean Player (por MyJNexoraVisual).");
       } else {
         alert("Error al publicar Flash: " + json.error);
       }
@@ -202,56 +203,19 @@ export default function NoraClipperAdminPage() {
     }
   };
 
-  const handlePublishClipAsArticle = async (clip: ClipItem) => {
-    setPublishingId(clip.clip_id);
-    try {
-      const ytId = getYouTubeId(youtubeUrl);
-      const embedUrl = ytId ? `https://www.youtube.com/embed/${ytId}?start=${clip.start_time_seconds}&end=${clip.end_time_seconds}&autoplay=1` : youtubeUrl;
-      const thumbnailUrl = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null;
-
-      let cat = (clip.category || "nacional").toLowerCase();
-      if (cat.includes("local") || cat.includes("corrientes") || cat.includes("provinc")) cat = "local";
-      else if (cat.includes("inter") || cat.includes("mund")) cat = "internacional";
-      else cat = "nacional";
-
-      const { error } = await supabase.from("articles").insert({
-        title: clip.title,
-        excerpt: clip.summary,
-        content: `<p><strong>${clip.title}</strong></p><p>${clip.summary}</p><br><iframe width="100%" height="400" src="${embedUrl}" frameborder="0" allowfullscreen></iframe><br><p><em>Clip destacado de la cobertura periodística en vivo (Nora Auto-Clipper por MyJNexoraVisual).</em></p>`,
-        status: "published",
-        category: cat,
-        image_url: thumbnailUrl,
-        video_url: embedUrl
-      });
-
-      if (error) {
-        alert("Error al publicar la noticia: " + error.message);
-      } else {
-        setPublishedId(clip.clip_id);
-        alert("🎉 ¡Clip publicado exitosamente en la portada de Nexativa News!");
-      }
-    } catch (e: any) {
-      alert("Error de publicación: " + e.message);
-    } finally {
-      setPublishingId(null);
-    }
-  };
-
-  const ytId = getYouTubeId(youtubeUrl);
-
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-8">
       {/* Header */}
       <div className="bg-gradient-to-r from-red-950 via-black to-slate-900 border border-red-500/30 rounded-2xl p-6 md:p-8 shadow-2xl relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="relative z-10 space-y-2">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-600/20 border border-red-500/30 rounded-full text-red-400 text-xs font-bold uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5" /> Nora Auto-Clipper Pro & Flash Producer
+            <Layers className="w-3.5 h-3.5" /> Multi-Programa Flash Producer (Hasta 5 Videos)
           </div>
           <h1 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">
-            Extractor de Clips & Noticiero Flash (1 a 5 min)
+            Ensamblador Noticioso Multi-Video (1 a 5 min)
           </h1>
           <p className="text-gray-400 text-sm max-w-3xl">
-            Procesa las coberturas de tus periodistas o los **videos entrantes de tus socios**. Nora IA identificará los recortes de mayor impacto para producir **Flashes Noticiosos limpios** sin barras nativas de 60 minutos.
+            Ingresa hasta **5 transmisiones o programas del día** (ej. Mañana, Mediodía, Noche). Nora IA analizará el lote completo y te permitirá mezclar clips de distintos programas en un único **Flash Noticioso continuo**.
           </p>
         </div>
         <div className="text-[10px] text-gray-400 bg-black/60 border border-white/10 px-3 py-2 rounded-xl text-right font-mono">
@@ -265,7 +229,7 @@ export default function NoraClipperAdminPage() {
         <div className="flex items-center justify-between border-b border-white/10 pb-3">
           <div className="flex items-center gap-2">
             <Inbox className="w-5 h-5 text-amber-500" />
-            <h2 className="text-lg font-extrabold text-white">📥 Coberturas Entrantes de Socios / Clientes</h2>
+            <h2 className="text-lg font-extrabold text-white">📥 Coberturas & Programas Entrantes de Socios</h2>
           </div>
           <button
             onClick={fetchPartnerVideos}
@@ -306,31 +270,34 @@ export default function NoraClipperAdminPage() {
         )}
       </div>
 
-      {/* Input Box */}
+      {/* Input Box for Multi-Videos (Up to 5 URLs) */}
       <div className="bg-black/40 border border-white/10 rounded-2xl p-6 shadow-xl space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="md:col-span-2 space-y-2">
-            <label className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-2">
-              <Film className="w-4 h-4 text-red-500" /> Link del Video de YouTube / Cobertura
+            <label className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Film className="w-4 h-4 text-red-500" /> Links de Videos / Programas del Día (Hasta 5 URLs)
+              </span>
+              <span className="text-[10px] text-amber-400 font-mono">1 enlace por línea</span>
             </label>
-            <input 
-              type="text"
-              value={youtubeUrl}
-              onChange={(e) => setYoutubeUrl(e.target.value)}
-              placeholder="https://www.youtube.com/watch?v=..."
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-red-500/50"
+            <textarea 
+              value={youtubeUrlsText}
+              onChange={(e) => setYoutubeUrlsText(e.target.value)}
+              placeholder="Pega las URLs de tus programas del día (hasta 5 links):&#10;https://www.youtube.com/watch?v=... (Noticiero Mañana)&#10;https://www.youtube.com/watch?v=... (Noticiero Noche)"
+              rows={4}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-red-500/50 font-mono resize-none"
             />
           </div>
 
           <div className="space-y-2">
             <label className="text-xs font-bold text-gray-300 uppercase tracking-wider">
-              Título / Referencia del Evento
+              Título / Referencia del Lote Periodístico
             </label>
             <input 
               type="text"
               value={videoTitle}
               onChange={(e) => setVideoTitle(e.target.value)}
-              placeholder="Ej: Conferencia de Prensa / Acto"
+              placeholder="Ej: Emisiones del Día / Noticieros Cadena 4"
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-red-500/50"
             />
           </div>
@@ -338,16 +305,16 @@ export default function NoraClipperAdminPage() {
 
         <button
           onClick={handleAnalyze}
-          disabled={isAnalyzing || !youtubeUrl.trim()}
-          className="w-full md:w-auto bg-gradient-to-r from-red-600 to-red-800 hover:from-red-500 hover:to-red-700 text-white font-bold px-8 py-3.5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+          disabled={isAnalyzing || !youtubeUrlsText.trim()}
+          className="w-full md:w-auto bg-gradient-to-r from-red-600 via-amber-600 to-red-800 hover:from-red-500 hover:to-amber-500 text-white font-bold px-8 py-3.5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
         >
           {isAnalyzing ? (
             <>
-              <Loader2 className="w-5 h-5 animate-spin" /> Analizando Video & Momentos Clave con Nora...
+              <Loader2 className="w-5 h-5 animate-spin" /> Analizando Lote de Programas con Nora IA...
             </>
           ) : (
             <>
-              <Sparkles className="w-5 h-5" /> Decodificar Clips & Producir Flash Noticioso
+              <Sparkles className="w-5 h-5" /> Decodificar Programas & Producir Flash Noticioso
             </>
           )}
         </button>
@@ -359,7 +326,7 @@ export default function NoraClipperAdminPage() {
           {/* Top Bar Summary */}
           <div className="bg-white/5 border border-white/10 rounded-2xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-              <span className="text-xs font-bold text-red-400 uppercase tracking-wider">Resumen Ejecutivo del Evento</span>
+              <span className="text-xs font-bold text-red-400 uppercase tracking-wider">Resumen Ejecutivo del Lote de Programas</span>
               <p className="text-white text-base mt-1 font-medium">{resultData.video_summary}</p>
             </div>
             <div className="bg-red-500/10 border border-red-500/20 px-4 py-2 rounded-xl text-center flex-shrink-0">
@@ -373,9 +340,9 @@ export default function NoraClipperAdminPage() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-red-500/20 pb-4">
               <div>
                 <span className="inline-flex items-center gap-1.5 text-xs font-extrabold text-red-500 uppercase tracking-widest">
-                  <Radio className="w-4 h-4 animate-pulse" /> Ensamblador de Flash de Noticias (1 a 5 min)
+                  <Radio className="w-4 h-4 animate-pulse" /> Ensamblador Multi-Programa de Flash Noticioso (1 a 5 min)
                 </span>
-                <h2 className="text-2xl font-bold text-white mt-1">Noticiero Rápido para Portada & Socios</h2>
+                <h2 className="text-2xl font-bold text-white mt-1">Mezclador de Recortes del Día</h2>
               </div>
               <div className="flex items-center gap-3 bg-black/60 border border-white/10 px-4 py-2 rounded-xl">
                 <Clock className="w-4 h-4 text-amber-400" />
@@ -389,7 +356,7 @@ export default function NoraClipperAdminPage() {
             <div className="space-y-4">
               <div>
                 <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1">
-                  Título del Flash Noticioso
+                  Título del Flash Noticioso Combinado
                 </label>
                 <input 
                   type="text"
@@ -401,7 +368,7 @@ export default function NoraClipperAdminPage() {
               </div>
 
               <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
-                Selecciona los recortes a incluir en este Flash:
+                Selecciona los recortes de los distintos programas para unir en el Flash:
               </span>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -419,8 +386,10 @@ export default function NoraClipperAdminPage() {
                     >
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-black text-amber-400">#{clip.clip_id}</span>
-                          <span className="text-xs bg-white/10 px-2 py-0.5 rounded text-white font-mono">{clip.start_timestamp} - {clip.end_timestamp}</span>
+                          <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded font-bold uppercase">
+                            {clip.source_title || "Programa"}
+                          </span>
+                          <span className="text-xs font-mono text-amber-400">{clip.start_timestamp} - {clip.end_timestamp}</span>
                         </div>
                         <h4 className="text-sm font-bold text-white line-clamp-1">{clip.title}</h4>
                         <p className="text-xs text-gray-400 line-clamp-2">{clip.summary}</p>
@@ -445,15 +414,15 @@ export default function NoraClipperAdminPage() {
               <button
                 onClick={handlePublishNewsFlash}
                 disabled={isPublishingFlash || selectedClipsList.length === 0}
-                className="w-full bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-bold py-3.5 px-6 rounded-xl shadow-xl transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-wider disabled:opacity-50"
+                className="w-full bg-gradient-to-r from-red-600 via-amber-600 to-red-700 hover:from-red-500 hover:to-amber-500 text-white font-bold py-3.5 px-6 rounded-xl shadow-xl transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-wider disabled:opacity-50"
               >
                 {isPublishingFlash ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Publicando Flash de Noticias...
+                    <Loader2 className="w-4 h-4 animate-spin" /> Publicando Flash Noticioso Multi-Programa...
                   </>
                 ) : (
                   <>
-                    <Radio className="w-4 h-4" /> 🚀 Publicar Flash Noticioso ({selectedClipsList.length} clips • {Math.floor(cumulativeDurationSeconds / 60)}m {cumulativeDurationSeconds % 60}s)
+                    <Radio className="w-4 h-4" /> 🚀 Publicar Flash Noticioso Combinado ({selectedClipsList.length} clips • {Math.floor(cumulativeDurationSeconds / 60)}m {cumulativeDurationSeconds % 60}s)
                   </>
                 )}
               </button>
@@ -466,7 +435,7 @@ export default function NoraClipperAdminPage() {
             <div className="lg:col-span-2 space-y-4">
               {activeClip ? (
                 <CleanFlashPlayer
-                  videoUrl={youtubeUrl}
+                  videoUrl={activeClip.video_url || youtubeUrlsText.split("\n")[0]}
                   segments={selectedClipsList.length > 0 ? selectedClipsList : [activeClip]}
                   totalDurationSeconds={cumulativeDurationSeconds || activeClip.duration_seconds}
                   title={flashTitle || activeClip.title}
@@ -490,18 +459,18 @@ export default function NoraClipperAdminPage() {
                   <div
                     key={clip.clip_id}
                     onClick={() => setActiveClip(clip)}
-                    className={`p-4 rounded-xl border cursor-pointer transition-all ${
+                    className={`p-4 rounded-xl border cursor-pointer transition-all space-y-2 ${
                       activeClip?.clip_id === clip.clip_id
                         ? "bg-red-950/40 border-red-500/80 shadow-lg"
                         : "bg-black/30 border-white/10 hover:bg-white/5"
                     }`}
                   >
-                    <div className="flex items-center justify-between text-xs text-gray-400 mb-2">
-                      <span className="font-mono bg-white/10 px-2 py-0.5 rounded text-white">{clip.start_timestamp} - {clip.end_timestamp}</span>
-                      <span className="text-amber-400 font-bold">Puntaje: {clip.impact_score}/10</span>
+                    <div className="flex items-center justify-between text-xs text-gray-400">
+                      <span className="font-mono text-amber-400 font-bold">{clip.source_title || "Programa"} ({clip.start_timestamp} - {clip.end_timestamp})</span>
+                      <span className="text-red-400 font-bold">Puntaje: {clip.impact_score}/10</span>
                     </div>
 
-                    <h4 className="text-sm font-bold text-white mb-1 line-clamp-2">{clip.title}</h4>
+                    <h4 className="text-sm font-bold text-white line-clamp-2">{clip.title}</h4>
                     <p className="text-xs text-gray-400 line-clamp-2">{clip.summary}</p>
                   </div>
                 ))}

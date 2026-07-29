@@ -1,14 +1,17 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Play, Pause, RotateCcw, ShieldCheck, Radio, Sparkles } from "lucide-react";
+import { Play, Pause, RotateCcw, ShieldCheck, Radio, Sparkles, Layers } from "lucide-react";
 
 type Segment = {
   clip_id?: number;
+  video_url?: string;
+  youtube_id?: string;
   start_time_seconds: number;
   end_time_seconds: number;
   title: string;
   summary?: string;
+  source_title?: string;
 };
 
 type CleanFlashPlayerProps = {
@@ -36,25 +39,37 @@ export default function CleanFlashPlayer({
   const [isCompleted, setIsCompleted] = useState(false);
   const [isReady, setIsReady] = useState(false);
 
-  // Extract YouTube Video ID
+  // Helper to extract YouTube Video ID
   const getYouTubeId = (url: string) => {
+    if (!url) return null;
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
     const match = url.match(regExp);
     return (match && match[2].length === 11) ? match[2] : null;
   };
 
-  const ytId = getYouTubeId(videoUrl);
+  const defaultYtId = getYouTubeId(videoUrl);
 
-  // Calculate segments fallback if empty
+  // Normalize segments with YouTube ID fallback
   const activeSegments: Segment[] = (segments && segments.length > 0)
-    ? segments
-    : [{ start_time_seconds: 0, end_time_seconds: totalDurationSeconds || 180, title: title }];
+    ? segments.map(s => ({
+        ...s,
+        youtube_id: s.youtube_id || getYouTubeId(s.video_url || "") || defaultYtId || undefined
+      }))
+    : [{
+        start_time_seconds: 0,
+        end_time_seconds: totalDurationSeconds || 180,
+        title: title,
+        youtube_id: defaultYtId || undefined
+      }];
 
-  const calculatedTotalDuration = totalDurationSeconds || activeSegments.reduce((acc, s) => acc + (s.end_time_seconds - s.start_time_seconds), 0);
+  const calculatedTotalDuration = totalDurationSeconds || activeSegments.reduce((acc, s) => acc + Math.max(0, s.end_time_seconds - s.start_time_seconds), 0);
 
-  // Initialize YouTube API Player safely
+  const currentSeg = activeSegments[currentSegmentIdx] || activeSegments[0];
+  const activeYtId = currentSeg.youtube_id || defaultYtId;
+
+  // Initialize YouTube API Player
   useEffect(() => {
-    if (!ytId) return;
+    if (!activeYtId) return;
 
     let isSubscribed = true;
 
@@ -76,6 +91,7 @@ export default function CleanFlashPlayer({
       if (playerRef.current) return;
 
       const firstSeg = activeSegments[0];
+      const initialYtId = firstSeg.youtube_id || activeYtId;
       const elementId = `clean-player-${Math.random().toString(36).substring(2, 8)}`;
       
       if (containerRef.current) {
@@ -83,7 +99,7 @@ export default function CleanFlashPlayer({
       }
 
       playerRef.current = new (window as any).YT.Player(elementId, {
-        videoId: ytId,
+        videoId: initialYtId,
         playerVars: {
           autoplay: 1,
           controls: 0,
@@ -127,7 +143,7 @@ export default function CleanFlashPlayer({
       }
       playerRef.current = null;
     };
-  }, [ytId]);
+  }, [activeYtId]);
 
   const startPlaybackMonitor = () => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -137,17 +153,17 @@ export default function CleanFlashPlayer({
 
       try {
         const currentTime = playerRef.current.getCurrentTime();
-        const currentSeg = activeSegments[currentSegmentIdx] || activeSegments[0];
+        const seg = activeSegments[currentSegmentIdx] || activeSegments[0];
 
-        if (currentTime >= currentSeg.end_time_seconds) {
+        if (currentTime >= seg.end_time_seconds) {
           handleSegmentEnded();
         } else {
-          // Calculate elapsed time within Flash
+          // Calculate elapsed time within total Flash duration
           let accumulatedPrev = 0;
           for (let i = 0; i < currentSegmentIdx; i++) {
-            accumulatedPrev += (activeSegments[i].end_time_seconds - activeSegments[i].start_time_seconds);
+            accumulatedPrev += Math.max(0, activeSegments[i].end_time_seconds - activeSegments[i].start_time_seconds);
           }
-          const elapsedInSeg = Math.max(0, currentTime - currentSeg.start_time_seconds);
+          const elapsedInSeg = Math.max(0, currentTime - seg.start_time_seconds);
           setCurrentFlashTime(Math.min(calculatedTotalDuration, accumulatedPrev + elapsedInSeg));
         }
       } catch (e) {}
@@ -157,11 +173,26 @@ export default function CleanFlashPlayer({
   const handleSegmentEnded = () => {
     if (currentSegmentIdx < activeSegments.length - 1) {
       const nextIdx = currentSegmentIdx + 1;
-      setCurrentSegmentIdx(nextIdx);
       const nextSeg = activeSegments[nextIdx];
-      if (playerRef.current && playerRef.current.seekTo) {
-        playerRef.current.seekTo(nextSeg.start_time_seconds, true);
-        playerRef.current.playVideo();
+      const prevSeg = activeSegments[currentSegmentIdx];
+      setCurrentSegmentIdx(nextIdx);
+
+      if (playerRef.current) {
+        const nextYtId = nextSeg.youtube_id || defaultYtId;
+        const prevYtId = prevSeg.youtube_id || defaultYtId;
+
+        if (nextYtId !== prevYtId && playerRef.current.loadVideoById) {
+          // Switch to a DIFFERENT video source dynamically!
+          playerRef.current.loadVideoById({
+            videoId: nextYtId,
+            startSeconds: nextSeg.start_time_seconds,
+            endSeconds: nextSeg.end_time_seconds
+          });
+        } else if (playerRef.current.seekTo) {
+          // Same video source, seek to next clip start time
+          playerRef.current.seekTo(nextSeg.start_time_seconds, true);
+          playerRef.current.playVideo();
+        }
       }
     } else {
       // Reached end of Flash
@@ -195,8 +226,14 @@ export default function CleanFlashPlayer({
     setIsCompleted(false);
     if (playerRef.current) {
       const firstSeg = activeSegments[0];
-      playerRef.current.seekTo(firstSeg.start_time_seconds, true);
-      playerRef.current.playVideo();
+      const firstYtId = firstSeg.youtube_id || defaultYtId;
+      if (firstYtId && playerRef.current.loadVideoById) {
+        playerRef.current.loadVideoById({
+          videoId: firstYtId,
+          startSeconds: firstSeg.start_time_seconds,
+          endSeconds: firstSeg.end_time_seconds
+        });
+      }
       setIsPlaying(true);
     }
   };
@@ -209,6 +246,9 @@ export default function CleanFlashPlayer({
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
+  // Distinct sources count
+  const uniqueSourcesCount = Array.from(new Set(activeSegments.map(s => s.youtube_id || defaultYtId).filter(Boolean))).length;
+
   return (
     <div className="relative bg-slate-950 border border-white/10 rounded-2xl overflow-hidden shadow-2xl space-y-0 select-none">
       {/* Top Branding Header */}
@@ -218,12 +258,14 @@ export default function CleanFlashPlayer({
           <span className="text-[11px] font-black text-white uppercase tracking-wider">
             Nexativa Clean Player
           </span>
-          <span className="text-[10px] bg-red-600/30 text-red-400 border border-red-500/40 px-2 py-0.5 rounded font-bold uppercase">
-            Flash Noticioso (1-5 min)
-          </span>
+          {uniqueSourcesCount > 1 && (
+            <span className="text-[10px] bg-purple-600/30 text-purple-300 border border-purple-500/40 px-2 py-0.5 rounded font-bold uppercase flex items-center gap-1">
+              <Layers className="w-3 h-3" /> Multi-Programa ({uniqueSourcesCount} transmisiones)
+            </span>
+          )}
         </div>
         <div className="text-[10px] text-gray-400 flex items-center gap-1 font-mono">
-          <ShieldCheck className="w-3 h-3 text-emerald-400" />
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
           Powered by <strong className="text-white">MyJNexoraVisual</strong>
         </div>
       </div>
@@ -245,7 +287,7 @@ export default function CleanFlashPlayer({
               </span>
               <h3 className="text-xl font-extrabold text-white max-w-lg leading-snug">{title}</h3>
               <p className="text-xs text-gray-400 max-w-md">
-                Cobertura periodística sintetizada por Nora AI para {partnerName}.
+                Síntesis periodística multi-programa procesada con Nora AI para {partnerName}.
               </p>
             </div>
 
@@ -253,7 +295,7 @@ export default function CleanFlashPlayer({
               onClick={handleReplay}
               className="bg-gradient-to-r from-red-600 to-red-800 hover:from-red-500 hover:to-red-700 text-white font-bold px-6 py-2.5 rounded-xl text-xs uppercase tracking-wider flex items-center gap-2 shadow-xl transition-all"
             >
-              <RotateCcw className="w-4 h-4" /> Volver a Reproducir Flash
+              <RotateCcw className="w-4 h-4" /> Volver a Reproducir Flash (5 min)
             </button>
 
             <div className="pt-2 text-[10px] text-gray-500 border-t border-white/10 w-full max-w-xs text-center font-mono">
@@ -263,7 +305,7 @@ export default function CleanFlashPlayer({
         )}
       </div>
 
-      {/* Custom Exclusive Clean Progress Bar (0 to 3 min) */}
+      {/* Custom Exclusive Clean Progress Bar (0 to 5 min) */}
       <div className="bg-slate-900 p-4 border-t border-white/10 space-y-2">
         {/* Progress Line */}
         <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden relative cursor-pointer">
@@ -292,7 +334,7 @@ export default function CleanFlashPlayer({
             <div>
               <span className="text-xs font-bold text-white block line-clamp-1">{title}</span>
               <span className="text-[10px] text-gray-400 block font-mono">
-                Segmento {currentSegmentIdx + 1} de {activeSegments.length}: {activeSegments[currentSegmentIdx]?.title}
+                Segmento {currentSegmentIdx + 1} de {activeSegments.length}: {currentSeg.title} {currentSeg.source_title ? `(${currentSeg.source_title})` : ''}
               </span>
             </div>
           </div>

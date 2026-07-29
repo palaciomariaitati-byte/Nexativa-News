@@ -2,8 +2,8 @@
 /**
  * Plugin Name: Nora Live Exteriores - Cadena 4 & Nexativa
  * Plugin URI: https://cadena4.com.ar
- * Description: Herramienta de cobertura periodística en vivo, emisión de Flash Noticiosos (1-5 min) y túnel directo de envío de videos a Estudio Nexativa por MyJNexoraVisual.
- * Version: 1.3.0
+ * Description: Herramienta de cobertura periodística en vivo, emisión de Flash Noticiosos (1-5 min) y túnel directo multi-programa a Estudio Nexativa por MyJNexoraVisual.
+ * Version: 1.4.0
  * Author: MyJNexoraVisual & Nexativa News
  */
 
@@ -88,7 +88,7 @@ function nora_live_admin_page() {
         <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #e2e8f0; pb-10px; margin-bottom: 15px;">
             <div>
                 <h1 style="display:flex; align-items:center; gap:10px; margin-bottom: 5px; margin-top:0;">
-                    <span style="color:#e53e3e;">🔴</span> Nora Live Exteriores & Flash Noticioso
+                    <span style="color:#e53e3e;">🔴</span> Nora Live Exteriores & Flash Multi-Programa
                     <span style="font-size:12px; background:#2563eb; color:#fff; padding:3px 10px; border-radius:12px; font-weight:bold;">Cadena 4 & Nexativa</span>
                 </h1>
                 <p style="color:#666; font-size:13px; margin-top:0;">Infraestructura Periodística Digital & IA por <strong>MyJNexoraVisual</strong> © Nexativa News. Todos los derechos reservados.</p>
@@ -237,23 +237,23 @@ function nora_live_admin_page() {
             </div>
         </div>
 
-        <!-- SECTION 2: FLASH DE NOTICIAS & TÚNEL DE VIDEO -->
+        <!-- SECTION 2: FLASH DE NOTICIAS & TÚNEL MULTI-PROGRAMA -->
         <div id="nora-flashes-container" style="display:none;">
             <div class="nora-box" style="max-width:100%;">
                 
-                <!-- TÚNEL DIRECTO: Enviar Video a Estudio Nexativa -->
+                <!-- TÚNEL DIRECTO: Enviar Hasta 5 Programas a Estudio Nexativa -->
                 <div class="partner-send-box">
                     <h3 style="margin-top:0; color:#0369a1; font-size:15px; display:flex; align-items:center; gap:8px;">
-                        📹 Enviar Video de Cobertura a Estudio Nexativa (Túnel Directo)
+                        📹 Enviar Programas / Transmisiones del Día (Túnel Multi-Video)
                     </h3>
-                    <p style="font-size:12px; color:#334155; margin-top:0;">Envía un enlace de video o transmisión de tu evento a nuestro estudio. El equipo de Nexativa lo procesará con Nora IA para armar tu Flash Noticioso (1-5 min).</p>
+                    <p style="font-size:12px; color:#334155; margin-top:0;">Pega hasta 5 enlaces de tus programas emitidos durante el día (un link por línea). Nora IA extraerá lo más importante de cada emisión para armar tu Flash Noticioso Combinado (1 a 5 min).</p>
 
                     <div style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">
-                        <input type="text" id="partnerVideoUrl" placeholder="Pega el link del video de YouTube / Transmisión aquí..." style="padding:8px 12px; border-radius:6px; border:1px solid #93c5fd; width:100%; font-size:13px;" />
-                        <input type="text" id="partnerVideoNotes" placeholder="Notas o contexto para la Redactora Jefa Nora..." style="padding:8px 12px; border-radius:6px; border:1px solid #93c5fd; width:100%; font-size:13px;" />
+                        <textarea id="partnerVideoUrl" rows="3" placeholder="Pega los enlaces de tus programas del día (hasta 5 links, 1 por línea):&#10;https://www.youtube.com/watch?v=... (Noticiero Mañana)&#10;https://www.youtube.com/watch?v=... (Noticiero Noche)" style="padding:8px 12px; border-radius:6px; border:1px solid #93c5fd; width:100%; font-size:13px; font-family:monospace; resize:vertical;"></textarea>
+                        <input type="text" id="partnerVideoNotes" placeholder="Notas o instrucciones para la Redactora Jefa Nora..." style="padding:8px 12px; border-radius:6px; border:1px solid #93c5fd; width:100%; font-size:13px;" />
                         
                         <button type="button" id="btnSendPartnerVideo" class="button button-primary" style="background:#0284c7; border-color:#0284c7; font-weight:bold; align-self:flex-start;">
-                            🚀 Enviar Video a Estudio Nexativa para Edición & Flash
+                            🚀 Enviar Programas a Estudio Nexativa para Edición & Flash
                         </button>
                         <span id="partnerVideoMsg" style="font-size:12px; font-weight:bold; color:#059669; display:none;"></span>
                     </div>
@@ -318,7 +318,7 @@ function nora_live_admin_page() {
                 const notes = partnerVideoNotesInput.value.trim();
 
                 if (!videoUrl) {
-                    alert('Por favor ingresa la URL del video de tu cobertura.');
+                    alert('Por favor ingresa la URL de tus transmisiones del día.');
                     return;
                 }
 
@@ -332,25 +332,25 @@ function nora_live_admin_page() {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             partner_name: 'Cadena 4',
-                            title: 'Cobertura Enviada por Cliente',
+                            title: 'Lote de Programas del Día',
                             video_url: videoUrl,
                             notes: notes
                         })
                     });
                     const json = await res.json();
                     if (json.success) {
-                        partnerVideoMsg.innerText = '🎉 ¡Video recibido en Estudio Nexativa! El equipo lo editará y publicará tu Flash Noticioso a la brevedad.';
+                        partnerVideoMsg.innerText = '🎉 ¡Programas recibidos en Estudio Nexativa! El equipo los procesará y armará tu Flash Noticioso Combinado a la brevedad.';
                         partnerVideoMsg.style.display = 'block';
                         partnerVideoUrlInput.value = '';
                         partnerVideoNotesInput.value = '';
                     } else {
-                        alert('Error al enviar el video: ' + (json.error || 'Fallo de servidor'));
+                        alert('Error al enviar videos: ' + (json.error || 'Fallo de servidor'));
                     }
                 } catch(e) {
                     alert('Error de conexión con Estudio Nexativa.');
                 } finally {
                     btnSendPartnerVideo.disabled = false;
-                    btnSendPartnerVideo.innerText = '🚀 Enviar Video a Estudio Nexativa para Edición & Flash';
+                    btnSendPartnerVideo.innerText = '🚀 Enviar Programas a Estudio Nexativa para Edición & Flash';
                 }
             });
 
