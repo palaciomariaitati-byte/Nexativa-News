@@ -3,15 +3,18 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { parseCoordinates, getClosestLocation } from "@/lib/location-db";
 import supabaseAdmin from "@/lib/supabase/admin";
 
-// Volatile audio transcription using Gemini 2.5 Flash
+// Volatile audio transcription using multi-model fallback
 async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   const fallbackApiKey = process.env.GEMINI_API_KEY_FALLBACK;
-  const modelId = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const candidateKeys = [apiKey, fallbackApiKey].filter(Boolean) as string[];
 
-  if (!apiKey && !fallbackApiKey) {
+  if (candidateKeys.length === 0) {
     throw new Error("Ni GEMINI_API_KEY ni GEMINI_API_KEY_FALLBACK están configuradas.");
   }
+
+  const primaryModel = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const candidateModels = Array.from(new Set([primaryModel, "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]));
 
   const prompt = `
 Escucha atentamente este audio de un corresponsal de prensa de Nexativa News en Ituzaingó, Corrientes.
@@ -20,50 +23,51 @@ Elimina muletillas (como "eh", "este", "bueno"), tartamudeos, risas, ruidos de f
 Devuelve ÚNICAMENTE la transcripción limpia y corregida del mensaje periodístico. No añadas introducciones, explicaciones, markdown ni comentarios en tu respuesta.
 `;
 
-  const runCall = async (key: string) => {
-    const genAI = new GoogleGenerativeAI(key);
-    const model = genAI.getGenerativeModel({ model: modelId });
-    const result = await model.generateContent([
-      {
-        inlineData: {
-          data: audioBuffer.toString("base64"),
-          mimeType: mimeType
-        }
-      },
-      prompt
-    ]);
-    return result.response.text().trim();
-  };
+  let lastError: any = null;
 
-  try {
-    if (apiKey) {
-      return await runCall(apiKey);
-    } else {
-      return await runCall(fallbackApiKey!);
-    }
-  } catch (apiError: any) {
-    console.warn("[Corresponsal API] Falló transcripción con API Key primaria, intentando fallback:", apiError.message);
-    if (apiKey && fallbackApiKey) {
-      try {
-        return await runCall(fallbackApiKey);
-      } catch (fallbackError: any) {
-        throw new Error(`Ambas API Keys fallaron. Error primario: ${apiError.message}. Error secundario: ${fallbackError.message}`);
+  for (const modelName of candidateModels) {
+    for (const key of candidateKeys) {
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          const genAI = new GoogleGenerativeAI(key);
+          const model = genAI.getGenerativeModel({ model: modelName });
+          const result = await model.generateContent([
+            {
+              inlineData: {
+                data: audioBuffer.toString("base64"),
+                mimeType: mimeType
+              }
+            },
+            prompt
+          ]);
+          const text = result.response.text().trim();
+          if (text) return text;
+        } catch (err: any) {
+          lastError = err;
+          console.warn(`[Corresponsal Transcribe] Falló ${modelName} con API Key (intento ${attempt}):`, err.message);
+          if (attempt < 2 && (err.message?.includes("503") || err.message?.includes("high demand") || err.message?.includes("429"))) {
+            await new Promise(res => setTimeout(res, 1000));
+          }
+        }
       }
-    } else {
-      throw apiError;
     }
   }
+
+  throw new Error(`Error al procesar audio. El servidor de IA reportó alta demanda temporal: ${lastError?.message || lastError}`);
 }
 
 // Cognitive copywriting generating exactly TWO independent versions in a single pass
 export async function generateArticles(transcription: string, locationContext: string, operatorName: string): Promise<any> {
   const apiKey = process.env.GEMINI_API_KEY;
   const fallbackApiKey = process.env.GEMINI_API_KEY_FALLBACK;
-  const modelId = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const candidateKeys = [apiKey, fallbackApiKey].filter(Boolean) as string[];
 
-  if (!apiKey && !fallbackApiKey) {
+  if (candidateKeys.length === 0) {
     throw new Error("Ni GEMINI_API_KEY ni GEMINI_API_KEY_FALLBACK están configuradas.");
   }
+
+  const primaryModel = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const candidateModels = Array.from(new Set([primaryModel, "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]));
 
   const prompt = `
 Eres NORA, una redactora periodística de Nexativa News (Ituzaingó, Corrientes) con la mentalidad y el sentido común de un verdadero periodista de nivel internacional de Argentina. Tu tarea es procesar el reporte de corresponsalía provisto e interpretar los hechos a fondo para generar exactamente DOS versiones periodísticas independientes en español, bien desarrolladas, naturales y con un lenguaje sumamente fiable y profesional.
@@ -75,7 +79,7 @@ ${locationContext}
 
 Instrucciones de redacción y procesamiento:
 1. ANÁLISIS E INTERPRETACIÓN PERIODÍSTICA: No te limites a hacer una edición directa sobre el original o una transcripción superficial. Procesa la información, asocia las ideas, estructúrala de forma lógica usando el formato de pirámide invertida (respondiendo con claridad a qué, quién, cuándo, dónde, por qué y cómo) y redacta la noticia con un lenguaje fluido, natural y de alta calidad periodística.
-2. Contextualiza la noticia usando la ubicación geográfica suministrada. Incorpora nombres de calles, rutas (por ejemplo, Ruta 12) u otros puntos de referencia locales relevantes para que el texto sea geográficamente preciso y coherente para los lectores de Corrientes/Ituzaingó.
+2. Contextualiza la noticia usando la ubicación geográfica suministrada. Incorpora nombres de calles, rutas (por ejemplo, Ruta 12) u otros puntos de referencia locales relevantes para que el texto sea geographically preciso y coherente para los lectores de Corrientes/Ituzaingó.
    - REGLA DE DISTANCIA: Si el texto de ubicación indica que la distancia al punto de referencia es de más de 200 metros (por ejemplo, "a 980m de Puerto de Ituzaingó"), NO redactes un titular ni afirmes en la noticia que el suceso ocurrió "en el puerto" o "cerca del puerto" de forma directa como si estuviera al lado, ya que esto confundirá a los lectores locales. En su lugar, usa expresiones como "en las inmediaciones de...", "en un sector residencial de Ituzaingó", o simplemente "Ituzaingó". Evita mencionar el hito lejano en el título de la noticia.
 
 3. Genera exactamente dos versiones independientes en formato HTML limpio para el cuerpo de la noticia:
@@ -105,45 +109,39 @@ Devuelve la respuesta ESTRICTAMENTE en este formato JSON, sin markdown ni backti
   },
   "version_partner": {
     "title": "Título para socio sindicado",
-    "content": "<p>Cuerpo reescrito completamente para socio...</p>",
+    "content": "<p>Cuerpo reescrito completamente para socio...",
     "attribution_footer": "El pie de atribución redactado dinámicamente según las reglas del operador"
   }
 }
 `;
 
-  const runCall = async (key: string) => {
-    const genAI = new GoogleGenerativeAI(key);
-    const model = genAI.getGenerativeModel({
-      model: modelId,
-      generationConfig: { responseMimeType: "application/json" }
-    });
-    const result = await model.generateContent(prompt);
-    let text = result.response.text().trim();
-    
-    // Clean potential markdown blocks
-    text = text.replace(/```json/gi, "").replace(/```/g, "").trim();
-    
-    return JSON.parse(text);
-  };
+  let lastError: any = null;
 
-  try {
-    if (apiKey) {
-      return await runCall(apiKey);
-    } else {
-      return await runCall(fallbackApiKey!);
-    }
-  } catch (apiError: any) {
-    console.warn("[Corresponsal API] Falló generación con API Key primaria, intentando fallback:", apiError.message);
-    if (apiKey && fallbackApiKey) {
-      try {
-        return await runCall(fallbackApiKey);
-      } catch (fallbackError: any) {
-        throw new Error(`Ambas API Keys fallaron. Error primario: ${apiError.message}. Error secundario: ${fallbackError.message}`);
+  for (const modelName of candidateModels) {
+    for (const key of candidateKeys) {
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          const genAI = new GoogleGenerativeAI(key);
+          const model = genAI.getGenerativeModel({
+            model: modelName,
+            generationConfig: { responseMimeType: "application/json" }
+          });
+          const result = await model.generateContent(prompt);
+          let text = result.response.text().trim();
+          text = text.replace(/^```json\s*/i, "").replace(/\s*```$/, "").trim();
+          return JSON.parse(text);
+        } catch (err: any) {
+          lastError = err;
+          console.warn(`[Corresponsal Generate] Falló ${modelName} con API Key (intento ${attempt}):`, err.message);
+          if (attempt < 2 && (err.message?.includes("503") || err.message?.includes("high demand") || err.message?.includes("429"))) {
+            await new Promise(res => setTimeout(res, 1000));
+          }
+        }
       }
-    } else {
-      throw apiError;
     }
   }
+
+  throw new Error(`Error al redactar noticia. Alta demanda temporal en servidores de IA: ${lastError?.message || lastError}`);
 }
 
 export async function POST(request: Request) {
