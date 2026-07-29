@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { Play, Sparkles, Copy, Check, Video, Clock, Share2, Film, Loader2, ArrowRight, Zap, Radio } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Play, Sparkles, Copy, Check, Video, Clock, Share2, Film, Loader2, ArrowRight, Zap, Radio, Download, Inbox, ShieldCheck } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
+import CleanFlashPlayer from "@/components/CleanFlashPlayer";
 
 type ClipItem = {
   clip_id: number;
@@ -32,6 +33,16 @@ type ClipperResponse = {
   clips: ClipItem[];
 };
 
+type PartnerVideo = {
+  id: string;
+  partner_name: string;
+  title: string;
+  video_url: string;
+  notes: string;
+  status: string;
+  created_at: string;
+};
+
 export default function NoraClipperAdminPage() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [videoTitle, setVideoTitle] = useState("");
@@ -42,13 +53,36 @@ export default function NoraClipperAdminPage() {
   const [publishingId, setPublishingId] = useState<number | null>(null);
   const [publishedId, setPublishedId] = useState<number | null>(null);
 
+  // Partner Videos Inbox State
+  const [partnerVideos, setPartnerVideos] = useState<PartnerVideo[]>([]);
+  const [isLoadingPartnerVideos, setIsLoadingPartnerVideos] = useState(false);
+
   // Flash de Noticias assembly state
   const [selectedFlashClipIds, setSelectedFlashClipIds] = useState<number[]>([]);
   const [flashTitle, setFlashTitle] = useState("");
   const [isPublishingFlash, setIsPublishingFlash] = useState(false);
   const [flashSuccessMsg, setFlashSuccessMsg] = useState<string | null>(null);
 
-  // Extract YouTube ID for iframe embedding
+  // Fetch Partner Videos inbox
+  const fetchPartnerVideos = async () => {
+    setIsLoadingPartnerVideos(true);
+    try {
+      const res = await fetch("/api/partner-videos?limit=10");
+      const json = await res.json();
+      if (json.success && json.videos) {
+        setPartnerVideos(json.videos);
+      }
+    } catch (e) {
+      console.error("Error cargando videos de socios:", e);
+    } finally {
+      setIsLoadingPartnerVideos(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPartnerVideos();
+  }, []);
+
   const getYouTubeId = (url: string) => {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
     const match = url.match(regExp);
@@ -78,7 +112,6 @@ export default function NoraClipperAdminPage() {
         setResultData(json.data);
         if (json.data.clips && json.data.clips.length > 0) {
           setActiveClip(json.data.clips[0]);
-          // Default select top 2-3 clips for Flash
           const defaultFlashIds = json.data.suggested_news_flash?.clip_ids || json.data.clips.slice(0, 3).map((c: ClipItem) => c.clip_id);
           setSelectedFlashClipIds(defaultFlashIds);
           setFlashTitle(json.data.suggested_news_flash?.title || `🔴 FLASH DE NOTICIAS: ${videoTitle || "Resumen Periodístico"}`);
@@ -91,6 +124,12 @@ export default function NoraClipperAdminPage() {
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  const handleProcessPartnerVideo = (pv: PartnerVideo) => {
+    setYoutubeUrl(pv.video_url);
+    setVideoTitle(`${pv.partner_name}: ${pv.title}`);
+    window.scrollTo({ top: 300, behavior: "smooth" });
   };
 
   const handleCopyCaption = (clip: ClipItem) => {
@@ -152,7 +191,7 @@ export default function NoraClipperAdminPage() {
 
       const json = await res.json();
       if (json.success) {
-        setFlashSuccessMsg("🎉 ¡Flash de Noticias (1-5 min) publicado con éxito! Ya está disponible en el panel principal y para portales de socios.");
+        setFlashSuccessMsg("🎉 ¡Flash de Noticias (1-5 min) publicado con éxito con el reproductor limpio Nexativa Clean Player (Desarrollado por MyJNexoraVisual)!");
       } else {
         alert("Error al publicar Flash: " + json.error);
       }
@@ -178,7 +217,7 @@ export default function NoraClipperAdminPage() {
       const { error } = await supabase.from("articles").insert({
         title: clip.title,
         excerpt: clip.summary,
-        content: `<p><strong>${clip.title}</strong></p><p>${clip.summary}</p><br><iframe width="100%" height="400" src="${embedUrl}" frameborder="0" allowfullscreen></iframe><br><p><em>Clip destacado de la cobertura periodística en vivo (Nora Auto-Clipper).</em></p>`,
+        content: `<p><strong>${clip.title}</strong></p><p>${clip.summary}</p><br><iframe width="100%" height="400" src="${embedUrl}" frameborder="0" allowfullscreen></iframe><br><p><em>Clip destacado de la cobertura periodística en vivo (Nora Auto-Clipper por MyJNexoraVisual).</em></p>`,
         status: "published",
         category: cat,
         image_url: thumbnailUrl,
@@ -189,7 +228,7 @@ export default function NoraClipperAdminPage() {
         alert("Error al publicar la noticia: " + error.message);
       } else {
         setPublishedId(clip.clip_id);
-        alert("🎉 ¡Clip publicado exitosamente en la portada de Nexativa News! (Categoría: " + cat.toUpperCase() + ")");
+        alert("🎉 ¡Clip publicado exitosamente en la portada de Nexativa News!");
       }
     } catch (e: any) {
       alert("Error de publicación: " + e.message);
@@ -203,19 +242,68 @@ export default function NoraClipperAdminPage() {
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-8">
       {/* Header */}
-      <div className="bg-gradient-to-r from-red-950 via-black to-slate-900 border border-red-500/20 rounded-2xl p-6 md:p-8 shadow-2xl relative overflow-hidden">
-        <div className="absolute right-0 top-0 w-96 h-96 bg-red-600/10 rounded-full blur-3xl -z-0" />
-        <div className="relative z-10 space-y-3">
+      <div className="bg-gradient-to-r from-red-950 via-black to-slate-900 border border-red-500/30 rounded-2xl p-6 md:p-8 shadow-2xl relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="relative z-10 space-y-2">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-600/20 border border-red-500/30 rounded-full text-red-400 text-xs font-bold uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5" /> Nora Auto-Clipper & Producer IA Pro
+            <Sparkles className="w-3.5 h-3.5" /> Nora Auto-Clipper Pro & Flash Producer
           </div>
           <h1 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">
             Extractor de Clips & Noticiero Flash (1 a 5 min)
           </h1>
-          <p className="text-gray-400 text-sm md:text-base max-w-3xl">
-            Pega el enlace de cualquier transmisión o video de YouTube. Nora analizará el contenido, identificará los recortes de mayor impacto periodístico y te permitirá **ensamblar un Flash de Noticias (1-5 min)** listo para emitir en el panel principal y portales socios.
+          <p className="text-gray-400 text-sm max-w-3xl">
+            Procesa las coberturas de tus periodistas o los **videos entrantes de tus socios**. Nora IA identificará los recortes de mayor impacto para producir **Flashes Noticiosos limpios** sin barras nativas de 60 minutos.
           </p>
         </div>
+        <div className="text-[10px] text-gray-400 bg-black/60 border border-white/10 px-3 py-2 rounded-xl text-right font-mono">
+          Desarrollado por <strong className="text-white">MyJNexoraVisual</strong>
+          <span className="block text-red-400 font-bold font-sans uppercase">Nexativa News ©</span>
+        </div>
+      </div>
+
+      {/* PARTNER VIDEOS INBOX (TÚNEL DIRECTO) */}
+      <div className="bg-slate-950 border border-amber-500/30 rounded-2xl p-6 shadow-xl space-y-4">
+        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+          <div className="flex items-center gap-2">
+            <Inbox className="w-5 h-5 text-amber-500" />
+            <h2 className="text-lg font-extrabold text-white">📥 Coberturas Entrantes de Socios / Clientes</h2>
+          </div>
+          <button
+            onClick={fetchPartnerVideos}
+            className="text-xs text-amber-400 font-bold hover:underline"
+          >
+            Refrescar Bandeja
+          </button>
+        </div>
+
+        {partnerVideos.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {partnerVideos.map((pv) => (
+              <div key={pv.id} className="bg-white/5 border border-white/10 p-3.5 rounded-xl space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded">
+                    {pv.partner_name}
+                  </span>
+                  <span className="text-gray-400 font-mono text-[10px]">
+                    {new Date(pv.created_at).toLocaleDateString([], { month: "short", day: "2-digit" })}
+                  </span>
+                </div>
+                <h4 className="text-sm font-bold text-white line-clamp-1">{pv.title}</h4>
+                {pv.notes && <p className="text-xs text-gray-400 line-clamp-1">{pv.notes}</p>}
+                
+                <button
+                  onClick={() => handleProcessPartnerVideo(pv)}
+                  className="w-full bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold py-1.5 px-3 rounded-lg text-xs flex items-center justify-center gap-1.5 transition-all"
+                >
+                  <Zap className="w-3.5 h-3.5" /> ⚡ Cargar en Nora Clipper
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400 italic">
+            No hay videos entrantes pendientes de socios en este momento.
+          </p>
+        )}
       </div>
 
       {/* Input Box */}
@@ -372,68 +460,18 @@ export default function NoraClipperAdminPage() {
             </div>
           </div>
 
-          {/* MAIN PLAYER & INDIVIDUAL CLIPS */}
+          {/* MAIN CLEAN PLAYER & INDIVIDUAL CLIPS */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Player Column */}
             <div className="lg:col-span-2 space-y-4">
-              {activeClip && ytId ? (
-                <div className="bg-black border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-                  <div className="relative aspect-video">
-                    <iframe
-                      src={`https://www.youtube.com/embed/${ytId}?start=${activeClip.start_time_seconds}&end=${activeClip.end_time_seconds}&autoplay=1`}
-                      title={activeClip.title}
-                      className="w-full h-full"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                    />
-                  </div>
-                  <div className="p-6 space-y-3 bg-slate-950">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-amber-400 bg-amber-400/10 px-3 py-1 rounded-full uppercase border border-amber-400/20">
-                        Clip #{activeClip.clip_id} • Impacto {activeClip.impact_score}/10
-                      </span>
-                      <span className="text-xs text-gray-400 font-mono flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5 text-red-500" /> {activeClip.start_timestamp} - {activeClip.end_timestamp} ({activeClip.duration_seconds}s)
-                      </span>
-                    </div>
-
-                    <h2 className="text-xl font-extrabold text-white">{activeClip.title}</h2>
-                    <p className="text-gray-300 text-sm">{activeClip.summary}</p>
-
-                    <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-gray-400 uppercase">Texto para Redes / Copywriting</span>
-                        <button
-                          onClick={() => handleCopyCaption(activeClip)}
-                          className="text-xs font-bold text-red-400 hover:text-white flex items-center gap-1 bg-red-500/10 border border-red-500/20 px-3 py-1 rounded-lg transition-all"
-                        >
-                          {copiedId === activeClip.clip_id ? (
-                            <> <Check className="w-3.5 h-3.5 text-emerald-400" /> Copiado </>
-                          ) : (
-                            <> <Copy className="w-3.5 h-3.5" /> Copiar Copy </>
-                          )}
-                        </button>
-                      </div>
-                      <p className="text-xs text-gray-300 font-mono whitespace-pre-wrap">{activeClip.social_caption}</p>
-                    </div>
-
-                    <div className="pt-2">
-                      <button
-                        onClick={() => handlePublishClipAsArticle(activeClip)}
-                        disabled={publishingId === activeClip.clip_id}
-                        className="w-full bg-gradient-to-r from-red-600 to-red-800 hover:from-red-500 hover:to-red-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-wider disabled:opacity-50"
-                      >
-                        {publishingId === activeClip.clip_id ? (
-                          <> <Loader2 className="w-4 h-4 animate-spin" /> Publicando en Noticias... </>
-                        ) : publishedId === activeClip.clip_id ? (
-                          <> <Check className="w-4 h-4 text-emerald-400" /> ¡Publicado en Portada! </>
-                        ) : (
-                          <> <ArrowRight className="w-4 h-4" /> Publicar como Artículo Individual en Noticias </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </div>
+              {activeClip ? (
+                <CleanFlashPlayer
+                  videoUrl={youtubeUrl}
+                  segments={selectedClipsList.length > 0 ? selectedClipsList : [activeClip]}
+                  totalDurationSeconds={cumulativeDurationSeconds || activeClip.duration_seconds}
+                  title={flashTitle || activeClip.title}
+                  partnerName="Nexativa Studio"
+                />
               ) : (
                 <div className="bg-black/40 border border-white/10 rounded-2xl p-12 text-center text-gray-400">
                   Selecciona un clip de la lista para ver la previsualización.

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Radio, Play, Clock, Sparkles, Share2, Copy, Check, Eye, ExternalLink, Code, Layers, RefreshCw } from "lucide-react";
+import { Radio, Play, Clock, Sparkles, Share2, Copy, Check, Eye, ExternalLink, Code, Layers, RefreshCw, ShieldCheck } from "lucide-react";
+import CleanFlashPlayer from "@/components/CleanFlashPlayer";
 
 type NewsFlash = {
   id: string;
@@ -79,36 +80,39 @@ export default function AdminNewsFlashesPage() {
             Flash de Noticias Nexativa (1 a 5 Minutos)
           </h1>
           <p className="text-gray-400 text-sm max-w-2xl">
-            Noticieros rápidos generados automáticamente por Nora AI. Estos resúmenes audiovisuales de alta síntesis se transmiten en el panel principal y están disponibles para la red de portales socios.
+            Noticieros rápidos generados automáticamente por Nora AI. Emitidos con **Nexativa Clean Player** sin barras de 60 minutos ni distracciones.
           </p>
         </div>
 
-        <button
-          onClick={fetchFlashes}
-          disabled={isLoading}
-          className="bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 text-xs uppercase"
-        >
-          <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} /> Refrescar Emisión
-        </button>
+        <div className="flex flex-col items-end gap-2">
+          <button
+            onClick={fetchFlashes}
+            disabled={isLoading}
+            className="bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold px-4 py-2 rounded-xl transition-all flex items-center gap-2 text-xs uppercase"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} /> Refrescar Emisión
+          </button>
+          <span className="text-[10px] text-gray-400 font-mono">
+            Desarrollado por <strong className="text-white">MyJNexoraVisual</strong>
+          </span>
+        </div>
       </div>
 
-      {/* Main Grid: Player + Playlist */}
+      {/* Main Grid: Clean Player + Playlist */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main Player View */}
         <div className="lg:col-span-2 space-y-6">
           {activeFlash ? (
-            <div className="bg-black border border-white/10 rounded-2xl overflow-hidden shadow-2xl space-y-0">
-              <div className="relative aspect-video bg-black">
-                <iframe
-                  src={activeFlash.embed_url || activeFlash.video_url}
-                  title={activeFlash.title}
-                  className="w-full h-full"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              </div>
+            <div className="space-y-4">
+              <CleanFlashPlayer
+                videoUrl={activeFlash.video_url}
+                segments={activeFlash.segments}
+                totalDurationSeconds={activeFlash.duration_seconds}
+                title={activeFlash.title}
+                partnerName="Nexativa News Studio"
+              />
 
-              <div className="p-6 space-y-4 bg-slate-950">
+              <div className="bg-slate-950 border border-white/10 rounded-2xl p-6 space-y-4 shadow-xl">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
                   <div className="flex items-center gap-2">
                     <span className="bg-red-600 text-white font-extrabold text-[10px] uppercase px-2.5 py-1 rounded">
@@ -125,27 +129,10 @@ export default function AdminNewsFlashesPage() {
                   </span>
                 </div>
 
-                <h2 className="text-2xl font-black text-white leading-snug">{activeFlash.title}</h2>
+                <h2 className="text-xl font-black text-white leading-snug">{activeFlash.title}</h2>
                 <div className="text-gray-300 text-sm whitespace-pre-line bg-white/5 p-4 rounded-xl border border-white/10">
                   {activeFlash.summary}
                 </div>
-
-                {/* Segment breakdown if present */}
-                {activeFlash.segments && activeFlash.segments.length > 0 && (
-                  <div className="space-y-2">
-                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
-                      Segmentos Clave Combinados ({activeFlash.segments.length})
-                    </span>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      {activeFlash.segments.map((seg: any, idx: number) => (
-                        <div key={idx} className="bg-black/50 border border-white/10 p-2.5 rounded-lg flex items-center gap-2 text-xs">
-                          <span className="text-amber-400 font-black">#{idx + 1}</span>
-                          <span className="text-gray-300 font-medium truncate">{seg.title}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
                 {/* Actions & Sharing */}
                 <div className="flex flex-wrap gap-3 pt-2">

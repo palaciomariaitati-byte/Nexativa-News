@@ -2,9 +2,9 @@
 /**
  * Plugin Name: Nora Live Exteriores - Cadena 4 & Nexativa
  * Plugin URI: https://cadena4.com.ar
- * Description: Herramienta de cobertura periodística en vivo y emisor de Flash de Noticias (1-5 min) con Inteligencia Artificial (NORA).
- * Version: 1.1.0
- * Author: Nexativa News & Cadena 4
+ * Description: Herramienta de cobertura periodística en vivo, emisión de Flash Noticiosos (1-5 min) y túnel directo de envío de videos a Estudio Nexativa por MyJNexoraVisual.
+ * Version: 1.2.0
+ * Author: MyJNexoraVisual & Nexativa News
  */
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
@@ -48,7 +48,7 @@ function nora_live_handle_publish($request) {
 
     $post_data = array(
         'post_title'    => $title,
-        'post_content'  => $content . '<br><br><p><em>Fuente: Cobertura en vivo con Nora Live (Cadena 4 & Nexativa News)</em></p>',
+        'post_content'  => $content . '<br><br><p><em>Fuente: Cobertura en vivo con Nora Live (Desarrollado por MyJNexoraVisual para Cadena 4 & Nexativa News)</em></p>',
         'post_excerpt'  => $excerpt,
         'post_status'   => 'publish',
         'post_author'   => get_current_user_id(),
@@ -85,14 +85,18 @@ function nora_live_admin_page() {
     $api_url = 'https://www.nexativanews.com.ar'; // URL oficial de Nexativa News
     ?>
     <div class="wrap">
-        <h1 style="display:flex; align-items:center; gap:10px; margin-bottom: 5px;">
-            <span style="color:#e53e3e;">🔴</span> Nora Live Exteriores & Flash Noticioso
-            <span style="font-size:12px; background:#2563eb; color:#fff; padding:3px 10px; border-radius:12px; font-weight:bold;">Cadena 4 & Nexativa</span>
-        </h1>
-        <p style="color:#666; font-size:14px; margin-top:0;">Redactora Jefa con Inteligencia Artificial & Emisor de Noticieros Rápidos (1 a 5 min).</p>
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #e2e8f0; pb-10px; margin-bottom: 15px;">
+            <div>
+                <h1 style="display:flex; align-items:center; gap:10px; margin-bottom: 5px; margin-top:0;">
+                    <span style="color:#e53e3e;">🔴</span> Nora Live Exteriores & Flash Noticioso
+                    <span style="font-size:12px; background:#2563eb; color:#fff; padding:3px 10px; border-radius:12px; font-weight:bold;">Cadena 4 & Nexativa</span>
+                </h1>
+                <p style="color:#666; font-size:13px; margin-top:0;">Infraestructura Periodística Digital & IA por <strong>MyJNexoraVisual</strong> © Nexativa News. Todos los derechos reservados.</p>
+            </div>
+        </div>
 
         <!-- Navigation Tabs -->
-        <div style="display:flex; gap:10px; border-bottom:2px solid #e2e8f0; margin-bottom:20px; padding-bottom:10px;">
+        <div style="display:flex; gap:10px; border-bottom:2px solid #cbd5e1; margin-bottom:20px; padding-bottom:10px;">
             <button type="button" id="tabLiveBtn" class="button button-primary" style="font-weight:bold;">🎤 Cobertura & Redacción en Vivo</button>
             <button type="button" id="tabFlashBtn" class="button" style="font-weight:bold; color:#dc2626;">🔴 Flash de Noticias (1-5 min)</button>
         </div>
@@ -177,6 +181,13 @@ function nora_live_admin_page() {
                 margin-bottom: 15px;
                 background: #f8fafc;
             }
+            .partner-send-box {
+                background: #f0f9ff;
+                border: 1px solid #bae6fd;
+                border-radius: 10px;
+                padding: 15px;
+                margin-bottom: 20px;
+            }
         </style>
 
         <!-- SECTION 1: LIVE EDITOR -->
@@ -222,9 +233,28 @@ function nora_live_admin_page() {
             </div>
         </div>
 
-        <!-- SECTION 2: FLASH DE NOTICIAS -->
+        <!-- SECTION 2: FLASH DE NOTICIAS & TÚNEL DE VIDEO -->
         <div id="nora-flashes-container" style="display:none;">
             <div class="nora-box" style="max-width:100%;">
+                
+                <!-- TÚNEL DIRECTO: Enviar Video a Estudio Nexativa -->
+                <div class="partner-send-box">
+                    <h3 style="margin-top:0; color:#0369a1; font-size:15px; display:flex; align-items:center; gap:8px;">
+                        📹 Enviar Video de Cobertura a Estudio Nexativa (Túnel Directo)
+                    </h3>
+                    <p style="font-size:12px; color:#334155; margin-top:0;">Envía un enlace de video o transmisión de tu evento a nuestro estudio. El equipo de Nexativa lo procesará con Nora IA para armar tu Flash Noticioso (1-5 min).</p>
+
+                    <div style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">
+                        <input type="text" id="partnerVideoUrl" placeholder="Pega el link del video de YouTube / Transmisión aquí..." style="padding:8px 12px; border-radius:6px; border:1px solid #93c5fd; width:100%; font-size:13px;" />
+                        <input type="text" id="partnerVideoNotes" placeholder="Notas o contexto para la Redactora Jefa Nora..." style="padding:8px 12px; border-radius:6px; border:1px solid #93c5fd; width:100%; font-size:13px;" />
+                        
+                        <button type="button" id="btnSendPartnerVideo" class="button button-primary" style="background:#0284c7; border-color:#0284c7; font-weight:bold; align-self:flex-start;">
+                            🚀 Enviar Video a Estudio Nexativa para Edición & Flash
+                        </button>
+                        <span id="partnerVideoMsg" style="font-size:12px; font-weight:bold; color:#059669; display:none;"></span>
+                    </div>
+                </div>
+
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
                     <h2 style="margin:0; font-size:16px; color:#dc2626;">🔴 Noticieros Rápidos Disponibles (Flash 1 a 5 min)</h2>
                     <button type="button" class="button" id="btnReloadFlashes">🔄 Cargar Últimos Flashes</button>
@@ -234,6 +264,10 @@ function nora_live_admin_page() {
                 <div id="flashesList" style="margin-top:15px;">
                     <p style="color:#94a3b8;">Cargando lista de Flashes...</p>
                 </div>
+
+                <div style="margin-top:30px; pt-15px; border-top:1px solid #e2e8f0; text-align:center; font-size:11px; color:#94a3b8;">
+                    Desarrollado por <strong>MyJNexoraVisual</strong> para Nexativa News © Todos los derechos reservados.
+                </div>
             </div>
         </div>
 
@@ -241,6 +275,7 @@ function nora_live_admin_page() {
         (function() {
             const apiEndpoint = '<?php echo esc_js($api_url); ?>/api/nora-live';
             const flashesApiEndpoint = '<?php echo esc_js($api_url); ?>/api/flashes?limit=10&partner_only=true';
+            const partnerVideosEndpoint = '<?php echo esc_js($api_url); ?>/api/partner-videos';
             const wpRestEndpoint = '/wp-json/nora-live/v1/publish';
             const wpNonce = '<?php echo esc_js($nonce); ?>';
             
@@ -266,6 +301,53 @@ function nora_live_admin_page() {
                 liveContainer.style.display = 'none';
                 flashesContainer.style.display = 'flex';
                 loadFlashes();
+            });
+
+            // Handle Partner Video Upload / Submit to Nexativa Studio
+            const btnSendPartnerVideo = document.getElementById('btnSendPartnerVideo');
+            const partnerVideoUrlInput = document.getElementById('partnerVideoUrl');
+            const partnerVideoNotesInput = document.getElementById('partnerVideoNotes');
+            const partnerVideoMsg = document.getElementById('partnerVideoMsg');
+
+            btnSendPartnerVideo.addEventListener('click', async function() {
+                const videoUrl = partnerVideoUrlInput.value.trim();
+                const notes = partnerVideoNotesInput.value.trim();
+
+                if (!videoUrl) {
+                    alert('Por favor ingresa la URL del video de tu cobertura.');
+                    return;
+                }
+
+                btnSendPartnerVideo.disabled = true;
+                btnSendPartnerVideo.innerText = 'Enviando a Estudio Nexativa...';
+                partnerVideoMsg.style.display = 'none';
+
+                try {
+                    const res = await fetch(partnerVideosEndpoint, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            partner_name: 'Cadena 4',
+                            title: 'Cobertera Enviada por Cliente',
+                            video_url: videoUrl,
+                            notes: notes
+                        })
+                    });
+                    const json = await res.json();
+                    if (json.success) {
+                        partnerVideoMsg.innerText = '🎉 ¡Video recibido en Estudio Nexativa! El equipo lo editará y publicará tu Flash Noticioso a la brevedad.';
+                        partnerVideoMsg.style.display = 'block';
+                        partnerVideoUrlInput.value = '';
+                        partnerVideoNotesInput.value = '';
+                    } else {
+                        alert('Error al enviar el video: ' + (json.error || 'Fallo de servidor'));
+                    }
+                } catch(e) {
+                    alert('Error de conexión con Estudio Nexativa.');
+                } finally {
+                    btnSendPartnerVideo.disabled = false;
+                    btnSendPartnerVideo.innerText = '🚀 Enviar Video a Estudio Nexativa para Edición & Flash';
+                }
             });
 
             const btnReloadFlashes = document.getElementById('btnReloadFlashes');
