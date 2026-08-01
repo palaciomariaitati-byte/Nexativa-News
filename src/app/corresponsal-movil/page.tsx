@@ -84,9 +84,66 @@ export default function CorresponsalMovilPage() {
   const [coords, setCoords] = useState<string | null>(null);
   const [locationLabel, setLocationLabel] = useState<string>("Buscando ubicación GPS...");
 
-  // UI state
-  const [loading, setLoading] = useState(false);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  // Local storage of recent sent reports
+  const [sentReports, setSentReports] = useState<SentReport[]>([]);
+
+  // Location Auto-Detect with high-precision neighborhood resolution
+  const detectLocation = () => {
+    if (typeof window !== "undefined" && "geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          setCoords(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+          
+          const loc = getClosestLocation(lat, lng);
+          if (loc) {
+            setLocationLabel(loc.name);
+          } else {
+            setLocationLabel(`Zona Urbana (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+          }
+        },
+        (error) => {
+          setLocationLabel("Zona Urbana (Ituzaingó)");
+          setCoords("-27.5973, -56.6874");
+        },
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
+    } else {
+      setLocationLabel("Zona Urbana (Ituzaingó)");
+      setCoords("-27.5973, -56.6874");
+    }
+  };
+
+  // Load saved credentials & history
+  useEffect(() => {
+    const savedName = localStorage.getItem("corresponsal_name");
+    const savedPin = localStorage.getItem("corresponsal_pin");
+    const savedHistory = localStorage.getItem("corresponsal_sent_reports");
+
+    if (savedName) setCorresponsalName(savedName);
+    if (savedPin === "1234") {
+      setIsLocked(false);
+    }
+    if (savedHistory) {
+      try {
+        setSentReports(JSON.parse(savedHistory));
+      } catch (e) {}
+    }
+
+    detectLocation();
+  }, []);
+
+  const handleUnlock = () => {
+    if (pinCode === "1234") {
+      setIsLocked(false);
+      localStorage.setItem("corresponsal_name", corresponsalName || "Periodista Acreditado");
+      localStorage.setItem("corresponsal_pin", pinCode);
+      setShowSettings(false);
+    } else {
+      alert("PIN Incorrecto. Contacta a la redacción.");
+    }
+  };
 
   // Direct upload helper to bypass Vercel 4.5MB payload limits
   const uploadFileDirectToStorage = async (file: File | Blob, folderName: string): Promise<string | null> => {
