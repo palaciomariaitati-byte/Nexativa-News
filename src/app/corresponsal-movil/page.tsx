@@ -58,11 +58,15 @@ export default function CorresponsalMovilPage() {
   const [attachedVideoPreview, setAttachedVideoPreview] = useState<string | null>(null);
   const videoFileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Video Recording States
+  // Video Recording & Viewfinder States
+  const [showVideoModal, setShowVideoModal] = useState(false);
+  const [cameraFacingMode, setCameraFacingMode] = useState<"environment" | "user">("environment");
   const [isVideoRecording, setIsVideoRecording] = useState(false);
   const [videoSecondsLeft, setVideoSecondsLeft] = useState(60);
   const [recordedVideo, setRecordedVideo] = useState<Blob | null>(null);
   const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
+  const liveVideoRef = useRef<HTMLVideoElement | null>(null);
+  const activeStreamRef = useRef<MediaStream | null>(null);
   const videoMediaRecorderRef = useRef<MediaRecorder | null>(null);
   const videoChunksRef = useRef<Blob[]>([]);
   const videoTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -84,126 +88,101 @@ export default function CorresponsalMovilPage() {
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Local storage of recent sent reports
-  const [sentReports, setSentReports] = useState<SentReport[]>([]);
-
-  // Load saved credentials & history
-  useEffect(() => {
-    const savedName = localStorage.getItem("corresponsal_name");
-    const savedPin = localStorage.getItem("corresponsal_pin");
-    const savedHistory = localStorage.getItem("corresponsal_sent_reports");
-
-    if (savedName) setCorresponsalName(savedName);
-    if (savedPin === "1234") {
-      setIsLocked(false);
-    }
-    if (savedHistory) {
-      try {
-        setSentReports(JSON.parse(savedHistory));
-      } catch (e) {}
-    }
-
-    detectLocation();
-  }, []);
-
-  // Location Auto-Detect with high-precision neighborhood resolution
-  const detectLocation = () => {
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
-          setCoords(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-          
-          const loc = getClosestLocation(lat, lng);
-          if (loc) {
-            setLocationLabel(loc.name);
-          } else {
-            setLocationLabel(`Zona Urbana (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
-          }
-        },
-        (error) => {
-          setLocationLabel("Zona Urbana (Ituzaingó)");
-          setCoords("-27.5973, -56.6874");
-        },
-        { enableHighAccuracy: true, timeout: 8000 }
-      );
-    } else {
-      setLocationLabel("Zona Urbana (Ituzaingó)");
-      setCoords("-27.5973, -56.6874");
-    }
-  };
-
-  const handleUnlock = () => {
-    if (pinCode === "1234") {
-      setIsLocked(false);
-      localStorage.setItem("corresponsal_name", corresponsalName || "Periodista Acreditado");
-      localStorage.setItem("corresponsal_pin", pinCode);
-      setShowSettings(false);
-    } else {
-      alert("PIN Incorrecto. Contacta a la redacción.");
-    }
-  };
-
-  // Image resize handler
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setAttachedImage(file);
-      setAttachedImagePreview(URL.createObjectURL(file));
-    }
-  };
-
-  // Audio Recording Handlers
-  const startRecording = async () => {
+  // Direct upload helper to bypass Vercel 4.5MB payload limits
+  const uploadFileDirectToStorage = async (file: File | Blob, folderName: string): Promise<string | null> => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorderRef.current = new MediaRecorder(stream);
-      audioChunksRef.current = [];
+      const fileName = file instanceof File ? file.name : `video_${Date.now()}.webm`;
+      const fileType = file.type || (fileName.endsWith(".mp4") ? "video/mp4" : "video/webm");
 
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
+      const res = await fetch("/api/upload-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName, fileType, folder: folderName })
+      });
 
-      mediaRecorderRef.current.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        setRecordedAudio(audioBlob);
-        setAudioUrl(URL.createObjectURL(audioBlob));
-      };
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data.signedUrl) return null;
 
-      mediaRecorderRef.current.start();
-      setIsRecording(true);
-      setRecordingTime(0);
+      const uploadRes = await fetch(data.signedUrl, {
+        method: "PUT",
+        headers: { "Content-Type": fileType },
+        body: file
+      });
 
-      timerRef.current = setInterval(() => {
-        setRecordingTime((prev) => prev + 1);
-      }, 1000);
+      if (uploadRes.ok) {
+        return data.publicUrl;
+      }
+      return null;
     } catch (err) {
-      alert("No se pudo acceder al micrófono del celular.");
+      console.error("Direct upload error:", err);
+      return null;
     }
   };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      if (timerRef.current) clearInterval(timerRef.current);
-    }
-  };
-
-  const discardAudio = () => {
-    setRecordedAudio(null);
-    setAudioUrl(null);
-    setRecordingTime(0);
-  };
-
-  // Video Recording Handlers (up to 60s max)
-  const startVideoRecording = async () => {
+  // Open camera stream for Viewfinder
+  const openCameraStream = async (mode: "environment" | "user") => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      videoMediaRecorderRef.current = new MediaRecorder(stream);
+      if (activeStreamRef.current) {
+        activeStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: mode }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: true
+      });
+      activeStreamRef.current = stream;
+      if (liveVideoRef.current) {
+        liveVideoRef.current.srcObject = stream;
+      }
+      return stream;
+    } catch (err) {
+      console.error("Error al abrir cámara:", err);
+      alert("No se pudo acceder a la cámara seleccionada. Verifica los permisos.");
+      return null;
+    }
+  };
+
+  const toggleCameraDirection = async () => {
+    const newMode = cameraFacingMode === "environment" ? "user" : "environment";
+    setCameraFacingMode(newMode);
+    const newStream = await openCameraStream(newMode);
+    if (newStream && videoMediaRecorderRef.current && isVideoRecording) {
+      // Re-init MediaRecorder with new stream if active
+      videoMediaRecorderRef.current.stop();
+      const recorder = new MediaRecorder(newStream);
+      videoMediaRecorderRef.current = recorder;
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) videoChunksRef.current.push(event.data);
+      };
+      recorder.onstop = () => {
+        const videoBlob = new Blob(videoChunksRef.current, { type: "video/webm" });
+        setRecordedVideo(videoBlob);
+        setRecordedVideoUrl(URL.createObjectURL(videoBlob));
+      };
+      recorder.start();
+    }
+  };
+
+  // Video Recording Handlers (Live Viewfinder + 60s max)
+  const startVideoRecording = async () => {
+    setShowVideoModal(true);
+    const stream = await openCameraStream(cameraFacingMode);
+    if (!stream) {
+      setShowVideoModal(false);
+      return;
+    }
+
+    try {
+      const options = {
+        mimeType: MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")
+          ? "video/webm;codecs=vp8,opus"
+          : MediaRecorder.isTypeSupported("video/mp4")
+          ? "video/mp4"
+          : undefined,
+        videoBitsPerSecond: 1500000
+      };
+
+      videoMediaRecorderRef.current = new MediaRecorder(stream, options);
       videoChunksRef.current = [];
 
       videoMediaRecorderRef.current.ondataavailable = (event) => {
@@ -213,10 +192,13 @@ export default function CorresponsalMovilPage() {
       };
 
       videoMediaRecorderRef.current.onstop = () => {
-        stream.getTracks().forEach((track) => track.stop());
+        if (activeStreamRef.current) {
+          activeStreamRef.current.getTracks().forEach((track) => track.stop());
+        }
         const videoBlob = new Blob(videoChunksRef.current, { type: "video/webm" });
         setRecordedVideo(videoBlob);
         setRecordedVideoUrl(URL.createObjectURL(videoBlob));
+        setShowVideoModal(false);
       };
 
       videoMediaRecorderRef.current.start();
@@ -237,7 +219,8 @@ export default function CorresponsalMovilPage() {
         });
       }, 1000);
     } catch (err) {
-      alert("No se pudo acceder a la cámara o micrófono para filmar el video.");
+      alert("No se pudo iniciar la grabación de video.");
+      setShowVideoModal(false);
     }
   };
 
@@ -247,6 +230,7 @@ export default function CorresponsalMovilPage() {
       setIsVideoRecording(false);
       if (videoTimerRef.current) clearInterval(videoTimerRef.current);
     }
+    setShowVideoModal(false);
   };
 
   const discardVideo = () => {
@@ -319,47 +303,21 @@ export default function CorresponsalMovilPage() {
       let imageUrl: string | null = null;
       let videoUrl: string | null = null;
 
-      // Attempt client-side image upload, but don't fail if client storage RLS blocks it (server will handle it via FormData)
+      // Direct signed upload for image to bypass Vercel 4.5MB payload limit
       if (attachedImage) {
         try {
           const resizedBlob = await resizeImage(attachedImage);
-          const fileName = `corresponsales/${Date.now()}_${Math.random().toString(36).substring(2, 7)}.jpg`;
-          const { error: uploadError } = await supabase.storage
-            .from("uploads")
-            .upload(fileName, resizedBlob, { contentType: "image/jpeg" });
-
-          if (!uploadError) {
-            const { data: publicUrlData } = supabase.storage.from("uploads").getPublicUrl(fileName);
-            imageUrl = publicUrlData.publicUrl;
-          }
+          imageUrl = await uploadFileDirectToStorage(resizedBlob, "corresponsales");
         } catch (e) {
-          console.warn("Client upload fallback error:", e);
+          console.warn("Error uploading image directly:", e);
         }
       }
 
-      // Attempt client-side video upload
+      // Direct signed upload for video to bypass Vercel 4.5MB payload limit
       if (attachedVideo) {
-        try {
-          const fileName = `corresponsales_video/${Date.now()}_${Math.random().toString(36).substring(2, 7)}.mp4`;
-          const { error: uploadError } = await supabase.storage
-            .from("uploads")
-            .upload(fileName, attachedVideo);
-          if (!uploadError) {
-            const { data: publicUrlData } = supabase.storage.from("uploads").getPublicUrl(fileName);
-            videoUrl = publicUrlData.publicUrl;
-          }
-        } catch (e) {}
+        videoUrl = await uploadFileDirectToStorage(attachedVideo, "corresponsales_video");
       } else if (recordedVideo) {
-        try {
-          const fileName = `corresponsales_video/${Date.now()}_${Math.random().toString(36).substring(2, 7)}.webm`;
-          const { error: uploadError } = await supabase.storage
-            .from("uploads")
-            .upload(fileName, recordedVideo, { contentType: "video/webm" });
-          if (!uploadError) {
-            const { data: publicUrlData } = supabase.storage.from("uploads").getPublicUrl(fileName);
-            videoUrl = publicUrlData.publicUrl;
-          }
-        } catch (e) {}
+        videoUrl = await uploadFileDirectToStorage(recordedVideo, "corresponsales_video");
       }
 
       const isAnon = reportMode === "anonimo";
@@ -784,6 +742,53 @@ export default function CorresponsalMovilPage() {
                   <span className="text-[10px] text-gray-400 font-mono">{rep.timestamp}</span>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Live Camera Viewfinder Modal */}
+        {showVideoModal && (
+          <div className="fixed inset-0 z-50 bg-black flex flex-col justify-between p-4">
+            {/* Top Control Bar */}
+            <div className="flex items-center justify-between z-20 bg-black/60 p-3 rounded-xl backdrop-blur-md border border-white/10">
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-red-600 animate-ping" />
+                <span className="text-white text-xs font-bold uppercase tracking-wider">
+                  🔴 FILMANDO ({videoSecondsLeft}s)
+                </span>
+              </div>
+
+              {/* Flip Camera Button */}
+              <button
+                type="button"
+                onClick={toggleCameraDirection}
+                className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                {cameraFacingMode === "environment" ? "Cámara Trasera" : "Cámara Selfie"}
+              </button>
+            </div>
+
+            {/* Viewfinder Video Stream (Real-Time Live Feed) */}
+            <div className="absolute inset-0 w-full h-full bg-black">
+              <video
+                ref={liveVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover"
+              />
+            </div>
+
+            {/* Bottom Stop Recording Action */}
+            <div className="z-20 flex items-center justify-center gap-4 pb-8">
+              <button
+                type="button"
+                onClick={stopVideoRecording}
+                className="px-6 py-4 bg-red-600 hover:bg-red-500 text-white font-extrabold text-xs rounded-2xl shadow-2xl flex items-center gap-2 tracking-wider uppercase border border-red-400/40 animate-pulse active:scale-95"
+              >
+                <Square className="w-4 h-4 fill-white" /> FINALIZAR Y GUARDAR VIDEO (60s)
+              </button>
             </div>
           </div>
         )}

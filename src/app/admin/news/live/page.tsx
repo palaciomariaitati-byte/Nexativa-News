@@ -242,7 +242,10 @@ export default function NoraLiveEditor() {
 
   const startVideoRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: true
+      });
       const recorder = new MediaRecorder(stream);
       const chunks: Blob[] = [];
 
