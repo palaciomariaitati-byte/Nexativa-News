@@ -60,7 +60,13 @@ Devuelve ÚNICAMENTE la transcripción limpia y corregida del mensaje periodíst
 }
 
 // Cognitive copywriting generating exactly TWO independent versions in a single pass
-export async function generateArticles(transcription: string, locationContext: string, operatorName: string): Promise<any> {
+export async function generateArticles(
+  transcription: string,
+  locationContext: string,
+  operatorName: string,
+  imageBuffer?: Buffer | null,
+  videoBuffer?: Buffer | null
+): Promise<any> {
   const candidateKeys = Array.from(new Set([
     process.env.GEMINI_API_KEY,
     process.env.GEMINI_API_KEY_FALLBACK,
@@ -75,18 +81,36 @@ export async function generateArticles(transcription: string, locationContext: s
   const primaryModel = process.env.GEMINI_MODEL || "gemini-2.5-flash";
   const candidateModels = Array.from(new Set([primaryModel, "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]));
 
+  const contents: any[] = [];
+  if (imageBuffer && imageBuffer.length > 0) {
+    contents.push({
+      inlineData: {
+        data: imageBuffer.toString("base64"),
+        mimeType: "image/jpeg"
+      }
+    });
+  }
+  if (videoBuffer && videoBuffer.length > 0) {
+    contents.push({
+      inlineData: {
+        data: videoBuffer.toString("base64"),
+        mimeType: "video/webm"
+      }
+    });
+  }
+
   const prompt = `
 Eres NORA, una redactora periodística de Nexativa News (Ituzaingó, Corrientes) con la mentalidad y el sentido común de un verdadero periodista de nivel internacional de Argentina. Tu tarea es procesar el reporte de corresponsalía provisto e interpretar los hechos a fondo para generar exactamente DOS versiones periodísticas independientes en español, bien desarrolladas, naturales y con un lenguaje sumamente fiable y profesional.
 
-Reporte original del corresponsal:
-"${transcription}"
+Reporte original del corresponsal / Material adjunto:
+"${transcription || 'Filmación de video / fotografía enviada desde el lugar de los hechos por el corresponsal.'}"
 
 ${locationContext}
 
 Instrucciones de redacción y procesamiento:
-1. ANÁLISIS E INTERPRETACIÓN PERIODÍSTICA: No te limites a hacer una edición directa sobre el original o una transcripción superficial. Procesa la información, asocia las ideas, estructúrala de forma lógica usando el formato de pirámide invertida (respondiendo con claridad a qué, quién, cuándo, dónde, por qué y cómo) y redacta la noticia con un lenguaje fluido, natural y de alta calidad periodística.
-2. Contextualiza la noticia usando la ubicación geográfica suministrada. Incorpora nombres de calles, rutas (por ejemplo, Ruta 12) u otros puntos de referencia locales relevantes para que el texto sea geographically preciso y coherente para los lectores de Corrientes/Ituzaingó.
-   - REGLA DE DISTANCIA: Si el texto de ubicación indica que la distancia al punto de referencia es de más de 200 metros (por ejemplo, "a 980m de Puerto de Ituzaingó"), NO redactes un titular ni afirmes en la noticia que el suceso ocurrió "en el puerto" o "cerca del puerto" de forma directa como si estuviera al lado, ya que esto confundirá a los lectores locales. En su lugar, usa expresiones como "en las inmediaciones de...", "en un sector residencial de Ituzaingó", o simplemente "Ituzaingó". Evita mencionar el hito lejano en el título de la noticia.
+1. ANÁLISIS E INTERPRETACIÓN PERIODÍSTICA: Si recibes una imagen o filmación de video, analiza minuciosamente los elementos del hecho (vehículos, estructuras afectadas, presencia policial/bomberos, personas, clima, zona) e intégralos de manera fluida y narrativa al artículo.
+2. Contextualiza la noticia usando la ubicación geográfica suministrada. Incorpora nombres de calles, rutas (por ejemplo, Ruta 12) u otros puntos de referencia locales relevantes para que el texto sea geográficamente preciso y coherente para los lectores de Corrientes/Ituzaingó.
+   - REGLA DE DISTANCIA: Si el texto de ubicación indica que la distancia al punto de referencia es de más de 200 metros (por ejemplo, "a 980m de Puerto de Ituzaingó"), NO redactes un titular ni afirmes en la noticia que el suceso ocurrió "en el puerto" o "cerca del puerto" de forma directa como si estuviera al lado. En su lugar, usa expresiones como "en las inmediaciones de...", "en un sector residencial de Ituzaingó", o simplemente "Ituzaingó". Evita mencionar el hito lejano en el título de la noticia.
 
 3. Genera exactamente dos versiones independientes en formato HTML limpio para el cuerpo de la noticia:
 
@@ -101,9 +125,9 @@ B) VERSION_PARTNER (Syndicated Alternative Copy):
    
 4. PIE DE ATRIBUCIÓN DINÁMICO (para Version B):
    - El nombre o medio del corresponsal que envía la cobertura es: "${operatorName}".
-   - Analiza si el nombre del corresponsal indica que pertenece a otro medio de comunicación (por ejemplo, si menciona "Radio", "FM", "Cable", "Canal", "Diario", "Portal", o nombres de periodistas o medios colaboradores externos).
-   - Si pertenece a otro medio: redacta un pie de atribución que mencione la cobertura especial de ese medio/periodista y agradezca la colaboración en redacción o soporte técnico a "Nora, la inteligencia artificial de Nexativa News" o a "Nexativanews.com.ar" (ej: "Cobertura especial de FM Ituzaingó, redactado con soporte técnico de Nora de Nexativanews.com.ar").
-   - Si es personal propio de Nexativa News (o si no se infiere que es de otro medio): usa el crédito estándar de atribución: "Cobertura en exteriores por gentileza de Nexativanews.com.ar".
+   - Analiza si el nombre del corresponsal indica que pertenece a otro medio de comunicación.
+   - Si pertenece a otro medio: redacta un pie de atribución que mencione la cobertura especial de ese medio/periodista y agradezca la colaboración en redacción o soporte técnico a "Nora, la inteligencia artificial de Nexativa News" o a "Nexativanews.com.ar".
+   - Si es personal propio de Nexativa News: usa el crédito estándar de atribución: "Cobertura en exteriores por gentileza de Nexativanews.com.ar".
 
 Devuelve la respuesta ESTRICTAMENTE en este formato JSON, sin markdown ni backticks:
 {
@@ -121,6 +145,8 @@ Devuelve la respuesta ESTRICTAMENTE en este formato JSON, sin markdown ni backti
 }
 `;
 
+  contents.push(prompt);
+
   let lastError: any = null;
 
   for (const modelName of candidateModels) {
@@ -132,7 +158,7 @@ Devuelve la respuesta ESTRICTAMENTE en este formato JSON, sin markdown ni backti
             model: modelName,
             generationConfig: { responseMimeType: "application/json" }
           });
-          const result = await model.generateContent(prompt);
+          const result = await model.generateContent(contents);
           let text = result.response.text().trim();
           text = text.replace(/^```json\s*/i, "").replace(/\s*```$/, "").trim();
           return JSON.parse(text);
@@ -212,11 +238,14 @@ export async function POST(request: Request) {
       }
     }
 
+    let imageBuffer: Buffer | null = null;
+    let videoBuffer: Buffer | null = null;
+
     // Process image file server-side (Service Role)
     const imageFile = formData.get("image") as File | null;
     if (imageFile && imageFile.size > 0) {
       try {
-        const imageBuffer = Buffer.from(await imageFile.arrayBuffer());
+        imageBuffer = Buffer.from(await imageFile.arrayBuffer());
         const ext = imageFile.name.split('.').pop() || 'jpg';
         const fileName = `corresponsales/${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
         const { error: uploadError } = await supabaseAdmin.storage
@@ -240,7 +269,7 @@ export async function POST(request: Request) {
     const videoFile = formData.get("video") as File | null;
     if (videoFile && videoFile.size > 0) {
       try {
-        const videoBuffer = Buffer.from(await videoFile.arrayBuffer());
+        videoBuffer = Buffer.from(await videoFile.arrayBuffer());
         const ext = videoFile.name.split('.').pop() || 'webm';
         const fileName = `corresponsales_video/${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
         const { error: uploadError } = await supabaseAdmin.storage
@@ -280,92 +309,73 @@ export async function POST(request: Request) {
       mediaUrls.length === 0;
 
     if (isCorrupted) {
-      // Activar Failsafe si el audio está corrupto o vacío y no hay texto redactado
+      // Activar Failsafe si no hay audio, texto ni archivos multimedia
       status = "AUDIO_ERROR_MANUAL_REVIEW_REQUIRED";
-      transcriptionText = "[ERROR: No se pudo procesar el flujo de audio ni se recibió texto redactado. Se requiere revisión manual]";
+      transcriptionText = "[ERROR: No se recibió texto, audio ni archivo multimedia válido]";
       
       const fallbackTitle = rawMetadataTitle || "Reporte de Corresponsal en Staging";
       versionNexativa = {
         title: `[BORRADOR PENDIENTE] ${fallbackTitle}`,
         excerpt: "Error de entrada en exteriores. Requiere edición y revisión manual.",
-        content: `<p>Se ha recibido el reporte del corresponsal, pero no contiene texto ni audio válido. Edite este borrador manualmente.</p>`,
+        content: `<p>Se ha recibido el reporte del corresponsal, pero no contiene texto, audio ni multimedia válido. Edite este borrador manualmente.</p>`,
         tags: ["Revisión", "Corresponsal", "Entrada Vacía", "Ituzaingó", "Corrientes"]
       };
 
       versionPartner = {
         title: `[PENDIENTE DE REVISIÓN] ${fallbackTitle}`,
-        content: `<p>Cobertura de exteriores en espera de redacción manual por problemas técnicos en el origen.</p>`
+        content: `<p>Cobertura de exteriores en espera de redacción manual.</p>`
       };
-    } else if (draftText && draftText.trim() !== "") {
-      // Si nos envían el borrador de texto directamente, lo usamos
-      transcriptionText = draftText;
-      try {
-        const coords = parseCoordinates(geolocationCoordinates);
-        const closestLoc = getClosestLocation(coords.lat, coords.lng);
-        const locationContext = closestLoc 
-          ? `Ubicación aproximada detectada: Cerca de ${closestLoc.name}. Referencia municipal: ${closestLoc.description}.`
-          : `Ubicación aproximada: Coordenadas ${geolocationCoordinates}.`;
-
-        // Generar las copias a partir del texto y el contexto geográfico
-        const copies = await generateArticles(transcriptionText, locationContext, operatorName);
-        versionNexativa = copies.version_nexativa;
-        versionPartner = copies.version_partner;
-      } catch (err: any) {
-        console.error("[Corresponsal API] Falló el procesamiento cognitivo de texto redactado:", err);
-        status = "AUDIO_ERROR_MANUAL_REVIEW_REQUIRED";
-        transcriptionText = `[ERROR DE PROCESAMIENTO: Falló la redacción cognitiva del borrador. Detalle: ${err.message || err}]`;
-        
-        const fallbackTitle = rawMetadataTitle || "Reporte de Corresponsal en Staging";
-        versionNexativa = {
-          title: `[BORRADOR PENDIENTE] ${fallbackTitle}`,
-          excerpt: "Error de procesamiento en la redacción automática.",
-          content: `<p>Borrador original enviado por corresponsal: ${draftText}</p><p>Fallo del motor de copia: ${err.message || err}</p>`,
-          tags: ["Revisión", "Corresponsal", "Error Redacción", "Ituzaingó", "Corrientes"]
-        };
-        versionPartner = {
-          title: `[PENDIENTE DE REVISIÓN] ${fallbackTitle}`,
-          content: `<p>Contenido en espera de edición por fallos en el motor cognitivo de redacción.</p>`
-        };
-      }
     } else {
-      try {
-        // Transcribir el audio en memoria (aislado, sin guardar el archivo en buckets o BD)
-        transcriptionText = await transcribeAudio(audioBuffer!, mimeType);
-        
-        if (!transcriptionText || transcriptionText.trim() === "") {
-          throw new Error("La transcripción automática devolvió un resultado vacío.");
+      // Cross-reference geolocation con local database
+      const coords = parseCoordinates(geolocationCoordinates);
+      const closestLoc = getClosestLocation(coords.lat, coords.lng);
+      const locationContext = closestLoc 
+        ? `Ubicación aproximada detectada: Cerca de ${closestLoc.name}. Referencia municipal: ${closestLoc.description}.`
+        : `Ubicación aproximada: Coordenadas ${geolocationCoordinates}.`;
+
+      // Determine transcription or text source
+      if (audioBuffer && audioBuffer.length > 0) {
+        try {
+          transcriptionText = await transcribeAudio(audioBuffer, mimeType);
+        } catch (err: any) {
+          console.warn("[Corresponsal API] Error al transcribir audio:", err.message);
+          transcriptionText = draftText || "[Audio adjunto no se pudo transcribir completamente]";
         }
+      } else if (draftText && draftText.trim() !== "") {
+        transcriptionText = draftText.trim();
+      } else {
+        transcriptionText = mediaUrls.length > 0 
+          ? "[Filmación de video / fotografía enviada por el corresponsal desde el lugar de los hechos]"
+          : "[Reporte de corresponsalía en vivo]";
+      }
 
-        // Cross-reference geolocation con Ituzaingó local database
-        const coords = parseCoordinates(geolocationCoordinates);
-        const closestLoc = getClosestLocation(coords.lat, coords.lng);
-        const locationContext = closestLoc 
-          ? `Ubicación aproximada detectada: Cerca de ${closestLoc.name}. Referencia municipal: ${closestLoc.description}.`
-          : `Ubicación aproximada: Coordenadas ${geolocationCoordinates}.`;
-
-        // Generar copys utilizando Nora Copywriting Engine
-        const copies = await generateArticles(transcriptionText, locationContext, operatorName);
-        
+      // Generate articles with Nora IA
+      try {
+        const copies = await generateArticles(
+          transcriptionText,
+          locationContext,
+          operatorName,
+          imageBuffer,
+          videoBuffer
+        );
         versionNexativa = copies.version_nexativa;
         versionPartner = copies.version_partner;
+        status = "PENDING_REVIEW";
       } catch (err: any) {
-        console.error("[Corresponsal API] Falló el procesamiento cognitivo de audio:", err);
-        
-        // Failsafe por fallo en la API de IA o formato
+        console.error("[Corresponsal API] Falló la generación de noticias con Nora IA:", err);
         status = "AUDIO_ERROR_MANUAL_REVIEW_REQUIRED";
-        transcriptionText = `[ERROR DE PROCESAMIENTO: Falló la transcripción cognitiva. Detalle: ${err.message || err}]`;
         
         const fallbackTitle = rawMetadataTitle || "Reporte de Corresponsal en Staging";
         versionNexativa = {
           title: `[BORRADOR PENDIENTE] ${fallbackTitle}`,
-          excerpt: "Error de procesamiento cognitivo de audio. Se requiere revisión manual.",
-          content: `<p>Válvula de escape activada. No se pudo transcribir o redactar automáticamente el audio del corresponsal. Detalle del error: ${err.message || err}</p>`,
-          tags: ["Revisión", "Corresponsal", "Error Procesamiento", "Ituzaingó", "Corrientes"]
+          excerpt: "Reporte con material audiovisual recibido. Requiere revisión manual.",
+          content: `<p>Se ha recibido el reporte multimedia con las siguientes URLs: ${mediaUrls.join(", ")}.</p><p>Detalle técnico: ${err.message || err}</p>`,
+          tags: ["Revisión", "Corresponsal", "Video", "Ituzaingó", "Corrientes"]
         };
 
         versionPartner = {
           title: `[PENDIENTE DE REVISIÓN] ${fallbackTitle}`,
-          content: `<p>Contenido en espera de edición debido a fallos en la transcripción automática.</p>`
+          content: `<p>Contenido multimedia en espera de edición por parte del equipo de redacción.</p>`
         };
       }
     }
