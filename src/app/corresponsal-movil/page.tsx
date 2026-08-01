@@ -298,6 +298,14 @@ export default function CorresponsalMovilPage() {
     setVideoSecondsLeft(60);
   };
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setAttachedImage(file);
+      setAttachedImagePreview(URL.createObjectURL(file));
+    }
+  };
+
   const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
