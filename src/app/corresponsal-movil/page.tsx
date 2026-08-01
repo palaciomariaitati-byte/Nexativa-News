@@ -257,21 +257,57 @@ export default function CorresponsalMovilPage() {
   const toggleCameraDirection = async () => {
     const newMode = cameraFacingMode === "environment" ? "user" : "environment";
     setCameraFacingMode(newMode);
-    const newStream = await openCameraStream(newMode);
-    if (newStream && videoMediaRecorderRef.current && isVideoRecording) {
-      // Re-init MediaRecorder with new stream if active
-      videoMediaRecorderRef.current.stop();
-      const recorder = new MediaRecorder(newStream);
-      videoMediaRecorderRef.current = recorder;
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) videoChunksRef.current.push(event.data);
-      };
-      recorder.onstop = () => {
-        const videoBlob = new Blob(videoChunksRef.current, { type: "video/webm" });
-        setRecordedVideo(videoBlob);
-        setRecordedVideoUrl(URL.createObjectURL(videoBlob));
-      };
-      recorder.start();
+
+    try {
+      if (isVideoRecording && videoMediaRecorderRef.current) {
+        // Request remaining data from current recorder
+        if (videoMediaRecorderRef.current.state === "recording") {
+          videoMediaRecorderRef.current.requestData();
+        }
+        
+        // Unbind old onstop so it does not close the modal or finalize prematurely
+        videoMediaRecorderRef.current.onstop = null;
+        if (videoMediaRecorderRef.current.state !== "inactive") {
+          videoMediaRecorderRef.current.stop();
+        }
+
+        // Open new camera stream
+        const newStream = await openCameraStream(newMode);
+        if (newStream) {
+          const options = {
+            mimeType: MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")
+              ? "video/webm;codecs=vp8,opus"
+              : MediaRecorder.isTypeSupported("video/mp4")
+              ? "video/mp4"
+              : undefined,
+            videoBitsPerSecond: 1500000
+          };
+
+          const newRecorder = new MediaRecorder(newStream, options);
+          newRecorder.ondataavailable = (event) => {
+            if (event.data && event.data.size > 0) {
+              videoChunksRef.current.push(event.data);
+            }
+          };
+
+          newRecorder.onstop = () => {
+            if (activeStreamRef.current) {
+              activeStreamRef.current.getTracks().forEach((track) => track.stop());
+            }
+            const videoBlob = new Blob(videoChunksRef.current, { type: "video/webm" });
+            setRecordedVideo(videoBlob);
+            setRecordedVideoUrl(URL.createObjectURL(videoBlob));
+            setShowVideoModal(false);
+          };
+
+          newRecorder.start(500);
+          videoMediaRecorderRef.current = newRecorder;
+        }
+      } else {
+        await openCameraStream(newMode);
+      }
+    } catch (err) {
+      console.error("Error al cambiar cámara durante filmación:", err);
     }
   };
 
@@ -298,7 +334,7 @@ export default function CorresponsalMovilPage() {
       videoChunksRef.current = [];
 
       videoMediaRecorderRef.current.ondataavailable = (event) => {
-        if (event.data.size > 0) {
+        if (event.data && event.data.size > 0) {
           videoChunksRef.current.push(event.data);
         }
       };
@@ -313,7 +349,7 @@ export default function CorresponsalMovilPage() {
         setShowVideoModal(false);
       };
 
-      videoMediaRecorderRef.current.start();
+      videoMediaRecorderRef.current.start(500);
       setIsVideoRecording(true);
       setVideoSecondsLeft(60);
 
@@ -338,11 +374,17 @@ export default function CorresponsalMovilPage() {
 
   const stopVideoRecording = () => {
     if (videoMediaRecorderRef.current && isVideoRecording) {
-      videoMediaRecorderRef.current.stop();
+      if (videoMediaRecorderRef.current.state !== "inactive") {
+        videoMediaRecorderRef.current.stop();
+      }
       setIsVideoRecording(false);
       if (videoTimerRef.current) clearInterval(videoTimerRef.current);
+    } else {
+      setShowVideoModal(false);
+      if (activeStreamRef.current) {
+        activeStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
     }
-    setShowVideoModal(false);
   };
 
   const discardVideo = () => {
