@@ -84,6 +84,10 @@ export default function CorresponsalMovilPage() {
   const [coords, setCoords] = useState<string | null>(null);
   const [locationLabel, setLocationLabel] = useState<string>("Buscando ubicación GPS...");
 
+  // UI state
+  const [loading, setLoading] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
   // Local storage of recent sent reports
   const [sentReports, setSentReports] = useState<SentReport[]>([]);
 
