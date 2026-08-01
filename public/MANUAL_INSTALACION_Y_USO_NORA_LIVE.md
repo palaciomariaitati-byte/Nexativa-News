@@ -1,17 +1,17 @@
-# 🔴 Manual Oficial de Instalación y Uso: Nora Live Exteriores (v1.3.0)
+# 🔴 Manual Oficial de Instalación y Uso: Nora Live Exteriores (v1.6.0)
 **Infraestructura de Inteligencia Artificial Periodística por MyJNexoraVisual para Cadena 4 & Nexativa News**
 
 ---
 
 ## 📌 1. ¿Qué es Nora Live Exteriores?
-Es una plataforma con Inteligencia Artificial (Redactora Jefa IA) desarrollada por **MyJNexoraVisual** para que los corresponsales, movileros, vecinos y redactores de **Cadena 4** puedan convertir reportes de voz, fotos de la calle, notas de texto, audios guardados o noticieros en artículos periodísticos terminados y listos para publicar en su diario digital en segundos.
+Es una plataforma con Inteligencia Artificial (Redactora Jefa IA) desarrollada por **MyJNexoraVisual** para que los corresponsales, movileros, vecinos y redactores de **Cadena 4** puedan convertir reportes de voz, fotos de la calle, filmaciones cortas de video en vivo (hasta 60s), notas de texto, audios guardados o noticieros en artículos periodísticos terminados y listos para publicar en su diario digital en segundos.
 
 ---
 
 ## 🛠️ 2. Guía de Instalación Rápida (Para el Administrador del sitio)
 
 1. **Descargar el Plugin:**
-   * Archivo comprimido oficial: `nora-live-exteriores.zip` (Versión 1.3.0)
+   * Archivo comprimido oficial: `nora-live-exteriores.zip` (Versión 1.6.0)
 
 2. **Subir a WordPress:**
    * Inicia sesión en el panel de control de tu página web: `https://cadena4.com.ar/wp-admin`
@@ -29,13 +29,15 @@ Es una plataforma con Inteligencia Artificial (Redactora Jefa IA) desarrollada p
 
 Los periodistas pueden ingresar a **`Nora Live 🔴`** desde su celular o computadora dentro del panel de WordPress.
 
-### Pestaña 1: 🎤 Cobertura & Redacción en Vivo
+### Pestaña 1: 🎤 Cobertura & Redacción en Vivo (Texto, Foto, Audio & Video)
 
 1. **Enviar la información desde el lugar del hecho:**
    * **Por Texto:** Escribe los datos clave de lo que ocurrió y presiona **Enviar**.
    * **Por Foto:** Toca **📷 Subir Foto** (o toma una foto directa con la cámara del celular). Nora analizará la escena visualmente y sumará los detalles a la nota.
    * **Por Grabación de Voz:** Toca **🎙️ Grabar Audio**, dicta lo que sucedió desde la calle y vuelve a tocar para enviar.
    * **Por Archivo de Audio:** Toca **🎵 Subir Audio** para seleccionar cualquier archivo de voz grabado previamente en tu celular o computadora (`.mp3`, `.wav`, `.m4a`, `.aac`, `.ogg`). Nora lo escuchará e integrará la información al borrador.
+   * **🎥 Filmar Video en Siniestros (hasta 60s):** Toca **🎥 Filmar Video (60s max)**. Se activará un temporizador visual de 60 segundos con corte automático. Ideal para capturar incidentes, choques, incendios o temporales en tiempo real. Nora IA analizará visualmente el video y el audio capturado, redactando la nota con tono de urgencia e impecable resguardo legal.
+   * **📹 Subir Video (hasta 60s):** Toca **📹 Subir Video (60s)** para seleccionar una filmación previamente guardada en el dispositivo.
 
 2. **Revisar el Borrador en Vivo:**
    * En la columna derecha verás la noticia redactada en tiempo real con estilo periodístico profesional.

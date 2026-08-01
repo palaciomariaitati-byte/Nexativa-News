@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Image as ImageIcon, Loader2, CheckCircle, Mic, Square, MapPin, Camera } from "lucide-react";
+import { Send, Image as ImageIcon, Loader2, CheckCircle, Mic, Square, MapPin, Camera, Video } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { getClosestLocation } from "@/lib/location-db";
 
@@ -15,6 +15,13 @@ export default function NoraLiveEditor() {
   const [pendingImage, setPendingImage] = useState<File | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  
+  // Video recording state (up to 60s)
+  const [isVideoRecording, setIsVideoRecording] = useState(false);
+  const [videoMediaRecorder, setVideoMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [videoSecondsLeft, setVideoSecondsLeft] = useState(60);
+  const videoTimerRef = useRef<any>(null);
+
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
 
   const [coords, setCoords] = useState<string>("");
@@ -228,9 +235,151 @@ export default function NoraLiveEditor() {
     } catch (e: any) {
       console.error(e);
       const details = e.message || "Fallo de conexión o de red";
-      setMessages(prev => [...prev, { role: 'nora', text: `Hubo un error de conexión al enviar la imagen (${details}). La imagen podría ser muy pesada, no tener el formato correcto o haber un fallo de red.` }]);
+      setMessages(prev => [...prev, { role: 'nora', text: `Hubo un error de conexión al enviar la imagen (${details}).` }]);
     }
     setIsProcessing(false);
+  };
+
+  const startVideoRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        if (videoTimerRef.current) clearInterval(videoTimerRef.current);
+        stream.getTracks().forEach(track => track.stop());
+
+        setMessages(prev => [...prev, { role: 'user', text: "[Filmación de video (hasta 60s) enviada por el operador]" }]);
+        setIsProcessing(true);
+
+        try {
+          const videoBlob = new Blob(chunks, { type: 'video/webm' });
+          const reader = new FileReader();
+          reader.readAsDataURL(videoBlob);
+          reader.onloadend = async () => {
+            const base64Video = reader.result as string;
+
+            const res = await fetch("/api/nora-live", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                message: input.trim() ? `El operador filmó un video en el lugar del hecho. Contexto adicional: ${input.trim()}` : "El operador filmó un video de hasta 60 segundos desde el lugar del hecho o siniestro. Analízalo e intégralo a la noticia.",
+                currentDraft: draft,
+                video: base64Video
+              })
+            });
+
+            let errorDetail = "";
+            if (!res.ok) {
+              try {
+                const errData = await res.json();
+                errorDetail = errData.reply || errData.error || `HTTP ${res.status}`;
+              } catch {
+                errorDetail = `HTTP ${res.status}`;
+              }
+              throw new Error(errorDetail);
+            }
+
+            const data = await res.json();
+            if (data.newDraft) {
+              setDraft(data.newDraft);
+            }
+            setMessages(prev => [...prev, { role: 'nora', text: data.reply || "Borrador actualizado con la filmación de video." }]);
+            setInput("");
+          };
+        } catch (e: any) {
+          console.error(e);
+          const details = e.message || "Fallo de conexión";
+          setMessages(prev => [...prev, { role: 'nora', text: `Hubo un error al procesar el video (${details}).` }]);
+        } finally {
+          setIsProcessing(false);
+          setIsVideoRecording(false);
+          setVideoSecondsLeft(60);
+        }
+      };
+
+      recorder.start();
+      setVideoMediaRecorder(recorder);
+      setIsVideoRecording(true);
+      setVideoSecondsLeft(60);
+
+      videoTimerRef.current = setInterval(() => {
+        setVideoSecondsLeft(prev => {
+          if (prev <= 1) {
+            if (recorder.state !== "inactive") recorder.stop();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+    } catch (err: any) {
+      console.error(err);
+      alert("No se pudo acceder a la cámara o micrófono: " + (err.message || err));
+    }
+  };
+
+  const stopVideoRecording = () => {
+    if (videoMediaRecorder && isVideoRecording) {
+      videoMediaRecorder.stop();
+      setIsVideoRecording(false);
+    }
+  };
+
+  const handleVideoUpload = async (file: File) => {
+    if (file.size > 25 * 1024 * 1024) {
+      alert("El video supera los 25MB. Por favor sube un video más corto de hasta 60 segundos.");
+      return;
+    }
+
+    setMessages(prev => [...prev, { role: 'user', text: `[Video adjunto: ${file.name}]` }]);
+    setIsProcessing(true);
+
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onloadend = async () => {
+        const base64Video = reader.result as string;
+
+        const res = await fetch("/api/nora-live", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: input.trim() ? `El operador adjuntó un video. Contexto adicional: ${input.trim()}` : "El operador subió una filmación de video desde el lugar del siniestro. Analízala e intégrala a la noticia.",
+            currentDraft: draft,
+            video: base64Video
+          })
+        });
+
+        let errorDetail = "";
+        if (!res.ok) {
+          try {
+            const errData = await res.json();
+            errorDetail = errData.reply || errData.error || `HTTP ${res.status}`;
+          } catch {
+            errorDetail = `HTTP ${res.status}`;
+          }
+          throw new Error(errorDetail);
+        }
+
+        const data = await res.json();
+        if (data.newDraft) {
+          setDraft(data.newDraft);
+        }
+        setMessages(prev => [...prev, { role: 'nora', text: data.reply || "Borrador actualizado con el video adjunto." }]);
+        setInput("");
+      };
+    } catch (e: any) {
+      console.error(e);
+      setMessages(prev => [...prev, { role: 'nora', text: `Error de conexión al enviar el video: ${e.message || e}` }]);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleSubmitToQueue = async () => {
@@ -402,6 +551,28 @@ export default function NoraLiveEditor() {
             title={isRecording ? "Detener grabación y enviar" : "Grabar reporte de voz"}
           >
             {isRecording ? <Square className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+          </button>
+          
+          <label className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors text-red-400 cursor-pointer shrink-0" title="Subir video (hasta 60s)">
+            <Video className="w-5 h-5" />
+            <input 
+              type="file" 
+              accept="video/*" 
+              className="hidden" 
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleVideoUpload(file);
+              }}
+            />
+          </label>
+
+          <button 
+            onClick={isVideoRecording ? stopVideoRecording : startVideoRecording}
+            className={`p-3 rounded-xl transition-all shrink-0 flex items-center gap-1.5 font-bold text-xs ${isVideoRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 text-red-400'}`}
+            title={isVideoRecording ? "Detener filmación y enviar" : "Filmar video en vivo (máximo 60 segundos)"}
+          >
+            <Video className="w-5 h-5" />
+            {isVideoRecording ? <span>🔴 {videoSecondsLeft}s</span> : <span>60s</span>}
           </button>
           <input 
             type="text"

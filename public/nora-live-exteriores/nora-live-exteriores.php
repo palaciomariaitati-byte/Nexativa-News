@@ -225,9 +225,7 @@ function nora_live_admin_page() {
                 <div style="display:flex; gap:10px; margin-bottom:12px;">
                     <input type="text" id="noraInput" placeholder="Escribe el suceso aquí..." style="flex:1; padding:10px; border-radius:6px; border:1px solid #cbd5e1;" />
                     <button type="button" class="button button-primary" id="btnSend" style="padding:0 18px;">Enviar</button>
-                </div>
-                
-                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                     <label class="button" style="display:flex; align-items:center; gap:5px; cursor:pointer;">
                         📷 Subir Foto
                         <input type="file" id="noraImage" accept="image/*" style="display:none;" />
@@ -238,6 +236,13 @@ function nora_live_admin_page() {
                     </label>
                     <button type="button" class="button" id="btnAudioRec" style="display:flex; align-items:center; gap:5px;">
                         🎙️ Grabar Audio
+                    </button>
+                    <label class="button" style="display:flex; align-items:center; gap:5px; cursor:pointer; border-color:#dc2626; color:#dc2626;">
+                        📹 Subir Video (60s)
+                        <input type="file" id="noraVideoFile" accept="video/*" style="display:none;" />
+                    </label>
+                    <button type="button" class="button" id="btnVideoRec" style="display:flex; align-items:center; gap:5px; background:#fef2f2; border-color:#fca5a5; color:#b91c1c; font-weight:bold;">
+                        🎥 Filmar Video (60s max)
                     </button>
                 </div>
             </div>
@@ -444,6 +449,12 @@ function nora_live_admin_page() {
                 });
             }
 
+            function getYouTubeId(url) {
+                if (!url) return null;
+                const match = url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/);
+                return (match && match[2].length === 11) ? match[2] : null;
+            }
+
             btnPublishSelfFlash.addEventListener('click', async function() {
                 const selectedClips = currentSelfClips.filter(c => selectedSelfClipIds.includes(c.clip_id));
                 if (selectedClips.length === 0) {
@@ -459,8 +470,13 @@ function nora_live_admin_page() {
                 btnPublishSelfFlash.innerText = 'Publicando...';
 
                 try {
-                    const embedUrl = firstClip.video_url || 'https://www.youtube.com/embed/';
+                    const primaryUrl = firstClip.video_url || '';
+                    const ytId = getYouTubeId(primaryUrl);
+                    const embedUrl = ytId
+                        ? `https://www.youtube.com/embed/${ytId}?start=${firstClip.start_time_seconds || 0}&end=${firstClip.end_time_seconds || 0}&autoplay=1`
+                        : primaryUrl;
                     const summary = selectedClips.map(c => `• [${c.source_title || 'Programa'}] ${c.title}: ${c.summary}`).join('\n');
+                    const summaryHtml = selectedClips.map(c => `<p><strong>[${c.source_title || 'Programa'}] ${c.title}:</strong> ${c.summary}</p>`).join('');
 
                     // 1. Post to Nexativa Flashes API
                     const apiRes = await fetch(postFlashEndpoint, {
@@ -470,7 +486,7 @@ function nora_live_admin_page() {
                             title: title,
                             summary: summary,
                             duration_seconds: cumulativeSecs,
-                            video_url: firstClip.video_url || '',
+                            video_url: primaryUrl,
                             embed_url: embedUrl,
                             segments: selectedClips,
                             category: firstClip.category || 'nacional',
@@ -480,7 +496,7 @@ function nora_live_admin_page() {
                     });
 
                     // 2. Post to WP Rest Endpoint
-                    const content = `<h2>${title}</h2><p>${summary}</p><br><iframe width="100%" height="450" src="${embedUrl}" frameborder="0" allowfullscreen></iframe>`;
+                    const content = `<h2>${title}</h2>${summaryHtml}<br><iframe width="100%" height="450" src="${embedUrl}" frameborder="0" allowfullscreen></iframe>`;
                     const wpRes = await fetch(wpRestEndpoint, {
                         method: 'POST',
                         headers: {
@@ -633,7 +649,9 @@ function nora_live_admin_page() {
             const btnPublish = document.getElementById('btnPublish');
             const imageInput = document.getElementById('noraImage');
             const audioFileInput = document.getElementById('noraAudioFile');
+            const videoFileInput = document.getElementById('noraVideoFile');
             const btnAudioRec = document.getElementById('btnAudioRec');
+            const btnVideoRec = document.getElementById('btnVideoRec');
 
             function addMessage(role, text) {
                 const div = document.createElement('div');
@@ -643,12 +661,12 @@ function nora_live_admin_page() {
                 chatEl.scrollTop = chatEl.scrollHeight;
             }
 
-            async function sendToNora(messageText, imageBase64, audioBase64) {
+            async function sendToNora(messageText, imageBase64, audioBase64, videoBase64) {
                 if (isProcessing) return;
                 isProcessing = true;
                 btnSend.disabled = true;
 
-                addMessage('user', messageText || (imageBase64 ? '[Imagen de la calle adjunta]' : '[Reporte de voz enviado]'));
+                addMessage('user', messageText || (videoBase64 ? '[Filmación de video (hasta 60s) enviada]' : imageBase64 ? '[Imagen de la calle adjunta]' : '[Reporte de voz enviado]'));
 
                 try {
                     const res = await fetch(apiEndpoint, {
@@ -658,7 +676,8 @@ function nora_live_admin_page() {
                             message: messageText,
                             currentDraft: currentDraft,
                             image: imageBase64,
-                            audio: audioBase64
+                            audio: audioBase64,
+                            video: videoBase64
                         })
                     });
                     const data = await res.json();
@@ -666,7 +685,7 @@ function nora_live_admin_page() {
                         currentDraft = data.newDraft;
                         draftEl.innerHTML = currentDraft;
                     }
-                    addMessage('nora', data.reply || 'Borrador de la noticia actualizado.');
+                    addMessage('nora', data.reply || 'Borrador de la noticia actualizado con el video.');
                 } catch (e) {
                     addMessage('nora', 'Error de conexión con la IA. Detalle: ' + (e.message || e));
                 } finally {
@@ -678,7 +697,7 @@ function nora_live_admin_page() {
 
             btnSend.addEventListener('click', function() {
                 const text = inputEl.value.trim();
-                if (text) sendToNora(text, null, null);
+                if (text) sendToNora(text, null, null, null);
             });
 
             inputEl.addEventListener('keydown', function(e) {
@@ -690,7 +709,7 @@ function nora_live_admin_page() {
                 if (!file) return;
                 const reader = new FileReader();
                 reader.onload = function(evt) {
-                    sendToNora('Imagen adjunta tomada desde el lugar de los hechos (' + file.name + ')', evt.target.result, null);
+                    sendToNora('Imagen adjunta tomada desde el lugar de los hechos (' + file.name + ')', evt.target.result, null, null);
                 };
                 reader.readAsDataURL(file);
             });
@@ -700,7 +719,21 @@ function nora_live_admin_page() {
                 if (!file) return;
                 const reader = new FileReader();
                 reader.onload = function(evt) {
-                    sendToNora('Audio de voz adjunto desde dispositivo (' + file.name + ')', null, evt.target.result);
+                    sendToNora('Audio de voz adjunto desde dispositivo (' + file.name + ')', null, evt.target.result, null);
+                };
+                reader.readAsDataURL(file);
+            });
+
+            videoFileInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                if (file.size > 25 * 1024 * 1024) {
+                    alert('El video supera los 25MB. Por favor sube una filmación más corta de hasta 60 segundos.');
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    sendToNora('Filmación de video subida desde la calle por siniestro/evento (' + file.name + ')', null, null, evt.target.result);
                 };
                 reader.readAsDataURL(file);
             });
@@ -720,7 +753,7 @@ function nora_live_admin_page() {
                             const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                             const reader = new FileReader();
                             reader.onloadend = function() {
-                                sendToNora('Reporte de voz grabado por el movilero', null, reader.result);
+                                sendToNora('Reporte de voz grabado por el movilero', null, reader.result, null);
                             };
                             reader.readAsDataURL(audioBlob);
                         };
@@ -738,6 +771,68 @@ function nora_live_admin_page() {
                     btnAudioRec.style.background = '';
                     btnAudioRec.style.color = '';
                     btnAudioRec.innerText = '🎙️ Grabar Audio';
+                }
+            });
+
+            // 60-Second Video Filming Handler
+            let videoMediaRecorder = null;
+            let videoChunks = [];
+            let isVideoRecording = false;
+            let videoTimerInterval = null;
+            let videoSecondsLeft = 60;
+
+            btnVideoRec.addEventListener('click', async function() {
+                if (!isVideoRecording) {
+                    try {
+                        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                        videoMediaRecorder = new MediaRecorder(stream);
+                        videoChunks = [];
+                        videoMediaRecorder.ondataavailable = e => videoChunks.push(e.data);
+                        videoMediaRecorder.onstop = async () => {
+                            if (videoTimerInterval) clearInterval(videoTimerInterval);
+                            stream.getTracks().forEach(track => track.stop());
+
+                            const videoBlob = new Blob(videoChunks, { type: 'video/webm' });
+                            const reader = new FileReader();
+                            reader.onloadend = function() {
+                                sendToNora('Video filmado en el lugar del siniestro (hasta 60s)', null, null, reader.result);
+                            };
+                            reader.readAsDataURL(videoBlob);
+                        };
+
+                        videoMediaRecorder.start();
+                        isVideoRecording = true;
+                        videoSecondsLeft = 60;
+
+                        btnVideoRec.style.background = '#dc2626';
+                        btnVideoRec.style.color = '#fff';
+                        btnVideoRec.innerText = '🔴 Filmando (60s)... Clic para terminar';
+
+                        videoTimerInterval = setInterval(() => {
+                            videoSecondsLeft--;
+                            if (videoSecondsLeft <= 0) {
+                                if (videoMediaRecorder && isVideoRecording) {
+                                    videoMediaRecorder.stop();
+                                    isVideoRecording = false;
+                                    btnVideoRec.style.background = '#fef2f2';
+                                    btnVideoRec.style.color = '#b91c1c';
+                                    btnVideoRec.innerText = '🎥 Filmar Video (60s max)';
+                                }
+                            } else {
+                                btnVideoRec.innerText = `🔴 Filmando (${videoSecondsLeft}s restantes)... Clic para terminar`;
+                            }
+                        }, 1000);
+
+                    } catch(err) {
+                        alert('No se pudo acceder a la cámara y micrófono para filmar el video: ' + err.message);
+                    }
+                } else {
+                    if (videoTimerInterval) clearInterval(videoTimerInterval);
+                    videoMediaRecorder.stop();
+                    isVideoRecording = false;
+                    btnVideoRec.style.background = '#fef2f2';
+                    btnVideoRec.style.color = '#b91c1c';
+                    btnVideoRec.innerText = '🎥 Filmar Video (60s max)';
                 }
             });
 
