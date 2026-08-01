@@ -332,8 +332,8 @@ export default function NoraLiveEditor() {
   };
 
   const handleVideoUpload = async (file: File) => {
-    if (file.size > 25 * 1024 * 1024) {
-      alert("El video supera los 25MB. Por favor sube un video más corto de hasta 60 segundos.");
+    if (file.size > 100 * 1024 * 1024) {
+      alert("El video supera los 100MB. Sube una filmación de hasta 5 minutos.");
       return;
     }
 

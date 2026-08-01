@@ -727,13 +727,13 @@ function nora_live_admin_page() {
             videoFileInput.addEventListener('change', function(e) {
                 const file = e.target.files[0];
                 if (!file) return;
-                if (file.size > 25 * 1024 * 1024) {
-                    alert('El video supera los 25MB. Por favor sube una filmación más corta de hasta 60 segundos.');
+                if (file.size > 100 * 1024 * 1024) {
+                    alert('El video supera los 100MB. Sube una filmación de hasta 5 minutos.');
                     return;
                 }
                 const reader = new FileReader();
                 reader.onload = function(evt) {
-                    sendToNora('Filmación de video subida desde la calle por siniestro/evento (' + file.name + ')', null, null, evt.target.result);
+                    sendToNora('Filmación de video enviada desde exteriores (' + file.name + '). Nora IA la editará y recortará al minuto clave (60s).', null, null, evt.target.result);
                 };
                 reader.readAsDataURL(file);
             });

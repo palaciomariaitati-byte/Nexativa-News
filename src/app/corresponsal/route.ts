@@ -212,6 +212,54 @@ export async function POST(request: Request) {
       }
     }
 
+    // Process image file server-side (Service Role)
+    const imageFile = formData.get("image") as File | null;
+    if (imageFile && imageFile.size > 0) {
+      try {
+        const imageBuffer = Buffer.from(await imageFile.arrayBuffer());
+        const ext = imageFile.name.split('.').pop() || 'jpg';
+        const fileName = `corresponsales/${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
+        const { error: uploadError } = await supabaseAdmin.storage
+          .from("uploads")
+          .upload(fileName, imageBuffer, { contentType: imageFile.type || "image/jpeg" });
+        
+        if (!uploadError) {
+          const { data: publicUrlData } = supabaseAdmin.storage.from("uploads").getPublicUrl(fileName);
+          if (publicUrlData?.publicUrl && !mediaUrls.includes(publicUrlData.publicUrl)) {
+            mediaUrls.push(publicUrlData.publicUrl);
+          }
+        } else {
+          console.warn("[Corresponsal API] Error subiendo foto en servidor:", uploadError.message);
+        }
+      } catch (err) {
+        console.warn("[Corresponsal API] Excepción en subida de foto:", err);
+      }
+    }
+
+    // Process video file server-side (Service Role)
+    const videoFile = formData.get("video") as File | null;
+    if (videoFile && videoFile.size > 0) {
+      try {
+        const videoBuffer = Buffer.from(await videoFile.arrayBuffer());
+        const ext = videoFile.name.split('.').pop() || 'webm';
+        const fileName = `corresponsales_video/${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
+        const { error: uploadError } = await supabaseAdmin.storage
+          .from("uploads")
+          .upload(fileName, videoBuffer, { contentType: videoFile.type || "video/webm" });
+        
+        if (!uploadError) {
+          const { data: publicUrlData } = supabaseAdmin.storage.from("uploads").getPublicUrl(fileName);
+          if (publicUrlData?.publicUrl && !mediaUrls.includes(publicUrlData.publicUrl)) {
+            mediaUrls.push(publicUrlData.publicUrl);
+          }
+        } else {
+          console.warn("[Corresponsal API] Error subiendo video en servidor:", uploadError.message);
+        }
+      } catch (err) {
+        console.warn("[Corresponsal API] Excepción en subida de video:", err);
+      }
+    }
+
     // Process audio buffer in memory (volatile)
     let audioBuffer: Buffer | null = null;
     let mimeType = "audio/mp3";
@@ -227,7 +275,9 @@ export async function POST(request: Request) {
     let versionPartner = null;
 
     const draftText = formData.get("draft_text") as string | null;
-    const isCorrupted = (!audioBuffer || audioBuffer.length === 0) && (!draftText || draftText.trim() === "");
+    const isCorrupted = (!audioBuffer || audioBuffer.length === 0) &&
+      (!draftText || draftText.trim() === "") &&
+      mediaUrls.length === 0;
 
     if (isCorrupted) {
       // Activar Failsafe si el audio está corrupto o vacío y no hay texto redactado

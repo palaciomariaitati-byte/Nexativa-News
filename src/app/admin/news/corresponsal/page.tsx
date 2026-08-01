@@ -709,27 +709,34 @@ export default function CorresponsalStagingPage() {
                       </h4>
                       {item.attached_media_url && item.attached_media_url.length > 0 ? (
                         <div className="grid grid-cols-2 gap-2 mt-2">
-                          {item.attached_media_url.map((imgUrl, index) => (
-                            <a 
-                              key={index}
-                              href={imgUrl} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="group relative aspect-video border border-white/10 rounded overflow-hidden hover:border-[var(--color-brand-accent)] transition-all bg-black/50"
-                            >
-                              <img 
-                                src={imgUrl} 
-                                alt={`Media ${index}`} 
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform" 
-                              />
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                <ExternalLink className="w-4 h-4 text-white" />
+                          {item.attached_media_url.map((mediaUrl, index) => {
+                            const isVideo = mediaUrl.endsWith('.mp4') || mediaUrl.endsWith('.webm') || mediaUrl.includes('corresponsales_video');
+                            return isVideo ? (
+                              <div key={index} className="relative aspect-video border border-white/10 rounded overflow-hidden bg-black">
+                                <video src={mediaUrl} controls className="w-full h-full object-contain" />
                               </div>
-                            </a>
-                          ))}
+                            ) : (
+                              <a 
+                                key={index}
+                                href={mediaUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="group relative aspect-video border border-white/10 rounded overflow-hidden hover:border-[var(--color-brand-accent)] transition-all bg-black/50"
+                              >
+                                <img 
+                                  src={mediaUrl} 
+                                  alt={`Media ${index}`} 
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform" 
+                                />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                  <ExternalLink className="w-4 h-4 text-white" />
+                                </div>
+                              </a>
+                            );
+                          })}
                         </div>
                       ) : (
-                        <p className="text-xs text-white/30 italic py-4 text-center">Sin imágenes adjuntas</p>
+                        <p className="text-xs text-white/30 italic py-4 text-center">Sin imágenes o videos adjuntos</p>
                       )}
                     </div>
                   </div>

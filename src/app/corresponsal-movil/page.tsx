@@ -26,6 +26,8 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
+import { getClosestLocation } from "@/lib/location-db";
+
 interface SentReport {
   id: string;
   title: string;
@@ -51,7 +53,7 @@ export default function CorresponsalMovilPage() {
   const [attachedImagePreview, setAttachedImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Video Fields (up to 60s)
+  // Video Fields (up to 5 mins / 100MB, edited by Nora IA to 60s)
   const [attachedVideo, setAttachedVideo] = useState<File | null>(null);
   const [attachedVideoPreview, setAttachedVideoPreview] = useState<string | null>(null);
   const videoFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -104,24 +106,30 @@ export default function CorresponsalMovilPage() {
     detectLocation();
   }, []);
 
-  // Location Auto-Detect
+  // Location Auto-Detect with high-precision neighborhood resolution
   const detectLocation = () => {
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          const lat = position.coords.latitude.toFixed(4);
-          const lng = position.coords.longitude.toFixed(4);
-          setCoords(`${lat}, ${lng}`);
-          setLocationLabel(`GPS: Lat ${lat}, Lng ${lng}`);
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          setCoords(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+          
+          const loc = getClosestLocation(lat, lng);
+          if (loc) {
+            setLocationLabel(loc.name);
+          } else {
+            setLocationLabel(`Zona Urbana (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+          }
         },
         (error) => {
-          setLocationLabel("GPS: Ubicación Móvil General");
+          setLocationLabel("Zona Urbana (Ituzaingó)");
           setCoords("-27.5973, -56.6874");
         },
         { enableHighAccuracy: true, timeout: 8000 }
       );
     } else {
-      setLocationLabel("GPS no disponible");
+      setLocationLabel("Zona Urbana (Ituzaingó)");
       setCoords("-27.5973, -56.6874");
     }
   };
@@ -191,7 +199,7 @@ export default function CorresponsalMovilPage() {
     setRecordingTime(0);
   };
 
-  // Video Recording Handlers (up to 60s)
+  // Video Recording Handlers (up to 60s max)
   const startVideoRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -252,8 +260,8 @@ export default function CorresponsalMovilPage() {
   const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      if (file.size > 25 * 1024 * 1024) {
-        alert("El video supera los 25MB. Sube una filmación más corta de hasta 60 segundos.");
+      if (file.size > 100 * 1024 * 1024) {
+        alert("El video supera los 100MB. Sube una filmación de hasta 5 minutos.");
         return;
       }
       setAttachedVideo(file);
@@ -311,37 +319,47 @@ export default function CorresponsalMovilPage() {
       let imageUrl: string | null = null;
       let videoUrl: string | null = null;
 
+      // Attempt client-side image upload, but don't fail if client storage RLS blocks it (server will handle it via FormData)
       if (attachedImage) {
-        const resizedBlob = await resizeImage(attachedImage);
-        const fileName = `corresponsales/${Date.now()}_${Math.random().toString(36).substring(2, 7)}.jpg`;
-        const { error: uploadError } = await supabase.storage
-          .from("uploads")
-          .upload(fileName, resizedBlob, { contentType: "image/jpeg" });
+        try {
+          const resizedBlob = await resizeImage(attachedImage);
+          const fileName = `corresponsales/${Date.now()}_${Math.random().toString(36).substring(2, 7)}.jpg`;
+          const { error: uploadError } = await supabase.storage
+            .from("uploads")
+            .upload(fileName, resizedBlob, { contentType: "image/jpeg" });
 
-        if (uploadError) throw new Error("Fallo al subir foto: " + uploadError.message);
-
-        const { data: publicUrlData } = supabase.storage.from("uploads").getPublicUrl(fileName);
-        imageUrl = publicUrlData.publicUrl;
+          if (!uploadError) {
+            const { data: publicUrlData } = supabase.storage.from("uploads").getPublicUrl(fileName);
+            imageUrl = publicUrlData.publicUrl;
+          }
+        } catch (e) {
+          console.warn("Client upload fallback error:", e);
+        }
       }
 
+      // Attempt client-side video upload
       if (attachedVideo) {
-        const fileName = `corresponsales_video/${Date.now()}_${Math.random().toString(36).substring(2, 7)}.mp4`;
-        const { error: uploadError } = await supabase.storage
-          .from("uploads")
-          .upload(fileName, attachedVideo);
-        if (!uploadError) {
-          const { data: publicUrlData } = supabase.storage.from("uploads").getPublicUrl(fileName);
-          videoUrl = publicUrlData.publicUrl;
-        }
+        try {
+          const fileName = `corresponsales_video/${Date.now()}_${Math.random().toString(36).substring(2, 7)}.mp4`;
+          const { error: uploadError } = await supabase.storage
+            .from("uploads")
+            .upload(fileName, attachedVideo);
+          if (!uploadError) {
+            const { data: publicUrlData } = supabase.storage.from("uploads").getPublicUrl(fileName);
+            videoUrl = publicUrlData.publicUrl;
+          }
+        } catch (e) {}
       } else if (recordedVideo) {
-        const fileName = `corresponsales_video/${Date.now()}_${Math.random().toString(36).substring(2, 7)}.webm`;
-        const { error: uploadError } = await supabase.storage
-          .from("uploads")
-          .upload(fileName, recordedVideo, { contentType: "video/webm" });
-        if (!uploadError) {
-          const { data: publicUrlData } = supabase.storage.from("uploads").getPublicUrl(fileName);
-          videoUrl = publicUrlData.publicUrl;
-        }
+        try {
+          const fileName = `corresponsales_video/${Date.now()}_${Math.random().toString(36).substring(2, 7)}.webm`;
+          const { error: uploadError } = await supabase.storage
+            .from("uploads")
+            .upload(fileName, recordedVideo, { contentType: "video/webm" });
+          if (!uploadError) {
+            const { data: publicUrlData } = supabase.storage.from("uploads").getPublicUrl(fileName);
+            videoUrl = publicUrlData.publicUrl;
+          }
+        } catch (e) {}
       }
 
       const isAnon = reportMode === "anonimo";
@@ -366,6 +384,16 @@ export default function CorresponsalMovilPage() {
 
       if (mediaList.length > 0) {
         formData.append("attached_media_url", JSON.stringify(mediaList));
+      }
+
+      // ALWAYS append raw image File & video Blob/File directly to FormData so the server (Service Role) handles guaranteed uploads
+      if (attachedImage) {
+        formData.append("image", attachedImage);
+      }
+      if (attachedVideo) {
+        formData.append("video", attachedVideo);
+      } else if (recordedVideo) {
+        formData.append("video", recordedVideo, "video.webm");
       }
 
       if (recordedAudio) {
