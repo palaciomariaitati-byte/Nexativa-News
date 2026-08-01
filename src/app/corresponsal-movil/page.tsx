@@ -21,7 +21,8 @@ import {
   UserCheck,
   UserX,
   ShieldAlert,
-  Info
+  Info,
+  Video
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
@@ -49,6 +50,20 @@ export default function CorresponsalMovilPage() {
   const [attachedImage, setAttachedImage] = useState<File | null>(null);
   const [attachedImagePreview, setAttachedImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Video Fields (up to 60s)
+  const [attachedVideo, setAttachedVideo] = useState<File | null>(null);
+  const [attachedVideoPreview, setAttachedVideoPreview] = useState<string | null>(null);
+  const videoFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Video Recording States
+  const [isVideoRecording, setIsVideoRecording] = useState(false);
+  const [videoSecondsLeft, setVideoSecondsLeft] = useState(60);
+  const [recordedVideo, setRecordedVideo] = useState<Blob | null>(null);
+  const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
+  const videoMediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const videoChunksRef = useRef<Blob[]>([]);
+  const videoTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Audio Recording States
   const [isRecording, setIsRecording] = useState(false);
@@ -176,6 +191,76 @@ export default function CorresponsalMovilPage() {
     setRecordingTime(0);
   };
 
+  // Video Recording Handlers (up to 60s)
+  const startVideoRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      videoMediaRecorderRef.current = new MediaRecorder(stream);
+      videoChunksRef.current = [];
+
+      videoMediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          videoChunksRef.current.push(event.data);
+        }
+      };
+
+      videoMediaRecorderRef.current.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        const videoBlob = new Blob(videoChunksRef.current, { type: "video/webm" });
+        setRecordedVideo(videoBlob);
+        setRecordedVideoUrl(URL.createObjectURL(videoBlob));
+      };
+
+      videoMediaRecorderRef.current.start();
+      setIsVideoRecording(true);
+      setVideoSecondsLeft(60);
+
+      videoTimerRef.current = setInterval(() => {
+        setVideoSecondsLeft((prev) => {
+          if (prev <= 1) {
+            if (videoMediaRecorderRef.current && videoMediaRecorderRef.current.state !== "inactive") {
+              videoMediaRecorderRef.current.stop();
+            }
+            setIsVideoRecording(false);
+            if (videoTimerRef.current) clearInterval(videoTimerRef.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (err) {
+      alert("No se pudo acceder a la cámara o micrófono para filmar el video.");
+    }
+  };
+
+  const stopVideoRecording = () => {
+    if (videoMediaRecorderRef.current && isVideoRecording) {
+      videoMediaRecorderRef.current.stop();
+      setIsVideoRecording(false);
+      if (videoTimerRef.current) clearInterval(videoTimerRef.current);
+    }
+  };
+
+  const discardVideo = () => {
+    setRecordedVideo(null);
+    setRecordedVideoUrl(null);
+    setAttachedVideo(null);
+    setAttachedVideoPreview(null);
+    setVideoSecondsLeft(60);
+  };
+
+  const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      if (file.size > 25 * 1024 * 1024) {
+        alert("El video supera los 25MB. Sube una filmación más corta de hasta 60 segundos.");
+        return;
+      }
+      setAttachedVideo(file);
+      setAttachedVideoPreview(URL.createObjectURL(file));
+    }
+  };
+
   const resizeImage = (file: File): Promise<Blob> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -214,8 +299,8 @@ export default function CorresponsalMovilPage() {
 
   // Submit Handler
   const handleSubmitReport = async () => {
-    if (!inputText.trim() && !attachedImage && !recordedAudio) {
-      alert("Por favor incluye un texto, foto o grabá un audio antes de enviar.");
+    if (!inputText.trim() && !attachedImage && !recordedAudio && !attachedVideo && !recordedVideo) {
+      alert("Por favor incluye un texto, foto, audio o filmación de video antes de enviar.");
       return;
     }
 
@@ -224,6 +309,7 @@ export default function CorresponsalMovilPage() {
 
     try {
       let imageUrl: string | null = null;
+      let videoUrl: string | null = null;
 
       if (attachedImage) {
         const resizedBlob = await resizeImage(attachedImage);
@@ -236,6 +322,26 @@ export default function CorresponsalMovilPage() {
 
         const { data: publicUrlData } = supabase.storage.from("uploads").getPublicUrl(fileName);
         imageUrl = publicUrlData.publicUrl;
+      }
+
+      if (attachedVideo) {
+        const fileName = `corresponsales_video/${Date.now()}_${Math.random().toString(36).substring(2, 7)}.mp4`;
+        const { error: uploadError } = await supabase.storage
+          .from("uploads")
+          .upload(fileName, attachedVideo);
+        if (!uploadError) {
+          const { data: publicUrlData } = supabase.storage.from("uploads").getPublicUrl(fileName);
+          videoUrl = publicUrlData.publicUrl;
+        }
+      } else if (recordedVideo) {
+        const fileName = `corresponsales_video/${Date.now()}_${Math.random().toString(36).substring(2, 7)}.webm`;
+        const { error: uploadError } = await supabase.storage
+          .from("uploads")
+          .upload(fileName, recordedVideo, { contentType: "video/webm" });
+        if (!uploadError) {
+          const { data: publicUrlData } = supabase.storage.from("uploads").getPublicUrl(fileName);
+          videoUrl = publicUrlData.publicUrl;
+        }
       }
 
       const isAnon = reportMode === "anonimo";
@@ -253,9 +359,15 @@ export default function CorresponsalMovilPage() {
       if (inputText.trim()) {
         formData.append("draft_text", inputText.trim());
       }
-      if (imageUrl) {
-        formData.append("attached_media_url", JSON.stringify([imageUrl]));
+      
+      const mediaList: string[] = [];
+      if (imageUrl) mediaList.push(imageUrl);
+      if (videoUrl) mediaList.push(videoUrl);
+
+      if (mediaList.length > 0) {
+        formData.append("attached_media_url", JSON.stringify(mediaList));
       }
+
       if (recordedAudio) {
         formData.append("audio", recordedAudio, "reporte.webm");
       }
@@ -272,7 +384,7 @@ export default function CorresponsalMovilPage() {
 
       const newReport: SentReport = {
         id: resData.id,
-        title: inputText.trim() ? inputText.substring(0, 35) + "..." : "[Reporte de voz]",
+        title: inputText.trim() ? inputText.substring(0, 35) + "..." : videoUrl ? "[Filmación de video 60s]" : "[Reporte de voz]",
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         status: resData.status || "PENDING_REVIEW",
         isAnonymous: isAnon
@@ -285,8 +397,8 @@ export default function CorresponsalMovilPage() {
       setInputText("");
       setAttachedImage(null);
       setAttachedImagePreview(null);
-      setRecordedAudio(null);
-      setAudioUrl(null);
+      discardVideo();
+      discardAudio();
       setSuccessMsg("🎉 ¡Reporte enviado a la redacción de Nexativa!");
       
       detectLocation();
@@ -450,6 +562,7 @@ export default function CorresponsalMovilPage() {
           </div>
 
           {/* Media Attachment Actions */}
+          {/* Media Attachment Actions (Foto, Audio, Filmar Video 60s, Subir Video 60s) */}
           <div className="grid grid-cols-2 gap-3">
             {/* Image attachment */}
             <div>
@@ -508,6 +621,63 @@ export default function CorresponsalMovilPage() {
                 </button>
               )}
             </div>
+
+            {/* Video Record (60s max) */}
+            <div>
+              {isVideoRecording ? (
+                <button
+                  type="button"
+                  onClick={stopVideoRecording}
+                  className="w-full py-3 px-3 rounded-xl bg-red-600 text-white flex items-center justify-center gap-2 text-xs font-bold animate-pulse"
+                >
+                  <Square className="w-4 h-4" /> 🔴 Filmando ({videoSecondsLeft}s)
+                </button>
+              ) : recordedVideoUrl ? (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={discardVideo}
+                    className="p-3 bg-red-950/60 border border-red-500/40 text-red-400 rounded-xl"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                  <div className="flex-1 py-2 px-3 bg-red-950/60 border border-red-500/40 text-red-300 rounded-xl text-[11px] font-bold truncate text-center">
+                    Video Filmado (60s)
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={startVideoRecording}
+                  className="w-full py-3 px-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 flex items-center justify-center gap-2 text-xs font-bold"
+                >
+                  <Video className="w-4 h-4 text-red-500" /> Filmar Video (60s)
+                </button>
+              )}
+            </div>
+
+            {/* Video File Upload (60s) */}
+            <div>
+              <input
+                type="file"
+                accept="video/*"
+                ref={videoFileInputRef}
+                onChange={handleVideoChange}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => videoFileInputRef.current?.click()}
+                className={`w-full py-3 px-3 rounded-xl border border-white/10 flex items-center justify-center gap-2 text-xs font-bold transition-all ${
+                  attachedVideoPreview
+                    ? "bg-purple-500/20 text-purple-300 border-purple-500/40"
+                    : "bg-white/5 hover:bg-white/10 text-gray-300"
+                }`}
+              >
+                <Video className="w-4 h-4 text-purple-400" />
+                {attachedVideo ? "Video Adjunto" : "Subir Video (60s)"}
+              </button>
+            </div>
           </div>
 
           {/* Image Preview */}
@@ -519,6 +689,23 @@ export default function CorresponsalMovilPage() {
                   setAttachedImage(null);
                   setAttachedImagePreview(null);
                 }}
+                className="absolute top-2 right-2 p-1.5 bg-black/80 rounded-full text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Video Preview */}
+          {(attachedVideoPreview || recordedVideoUrl) && (
+            <div className="relative rounded-xl overflow-hidden border border-red-500/40 bg-black max-h-48 aspect-video">
+              <video
+                src={attachedVideoPreview || recordedVideoUrl || undefined}
+                controls
+                className="w-full h-full object-contain"
+              />
+              <button
+                onClick={discardVideo}
                 className="absolute top-2 right-2 p-1.5 bg-black/80 rounded-full text-white"
               >
                 <X className="w-4 h-4" />
