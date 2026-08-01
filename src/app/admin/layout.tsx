@@ -6,6 +6,9 @@ import LogoutButton from "./LogoutButton"; // We will create this client compone
 import GoBackButton from "./GoBackButton"; // Go back button component
 import type { Metadata } from "next";
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export const metadata: Metadata = {
   title: "Admin Panel - Nexativa",
   manifest: "/admin-manifest.json",
