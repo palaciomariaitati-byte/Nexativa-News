@@ -37,7 +37,8 @@ import {
   Globe,
   Archive,
   QrCode,
-  ShieldAlert
+  ShieldAlert,
+  Volume2
 } from "lucide-react";
 import Link from "next/link";
 import { getClosestLocation, parseCoordinates } from "@/lib/location-db";
@@ -709,13 +710,28 @@ export default function CorresponsalStagingPage() {
                       </h4>
                       {item.attached_media_url && item.attached_media_url.length > 0 ? (
                         <div className="grid grid-cols-2 gap-2 mt-2">
-                          {item.attached_media_url.map((mediaUrl, index) => {
-                            const isVideo = mediaUrl.endsWith('.mp4') || mediaUrl.endsWith('.webm') || mediaUrl.includes('corresponsales_video');
-                            return isVideo ? (
-                              <div key={index} className="relative aspect-video border border-white/10 rounded overflow-hidden bg-black">
-                                <video src={mediaUrl} controls className="w-full h-full object-contain" />
-                              </div>
-                            ) : (
+                          {Array.from(new Set(item.attached_media_url)).map((mediaUrl, index) => {
+                            const isAudio = mediaUrl.includes('corresponsales_audio') || mediaUrl.includes('audio') || mediaUrl.endsWith('.mp3') || mediaUrl.endsWith('.m4a') || mediaUrl.endsWith('.wav');
+                            const isVideo = !isAudio && (mediaUrl.includes('corresponsales_video') || mediaUrl.endsWith('.mp4') || mediaUrl.endsWith('.mov') || mediaUrl.endsWith('.webm'));
+
+                            if (isAudio) {
+                              return (
+                                <div key={index} className="col-span-2 bg-black/60 border border-white/10 p-2.5 rounded-lg flex items-center gap-2">
+                                  <Volume2 className="w-4 h-4 text-amber-400 shrink-0" />
+                                  <audio src={mediaUrl} controls className="w-full h-8" />
+                                </div>
+                              );
+                            }
+
+                            if (isVideo) {
+                              return (
+                                <div key={index} className="relative aspect-video border border-white/10 rounded overflow-hidden bg-black">
+                                  <video src={mediaUrl} controls className="w-full h-full object-contain" />
+                                </div>
+                              );
+                            }
+
+                            return (
                               <a 
                                 key={index}
                                 href={mediaUrl} 

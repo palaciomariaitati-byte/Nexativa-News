@@ -60,6 +60,87 @@ export default function NoraLiveEditor() {
     }
   }, []);
 
+  const uploadFileDirectToStorage = async (file: File | Blob, folderName: string): Promise<string | null> => {
+    try {
+      const isAudio = folderName.includes("audio") || file.type.includes("audio");
+      const isVideo = folderName.includes("video") || file.type.includes("video");
+      const defaultExt = isAudio ? "webm" : isVideo ? "webm" : "jpg";
+      const fileName = file instanceof File ? file.name : `${isAudio ? "audio" : isVideo ? "video" : "image"}_${Date.now()}.${defaultExt}`;
+      const ext = fileName.split(".").pop() || defaultExt;
+      const path = `${folderName}/${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
+      const fileType = file.type || (ext === "webm" ? (isAudio ? "audio/webm" : "video/webm") : ext === "mp4" ? "video/mp4" : "image/jpeg");
+
+      // 1. Try direct upload using browser Supabase Client
+      const { error: uploadErr } = await supabase.storage.from("uploads").upload(path, file, {
+        cacheControl: "3600",
+        upsert: true,
+        contentType: fileType
+      });
+
+      if (!uploadErr) {
+        const { data: publicUrlData } = supabase.storage.from("uploads").getPublicUrl(path);
+        if (publicUrlData?.publicUrl) {
+          return publicUrlData.publicUrl;
+        }
+      } else {
+        console.warn("Supabase client upload notice, using signed upload fallback:", uploadErr.message);
+      }
+
+      // 2. Fallback: Signed Upload URL API with x-upsert header
+      const res = await fetch("/api/upload-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName, fileType, folder: folderName })
+      });
+
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data.signedUrl) return null;
+
+      const uploadRes = await fetch(data.signedUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": fileType,
+          "x-upsert": "true"
+        },
+        body: file
+      });
+
+      if (uploadRes.ok) {
+        return data.publicUrl;
+      }
+      return null;
+    } catch (err) {
+      console.error("Direct upload error in Nora Live:", err);
+      return null;
+    }
+  };
+
+  const postToNoraLive = async (payload: any) => {
+    const res = await fetch("/api/nora-live", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    let resData: any = {};
+    const text = await res.text();
+    try {
+      resData = JSON.parse(text);
+    } catch (e) {
+      console.error("Non-JSON response from /api/nora-live:", text);
+      if (res.status === 413) {
+        throw new Error("El archivo adjunto es demasiado grande para enviarlo directamente.");
+      }
+      throw new Error(`Error en el servidor (${res.status}): ${text.substring(0, 100)}`);
+    }
+
+    if (!res.ok || resData.error) {
+      throw new Error(resData.reply || resData.error || "Error de respuesta del endpoint.");
+    }
+    return resData;
+  };
+
   const handleSend = async () => {
     if (!input.trim()) return;
     const userMsg = input.trim();
@@ -68,18 +149,13 @@ export default function NoraLiveEditor() {
     setIsProcessing(true);
 
     try {
-      const res = await fetch("/api/nora-live", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMsg, currentDraft: draft })
-      });
-      const data = await res.json();
+      const data = await postToNoraLive({ message: userMsg, currentDraft: draft });
       if (data.newDraft) {
         setDraft(data.newDraft);
       }
       setMessages(prev => [...prev, { role: 'nora', text: data.reply || "Borrador actualizado." }]);
-    } catch (e) {
-      setMessages(prev => [...prev, { role: 'nora', text: "Hubo un error de conexión." }]);
+    } catch (e: any) {
+      setMessages(prev => [...prev, { role: 'nora', text: `Hubo un error de conexión (${e.message || e}).` }]);
     }
     setIsProcessing(false);
   };
@@ -139,39 +215,29 @@ export default function NoraLiveEditor() {
         setIsProcessing(true);
 
         try {
-          const reader = new FileReader();
-          reader.readAsDataURL(audioBlob);
-          reader.onloadend = async () => {
-            const base64Audio = reader.result as string;
-            
-            const res = await fetch("/api/nora-live", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ 
-                message: input.trim() ? `El periodista adjuntó un reporte de voz. Contexto adicional: ${input.trim()}` : "El periodista adjuntó un reporte de voz desde el lugar de los hechos. Transcríbelo e intégralo a la noticia.",
-                currentDraft: draft,
-                audio: base64Audio
-              })
-            });
-
-            let errorDetail = "";
-            if (!res.ok) {
-              try {
-                const errData = await res.json();
-                errorDetail = errData.reply || errData.error || `HTTP ${res.status}`;
-              } catch {
-                errorDetail = `HTTP ${res.status}`;
-              }
-              throw new Error(errorDetail);
-            }
-
-            const data = await res.json();
-            if (data.newDraft) {
-              setDraft(data.newDraft);
-            }
-            setMessages(prev => [...prev, { role: 'nora', text: data.reply || "Borrador actualizado con el reporte de voz." }]);
-            setInput("");
+          let audioUrl = await uploadFileDirectToStorage(audioBlob, "corresponsales_audio");
+          let payload: any = {
+            message: input.trim() ? `El periodista adjuntó un reporte de voz. Contexto adicional: ${input.trim()}` : "El periodista adjuntó un reporte de voz desde el lugar de los hechos. Transcríbelo e intégralo a la noticia.",
+            currentDraft: draft
           };
+
+          if (audioUrl) {
+            payload.audio_url = audioUrl;
+          } else {
+            const reader = new FileReader();
+            const base64Audio = await new Promise<string>((res) => {
+              reader.onloadend = () => res(reader.result as string);
+              reader.readAsDataURL(audioBlob);
+            });
+            payload.audio = base64Audio;
+          }
+
+          const data = await postToNoraLive(payload);
+          if (data.newDraft) {
+            setDraft(data.newDraft);
+          }
+          setMessages(prev => [...prev, { role: 'nora', text: data.reply || "Borrador actualizado con el reporte de voz." }]);
+          setInput("");
         } catch (e: any) {
           console.error(e);
           const details = e.message || "Fallo de conexión o de red";
@@ -203,35 +269,25 @@ export default function NoraLiveEditor() {
     setIsProcessing(true);
 
     try {
-      const base64Image = await resizeImage(file);
-      
-      const res = await fetch("/api/nora-live", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          message: input.trim() ? `El periodista adjuntó una imagen. Contexto adicional: ${input.trim()}` : "El periodista adjuntó una imagen desde el lugar de los hechos. Descríbela e intégrala a la noticia.", 
-          currentDraft: draft,
-          image: base64Image
-        })
-      });
-      
-      let errorDetail = "";
-      if (!res.ok) {
-        try {
-          const errData = await res.json();
-          errorDetail = errData.reply || errData.error || `HTTP ${res.status}`;
-        } catch {
-          errorDetail = `HTTP ${res.status}`;
-        }
-        throw new Error(errorDetail);
+      let imageUrl = await uploadFileDirectToStorage(file, "corresponsales");
+      let payload: any = {
+        message: input.trim() ? `El periodista adjuntó una imagen. Contexto adicional: ${input.trim()}` : "El periodista adjuntó una imagen desde el lugar de los hechos. Descríbela e intégrala a la noticia.", 
+        currentDraft: draft
+      };
+
+      if (imageUrl) {
+        payload.image_url = imageUrl;
+      } else {
+        const base64Image = await resizeImage(file);
+        payload.image = base64Image;
       }
-      
-      const data = await res.json();
+
+      const data = await postToNoraLive(payload);
       if (data.newDraft) {
         setDraft(data.newDraft);
       }
       setMessages(prev => [...prev, { role: 'nora', text: data.reply || "Borrador actualizado con la información de la imagen." }]);
-      setInput(""); // Clear input if it was sent with the image
+      setInput("");
     } catch (e: any) {
       console.error(e);
       const details = e.message || "Fallo de conexión o de red";
@@ -262,39 +318,29 @@ export default function NoraLiveEditor() {
 
         try {
           const videoBlob = new Blob(chunks, { type: 'video/webm' });
-          const reader = new FileReader();
-          reader.readAsDataURL(videoBlob);
-          reader.onloadend = async () => {
-            const base64Video = reader.result as string;
-
-            const res = await fetch("/api/nora-live", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                message: input.trim() ? `El operador filmó un video en el lugar del hecho. Contexto adicional: ${input.trim()}` : "El operador filmó un video de hasta 60 segundos desde el lugar del hecho o siniestro. Analízalo e intégralo a la noticia.",
-                currentDraft: draft,
-                video: base64Video
-              })
-            });
-
-            let errorDetail = "";
-            if (!res.ok) {
-              try {
-                const errData = await res.json();
-                errorDetail = errData.reply || errData.error || `HTTP ${res.status}`;
-              } catch {
-                errorDetail = `HTTP ${res.status}`;
-              }
-              throw new Error(errorDetail);
-            }
-
-            const data = await res.json();
-            if (data.newDraft) {
-              setDraft(data.newDraft);
-            }
-            setMessages(prev => [...prev, { role: 'nora', text: data.reply || "Borrador actualizado con la filmación de video." }]);
-            setInput("");
+          let videoUrl = await uploadFileDirectToStorage(videoBlob, "corresponsales_video");
+          let payload: any = {
+            message: input.trim() ? `El operador filmó un video en el lugar del hecho. Contexto adicional: ${input.trim()}` : "El operador filmó un video de hasta 60 segundos desde el lugar del hecho o siniestro. Analízalo e intégralo a la noticia.",
+            currentDraft: draft
           };
+
+          if (videoUrl) {
+            payload.video_url = videoUrl;
+          } else {
+            const reader = new FileReader();
+            const base64Video = await new Promise<string>((res) => {
+              reader.onloadend = () => res(reader.result as string);
+              reader.readAsDataURL(videoBlob);
+            });
+            payload.video = base64Video;
+          }
+
+          const data = await postToNoraLive(payload);
+          if (data.newDraft) {
+            setDraft(data.newDraft);
+          }
+          setMessages(prev => [...prev, { role: 'nora', text: data.reply || "Borrador actualizado con la filmación de video." }]);
+          setInput("");
         } catch (e: any) {
           console.error(e);
           const details = e.message || "Fallo de conexión";
@@ -344,39 +390,29 @@ export default function NoraLiveEditor() {
     setIsProcessing(true);
 
     try {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onloadend = async () => {
-        const base64Video = reader.result as string;
-
-        const res = await fetch("/api/nora-live", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            message: input.trim() ? `El operador adjuntó un video. Contexto adicional: ${input.trim()}` : "El operador subió una filmación de video desde el lugar del siniestro. Analízala e intégrala a la noticia.",
-            currentDraft: draft,
-            video: base64Video
-          })
-        });
-
-        let errorDetail = "";
-        if (!res.ok) {
-          try {
-            const errData = await res.json();
-            errorDetail = errData.reply || errData.error || `HTTP ${res.status}`;
-          } catch {
-            errorDetail = `HTTP ${res.status}`;
-          }
-          throw new Error(errorDetail);
-        }
-
-        const data = await res.json();
-        if (data.newDraft) {
-          setDraft(data.newDraft);
-        }
-        setMessages(prev => [...prev, { role: 'nora', text: data.reply || "Borrador actualizado con el video adjunto." }]);
-        setInput("");
+      let videoUrl = await uploadFileDirectToStorage(file, "corresponsales_video");
+      let payload: any = {
+        message: input.trim() ? `El operador adjuntó un video. Contexto adicional: ${input.trim()}` : "El operador subió una filmación de video desde el lugar del siniestro. Analízala e intégrala a la noticia.",
+        currentDraft: draft
       };
+
+      if (videoUrl) {
+        payload.video_url = videoUrl;
+      } else {
+        const reader = new FileReader();
+        const base64Video = await new Promise<string>((res) => {
+          reader.onloadend = () => res(reader.result as string);
+          reader.readAsDataURL(file);
+        });
+        payload.video = base64Video;
+      }
+
+      const data = await postToNoraLive(payload);
+      if (data.newDraft) {
+        setDraft(data.newDraft);
+      }
+      setMessages(prev => [...prev, { role: 'nora', text: data.reply || "Borrador actualizado con el video adjunto." }]);
+      setInput("");
     } catch (e: any) {
       console.error(e);
       setMessages(prev => [...prev, { role: 'nora', text: `Error de conexión al enviar el video: ${e.message || e}` }]);

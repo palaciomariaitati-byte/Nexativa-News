@@ -13,9 +13,9 @@ export async function OPTIONS() {
 
 export async function POST(request: Request) {
   try {
-    const { message, currentDraft, image, audio, video } = await request.json();
+    const { message, currentDraft, image, audio, video, image_url, audio_url, video_url } = await request.json();
     
-    if (!message && !image && !audio && !video) {
+    if (!message && !image && !audio && !video && !image_url && !audio_url && !video_url) {
       return NextResponse.json(
         { error: "No input provided (message, image, audio or video is required)" },
         { status: 400, headers: corsHeaders }
@@ -66,13 +66,19 @@ ${message || "(No envió mensaje de texto, revisa las imágenes, audios o videos
         const meta = imgParts[0];
         const base64Data = imgParts[1];
         const mimeType = meta.split(":")[1].split(";")[0] || "image/jpeg";
-        
-        parts.push({
-          inlineData: {
-            data: base64Data,
-            mimeType: mimeType
-          }
-        });
+        parts.push({ inlineData: { data: base64Data, mimeType } });
+      }
+    } else if (image_url) {
+      try {
+        const imgRes = await fetch(image_url);
+        if (imgRes.ok) {
+          const arrayBuf = await imgRes.arrayBuffer();
+          const base64Data = Buffer.from(arrayBuf).toString("base64");
+          const mimeType = imgRes.headers.get("content-type") || "image/jpeg";
+          parts.push({ inlineData: { data: base64Data, mimeType } });
+        }
+      } catch (e) {
+        console.warn("[Nora Live API] Error fetching image_url:", e);
       }
     }
 
@@ -83,13 +89,19 @@ ${message || "(No envió mensaje de texto, revisa las imágenes, audios o videos
         const base64Data = audioParts[1];
         let mimeType = meta.split(":")[1].split(";")[0] || "audio/mp3";
         if (mimeType.includes("octet-stream")) mimeType = "audio/mp3";
-        
-        parts.push({
-          inlineData: {
-            data: base64Data,
-            mimeType: mimeType
-          }
-        });
+        parts.push({ inlineData: { data: base64Data, mimeType } });
+      }
+    } else if (audio_url) {
+      try {
+        const audioRes = await fetch(audio_url);
+        if (audioRes.ok) {
+          const arrayBuf = await audioRes.arrayBuffer();
+          const base64Data = Buffer.from(arrayBuf).toString("base64");
+          const mimeType = audioRes.headers.get("content-type") || "audio/mp3";
+          parts.push({ inlineData: { data: base64Data, mimeType } });
+        }
+      } catch (e) {
+        console.warn("[Nora Live API] Error fetching audio_url:", e);
       }
     }
 
@@ -100,13 +112,21 @@ ${message || "(No envió mensaje de texto, revisa las imágenes, audios o videos
         const base64Data = videoParts[1];
         let mimeType = meta.split(":")[1].split(";")[0] || "video/mp4";
         if (mimeType.includes("octet-stream")) mimeType = "video/mp4";
-        
-        parts.push({
-          inlineData: {
-            data: base64Data,
-            mimeType: mimeType
+        parts.push({ inlineData: { data: base64Data, mimeType } });
+      }
+    } else if (video_url) {
+      try {
+        const videoRes = await fetch(video_url);
+        if (videoRes.ok) {
+          const arrayBuf = await videoRes.arrayBuffer();
+          if (arrayBuf.byteLength <= 15 * 1024 * 1024) {
+            const base64Data = Buffer.from(arrayBuf).toString("base64");
+            const mimeType = videoRes.headers.get("content-type") || "video/webm";
+            parts.push({ inlineData: { data: base64Data, mimeType } });
           }
-        });
+        }
+      } catch (e) {
+        console.warn("[Nora Live API] Error fetching video_url:", e);
       }
     }
 

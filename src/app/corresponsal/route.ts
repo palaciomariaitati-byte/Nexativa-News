@@ -3,8 +3,34 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { parseCoordinates, getClosestLocation } from "@/lib/location-db";
 import supabaseAdmin from "@/lib/supabase/admin";
 
-// Volatile audio transcription using multi-model fallback
+// Volatile audio transcription using multi-model fallback (HF Worker + Gemini)
 async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Promise<string> {
+  const hfWorkerUrl = process.env.HF_NORA_WORKER_URL || "https://noranexora-nora-ia-worker.hf.space";
+  
+  // Intento primario vía Hugging Face Worker si está activo y saludable
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const hfRes = await fetch(`${hfWorkerUrl}/transcribe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ audio_base64: audioBuffer.toString("base64"), mime_type: mimeType }),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (hfRes.ok) {
+      const data = await hfRes.json();
+      const text = (data.transcription || data.text || "").trim();
+      if (text) {
+        console.log("[Corresponsal] Transcripción completada exitosamente vía HF Worker.");
+        return text;
+      }
+    }
+  } catch (err: any) {
+    console.warn("[Corresponsal] HF Worker en pausa/503. Usando motor Gemini integrado:", err.message);
+  }
+
   const candidateKeys = Array.from(new Set([
     process.env.GEMINI_API_KEY,
     process.env.GEMINI_API_KEY_FALLBACK,
@@ -67,6 +93,35 @@ export async function generateArticles(
   imageBuffer?: Buffer | null,
   videoBuffer?: Buffer | null
 ): Promise<any> {
+  const hfWorkerUrl = process.env.HF_NORA_WORKER_URL || "https://noranexora-nora-ia-worker.hf.space";
+  
+  // Intento primario vía Hugging Face Worker si está activo
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const hfRes = await fetch(`${hfWorkerUrl}/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        transcription,
+        location_context: locationContext,
+        operator_name: operatorName
+      }),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (hfRes.ok) {
+      const data = await hfRes.json();
+      if (data.version_nexativa && data.version_partner) {
+        console.log("[Corresponsal] Artículos generados exitosamente vía HF Worker.");
+        return data;
+      }
+    }
+  } catch (err: any) {
+    console.warn("[Corresponsal] HF Worker en pausa/503. Usando redactor Gemini integrado:", err.message);
+  }
+
   const candidateKeys = Array.from(new Set([
     process.env.GEMINI_API_KEY,
     process.env.GEMINI_API_KEY_FALLBACK,
@@ -289,6 +344,39 @@ export async function POST(request: Request) {
       }
     }
 
+    // If image was directly uploaded, fetch imageBuffer for AI processing if missing
+    if (!imageBuffer && mediaUrls.length > 0) {
+      const imgUrl = mediaUrls.find(url => url.includes("/corresponsales/") || url.match(/\.(jpg|jpeg|png|webp)$/i));
+      if (imgUrl) {
+        try {
+          const imgRes = await fetch(imgUrl);
+          if (imgRes.ok) {
+            imageBuffer = Buffer.from(await imgRes.arrayBuffer());
+          }
+        } catch (err) {
+          console.warn("[Corresponsal API] Error descargando imagen para IA:", err);
+        }
+      }
+    }
+
+    // If video was directly uploaded, fetch videoBuffer for AI processing if missing and under limit
+    if (!videoBuffer && mediaUrls.length > 0) {
+      const vidUrl = mediaUrls.find(url => url.includes("/corresponsales_video/") || url.match(/\.(webm|mp4|mov)$/i));
+      if (vidUrl) {
+        try {
+          const vidRes = await fetch(vidUrl);
+          if (vidRes.ok) {
+            const buf = Buffer.from(await vidRes.arrayBuffer());
+            if (buf.length <= 15 * 1024 * 1024) {
+              videoBuffer = buf;
+            }
+          }
+        } catch (err) {
+          console.warn("[Corresponsal API] Error descargando video para IA:", err);
+        }
+      }
+    }
+
     // Process audio buffer in memory (volatile)
     let audioBuffer: Buffer | null = null;
     let mimeType = "audio/mp3";
@@ -296,6 +384,20 @@ export async function POST(request: Request) {
     if (audioFile && audioFile.size > 0) {
       audioBuffer = Buffer.from(await audioFile.arrayBuffer());
       mimeType = audioFile.type || "audio/mp3";
+    } else {
+      const audioUrlParam = formData.get("audio_url") as string | null || mediaUrls.find(url => url.includes("/corresponsales_audio/") || url.match(/\.(webm|mp3|m4a|wav|ogg)$/i));
+      if (audioUrlParam) {
+        try {
+          const audioRes = await fetch(audioUrlParam);
+          if (audioRes.ok) {
+            audioBuffer = Buffer.from(await audioRes.arrayBuffer());
+            const ct = audioRes.headers.get("content-type");
+            if (ct) mimeType = ct;
+          }
+        } catch (err) {
+          console.warn("[Corresponsal API] Error descargando audio desde URL para transcripción:", err);
+        }
+      }
     }
 
     let status = "PENDING_REVIEW";
@@ -388,7 +490,7 @@ export async function POST(request: Request) {
           operator_id: operatorId,
           raw_metadata_title: rawMetadataTitle || null,
           geolocation_coordinates: geolocationCoordinates,
-          attached_media_url: mediaUrls,
+          attached_media_url: Array.from(new Set(mediaUrls)),
           status: status,
           version_nexativa: versionNexativa,
           version_partner: versionPartner,

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { supabase } from "@/lib/supabase/client";
 import {
   Mic,
   Square,
@@ -24,7 +25,6 @@ import {
   Info,
   Video
 } from "lucide-react";
-import { supabase } from "@/lib/supabase/client";
 
 import { getClosestLocation } from "@/lib/location-db";
 
@@ -200,12 +200,35 @@ export default function CorresponsalMovilPage() {
     return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
   };
 
+
   // Direct upload helper to bypass Vercel 4.5MB payload limits
   const uploadFileDirectToStorage = async (file: File | Blob, folderName: string): Promise<string | null> => {
     try {
-      const fileName = file instanceof File ? file.name : `video_${Date.now()}.webm`;
-      const fileType = file.type || (fileName.endsWith(".mp4") ? "video/mp4" : "video/webm");
+      const isAudio = folderName.includes("audio") || file.type.includes("audio");
+      const isVideo = folderName.includes("video") || file.type.includes("video");
+      const defaultExt = isAudio ? "webm" : isVideo ? "webm" : "jpg";
+      const fileName = file instanceof File ? file.name : `${isAudio ? "audio" : isVideo ? "video" : "image"}_${Date.now()}.${defaultExt}`;
+      const ext = fileName.split(".").pop() || defaultExt;
+      const path = `${folderName}/${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
+      const fileType = file.type || (ext === "webm" ? (isAudio ? "audio/webm" : "video/webm") : ext === "mp4" ? "video/mp4" : "image/jpeg");
 
+      // 1. Try direct upload using browser Supabase Client
+      const { error: uploadErr } = await supabase.storage.from("uploads").upload(path, file, {
+        cacheControl: "3600",
+        upsert: true,
+        contentType: fileType
+      });
+
+      if (!uploadErr) {
+        const { data: publicUrlData } = supabase.storage.from("uploads").getPublicUrl(path);
+        if (publicUrlData?.publicUrl) {
+          return publicUrlData.publicUrl;
+        }
+      } else {
+        console.warn("Supabase client upload notice, using signed upload fallback:", uploadErr.message);
+      }
+
+      // 2. Fallback: Signed Upload URL API with x-upsert header
       const res = await fetch("/api/upload-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -218,7 +241,10 @@ export default function CorresponsalMovilPage() {
 
       const uploadRes = await fetch(data.signedUrl, {
         method: "PUT",
-        headers: { "Content-Type": fileType },
+        headers: {
+          "Content-Type": fileType,
+          "x-upsert": "true"
+        },
         body: file
       });
 
@@ -231,6 +257,9 @@ export default function CorresponsalMovilPage() {
       return null;
     }
   };
+
+  const canvasAnimFrameRef = useRef<number | null>(null);
+  const isCanvasRecordingRef = useRef<boolean>(false);
 
   // Open camera stream for Viewfinder
   const openCameraStream = async (mode: "environment" | "user") => {
@@ -245,6 +274,7 @@ export default function CorresponsalMovilPage() {
       activeStreamRef.current = stream;
       if (liveVideoRef.current) {
         liveVideoRef.current.srcObject = stream;
+        liveVideoRef.current.play().catch(() => {});
       }
       return stream;
     } catch (err) {
@@ -255,60 +285,10 @@ export default function CorresponsalMovilPage() {
   };
 
   const toggleCameraDirection = async () => {
+    if (isVideoRecording) return; // Prevent switching mid-recording for maximum stability
     const newMode = cameraFacingMode === "environment" ? "user" : "environment";
     setCameraFacingMode(newMode);
-
-    try {
-      if (isVideoRecording && videoMediaRecorderRef.current) {
-        // Request remaining data from current recorder
-        if (videoMediaRecorderRef.current.state === "recording") {
-          videoMediaRecorderRef.current.requestData();
-        }
-        
-        // Unbind old onstop so it does not close the modal or finalize prematurely
-        videoMediaRecorderRef.current.onstop = null;
-        if (videoMediaRecorderRef.current.state !== "inactive") {
-          videoMediaRecorderRef.current.stop();
-        }
-
-        // Open new camera stream
-        const newStream = await openCameraStream(newMode);
-        if (newStream) {
-          const options = {
-            mimeType: MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")
-              ? "video/webm;codecs=vp8,opus"
-              : MediaRecorder.isTypeSupported("video/mp4")
-              ? "video/mp4"
-              : undefined,
-            videoBitsPerSecond: 1500000
-          };
-
-          const newRecorder = new MediaRecorder(newStream, options);
-          newRecorder.ondataavailable = (event) => {
-            if (event.data && event.data.size > 0) {
-              videoChunksRef.current.push(event.data);
-            }
-          };
-
-          newRecorder.onstop = () => {
-            if (activeStreamRef.current) {
-              activeStreamRef.current.getTracks().forEach((track) => track.stop());
-            }
-            const videoBlob = new Blob(videoChunksRef.current, { type: "video/webm" });
-            setRecordedVideo(videoBlob);
-            setRecordedVideoUrl(URL.createObjectURL(videoBlob));
-            setShowVideoModal(false);
-          };
-
-          newRecorder.start(500);
-          videoMediaRecorderRef.current = newRecorder;
-        }
-      } else {
-        await openCameraStream(newMode);
-      }
-    } catch (err) {
-      console.error("Error al cambiar cámara durante filmación:", err);
-    }
+    await openCameraStream(newMode);
   };
 
   // Video Recording Handlers (Live Viewfinder + 60s max)
@@ -367,6 +347,7 @@ export default function CorresponsalMovilPage() {
         });
       }, 1000);
     } catch (err) {
+      console.error(err);
       alert("No se pudo iniciar la grabación de video.");
       setShowVideoModal(false);
     }
@@ -464,6 +445,7 @@ export default function CorresponsalMovilPage() {
     try {
       let imageUrl: string | null = null;
       let videoUrl: string | null = null;
+      let audioUrl: string | null = null;
 
       // Direct signed upload for image to bypass Vercel 4.5MB payload limit
       if (attachedImage) {
@@ -482,6 +464,15 @@ export default function CorresponsalMovilPage() {
         videoUrl = await uploadFileDirectToStorage(recordedVideo, "corresponsales_video");
       }
 
+      // Direct signed upload for audio to bypass Vercel 4.5MB payload limit
+      if (recordedAudio) {
+        try {
+          audioUrl = await uploadFileDirectToStorage(recordedAudio, "corresponsales_audio");
+        } catch (e) {
+          console.warn("Error uploading audio directly:", e);
+        }
+      }
+
       const isAnon = reportMode === "anonimo";
       const finalName = isAnon
         ? "Reporte Ciudadano Anónimo (Vecino)"
@@ -498,25 +489,31 @@ export default function CorresponsalMovilPage() {
         formData.append("draft_text", inputText.trim());
       }
       
+      if (audioUrl) {
+        formData.append("audio_url", audioUrl);
+      }
+
       const mediaList: string[] = [];
       if (imageUrl) mediaList.push(imageUrl);
       if (videoUrl) mediaList.push(videoUrl);
+      if (audioUrl) mediaList.push(audioUrl);
 
       if (mediaList.length > 0) {
         formData.append("attached_media_url", JSON.stringify(mediaList));
       }
 
-      // ALWAYS append raw image File & video Blob/File directly to FormData so the server (Service Role) handles guaranteed uploads
-      if (attachedImage) {
+      // Only append raw binaries as fallback if direct upload failed AND file is small (< 3MB)
+      if (!imageUrl && attachedImage && attachedImage.size < 3 * 1024 * 1024) {
         formData.append("image", attachedImage);
       }
-      if (attachedVideo) {
-        formData.append("video", attachedVideo);
-      } else if (recordedVideo) {
-        formData.append("video", recordedVideo, "video.webm");
+      if (!videoUrl) {
+        if (attachedVideo && attachedVideo.size < 3 * 1024 * 1024) {
+          formData.append("video", attachedVideo);
+        } else if (recordedVideo && recordedVideo.size < 3 * 1024 * 1024) {
+          formData.append("video", recordedVideo, "video.webm");
+        }
       }
-
-      if (recordedAudio) {
+      if (!audioUrl && recordedAudio && recordedAudio.size < 3 * 1024 * 1024) {
         formData.append("audio", recordedAudio, "reporte.webm");
       }
 
@@ -525,9 +522,20 @@ export default function CorresponsalMovilPage() {
         body: formData,
       });
 
-      const resData = await res.json();
+      let resData: any = {};
+      const responseText = await res.text();
+      try {
+        resData = JSON.parse(responseText);
+      } catch (e) {
+        console.error("[Corresponsal-Movil] Non-JSON server response:", responseText);
+        if (res.status === 413) {
+          throw new Error("El reporte o los archivos adjuntos exceden el límite de tamaño permitido por el servidor (4.5 MB).");
+        }
+        throw new Error(`Error en el servidor (${res.status}): ${responseText.substring(0, 100)}`);
+      }
+
       if (!res.ok || !resData.success) {
-        throw new Error(resData.error || "Fallo en el servidor");
+        throw new Error(resData.error || "Fallo en el servidor al procesar la nota.");
       }
 
       const newReport: SentReport = {
