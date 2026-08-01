@@ -14,8 +14,12 @@ export default function AdminStaffPage() {
   async function fetchStaff() {
     setLoading(true);
     try {
-      const data = await listStaffKeys();
-      setStaff(data);
+      const res = await listStaffKeys();
+      if (res.success && res.data) {
+        setStaff(res.data);
+      } else if (res.error) {
+        alert("Error al cargar personal: " + res.error);
+      }
     } catch (e: any) {
       alert("Error al cargar personal: " + e.message);
     }
@@ -42,11 +46,15 @@ export default function AdminStaffPage() {
     }
 
     try {
-      await createStaffKey(newName, newPassword, finalRole);
-      setNewName("");
-      setNewPassword("");
-      setPartnerId("");
-      fetchStaff();
+      const res = await createStaffKey(newName, newPassword, finalRole);
+      if (res.success) {
+        setNewName("");
+        setNewPassword("");
+        setPartnerId("");
+        fetchStaff();
+      } else {
+        alert("Error al crear usuario: " + (res.error || "No se pudo crear el acceso"));
+      }
     } catch (error: Error | unknown) {
       const err = error as Error;
       alert("Error: " + err.message);
@@ -56,8 +64,12 @@ export default function AdminStaffPage() {
   const handleDelete = async (id: string, name: string) => {
     if (confirm(`¿Estás seguro de eliminar el acceso para ${name}?`)) {
       try {
-        await deleteStaffKey(id);
-        fetchStaff();
+        const res = await deleteStaffKey(id);
+        if (res.success) {
+          fetchStaff();
+        } else {
+          alert("Error al eliminar: " + (res.error || "No se pudo eliminar el acceso"));
+        }
       } catch (error: Error | unknown) {
         const err = error as Error;
         alert("Error al eliminar: " + err.message);
@@ -85,13 +97,13 @@ export default function AdminStaffPage() {
             <option value="redactor">Redactor (Solo Noticias)</option>
             <option value="operator">Operador (Noticias + Tienda + Streaming)</option>
             <option value="admin">Administrador (Todo + Contabilidad)</option>
-            <option value="partner:">Socio / Portal Asociado (Ingresar ID)</option>
+            <option value="partner:">Socio / Corresponsal Ciudadano (Ingresar ID)</option>
           </select>
         </div>
         {newRole === "partner:" && (
           <div className="flex-1 animate-fadeIn">
-            <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase tracking-wide">ID de Socio (sin espacios)</label>
-            <input required type="text" value={partnerId} onChange={e => setPartnerId(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)]" placeholder="Ej: ituzaingo" />
+            <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase tracking-wide">ID DE SOCIO / PORTAL (SIN ESPACIOS)</label>
+            <input required type="text" value={partnerId} onChange={e => setPartnerId(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--color-brand-accent)]" placeholder="Ej: ituzaingo o 0001" />
           </div>
         )}
         <button type="submit" className="bg-[var(--color-brand-accent)] hover:bg-[var(--color-brand-accent-hover)] text-black font-bold uppercase tracking-widest py-3 px-8 rounded-lg transition-colors h-[50px]">

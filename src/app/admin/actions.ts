@@ -38,36 +38,64 @@ export async function adminLogout() {
 }
 
 export async function getStaffRole() {
-  const cookieStore = await cookies();
-  return cookieStore.get("staff_role")?.value || null;
+  try {
+    const cookieStore = await cookies();
+    return cookieStore.get("staff_role")?.value || null;
+  } catch (e) {
+    return null;
+  }
 }
 
 // ----- Staff Management -----
 export async function createStaffKey(name: string, password: string, role: string) {
-  const currentUserRole = await getStaffRole();
-  if (currentUserRole !== "admin") throw new Error("No autorizado");
+  try {
+    const currentUserRole = await getStaffRole();
+    if (currentUserRole !== "admin") {
+      return { success: false, error: "No tienes permisos de administrador. Por favor, vuelve a iniciar sesión con tu clave de Administrador." };
+    }
 
-  const { data, error } = await supabaseAdmin.from("staff_passwords").insert([{ name, password, role }]);
-  if (error) throw error;
-  return true;
+    const { data, error } = await supabaseAdmin.from("staff_passwords").insert([{ name, password, role }]);
+    if (error) {
+      return { success: false, error: `Error de la base de datos Supabase: ${error.message}` };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Error inesperado al crear el acceso." };
+  }
 }
 
 export async function deleteStaffKey(id: string) {
-  const currentUserRole = await getStaffRole();
-  if (currentUserRole !== "admin") throw new Error("No autorizado");
+  try {
+    const currentUserRole = await getStaffRole();
+    if (currentUserRole !== "admin") {
+      return { success: false, error: "No tienes permisos de administrador." };
+    }
 
-  const { error } = await supabaseAdmin.from("staff_passwords").delete().eq("id", id);
-  if (error) throw error;
-  return true;
+    const { error } = await supabaseAdmin.from("staff_passwords").delete().eq("id", id);
+    if (error) {
+      return { success: false, error: `Error al eliminar de la base de datos: ${error.message}` };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Error inesperado al eliminar." };
+  }
 }
 
 export async function listStaffKeys() {
-  const currentUserRole = await getStaffRole();
-  if (currentUserRole !== "admin") throw new Error("No autorizado");
+  try {
+    const currentUserRole = await getStaffRole();
+    if (currentUserRole !== "admin") {
+      return { success: false, error: "No tienes permisos de administrador para listar el personal.", data: [] };
+    }
 
-  const { data, error } = await supabaseAdmin.from("staff_passwords").select("id, name, role, created_at").order("created_at", { ascending: false });
-  if (error) throw error;
-  return data;
+    const { data, error } = await supabaseAdmin.from("staff_passwords").select("id, name, role, created_at").order("created_at", { ascending: false });
+    if (error) {
+      return { success: false, error: error.message, data: [] };
+    }
+    return { success: true, data: data || [] };
+  } catch (err: any) {
+    return { success: false, error: err.message, data: [] };
+  }
 }
 
 // ----- Sponsors Management -----
