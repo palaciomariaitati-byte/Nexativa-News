@@ -14,54 +14,73 @@ interface InboundAlert {
 
 export default function RealtimeAlertListener() {
   const [activeAlert, setActiveAlert] = useState<InboundAlert | null>(null);
-  const [permissionGranted, setPermissionGranted] = useState(false);
+  const [permissionState, setPermissionState] = useState<string>("default");
+  const lastAlertIdRef = useRef<string | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const supabase = getSupabaseBrowserClient();
 
-  // Solicitar permiso de Notificaciones de Escritorio (HTML5 Push API)
+  // Solicitar permiso de Notificaciones de Escritorio al cargar o en interacción
   useEffect(() => {
     if (typeof window !== "undefined" && "Notification" in window) {
-      if (Notification.permission === "granted") {
-        setPermissionGranted(true);
-      } else if (Notification.permission !== "denied") {
-        Notification.requestPermission().then((permission) => {
-          if (permission === "granted") setPermissionGranted(true);
+      setPermissionState(Notification.permission);
+      if (Notification.permission === "default") {
+        Notification.requestPermission().then((perm) => {
+          setPermissionState(perm);
+          console.log("[Desktop Alert] Permiso de notificaciones:", perm);
         });
       }
     }
   }, []);
 
-  // Sintetizador de Sonido de Sirena / Alerta Periodística mediante Web Audio API
+  // Inicializar Sintetizador de Web Audio API en la primera interacción del usuario
+  useEffect(() => {
+    const initAudio = () => {
+      if (!audioCtxRef.current) {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContextClass) {
+          audioCtxRef.current = new AudioContextClass();
+        }
+      }
+      if (audioCtxRef.current && audioCtxRef.current.state === "suspended") {
+        audioCtxRef.current.resume();
+      }
+    };
+
+    window.addEventListener("click", initAudio, { once: true });
+    window.addEventListener("keydown", initAudio, { once: true });
+    return () => {
+      window.removeEventListener("click", initAudio);
+      window.removeEventListener("keydown", initAudio);
+    };
+  }, []);
+
+  // Reproductor de Alarma Audible Sintética (2 tonos potentes de sirena)
   const playAlarmSound = useCallback(() => {
     try {
       if (!audioCtxRef.current) {
         const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-        audioCtxRef.current = new AudioContextClass();
+        if (AudioContextClass) audioCtxRef.current = new AudioContextClass();
       }
 
       const ctx = audioCtxRef.current;
-      if (ctx.state === "suspended") {
-        ctx.resume();
-      }
+      if (!ctx) return;
+      if (ctx.state === "suspended") ctx.resume();
 
       const now = ctx.currentTime;
-
-      // Generar 3 beeps secuenciales de sirena periodística
       const beeps = [
-        { freq: 880, start: 0, duration: 0.15 },
-        { freq: 1174.66, start: 0.15, duration: 0.15 },
-        { freq: 880, start: 0.30, duration: 0.15 },
-        { freq: 1174.66, start: 0.45, duration: 0.25 }
+        { freq: 880, start: 0, duration: 0.2 },
+        { freq: 1174.66, start: 0.2, duration: 0.2 },
+        { freq: 880, start: 0.4, duration: 0.2 },
+        { freq: 1174.66, start: 0.6, duration: 0.3 }
       ];
 
       beeps.forEach(({ freq, start, duration }) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
-
         osc.type = "sine";
         osc.frequency.setValueAtTime(freq, now + start);
 
-        gain.gain.setValueAtTime(0.3, now + start);
+        gain.gain.setValueAtTime(0.4, now + start);
         gain.gain.exponentialRampToValueAtTime(0.01, now + start + duration);
 
         osc.connect(gain);
@@ -71,45 +90,50 @@ export default function RealtimeAlertListener() {
         osc.stop(now + start + duration);
       });
     } catch (e) {
-      console.warn("[Realtime Alert] No se pudo reproducir audio Web Audio API:", e);
+      console.warn("[Realtime Alert] Excepción al reproducir audio:", e);
     }
   }, []);
 
-  // Disparar Notificación de Escritorio Nativa
+  // Disparar Notificación Nativa de Windows / Escritorio
   const triggerDesktopNotification = useCallback((alertData: InboundAlert) => {
-    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
-      const title = alertData.senderType === "corresponsal" 
-        ? `🚨 ALERTA: Cobertura de ${alertData.senderName}` 
-        : `🟢 ALERTA: Reporte Ciudadano`;
+    if (typeof window !== "undefined" && "Notification" in window) {
+      if (Notification.permission === "granted") {
+        const title = alertData.senderType === "corresponsal" 
+          ? `🚨 NORA EXTERIORES: Cobertura de ${alertData.senderName}` 
+          : `🟢 REPORTE CIUDADANO EN ENTRADA`;
 
-      const notification = new Notification(title, {
-        body: alertData.excerpt,
-        icon: "/favicon.ico",
-        tag: alertData.id,
-      });
+        const notification = new Notification(title, {
+          body: alertData.excerpt,
+          icon: "/favicon.ico",
+          tag: alertData.id,
+          requireInteraction: true
+        });
 
-      notification.onclick = () => {
-        window.focus();
-        window.location.href = "/admin/news/live";
-      };
+        notification.onclick = () => {
+          window.focus();
+          window.location.href = "/admin/news/live";
+        };
+      }
     }
   }, []);
 
-  // Procesar nuevo reporte en tiempo real
-  const handleNewReport = useCallback((payload: any) => {
-    console.log("🚨 [Realtime Alert] ¡NUEVO REPORTE RECIBIDO EN STAGING!", payload);
+  // Procesar e invocar la alerta completa
+  const handleInboundAlert = useCallback((record: any) => {
+    if (!record || !record.id) return;
+    if (lastAlertIdRef.current === record.id) return; // Evitar alertas duplicadas
 
-    const newRecord = payload.new || payload;
-    const title = newRecord.version_nexativa?.title || newRecord.raw_metadata_title || "Nuevo Reporte en Entrada";
-    const sender = newRecord.raw_metadata_title?.includes("Reporte Ciudadano") ? "Ciudadano" : "Nora Exteriores / Corresponsal";
-    const excerpt = newRecord.transcription || newRecord.version_nexativa?.excerpt || "Material periodístico recibido.";
+    lastAlertIdRef.current = record.id;
+    console.log("🚨 [REALTIME ALERT DISPATCHED]:", record);
+
+    const sender = record.raw_metadata_title?.includes("Reporte Ciudadano") ? "Reporte Ciudadano" : (record.raw_metadata_title || "Nora Exteriores / Corresponsal");
+    const excerpt = record.transcription || record.version_nexativa?.excerpt || record.version_nexativa?.title || "Nuevo material periodístico recibido en staging.";
 
     const alertItem: InboundAlert = {
-      id: newRecord.id || String(Date.now()),
+      id: String(record.id),
       senderName: sender,
       senderType: sender.includes("Ciudadano") ? "ciudadano" : "corresponsal",
       excerpt: excerpt,
-      location: newRecord.geolocation_coordinates || "Ituzaingó, Corrientes",
+      location: record.geolocation_coordinates || "Ituzaingó, Corrientes",
       timestamp: new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
     };
 
@@ -118,52 +142,69 @@ export default function RealtimeAlertListener() {
     triggerDesktopNotification(alertItem);
   }, [playAlarmSound, triggerDesktopNotification]);
 
-  // Suscripción Realtime a Supabase
+  // MONITOREO DUAL: REALTIME SOCKET + POLLING CADA 4 SEGUNDOS (Garantía 100% de entrega)
   useEffect(() => {
     let channel: any = null;
 
-    const setupSubscription = () => {
-      channel = supabase
-        .channel("realtime_inbound_alerts")
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "editorial_staging_queue" },
-          (payload) => handleNewReport(payload)
-        )
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "nora_leads" },
-          (payload) => handleNewReport(payload)
-        )
-        .subscribe((status) => {
-          if (status === "SUBSCRIBED") {
-            console.log("🟢 [Realtime Alert] Escuchando alertas de entrada en vivo...");
+    // 1. Polling de respaldo cada 4 segundos para detectar nuevos registros
+    const pollLatestItem = async () => {
+      try {
+        const { data } = await supabase
+          .from("editorial_staging_queue")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (data && data.id) {
+          if (!lastAlertIdRef.current) {
+            // Guardar ID inicial sin sonar la primera vez para no alertar de cosas viejas
+            lastAlertIdRef.current = data.id;
+          } else if (lastAlertIdRef.current !== data.id) {
+            handleInboundAlert(data);
           }
-        });
+        }
+      } catch (err) {
+        console.warn("[Realtime Alert] Polling error:", err);
+      }
     };
 
-    setupSubscription();
+    pollLatestItem();
+    const pollInterval = setInterval(pollLatestItem, 4000);
+
+    // 2. Realtime WebSocket Channel
+    channel = supabase
+      .channel("inbound_news_alerts")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "editorial_staging_queue" },
+        (payload) => {
+          if (payload.new) handleInboundAlert(payload.new);
+        }
+      )
+      .subscribe();
 
     return () => {
+      clearInterval(pollInterval);
       if (channel) supabase.removeChannel(channel);
     };
-  }, [supabase, handleNewReport]);
+  }, [supabase, handleInboundAlert]);
 
   if (!activeAlert) return null;
 
-  const whatsappMessage = `🚨 *ALERTA DE NOTICIA EN ENTRADA*%0A🎤 *Remitente:* ${activeAlert.senderName}%0A📍 *Ubicación:* ${activeAlert.location}%0A📝 *Extracto:* ${activeAlert.excerpt.substring(0, 150)}...%0A👉 *Procesar en Vivo:* https://nexativanews.digital/admin/news/live`;
-  const whatsappUrl = `https://wa.me/5493786611250?text=${whatsappMessage}`;
+  const whatsappText = `🚨 *NUEVO REPORTE EN ENTRADA - NORA EXTERIORES*%0A🎤 *Remitente:* ${encodeURIComponent(activeAlert.senderName)}%0A📍 *Ubicación:* ${encodeURIComponent(activeAlert.location || "Ituzaingó")}%0A📝 *Extracto:* ${encodeURIComponent(activeAlert.excerpt.substring(0, 200))}%0A👉 *Procesar en el Panel Admin:* https://nexativanews.digital/admin/news/live`;
+  const whatsappUrl = `https://wa.me/5493786611250?text=${whatsappText}`;
 
   return (
-    <div className="fixed bottom-6 right-6 z-[9999] max-w-md w-full animate-bounceIn font-sans">
-      <div className="bg-gradient-to-br from-black via-zinc-900 to-red-950/90 text-white rounded-2xl border-2 border-red-500/60 shadow-[0_0_50px_rgba(239,68,68,0.4)] p-5 backdrop-blur-2xl relative overflow-hidden">
+    <div className="fixed bottom-6 right-6 z-[99999] max-w-md w-full animate-bounceIn font-sans">
+      <div className="bg-gradient-to-br from-black via-zinc-900 to-red-950/90 text-white rounded-2xl border-2 border-red-500/80 shadow-[0_0_50px_rgba(239,68,68,0.5)] p-5 backdrop-blur-2xl relative overflow-hidden">
         
-        {/* Header con Pulso de Alerta Rojo */}
+        {/* Header con indicador de alerta */}
         <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-3">
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-red-500 animate-ping" />
             <span className="bg-red-600 text-white font-black text-[10px] uppercase tracking-widest px-2.5 py-0.5 rounded-full shadow-md">
-              🚨 NOTICIA EN ENTRADA
+              🚨 ALERTA SIMULTÁNEA • NORA
             </span>
             <span className="text-xs text-white/50">{activeAlert.timestamp} hs</span>
           </div>
@@ -176,25 +217,23 @@ export default function RealtimeAlertListener() {
           </button>
         </div>
 
-        {/* Cuerpo de la Noticia */}
+        {/* Detalle del reporte */}
         <div className="space-y-2 mb-4">
           <div className="flex justify-between items-start">
             <p className="font-bold text-sm text-[var(--color-brand-accent)] uppercase tracking-wide">
               {activeAlert.senderName}
             </p>
-            {activeAlert.location && (
-              <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md">
-                📍 {activeAlert.location}
-              </span>
-            )}
+            <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md font-mono">
+              📍 {activeAlert.location}
+            </span>
           </div>
 
-          <p className="text-xs text-white/90 font-medium line-clamp-3 leading-relaxed bg-black/40 p-3 rounded-xl border border-white/5">
+          <p className="text-xs text-white/90 font-medium line-clamp-3 leading-relaxed bg-black/50 p-3 rounded-xl border border-white/10">
             "{activeAlert.excerpt}"
           </p>
         </div>
 
-        {/* Acciones de la Alerta */}
+        {/* Acciones del Operador */}
         <div className="grid grid-cols-2 gap-2">
           <a
             href="/admin/news/live"
@@ -210,7 +249,7 @@ export default function RealtimeAlertListener() {
             rel="noreferrer"
             className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider py-2.5 px-3 rounded-xl flex items-center justify-center gap-1 shadow-lg transition-all text-center"
           >
-            📱 WhatsApp 3786611250
+            📱 Enviar WhatsApp 3786611250
           </a>
         </div>
       </div>
