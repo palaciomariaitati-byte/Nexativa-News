@@ -1,6 +1,9 @@
 import React from "react";
 import Link from "next/link";
-import { Search, MapPin, Phone, MessageSquare, ShieldCheck, Sparkles, Star, ArrowRight, Filter, ExternalLink, Building2 } from "lucide-react";
+import { Search, MapPin, Phone, MessageSquare, ShieldCheck, Sparkles, ArrowRight, Building2 } from "lucide-react";
+import supabaseAdmin from "@/lib/supabase/admin";
+
+export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Páginas Amarillas 2.0: Guía Comercial & Servicios de Cercanía | Nexativa News",
@@ -14,11 +17,22 @@ export const metadata = {
   },
 };
 
-// Initial curated businesses list for instant display (plus database integration)
-const DEFAULT_BUSINESSES = [
+const CATEGORIES = [
+  "Todos",
+  "Arquitectura",
+  "Estética",
+  "Joyería",
+  "Soluciones Corporativas",
+  "Gastronomía",
+  "Salud & Bienestar",
+  "Servicios Locales",
+];
+
+// Curated default businesses from real local sectors
+const FALLBACK_BUSINESSES = [
   {
     id: "1",
-    name: "Estudio de Arquitectura & Construcción Arq-Design",
+    name: "Estudio de Arquitectura & Construcción",
     category: "Arquitectura",
     address: "Av. San Martín 1420",
     city: "Ituzaingó",
@@ -31,7 +45,7 @@ const DEFAULT_BUSINESSES = [
   },
   {
     id: "2",
-    name: "Centro de Estética & Spa Sentirte Bien",
+    name: "Centro de Estética & Cosmetología",
     category: "Estética",
     address: "Calle Buenos Aires 850",
     city: "Ituzaingó",
@@ -44,7 +58,7 @@ const DEFAULT_BUSINESSES = [
   },
   {
     id: "3",
-    name: "Joyería & Relojería Cristal Registrada",
+    name: "Joyería & Relojería Registrada",
     category: "Joyería",
     address: "Peatonal Centenario 430",
     city: "Ituzaingó",
@@ -57,7 +71,7 @@ const DEFAULT_BUSINESSES = [
   },
   {
     id: "4",
-    name: "Soluciones Corporativas & Asesoría B2B Nexo",
+    name: "Soluciones Corporativas & Asesoría B2B",
     category: "Soluciones Corporativas",
     address: "Belgrano 1120",
     city: "Ituzaingó",
@@ -70,7 +84,7 @@ const DEFAULT_BUSINESSES = [
   },
   {
     id: "5",
-    name: "Gastronomía & Sabores del Paraná",
+    name: "Gastronomía & Sabores Regionales",
     category: "Gastronomía",
     address: "Costanera Norte 210",
     city: "Ituzaingó",
@@ -83,18 +97,58 @@ const DEFAULT_BUSINESSES = [
   },
 ];
 
-const CATEGORIES = [
-  "Todos",
-  "Arquitectura",
-  "Estética",
-  "Joyería",
-  "Soluciones Corporativas",
-  "Gastronomía",
-  "Salud & Bienestar",
-  "Servicios Locales",
-];
+async function getActiveDirectoryBusinesses() {
+  try {
+    // 1. Try fetching active businesses from directory_businesses table
+    const { data: directoryData, error: dirError } = await supabaseAdmin
+      .from("directory_businesses")
+      .select("*")
+      .eq("status", "ACTIVE")
+      .order("created_at", { ascending: false });
 
-export default function GuiaComercialPage() {
+    if (!dirError && directoryData && directoryData.length > 0) {
+      return directoryData.map((b: any) => ({
+        id: b.id,
+        name: b.name,
+        category: b.category,
+        address: b.address || "Ituzaingó, Corrientes",
+        city: b.city || "Ituzaingó",
+        whatsapp: b.whatsapp || b.phone || "5493786611250",
+        phone: b.phone || "3786611250",
+        description: b.description || `Comercio adherido en el rubro ${b.category}.`,
+        tier: b.tier || "BRONCE",
+        isVerified: b.is_verified ?? true,
+        distance: "Cerca de ti",
+      }));
+    }
+
+    // 2. Try fetching real stores or sponsors from database if directory is empty
+    const { data: sponsorsData } = await supabaseAdmin.from("sponsors").select("*").limit(10);
+    if (sponsorsData && sponsorsData.length > 0) {
+      return sponsorsData.map((s: any, idx: number) => ({
+        id: s.id || `sponsor-${idx}`,
+        name: s.name,
+        category: s.category || "Servicios Locales",
+        address: s.address || "Ituzaingó, Corrientes",
+        city: "Ituzaingó",
+        whatsapp: s.whatsapp || "5493786611250",
+        phone: s.phone || "3786611250",
+        description: s.description || s.slogan || `Comercio auspiciante oficial en ${s.category || 'Ituzaingó'}.`,
+        tier: idx % 2 === 0 ? "ORO" : "PLATA",
+        isVerified: true,
+        distance: `A ${(idx + 1) * 350} metros`,
+      }));
+    }
+  } catch (err) {
+    console.warn("[Guía] Usando fallback para la guía comercial:", err);
+  }
+
+  return FALLBACK_BUSINESSES;
+}
+
+export default async function GuiaComercialPage() {
+  const businesses = await getActiveDirectoryBusinesses();
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans antialiased">
       
@@ -183,7 +237,7 @@ export default function GuiaComercialPage() {
 
         {/* Directory Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {DEFAULT_BUSINESSES.map((b) => (
+          {businesses.map((b) => (
             <div
               key={b.id}
               className="bg-slate-900/60 border border-slate-800 hover:border-slate-700 rounded-2xl p-6 flex flex-col justify-between transition-all duration-200 hover:shadow-xl hover:shadow-cyan-500/5 group"
