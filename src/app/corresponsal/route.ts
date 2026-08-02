@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { parseCoordinates, getClosestLocation } from "@/lib/location-db";
 import supabaseAdmin from "@/lib/supabase/admin";
+import { sendWhatsAppNotification } from "@/lib/services/whatsapp";
 
 // Volatile audio transcription using multi-model fallback (HF Worker + Gemini)
 async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Promise<string> {
@@ -511,6 +512,20 @@ export async function POST(request: Request) {
         }, { status: 500 });
       }
       return NextResponse.json({ success: false, error: dbError.message }, { status: 500 });
+    }
+
+    // Disparar Notificación de WhatsApp al teléfono de Nexativa (+54 3786 611250)
+    try {
+      await sendWhatsAppNotification({
+        reportId: insertedData.id,
+        senderName: operatorName,
+        senderType: rawMetadataTitle?.includes("Reporte Ciudadano") ? "ciudadano" : "corresponsal",
+        location: geolocationCoordinates,
+        excerpt: transcriptionText || "Sin transcripción",
+        mediaUrls: mediaUrls
+      });
+    } catch (waErr) {
+      console.warn("[Corresponsal API] No se pudo enviar la alerta de WhatsApp:", waErr);
     }
 
     return NextResponse.json({

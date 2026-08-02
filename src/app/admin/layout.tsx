@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getStaffRole } from "./actions";
 import LogoutButton from "./LogoutButton"; // We will create this client component
 import GoBackButton from "./GoBackButton"; // Go back button component
+import RealtimeAlertListener from "@/components/RealtimeAlertListener";
 import type { Metadata } from "next";
 
 export const dynamic = 'force-dynamic';
@@ -23,11 +24,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const userRole = await getStaffRole();
 
   if (!userRole) {
-    return <>{children}</>;
+    return (
+      <>
+        <RealtimeAlertListener />
+        {children}
+      </>
+    );
   }
 
   return (
     <div className="flex min-h-screen bg-[var(--color-brand-bg)] text-[var(--color-brand-text)]">
+      <RealtimeAlertListener />
       {/* Sidebar */}
       <aside className="w-64 glass-panel m-4 flex flex-col hidden md:flex border border-white/10">
         <div className="p-6 border-b border-white/10 flex items-center justify-between">
