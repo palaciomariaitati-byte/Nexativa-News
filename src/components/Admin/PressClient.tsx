@@ -27,7 +27,7 @@ export default function PressClient() {
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [isPublishingAll, setIsPublishingAll] = useState(false);
-  const [webhookUrl, setWebhookUrl] = useState("https://hook.us1.make.com/ejemplo-webhook-nexativa");
+  const [webhookUrl, setWebhookUrl] = useState("https://hook.us2.make.com/xm5rpc50ot1igcz896rht2hbj1xybclg");
   const [testWebhookStatus, setTestWebhookStatus] = useState<string | null>(null);
 
   // Sample initial journalists list
