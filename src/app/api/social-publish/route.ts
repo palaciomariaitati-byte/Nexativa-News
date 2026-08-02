@@ -62,6 +62,21 @@ export async function POST(req: Request) {
         category: article.category
       };
       tableToUpdate = "articles";
+    } else if (type === "press_release" || type === "press_pitch") {
+      const { generateHito1PressKit } = await import('@/modules/nora-pro/press_generator');
+      const pressKit = generateHito1PressKit();
+      
+      payload = {
+        ...payload,
+        title: pressKit.headline,
+        subheadline: pressKit.subheadline,
+        content: pressKit.bodyParagraphs.join("\n\n"),
+        url: "https://nexativanews.com.ar/prensa/estudio-servicios-2026",
+        x_thread: pressKit.socialSnippets.xThread,
+        linkedin_post: pressKit.socialSnippets.linkedInPost,
+        whatsapp_alert: pressKit.socialSnippets.whatsAppAlert,
+        press_pitch_email: pressKit.pressPitchEmail
+      };
     }
 
     // 3. Enviar a Make.com
