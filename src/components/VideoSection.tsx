@@ -7,7 +7,6 @@ import dynamic from "next/dynamic";
 
 const ReactPlayer = dynamic(() => import("react-player"), { ssr: false });
 
-// Parseo Infalible de URLs de YouTube
 function getYouTubeEmbedUrl(url: string): string | null {
   if (!url) return null;
   let videoId: string | null = null;
@@ -23,11 +22,10 @@ function getYouTubeEmbedUrl(url: string): string | null {
       videoId = parsedUrl.pathname.substring(1);
     }
   } catch (e) {
-    // Ignorar errores de URL y tratar de extraer de otra manera si falla el constructor URL
+    // Ignore URL parse error
   }
 
   if (videoId) {
-    // Parámetros exigidos para bypass autoplay inicial, con playsinline para evitar fullscreen forzado en móvil
     return `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&enablejsapi=1`;
   }
   return null;
@@ -48,8 +46,17 @@ export default function VideoSection() {
   const [radioUrl, setRadioUrl] = useState<string | null>(null);
   const [isRadioPlaying, setIsRadioPlaying] = useState(false);
   const [isRadioBuffering, setIsRadioBuffering] = useState(false);
+
+  // ESTADOS DEL MOTOR DE INTERCALADO DE PAUTA PUBLICITARIA
+  const [isAdPlaying, setIsAdPlaying] = useState(false);
+  const [currentAdSpot, setCurrentAdSpot] = useState<any | null>(null);
+  const [adSpots, setAdSpots] = useState<any[]>([]);
+  const [lastTriggerToken, setLastTriggerToken] = useState<string | null>(null);
+
   const placeholderRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const adVideoRef = useRef<HTMLVideoElement | null>(null);
+  const supabase = getSupabaseBrowserClient();
 
   useEffect(() => {
     const a = document.createElement("audio");
@@ -103,7 +110,6 @@ export default function VideoSection() {
               lowerUrl.includes("xn--pistarinconsoado")) {
             actualUrl = "https://miestacion.turadioonline.com.ar/8180/stream";
           }
-          // Force HTTPS to prevent Mixed Content security blocking
           actualUrl = actualUrl.replace("http://", "https://");
 
           const cleanUrl = actualUrl.split('nocache=')[0].replace(/[?&]$/, '');
@@ -126,7 +132,6 @@ export default function VideoSection() {
     }
   };
 
-  // Pause radio when switching to TV mode
   useEffect(() => {
     if (mode === "tv" && audioRef.current && (isRadioPlaying || isRadioBuffering)) {
       audioRef.current.pause();
@@ -160,99 +165,136 @@ export default function VideoSection() {
     }
   };
 
+  // Función para disparar la emisión de un spot publicitario
+  const triggerAdSpot = (spotsList?: any[]) => {
+    const available = spotsList || adSpots;
+    const activeSpots = available.filter(s => s.status === 'active');
+    if (activeSpots.length === 0) return;
+
+    // Seleccionar un spot activo al azar o en orden
+    const spotToPlay = activeSpots[Math.floor(Math.random() * activeSpots.length)];
+    setCurrentAdSpot(spotToPlay);
+    setIsAdPlaying(true);
+    console.log("🎬 Intercalando Pauta Publicitaria:", spotToPlay.title);
+  };
+
+  const handleAdEnded = () => {
+    console.log("✅ Pauta Publicitaria finalizada. Retomando la señal en vivo.");
+    setIsAdPlaying(false);
+    setCurrentAdSpot(null);
+  };
+
+  // FETCH & REALTIME PARA CANAL DE VIVO Y PAUTAS
   useEffect(() => {
-    const supabase = getSupabaseBrowserClient();
     let channel: any = null;
     let reconnectTimeout: NodeJS.Timeout;
 
-    const fetchActiveVideo = async () => {
-      const { data, error } = await supabase
+    const fetchActiveVideoAndAds = async () => {
+      // 1. Fetch Video de Vivo
+      const { data } = await supabase
         .from("video_queue")
         .select("*")
         .eq("status", "playing")
         .maybeSingle();
 
-      if (!error) {
-        setActiveVideo(data || null);
-      }
+      if (data) setActiveVideo(data);
 
+      // 2. Fetch Radio Setting
       const { data: settingsData } = await supabase
         .from("settings")
         .select("value")
         .eq("key", "radio_url")
         .maybeSingle();
 
-      if (settingsData?.value) {
-        setRadioUrl(settingsData.value);
+      if (settingsData?.value) setRadioUrl(settingsData.value);
+
+      // 3. Fetch Spots de Pauta Publicitaria Activos
+      const { data: spots } = await supabase
+        .from("ad_spots")
+        .select("*")
+        .eq("status", "active");
+
+      if (spots) setAdSpots(spots);
+
+      // 4. Fetch Configuración de Frecuencia y Token Manual
+      const { data: adConfig } = await supabase
+        .from("ad_settings")
+        .select("*")
+        .eq("partner_id", "cadena4")
+        .maybeSingle();
+
+      if (adConfig?.trigger_now_token && adConfig.trigger_now_token !== lastTriggerToken) {
+        setLastTriggerToken(adConfig.trigger_now_token);
+        if (spots && spots.length > 0) {
+          triggerAdSpot(spots);
+        }
       }
 
       setLoading(false);
     };
 
-    fetchActiveVideo();
+    fetchActiveVideoAndAds();
 
     const connectRealtime = () => {
-      // 1. Manejo del Ciclo de Vida del Canal (Unsubscribe Limpio)
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
+      if (channel) supabase.removeChannel(channel);
 
-      // Sincronización en Tiempo Real
       channel = supabase
-        .channel("video_queue_changes")
+        .channel("streaming_and_ads")
         .on(
           "postgres_changes",
           { event: "*", schema: "public", table: "video_queue" },
-          () => {
-            // Volvemos a obtener el estado para asegurar consistencia
-            fetchActiveVideo();
-          }
+          () => fetchActiveVideoAndAds()
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "ad_settings" },
+          () => fetchActiveVideoAndAds()
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "ad_spots" },
+          () => fetchActiveVideoAndAds()
         )
         .subscribe((status, err) => {
-          if (status === 'SUBSCRIBED') {
-            console.log("Realtime video conectado");
-          } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || err) {
-            console.log("Realtime video desconectado. Reconectando en 3s...");
-            // 3. Monitoreo de Estado del Canal (Auto-reconnect)
+          if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || err) {
             clearTimeout(reconnectTimeout);
-            reconnectTimeout = setTimeout(() => {
-              connectRealtime();
-            }, 3000);
+            reconnectTimeout = setTimeout(() => connectRealtime(), 3000);
           }
         });
     };
 
     connectRealtime();
 
-    // 2. Reconexión por Enfoque de Pantalla (Visibility Change API)
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        console.log("Pestaña visible: reconectando Video Realtime...");
-        fetchActiveVideo(); // Asegurar estado limpio
+        fetchActiveVideoAndAds();
         connectRealtime();
       }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
+    // TEMPORIZADOR DE CORTE AUTOMÁTICO DE PAUTA (Cada 15 minutos)
+    const adInterval = setInterval(() => {
+      console.log("⏰ Temporizador de Frecuencia de Pauta Activado");
+      triggerAdSpot();
+    }, 15 * 60 * 1000);
+
     return () => {
+      clearInterval(adInterval);
       clearTimeout(reconnectTimeout);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
+      if (channel) supabase.removeChannel(channel);
     };
-  }, []);
+  }, [supabase, lastTriggerToken]);
 
   if (loading) {
     return <div className="p-4 bg-gray-900 text-white text-center rounded-xl border border-white/10 w-full max-w-4xl mx-auto mt-8">Cargando transmisión en vivo...</div>;
   }
 
-  if (!activeVideo) {
+  if (!activeVideo && !isAdPlaying) {
     return <div className="p-4 bg-black/40 text-white/50 text-center rounded-xl border border-white/10 w-full max-w-4xl mx-auto mt-8">Próximamente estaremos en vivo.</div>;
   }
-
-  const embedUrl = getYouTubeEmbedUrl(activeVideo.video_url);
 
   const floatingClasses = isFloating 
     ? "fixed bottom-20 left-4 w-[200px] sm:bottom-6 sm:left-6 sm:w-[300px] z-[60] shadow-2xl ring-1 ring-white/20 opacity-95 hover:opacity-100 scale-100 translate-y-0" 
@@ -262,7 +304,6 @@ export default function VideoSection() {
     <div className="relative w-full max-w-2xl mx-auto">
       <div ref={placeholderRef} className="w-full h-px absolute -top-20" />
       
-      {/* Spacer para evitar el salto áspero (layout shift) en la pantalla cuando se hace flotante */}
       {isFloating && showVideo && (
         <div className="w-full aspect-video rounded-xl bg-white/5 animate-pulse" />
       )}
@@ -270,7 +311,6 @@ export default function VideoSection() {
       {showVideo ? (
         <div className={`transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)] bg-black border border-white/10 rounded-xl overflow-hidden ${floatingClasses}`}>
           
-          {/* Selector de Modo (TV / Radio) - Oculto cuando es flotante para ahorrar espacio */}
           {!isFloating && radioUrl && (
             <div className="flex bg-black/50 border-b border-white/10">
               <button 
@@ -297,24 +337,44 @@ export default function VideoSection() {
               ✖
             </button>
           )}
+
           <div className="flex flex-col relative group">
-            {isFloating && (
-              <div className="absolute top-0 left-0 w-full p-1.5 sm:p-2 bg-gradient-to-b from-black/80 to-transparent z-40 flex items-center justify-between pointer-events-none">
-                <h5 className="font-semibold text-white text-[10px] sm:text-xs flex items-center gap-1.5 sm:gap-2 truncate pr-8">
-                  <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-red-500 animate-pulse" />
-                  {mode === "tv" ? "TV en Vivo" : "Radio en Vivo"}
-                </h5>
+            
+            {/* MARQUESINA INFORMATIVA SI HAY PAUTA PUBLICITARIA EN CURSO */}
+            {isAdPlaying && (
+              <div className="absolute top-0 left-0 w-full p-3 bg-gradient-to-r from-amber-600 via-amber-500 to-black z-50 flex items-center justify-between shadow-lg border-b border-amber-400/40 animate-fadeIn">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
+                  <span className="text-black font-black text-xs uppercase tracking-widest">
+                    PAUTA PUBLICITARIA • {currentAdSpot?.partner_id || "Cadena 4"}
+                  </span>
+                </div>
+                <span className="text-[10px] text-black font-bold uppercase bg-white/30 px-2 py-0.5 rounded-full">
+                  {currentAdSpot?.title || "Comercial Exclusivo"}
+                </span>
               </div>
             )}
-            
+
             <div className={`aspect-video w-full relative ${mode === "radio" ? "bg-gradient-to-br from-indigo-900 to-black" : "bg-black"}`}>
-              {mode === "tv" && activeVideo?.video_url ? (
+              
+              {/* REPRODUCTOR DE PAUTA PUBLICITARIA SOBREPUESTO */}
+              {isAdPlaying && currentAdSpot?.video_url ? (
+                <video
+                  ref={adVideoRef}
+                  src={currentAdSpot.video_url}
+                  autoPlay
+                  controls
+                  playsInline
+                  onEnded={handleAdEnded}
+                  className="w-full h-full object-contain bg-black z-40 relative"
+                />
+              ) : mode === "tv" && activeVideo?.video_url ? (
                 <ReactPlayer
                   src={activeVideo.video_url}
                   className="absolute top-0 left-0"
                   width="100%"
                   height="100%"
-                  playing={true}
+                  playing={!isAdPlaying}
                   muted={false}
                   controls={true}
                   playsInline={true}
