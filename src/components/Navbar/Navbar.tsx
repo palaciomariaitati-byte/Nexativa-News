@@ -50,6 +50,10 @@ export default function Navbar() {
             <Link href="/cultura" className="text-sm font-medium hover:text-[var(--color-brand-accent)] transition-colors uppercase tracking-widest">
               Cultura
             </Link>
+            <Link href="/guia" className="text-sm font-semibold text-cyan-400 hover:text-cyan-300 transition-colors uppercase tracking-widest flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+              Guía Comercial
+            </Link>
             <Link href="/store" className="text-sm font-medium hover:text-[var(--color-brand-accent)] transition-colors uppercase tracking-widest">
               Shop
             </Link>
