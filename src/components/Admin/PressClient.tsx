@@ -20,7 +20,7 @@ export interface ImportedSocio {
   isExpanded?: boolean;
 }
 
-const LOCAL_STORAGE_KEY = "nexativa_socios_crm_v2";
+const LOCAL_STORAGE_KEY = "nexativa_socios_crm_v3";
 
 export default function PressClient() {
   const [activeTab, setActiveTab] = useState<"import" | "press" | "stealth" | "make">("import");
@@ -63,20 +63,24 @@ export default function PressClient() {
   // 1. Cargar comercios desde localStorage y Supabase al iniciar
   useEffect(() => {
     async function initLoad() {
-      // Intento 1: Cargar desde localStorage para rápida respuesta
-      try {
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setSocios(parsed);
+      let loadedFromLocal = false;
+      // Revisa claves v3, v2 y v1 en localStorage para no perder nada de sesiones anteriores
+      const keys = ["nexativa_socios_crm_v3", "nexativa_socios_crm_v2", "nexativa_socios_crm_v1"];
+      for (const k of keys) {
+        try {
+          const saved = localStorage.getItem(k);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setSocios(parsed);
+              loadedFromLocal = true;
+              break;
+            }
           }
-        }
-      } catch (e) {
-        console.warn("No se pudo leer de localStorage", e);
+        } catch (e) {}
       }
 
-      // Intento 2: Sincronizar desde la API Supabase
+      // Sincronizar desde la API Supabase
       try {
         const res = await fetch("/api/admin/import-businesses");
         const data = await res.json();
@@ -97,7 +101,6 @@ export default function PressClient() {
           }));
 
           setSocios(prev => {
-            // Combinar evitando duplicados por nombre/CUIT
             const existingNames = new Set(prev.map(s => s.name.toLowerCase()));
             const newItems = mapped.filter(m => !existingNames.has(m.name.toLowerCase()));
             const combined = [...prev, ...newItems];
@@ -127,11 +130,11 @@ export default function PressClient() {
   };
 
   /**
-   * Parser bajo demanda (al hacer clic en "Procesar Planilla Pegada")
+   * Parser bajo demanda (al hacer clic en "📥 Cargar y Procesar Planilla")
    */
   const handleProcessPastedText = () => {
     if (!rawText.trim()) {
-      setImportStatus("⚠️ Por favor pegá primero el texto de tu planilla en la caja.");
+      setImportStatus("⚠️ Por favor pegá primero las filas de tu Excel en la caja de abajo.");
       return;
     }
 
@@ -223,9 +226,9 @@ export default function PressClient() {
     if (parsed.length > 0) {
       updateSociosAndSave(prev => [...parsed, ...prev]);
       setRawText("");
-      setImportStatus(`🎉 ¡Se procesaron e importaron ${parsed.length} comercios a tu lista de socios! Tu planilla está guardada de forma segura.`);
+      setImportStatus(`🎉 ¡Se importaron ${parsed.length} comercios! Tu planilla está guardada de forma segura en memoria.`);
     } else {
-      setImportStatus("⚠️ No se pudieron reconocer filas válidas en el texto pegado.");
+      setImportStatus("⚠️ No se reconocieron filas válidas en la planilla pegada.");
     }
   };
 
@@ -237,7 +240,7 @@ export default function PressClient() {
 
   const handleSearchInputChange = (text: string) => {
     setSearchQuery(text);
-    setActiveSearchQuery(text); // Filtrado instantáneo en vivo
+    setActiveSearchQuery(text);
   };
 
   // Agregar nuevo comercio individualmente
@@ -322,7 +325,7 @@ export default function PressClient() {
     setSocios(prev => prev.map(s => s.id === id ? { ...s, isExpanded: !s.isExpanded } : s));
   };
 
-  // Confirm and upload selected rows to API (Mantiene los datos en pantalla)
+  // Confirm and upload selected rows to API
   const handleConfirmImport = async () => {
     const selectedSocios = socios.filter(s => s.selected);
     if (selectedSocios.length === 0) {
@@ -355,14 +358,13 @@ export default function PressClient() {
 
       const data = await res.json();
       if (data.success) {
-        // Asegurar que la lista local permanezca guardada en memoria y localStorage
         updateSociosAndSave(socios);
-        setImportStatus(`✅ ¡Éxito! Tu planilla de ${selectedSocios.length} comercios se guardó en el servidor y en memoria local. Presioná 'Publicar Todo' cuando quieras activarla en la web.`);
+        setImportStatus(`✅ ¡Éxito! Tu planilla de ${selectedSocios.length} comercios se guardó en el servidor y en memoria. Presioná 'Publicar Todo' para activarlos en la web.`);
       } else {
         setImportStatus(`❌ Error: ${data.error}`);
       }
     } catch (err: any) {
-      setImportStatus(`❌ Error al conectar con el servidor: ${err.message}. Tus datos están seguros localmente.`);
+      setImportStatus(`❌ Error al conectar con el servidor: ${err.message}. Tus datos están guardados localmente.`);
     } finally {
       setIsImporting(false);
     }
@@ -531,7 +533,7 @@ export default function PressClient() {
               <div>
                 <h2 className="text-lg font-bold text-white">Administrador de Socios & Comercios</h2>
                 <p className="text-xs text-slate-400">
-                  Planilla protegida en memoria. Buscá por CUIT, Razón Social o Referente (con Enter o clic en Lupa).
+                  Planilla protegida en memoria. Pegá tus filas abajo o agregá comercios individualmente.
                 </p>
               </div>
 
@@ -546,32 +548,33 @@ export default function PressClient() {
               </div>
             </div>
 
-            {/* Input Textarea para carga masiva pegada de Excel */}
-            <details className="mb-6 bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-400">
-              <summary className="font-bold text-cyan-400 cursor-pointer flex items-center gap-2">
-                <FileSpreadsheet className="w-4 h-4" />
-                <span>📋 Haz clic aquí para pegar y procesar filas desde Excel</span>
-              </summary>
-              <div className="mt-3 space-y-3">
-                <textarea
-                  rows={4}
-                  value={rawText}
-                  onChange={(e) => setRawText(e.target.value)}
-                  placeholder="Copiá las columnas de tu Excel (Ctrl+C) y pegalas acá (Ctrl+V)...
-Ejemplo (CUIT	Nombre Comercio	Referente	Rubro	Dirección	Teléfono):
+            {/* SECCIÓN SIEMPRE VISIBLE PARA PEGAR PLANILLA EXCEL */}
+            <div className="mb-6 bg-slate-950 border border-slate-800 rounded-2xl p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="font-bold text-cyan-400 text-xs flex items-center gap-2">
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>📋 Pegá las filas de tu Planilla de Excel aquí para cargarlas:</span>
+                </label>
+                <span className="text-[10px] text-slate-500 font-mono">Formato: CUIT | Nombre Comercio | Referente | Rubro | Dirección | Teléfono</span>
+              </div>
+              <textarea
+                rows={3}
+                value={rawText}
+                onChange={(e) => setRawText(e.target.value)}
+                placeholder="Copiá las celdas de tu Excel (Ctrl+C) y pegalas aquí directamente (Ctrl+V)...
+Ejemplo:
 16993433	Mueblería Rube	Juan Rube	Mueblería	Av. San Martín 1420	3786611250
 10211813	Todo Hogar	Carlos Gómez	Hogar	Calle Buenos Aires 850	3786611250"
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200 focus:outline-none focus:border-cyan-500"
-                />
-                <button
-                  onClick={handleProcessPastedText}
-                  className="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-2 shadow-md"
-                >
-                  <Upload className="w-4 h-4" />
-                  <span>📥 Procesar y Cargar Planilla Pegada</span>
-                </button>
-              </div>
-            </details>
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200 focus:outline-none focus:border-cyan-500"
+              />
+              <button
+                onClick={handleProcessPastedText}
+                className="px-5 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-2 shadow-lg transition-transform active:scale-95"
+              >
+                <Upload className="w-4 h-4" />
+                <span>📥 Cargar y Procesar Planilla Pegada</span>
+              </button>
+            </div>
 
             {/* BUSCADOR INSTANTÁNEO CON TECLA ENTER Y CLIC EN LUPA */}
             <form onSubmit={handleSearchSubmit} className="relative mb-6 flex items-center gap-2">
@@ -597,7 +600,6 @@ Ejemplo (CUIT	Nombre Comercio	Referente	Rubro	Dirección	Teléfono):
                 )}
               </div>
 
-              {/* Botón Lupa Operativo */}
               <button
                 type="submit"
                 className="px-5 py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 whitespace-nowrap shadow-md"
@@ -609,7 +611,7 @@ Ejemplo (CUIT	Nombre Comercio	Referente	Rubro	Dirección	Teléfono):
             </form>
 
             {importStatus && (
-              <div className="text-xs font-medium text-cyan-300 p-3 rounded-lg bg-slate-950 border border-slate-800 mb-6 flex items-center justify-between">
+              <div className="text-xs font-medium text-cyan-300 p-3.5 rounded-xl bg-slate-950 border border-slate-800 mb-6 flex items-center justify-between">
                 <span>{importStatus}</span>
                 <button onClick={() => setImportStatus(null)} className="text-slate-400 hover:text-white font-bold ml-2">✕</button>
               </div>
@@ -841,7 +843,7 @@ Ejemplo (CUIT	Nombre Comercio	Referente	Rubro	Dirección	Teléfono):
                     {filteredSocios.length === 0 && (
                       <tr>
                         <td colSpan={7} className="p-8 text-center text-slate-500 italic">
-                          No se encontraron comercios que coincidan con la búsqueda &ldquo;{activeSearchQuery}&rdquo;.
+                          No se encontraron comercios en tu lista. Pegá las filas de tu Excel en la caja superior y hacé clic en &ldquo;📥 Cargar y Procesar Planilla Pegada&rdquo;.
                         </td>
                       </tr>
                     )}
@@ -1048,7 +1050,7 @@ Ejemplo (CUIT	Nombre Comercio	Referente	Rubro	Dirección	Teléfono):
                     type="text"
                     value={editingSocio.contact_person}
                     onChange={(e) => setEditingSocio({ ...editingSocio, contact_person: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-white"
                   />
                 </div>
 
