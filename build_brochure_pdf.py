@@ -5,17 +5,20 @@ from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, HRFlowable, Table, TableStyle, PageBreak, Image as RLImage
 )
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY, TA_RIGHT
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 
 def generate_brochure():
     pdf_path = os.path.join("public", "BROCHURE_COMERCIAL_NEXATIVA_NEWS_2026.pdf")
+    
+    # A4 Printable area: 595.27 x 841.89 pt. 
+    # Margins: Left/Right = 36 pt (Printable width = 523.27 pt). Top/Bottom = 36 pt (Printable height = 769.89 pt).
     doc = SimpleDocTemplate(
         pdf_path,
         pagesize=A4,
-        rightMargin=30,
-        leftMargin=30,
-        topMargin=25,
-        bottomMargin=25
+        rightMargin=36,
+        leftMargin=36,
+        topMargin=36,
+        bottomMargin=36
     )
 
     styles = getSampleStyleSheet()
@@ -24,41 +27,43 @@ def generate_brochure():
     NAVY_DARK = colors.HexColor('#0F172A')
     EMERALD_PRIMARY = colors.HexColor('#047857')
     EMERALD_BG = colors.HexColor('#F0FDF4')
-    GOLD_ACCENT = colors.HexColor('#D97706')
     TEXT_DARK = colors.HexColor('#1E293B')
     TEXT_MUTED = colors.HexColor('#475569')
-    BORDER_COLOR = colors.HexColor('#E2E8F0')
-    BG_CARD = colors.HexColor('#F8FAFC')
+    BORDER_COLOR = colors.HexColor('#CBD5E1')
+    CARD_BG = colors.HexColor('#F8FAFC')
 
-    # Typography Styles
+    # Typography Styles (Sin TA_JUSTIFY para evitar cortes raros de palabras)
     title_style = ParagraphStyle(
         'DocTitle',
         parent=styles['Heading1'],
-        fontSize=20,
-        leading=23,
+        fontSize=21,
+        leading=24,
         textColor=NAVY_DARK,
         fontName='Helvetica-Bold',
+        alignment=TA_LEFT,
         spaceAfter=2
     )
 
     subtitle_style = ParagraphStyle(
         'DocSubtitle',
         parent=styles['Normal'],
-        fontSize=9.5,
-        leading=13,
+        fontSize=10,
+        leading=14,
         textColor=EMERALD_PRIMARY,
         fontName='Helvetica-Bold',
+        alignment=TA_LEFT,
         spaceAfter=8
     )
 
     h2_style = ParagraphStyle(
         'Heading2Custom',
         parent=styles['Heading2'],
-        fontSize=11.5,
-        leading=15,
+        fontSize=11,
+        leading=14,
         textColor=NAVY_DARK,
         fontName='Helvetica-Bold',
-        spaceBefore=8,
+        alignment=TA_LEFT,
+        spaceBefore=6,
         spaceAfter=4
     )
 
@@ -66,25 +71,20 @@ def generate_brochure():
         'BodyCustom',
         parent=styles['Normal'],
         fontSize=8.5,
-        leading=11.5,
+        leading=12,
         textColor=TEXT_DARK,
         alignment=TA_LEFT,
         fontName='Helvetica',
         spaceAfter=4
     )
 
-    body_justify = ParagraphStyle(
-        'BodyJustify',
-        parent=body_style,
-        alignment=TA_JUSTIFY
-    )
-
     bullet_style = ParagraphStyle(
         'BulletCustom',
         parent=styles['Normal'],
-        fontSize=8,
-        leading=11,
+        fontSize=8.5,
+        leading=12,
         textColor=TEXT_MUTED,
+        alignment=TA_LEFT,
         fontName='Helvetica',
         leftIndent=8,
         spaceAfter=3
@@ -103,17 +103,16 @@ def generate_brochure():
     story = []
 
     # =========================================================================
-    # PAGE 1: DOSSIER DE IMPRESIÓN EDITORIAL (PORTADA COMPLETA 100% LLENA)
+    # PÁGINA 1 DE 2: PORTADA EDITORIAL, MANIFIESTO Y GALERÍA COMPLETA
     # =========================================================================
 
-    # Header Banner Table
     header_data = [
         [
             Paragraph("<b>NEXATIVA NEWS & IA NORA</b>", title_style),
-            Paragraph("<b>EDICIÓN COMERCIAL 2026</b><br/><font size=7 color='#047857'>Página 1 de 2</font>", ParagraphStyle('HRight', parent=styles['Normal'], alignment=TA_RIGHT, fontName='Helvetica-Bold', leading=10))
+            Paragraph("<b>DOSSIER COMERCIAL 2026</b><br/><font size=7 color='#047857'>Página 1 de 2</font>", ParagraphStyle('HRight', parent=styles['Normal'], alignment=TA_RIGHT, fontName='Helvetica-Bold', leading=10))
         ]
     ]
-    t_header = Table(header_data, colWidths=[380, 155])
+    t_header = Table(header_data, colWidths=[360, 163])
     t_header.setStyle(TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('PADDING', (0,0), (-1,-1), 0),
@@ -122,16 +121,16 @@ def generate_brochure():
     story.append(Paragraph("Plataforma Periodística, Marketplace PyME y Ecosistema de Inteligencia Artificial Regional", subtitle_style))
     story.append(HRFlowable(width="100%", thickness=2, color=EMERALD_PRIMARY, spaceAfter=8))
 
-    # Declaración de Manifiesto
+    # Manifiesto
     story.append(Paragraph("🌱 Manifiesto Institucional: Tecnología con Propósito Humano y Desarrollo Social", h2_style))
     story.append(Paragraph(
-        "En un entorno mediático saturado de contenido automatizado distante, <b>Nexativa News</b> (<code>nexativanews.com.ar</code>) se consolidó como el motor digital y comunitario de mayor impacto en la región. Nuestra misión es poner la tecnología más avanzada al servicio del <b>desarrollo humano integral</b>: conectamos trabajadores independientes con vecinos que necesitan sus servicios, democratizamos la visibilidad para las PyMEs locales y garantizamos periodismo veraz sin intermediarios a más de 50.000 lectores mensuales.",
-        body_justify
+        "En un entorno mediático saturado de contenido automatizado distante, <b>Nexativa News</b> (<code>nexativanews.com.ar</code>) se consolidó como el motor digital y comunitario de mayor impacto en la región. Nuestra misión es poner la tecnología más avanzada al servicio del <b>desarrollo humano integral</b>: conectamos trabajadores independientes con vecinos que necesitan sus servicios sin comisiones, democratizamos la visibilidad para las PyMEs locales y garantizamos periodismo veraz sin intermediarios a más de 50.000 lectores mensuales.",
+        body_style
     ))
 
     story.append(Spacer(1, 4))
 
-    # Indicadores de Crecimiento (4 Bloques)
+    # Métricas principales (4 bloques bien distribuidos)
     metric_data = [
         [
             Paragraph("<b>+50.000</b><br/><font size=7 color='#475569'>Lectores Mensuales</font>", ParagraphStyle('M1', parent=body_style, alignment=TA_CENTER)),
@@ -140,7 +139,7 @@ def generate_brochure():
             Paragraph("<b>100% ORGÁNICO</b><br/><font size=7 color='#475569'>Alcance en Celulares</font>", ParagraphStyle('M4', parent=body_style, alignment=TA_CENTER))
         ]
     ]
-    t_metrics = Table(metric_data, colWidths=[133, 134, 134, 134])
+    t_metrics = Table(metric_data, colWidths=[130, 131, 131, 131])
     t_metrics.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,-1), EMERALD_BG),
         ('BOX', (0,0), (-1,-1), 1, EMERALD_PRIMARY),
@@ -164,16 +163,16 @@ def generate_brochure():
             Paragraph("Nuestros corresponsales y vecinos reportan los hechos en vivo desde la calle. Noticias de impacto positivo que impulsan la cultura y la economía de Corrientes.", body_style)
         ]
     ]
-    t_pilares = Table(pilares_data, colWidths=[175, 180, 180])
+    t_pilares = Table(pilares_data, colWidths=[174, 174, 175])
     t_pilares.setStyle(TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'TOP'),
         ('PADDING', (0,0), (-1,-1), 2),
     ]))
     story.append(t_pilares)
 
-    story.append(Spacer(1, 6))
+    story.append(Spacer(1, 8))
 
-    # Galería Fotográfica de Impacto Real (3 Fotografías Completas)
+    # Galería Fotográfica de Historias Reales
     story.append(Paragraph("📸 Galería de Historias Reales de Nuestra Comunidad", h2_style))
 
     img_tradesman_path = os.path.join("public", "images", "brochure_tradesman.png")
@@ -181,19 +180,19 @@ def generate_brochure():
     img_journalist_path = os.path.join("public", "images", "brochure_journalist.png")
 
     if os.path.exists(img_tradesman_path) and os.path.exists(img_merchant_path) and os.path.exists(img_journalist_path):
-        img_t = RLImage(img_tradesman_path, width=170, height=115)
-        img_m = RLImage(img_merchant_path, width=170, height=115)
-        img_j = RLImage(img_journalist_path, width=170, height=115)
+        img_t = RLImage(img_tradesman_path, width=168, height=110)
+        img_m = RLImage(img_merchant_path, width=168, height=110)
+        img_j = RLImage(img_journalist_path, width=168, height=110)
 
         img_table_data = [
             [img_t, img_m, img_j],
             [
-                Paragraph("<b>Don Pedro (Plomero):</b> Orgulloso con su Certificado de Excelencia A4 en su taller.", caption_style),
+                Paragraph("<b>Don Pedro (Plomero):</b> Orgulloso con su Certificado A4 en su taller.", caption_style),
                 Paragraph("<b>Comercio de Barrio:</b> Atención cercana y directa con clientes vía WhatsApp.", caption_style),
-                Paragraph("<b>Movileros en Vivo:</b> Cobertura transparente desde las calles de Corrientes.", caption_style)
+                Paragraph("<b>Movileros en Vivo:</b> Cobertura transparente desde las calles.", caption_style)
             ]
         ]
-        t_imgs = Table(img_table_data, colWidths=[175, 180, 180])
+        t_imgs = Table(img_table_data, colWidths=[174, 174, 175])
         t_imgs.setStyle(TableStyle([
             ('VALIGN', (0,0), (-1,-1), 'TOP'),
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
@@ -201,15 +200,15 @@ def generate_brochure():
         ]))
         story.append(t_imgs)
 
-    story.append(Spacer(1, 6))
-    story.append(HRFlowable(width="100%", thickness=1, color=BORDER_COLOR, spaceAfter=2))
+    story.append(Spacer(1, 10))
+    story.append(HRFlowable(width="100%", thickness=1, color=BORDER_COLOR, spaceAfter=4))
     story.append(Paragraph("Nexativa News © 2026 | Dossier Comercial Oficial - Continúa en Página 2", ParagraphStyle('F1', parent=caption_style, alignment=TA_CENTER)))
 
-    # PAGE BREAK PERFECTO
+    # FORZAR SALTO A PÁGINA 2
     story.append(PageBreak())
 
     # =========================================================================
-    # PAGE 2: PROPUESTAS COMERCIALES, TECNOLOGÍA NORA Y CONTACTO (COMPLETA)
+    # PÁGINA 2 DE 2: TECNOLOGÍA NORA IA, MATRIZ COMERCIAL Y CONTACTO COMPLETO
     # =========================================================================
 
     header_data2 = [
@@ -218,28 +217,28 @@ def generate_brochure():
             Paragraph("<b>DOSSIER COMERCIAL 2026</b><br/><font size=7 color='#047857'>Página 2 de 2</font>", ParagraphStyle('HRight2', parent=styles['Normal'], alignment=TA_RIGHT, fontName='Helvetica-Bold', leading=10))
         ]
     ]
-    t_header2 = Table(header_data2, colWidths=[380, 155])
+    t_header2 = Table(header_data2, colWidths=[360, 163])
     t_header2.setStyle(TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('PADDING', (0,0), (-1,-1), 0),
     ]))
     story.append(t_header2)
     story.append(Paragraph("Estrategia Omnipresente: Google Discover, Redes Sociales e Inteligencia Artificial", subtitle_style))
-    story.append(HRFlowable(width="100%", thickness=2, color=EMERALD_PRIMARY, spaceAfter=8))
+    story.append(HRFlowable(width="100%", thickness=2, color=EMERALD_PRIMARY, spaceAfter=10))
 
-    # Sección: Tecnología Nora IA & Ingenieria de Tráfico
+    # Sección Tecnología Nora
     story.append(Paragraph("🤖 4. La Ventaja Tecnológica: Motor Nora IA & Distribución Omnipresente", h2_style))
     story.append(Paragraph(
-        "A diferencia de los medios tradicionales, Nexativa News cuenta con **Nora**, la Inteligencia Artificial periodística desarrollada por <b>MyJNexoraVisual</b>. Cuando tu marca o negocio se anuncia en Nexativa, nuestro algoritmo no se limita a mostrar un aviso estático; activa una red de distribución inteligente:",
-        body_justify
+        "A diferencia de los medios tradicionales, Nexativa News cuenta con **Nora**, la Inteligencia Artificial periodística desarrollada por <b>MyJNexoraVisual</b>. Cuando tu marca o negocio se anuncia en Nexativa, nuestro algoritmo activa una red de difusión inteligente sin costos adicionales:",
+        body_style
     ))
     story.append(Paragraph("• <b>Google Discover Optimization:</b> Noticias e imágenes de marcas optimizadas para aparecer gratis en el feed principal de celulares Android e iOS.", bullet_style))
     story.append(Paragraph("• <b>Inyección en Estados de WhatsApp e IG Stories:</b> Nora genera gráficos dinámicos de encuestas en formato 9:16 vertical de alta curiosidad.", bullet_style))
     story.append(Paragraph("• <b>NoraScore™ Anti-Spam:</b> Sistema de verificación de opiniones reales por WhatsApp que construye prestigio legítimo para los comercios participantes.", bullet_style))
 
-    story.append(Spacer(1, 6))
+    story.append(Spacer(1, 10))
 
-    # Matriz Completa de Soluciones Comerciales (Tabla Ropa De Borde a Borde)
+    # Matriz Comercial (Con anchos de columna amplios para evitar cortes de palabras)
     story.append(Paragraph("💼 5. Matriz de Propuestas de Auspicio y Servicios para Empresas", h2_style))
 
     plan_table_data = [
@@ -275,25 +274,25 @@ def generate_brochure():
         ]
     ]
 
-    t_plans = Table(plan_table_data, colWidths=[140, 260, 135])
+    t_plans = Table(plan_table_data, colWidths=[140, 245, 138])
     t_plans.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), EMERALD_BG),
         ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('PADDING', (0,0), (-1,-1), 5),
+        ('PADDING', (0,0), (-1,-1), 6),
     ]))
     story.append(t_plans)
 
-    story.append(Spacer(1, 8))
+    story.append(Spacer(1, 10))
 
-    # Preguntas Frecuentes / FAQ Corto
+    # FAQ
     story.append(Paragraph("❓ Preguntas Frecuentes para Auspiciantes", h2_style))
-    story.append(Paragraph("<b>• ¿Cómo recibo los contactos de clientes?</b> Llegan directamente a tu celular de WhatsApp sin intermediarios ni comisiones de terceros.", bullet_style))
-    story.append(Paragraph("<b>• ¿Puedo cambiar mis promociones durante el mes?</b> Sí, el equipo comercial y Nora actualizan tus avisos en tiempo real.", bullet_style))
+    story.append(Paragraph("<b>• ¿Cómo recibo las consultas de clientes?</b> Llegan directamente a tu celular de WhatsApp sin intermediarios ni comisiones.", bullet_style))
+    story.append(Paragraph("<b>• ¿Puedo actualizar mis promociones?</b> Sí, el equipo comercial y la IA Nora actualizan tus avisos en tiempo real.", bullet_style))
 
-    story.append(Spacer(1, 8))
+    story.append(Spacer(1, 12))
 
-    # Caja Oficial de Contacto Directo (Con los dos números de teléfono correctos)
+    # Caja Oficial de Contacto Directo (Con ambos números separados sin superposiciones)
     contact_data = [
         [
             Paragraph("<b>🤝 CONTACTO DIRECTO & ALIANZAS COMERCIALES REGIONALES</b>", ParagraphStyle('CH', parent=body_style, textColor=colors.white, fontName='Helvetica-Bold', alignment=TA_CENTER))
@@ -301,7 +300,7 @@ def generate_brochure():
         [
             Paragraph(
                 "<br/>"
-                "<b>📱 WhatsApp Comercial (Atención Anunciantes):</b> +54 9 3786 61-1250<br/>"
+                "<b>💬 WhatsApp Comercial Nexativa (Atención Anunciantes):</b> +54 9 3786 61-1250<br/>"
                 "<b>⚙️ MyJNexoraVisual (Soporte Técnico & IA Nora):</b> +54 9 3786 41-4533<br/>"
                 "<b>🌐 Portal Oficial:</b> <code>https://www.nexativanews.com.ar</code> | <b>Sede:</b> Ituzaingó, Corrientes, Argentina<br/><br/>"
                 "<i>Agendá una reunión presencial con nuestro equipo y sumá tu marca a la red regional de mayor crecimiento.</i><br/>",
@@ -310,18 +309,18 @@ def generate_brochure():
         ]
     ]
 
-    t_contact = Table(contact_data, colWidths=[535])
+    t_contact = Table(contact_data, colWidths=[523])
     t_contact.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), NAVY_DARK),
-        ('BACKGROUND', (0,1), (-1,1), BG_CARD),
+        ('BACKGROUND', (0,1), (-1,1), CARD_BG),
         ('BOX', (0,0), (-1,-1), 1.5, NAVY_DARK),
-        ('PADDING', (0,0), (-1,-1), 8),
+        ('PADDING', (0,0), (-1,-1), 10),
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
     ]))
     story.append(t_contact)
 
     # Footer Final
-    story.append(Spacer(1, 8))
+    story.append(Spacer(1, 10))
     story.append(HRFlowable(width="100%", thickness=1, color=BORDER_COLOR, spaceAfter=4))
     story.append(Paragraph(
         "Nexativa News © 2026 | Tecnología con Propósito Humano por MyJNexoraVisual & IA Nora Engine | Todos los derechos reservados",
@@ -329,7 +328,7 @@ def generate_brochure():
     ))
 
     doc.build(story)
-    print("Brochure Comercial PDF perfeccionado de 2 Páginas Generado en:", pdf_path)
+    print("Brochure Comercial PDF perfeccionado de 2 Páginas Llenas Generado en:", pdf_path)
 
 if __name__ == "__main__":
     generate_brochure()
