@@ -62,6 +62,10 @@ export default async function AdminOverviewPage() {
                 <h3 className="font-bold mb-2 text-[var(--color-brand-accent)]">Marketing & Ads</h3>
                 <p className="text-sm text-white/70">Usa la IA de Nexativa para generar copys, campañas y avisos virales. (Operador, Admin)</p>
               </Link>
+              <Link href="/admin/jobs" className="bg-emerald-950/20 hover:bg-emerald-900/40 border border-emerald-500/30 hover:border-emerald-500 p-4 rounded-lg transition-all block">
+                <h3 className="font-bold mb-2 text-emerald-400">💼 Empleos & Oficios (NoraScore)</h3>
+                <p className="text-sm text-white/70">Gestión de postulantes, búsquedas laborales, calificaciones y emisión de certificados. (Operador, Admin)</p>
+              </Link>
               <Link href="/admin/settings" className="bg-black/20 hover:bg-black/40 border border-transparent hover:border-white/10 p-4 rounded-lg transition-all block">
                 <h3 className="font-bold mb-2">Redes Sociales</h3>
                 <p className="text-sm text-white/70">Configura links de redes, número de WhatsApp e integraciones. (Operador, Admin)</p>

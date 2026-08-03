@@ -1,0 +1,21 @@
+{
+  "short_name": "Nexativa Pro",
+  "name": "Nexativa Pro - Portal de Prestadores & Oficios",
+  "icons": [
+    {
+      "src": "/icons/main-icon.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/icons/main-icon.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/prestadores",
+  "background_color": "#0B0F19",
+  "theme_color": "#059669",
+  "display": "standalone",
+  "orientation": "portrait"
+}
