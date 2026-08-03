@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Upload, Send, FileSpreadsheet, Newspaper, Sparkles, Code2, Trash2, ChevronDown, ChevronUp, Bell, AlertCircle, Rocket, ExternalLink, UserCheck, CreditCard, Search, PlusCircle, Edit3, X, Check, RefreshCw } from "lucide-react";
+import { Upload, Send, FileSpreadsheet, Newspaper, Sparkles, Code2, Trash2, ChevronDown, ChevronUp, Bell, AlertCircle, Rocket, ExternalLink, UserCheck, CreditCard, Search, PlusCircle, Edit3, X, Check, Download, Printer, Filter, Layers, ShieldAlert } from "lucide-react";
 
 export type BusinessStatus = "DRAFT" | "ACTIVE" | "INACTIVE" | "EXPIRED";
 
@@ -29,6 +29,8 @@ export default function PressClient() {
   const [socios, setSocios] = useState<ImportedSocio[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSearchQuery, setActiveSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "DRAFT" | "INACTIVE" | "EXPIRED">("ALL");
+  const [showDuplicatesOnly, setShowDuplicatesOnly] = useState(false);
   const [rawText, setRawText] = useState("");
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
@@ -63,8 +65,6 @@ export default function PressClient() {
   // 1. Cargar comercios desde localStorage y Supabase al iniciar
   useEffect(() => {
     async function initLoad() {
-      let loadedFromLocal = false;
-      // Revisa claves v3, v2 y v1 en localStorage para no perder nada de sesiones anteriores
       const keys = ["nexativa_socios_crm_v3", "nexativa_socios_crm_v2", "nexativa_socios_crm_v1"];
       for (const k of keys) {
         try {
@@ -73,14 +73,12 @@ export default function PressClient() {
             const parsed = JSON.parse(saved);
             if (Array.isArray(parsed) && parsed.length > 0) {
               setSocios(parsed);
-              loadedFromLocal = true;
               break;
             }
           }
         } catch (e) {}
       }
 
-      // Sincronizar desde la API Supabase
       try {
         const res = await fetch("/api/admin/import-businesses");
         const data = await res.json();
@@ -127,6 +125,89 @@ export default function PressClient() {
       } catch (e) {}
       return next;
     });
+  };
+
+  /**
+   * Identificar los IDs de los registros duplicados sobrantes
+   */
+  const getDuplicateIds = () => {
+    const seen = new Map<string, string>();
+    const duplicateIds = new Set<string>();
+
+    socios.forEach((s) => {
+      const keyName = s.name.toLowerCase().trim();
+      const keyCuit = s.cuit !== "N/A" && s.cuit.trim() ? s.cuit.trim() : "";
+      
+      const matchedId = (keyCuit && seen.get(keyCuit)) || (keyName && seen.get(keyName));
+      if (matchedId) {
+        duplicateIds.add(s.id);
+      } else {
+        if (keyCuit) seen.set(keyCuit, s.id);
+        if (keyName) seen.set(keyName, s.id);
+      }
+    });
+
+    return duplicateIds;
+  };
+
+  const duplicateIdsSet = getDuplicateIds();
+
+  // Eliminar en lote los comercios duplicados sobrantes
+  const handleDeleteAllDuplicates = () => {
+    if (duplicateIdsSet.size === 0) {
+      alert("No se detectaron comercios duplicados repetidos en tu lista.");
+      return;
+    }
+
+    if (confirm(`¿Confirmás eliminar los ${duplicateIdsSet.size} comercios sobrantes repetidos? El sistema conservará 1 copia original de cada uno.`)) {
+      updateSociosAndSave(prev => prev.filter(s => !duplicateIdsSet.has(s.id)));
+      setImportStatus(`✨ ¡Lista depurada con éxito! Se eliminaron ${duplicateIdsSet.size} comercios sobrantes. Tu lista quedó 100% limpia.`);
+      setShowDuplicatesOnly(false);
+    }
+  };
+
+  /**
+   * Exportar lista visible o completa a Excel (.CSV)
+   */
+  const handleExportCSV = () => {
+    const itemsToExport = filteredSocios.length > 0 ? filteredSocios : socios;
+    if (itemsToExport.length === 0) {
+      alert("No hay datos de socios para exportar.");
+      return;
+    }
+
+    const csvRows = [
+      ["CUIT/DNI", "NOMBRE DEL COMERCIO / RAZÓN SOCIAL", "REFERENTE / SOCIO", "RUBRO / CATEGORÍA", "DIRECCIÓN", "TELÉFONO", "EMAIL", "ESTADO", "VENCIMIENTO MEMBRESÍA"]
+    ];
+
+    itemsToExport.forEach((s) => {
+      csvRows.push([
+        `"${s.cuit}"`,
+        `"${s.name.replace(/"/g, '""')}"`,
+        `"${s.contact_person.replace(/"/g, '""')}"`,
+        `"${s.category.replace(/"/g, '""')}"`,
+        `"${s.address.replace(/"/g, '""')}"`,
+        `"${s.phone}"`,
+        `"${s.email}"`,
+        `"${s.status}"`,
+        `"${s.subscription_due_date}"`
+      ]);
+    });
+
+    const csvString = csvRows.map(e => e.join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csvString], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `Socios_Paginas_Amarillas_Nexativa_${new Date().toISOString().split("T")[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Imprimir informe A4
+  const handlePrintReport = () => {
+    window.print();
   };
 
   /**
@@ -290,8 +371,19 @@ export default function PressClient() {
     setImportStatus(`✏️ Datos de "${editingSocio.name}" actualizados y guardados correctamente.`);
   };
 
-  // Filtrar socios por Nombre, Razón Social, CUIT/DNI, Referente o Rubro
+  // Filtrar socios por Nombre, Razón Social, CUIT/DNI, Referente, Estado y Duplicados
   const filteredSocios = socios.filter((s) => {
+    // Filtro por Duplicados
+    if (showDuplicatesOnly && !duplicateIdsSet.has(s.id)) {
+      return false;
+    }
+
+    // Filtro por Estado
+    if (statusFilter !== "ALL" && s.status !== statusFilter) {
+      return false;
+    }
+
+    // Filtro por Búsqueda de Texto
     const q = activeSearchQuery.toLowerCase().trim();
     if (!q) return true;
     return (
@@ -302,6 +394,12 @@ export default function PressClient() {
       s.phone.toLowerCase().includes(q)
     );
   });
+
+  // Conteos para los botones de estado
+  const countActive = socios.filter(s => s.status === "ACTIVE").length;
+  const countDraft = socios.filter(s => s.status === "DRAFT").length;
+  const countInactive = socios.filter(s => s.status === "INACTIVE").length;
+  const countExpired = socios.filter(s => s.status === "EXPIRED").length;
 
   // Toggle selection for all rows
   const handleToggleSelectAll = (select: boolean) => {
@@ -430,7 +528,7 @@ export default function PressClient() {
   return (
     <div className="space-y-8 font-sans">
       {/* Header Banner */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-slate-900/80 border border-slate-800 p-6 rounded-3xl backdrop-blur-xl">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-slate-900/80 border border-slate-800 p-6 rounded-3xl backdrop-blur-xl print:hidden">
         <div>
           <div className="inline-flex items-center gap-2 text-xs font-semibold text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-3 py-1 rounded-full mb-2">
             <Sparkles className="w-3.5 h-3.5" />
@@ -440,42 +538,41 @@ export default function PressClient() {
             Prensa & Páginas Amarillas 2.0
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Buscador activo por CUIT/Nombre/Referente, protección de planillas y alta con formato estandarizado.
+            Exportación Excel/PDF, depurador de duplicados en lote y filtros por estado de membresía.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={handleExportCSV}
+            className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs shadow-lg transition-transform active:scale-95"
+            title="Descargar lista completa a Excel .csv"
+          >
+            <Download className="w-4 h-4" />
+            <span>📊 Exportar Excel (.csv)</span>
+          </button>
+
+          <button
+            onClick={handlePrintReport}
+            className="inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs shadow-lg transition-transform active:scale-95"
+            title="Imprimir informe A4 o guardar en PDF"
+          >
+            <Printer className="w-4 h-4" />
+            <span>🖨️ Imprimir / PDF</span>
+          </button>
+
           <button
             onClick={() => setIsAddModalOpen(true)}
             className="inline-flex items-center gap-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs shadow-lg transition-transform active:scale-95"
           >
             <PlusCircle className="w-4 h-4" />
-            <span>+ AGREGAR COMERCIO NUEVO</span>
+            <span>+ Nuevo Comercio</span>
           </button>
-
-          <button
-            onClick={handlePublishAll}
-            disabled={isPublishingAll}
-            className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs transition-transform active:scale-95 shadow-lg shadow-emerald-500/20"
-          >
-            <Rocket className="w-4 h-4" />
-            <span>{isPublishingAll ? "Publicando..." : "PUBLICAR TODO A GUÍA"}</span>
-          </button>
-
-          <a
-            href="/guia"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold px-4 py-2.5 rounded-xl transition-colors"
-          >
-            <span>Ver /guia</span>
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
         </div>
       </div>
 
       {/* Tabs Bar */}
-      <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto">
+      <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto print:hidden">
         <button
           onClick={() => setActiveTab("import")}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
@@ -485,7 +582,7 @@ export default function PressClient() {
           }`}
         >
           <FileSpreadsheet className="w-4 h-4" />
-          <span>Importador de Excel & Gestor de Socios</span>
+          <span>Gestor de Socios & Exportador</span>
         </button>
 
         <button
@@ -528,28 +625,126 @@ export default function PressClient() {
       {/* TAB: Importador Interactivo de Excel & CRM */}
       {activeTab === "import" && (
         <div className="space-y-6">
-          <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-2xl">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-4">
-              <div>
-                <h2 className="text-lg font-bold text-white">Administrador de Socios & Comercios</h2>
-                <p className="text-xs text-slate-400">
-                  Planilla protegida en memoria. Pegá tus filas abajo o agregá comercios individualmente.
-                </p>
+          <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-2xl print:bg-white print:text-black print:border-none print:p-0">
+            
+            {/* HERRAMIENTAS DE FILTRADO POR ESTADO Y DETECCIÓN DE DUPLICADOS */}
+            <div className="flex flex-col gap-4 mb-6 print:hidden">
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+                
+                {/* Botones de Filtro por Estado */}
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="font-bold text-slate-400 flex items-center gap-1 mr-1">
+                    <Filter className="w-3.5 h-3.5 text-cyan-400" /> Estado:
+                  </span>
+
+                  <button
+                    onClick={() => { setStatusFilter("ALL"); setShowDuplicatesOnly(false); }}
+                    className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
+                      statusFilter === "ALL" && !showDuplicatesOnly
+                        ? "bg-cyan-500 text-slate-950 font-bold"
+                        : "bg-slate-900 text-slate-300 hover:bg-slate-800"
+                    }`}
+                  >
+                    Todos ({socios.length})
+                  </button>
+
+                  <button
+                    onClick={() => { setStatusFilter("ACTIVE"); setShowDuplicatesOnly(false); }}
+                    className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
+                      statusFilter === "ACTIVE"
+                        ? "bg-emerald-500 text-slate-950 font-bold"
+                        : "bg-emerald-950/40 text-emerald-300 border border-emerald-500/20 hover:bg-emerald-950"
+                    }`}
+                  >
+                    🟢 Activos ({countActive})
+                  </button>
+
+                  <button
+                    onClick={() => { setStatusFilter("DRAFT"); setShowDuplicatesOnly(false); }}
+                    className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
+                      statusFilter === "DRAFT"
+                        ? "bg-amber-500 text-slate-950 font-bold"
+                        : "bg-amber-950/40 text-amber-300 border border-amber-500/20 hover:bg-amber-950"
+                    }`}
+                  >
+                    🟡 Borradores ({countDraft})
+                  </button>
+
+                  <button
+                    onClick={() => { setStatusFilter("EXPIRED"); setShowDuplicatesOnly(false); }}
+                    className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
+                      statusFilter === "EXPIRED"
+                        ? "bg-purple-500 text-slate-950 font-bold"
+                        : "bg-purple-950/40 text-purple-300 border border-purple-500/20 hover:bg-purple-950"
+                    }`}
+                  >
+                    ⚠️ Deudores ({countExpired})
+                  </button>
+
+                  <button
+                    onClick={() => { setStatusFilter("INACTIVE"); setShowDuplicatesOnly(false); }}
+                    className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
+                      statusFilter === "INACTIVE"
+                        ? "bg-rose-500 text-slate-950 font-bold"
+                        : "bg-rose-950/40 text-rose-300 border border-rose-500/20 hover:bg-rose-950"
+                    }`}
+                  >
+                    🔴 Inactivos ({countInactive})
+                  </button>
+                </div>
+
+                {/* Botón Herramienta de Duplicados */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowDuplicatesOnly(!showDuplicatesOnly)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      showDuplicatesOnly
+                        ? "bg-rose-500 text-white shadow-lg"
+                        : duplicateIdsSet.size > 0
+                        ? "bg-rose-950/80 text-rose-300 border border-rose-500/40 hover:bg-rose-900"
+                        : "bg-slate-900 text-slate-400 border border-slate-800"
+                    }`}
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>
+                      {showDuplicatesOnly ? "Ver Todos los Socios" : `🔍 Ver Duplicados (${duplicateIdsSet.size})`}
+                    </span>
+                  </button>
+
+                  {duplicateIdsSet.size > 0 && (
+                    <button
+                      onClick={handleDeleteAllDuplicates}
+                      className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg text-xs flex items-center gap-1 shadow"
+                      title="Conservar 1 original de cada comercio y eliminar sobrantes repetidos"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Limpiar Duplicados ({duplicateIdsSet.size})</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setIsAddModalOpen(true)}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-md transition-all"
-                >
-                  <PlusCircle className="w-4 h-4" />
-                  <span>+ Nuevo Comercio</span>
-                </button>
-              </div>
+              {/* Cartel de Alerta Duplicados */}
+              {duplicateIdsSet.size > 0 && !showDuplicatesOnly && (
+                <div className="bg-rose-950/40 border border-rose-500/30 p-3 rounded-xl text-xs text-rose-300 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
+                    <span>
+                      <strong>Atención:</strong> Se detectaron <strong>{duplicateIdsSet.size} comercios duplicados sobrantes</strong> en la lista.
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleDeleteAllDuplicates}
+                    className="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg text-xs"
+                  >
+                    🗑️ Eliminar Sobrantes Repetidos en Lote
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* SECCIÓN SIEMPRE VISIBLE PARA PEGAR PLANILLA EXCEL */}
-            <div className="mb-6 bg-slate-950 border border-slate-800 rounded-2xl p-5 space-y-3">
+            {/* SECCIÓN VISIBLE PARA PEGAR PLANILLA EXCEL */}
+            <div className="mb-6 bg-slate-950 border border-slate-800 rounded-2xl p-5 space-y-3 print:hidden">
               <div className="flex items-center justify-between">
                 <label className="font-bold text-cyan-400 text-xs flex items-center gap-2">
                   <FileSpreadsheet className="w-4 h-4" />
@@ -577,7 +772,7 @@ Ejemplo:
             </div>
 
             {/* BUSCADOR INSTANTÁNEO CON TECLA ENTER Y CLIC EN LUPA */}
-            <form onSubmit={handleSearchSubmit} className="relative mb-6 flex items-center gap-2">
+            <form onSubmit={handleSearchSubmit} className="relative mb-6 flex items-center gap-2 print:hidden">
               <div className="relative flex-1">
                 <input
                   type="text"
@@ -603,7 +798,6 @@ Ejemplo:
               <button
                 type="submit"
                 className="px-5 py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 whitespace-nowrap shadow-md"
-                title="Hacé clic aquí o presiona Enter para buscar socio"
               >
                 <Search className="w-4 h-4" />
                 <span>Buscar</span>
@@ -611,7 +805,7 @@ Ejemplo:
             </form>
 
             {importStatus && (
-              <div className="text-xs font-medium text-cyan-300 p-3.5 rounded-xl bg-slate-950 border border-slate-800 mb-6 flex items-center justify-between">
+              <div className="text-xs font-medium text-cyan-300 p-3.5 rounded-xl bg-slate-950 border border-slate-800 mb-6 flex items-center justify-between print:hidden">
                 <span>{importStatus}</span>
                 <button onClick={() => setImportStatus(null)} className="text-slate-400 hover:text-white font-bold ml-2">✕</button>
               </div>
@@ -619,14 +813,14 @@ Ejemplo:
 
             {/* Data Grid con Tabla y Buscador */}
             <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-950 p-4 rounded-xl border border-slate-800">
+              <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-950 p-4 rounded-xl border border-slate-800 print:hidden">
                 <div className="flex items-center gap-3 text-xs">
                   <span className="font-bold text-white">
-                    Socios en Memoria: {socios.length} ({filteredSocios.length} visibles)
+                    Visibles: {filteredSocios.length} de {socios.length}
                   </span>
                   {activeSearchQuery && (
                     <span className="text-cyan-400 font-semibold bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800">
-                      Búsqueda activa: &ldquo;{activeSearchQuery}&rdquo;
+                      Búsqueda: &ldquo;{activeSearchQuery}&rdquo;
                     </span>
                   )}
                   <button
@@ -645,6 +839,14 @@ Ejemplo:
                 </div>
 
                 <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleExportCSV}
+                    className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Exportar Excel</span>
+                  </button>
+
                   <button
                     onClick={handleConfirmImport}
                     disabled={isImporting || socios.filter(s => s.selected).length === 0}
@@ -666,184 +868,189 @@ Ejemplo:
               </div>
 
               {/* Grid Table */}
-              <div className="overflow-x-auto border border-slate-800 rounded-xl max-h-[550px] overflow-y-auto">
-                <table className="w-full text-xs text-left text-slate-300">
-                  <thead className="text-slate-400 bg-slate-950 uppercase border-b border-slate-800 sticky top-0 z-10">
+              <div className="overflow-x-auto border border-slate-800 rounded-xl max-h-[550px] overflow-y-auto print:max-h-none print:overflow-visible print:border-none">
+                <table className="w-full text-xs text-left text-slate-300 print:text-black">
+                  <thead className="text-slate-400 bg-slate-950 uppercase border-b border-slate-800 sticky top-0 z-10 print:bg-white print:text-black print:static">
                     <tr>
-                      <th className="p-3 w-10 text-center">Detalle</th>
-                      <th className="p-3 w-10 text-center">Incluir</th>
+                      <th className="p-3 w-10 text-center print:hidden">Detalle</th>
+                      <th className="p-3 w-10 text-center print:hidden">Incluir</th>
                       <th className="p-3">Nombre del Comercio / Razón Social</th>
                       <th className="p-3">Rubro</th>
                       <th className="p-3">Estado</th>
                       <th className="p-3">Vencimiento Membresía</th>
-                      <th className="p-3 w-20 text-center">Acciones</th>
+                      <th className="p-3 w-20 text-center print:hidden">Acciones</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/80 bg-slate-900/40">
-                    {filteredSocios.map((s) => (
-                      <React.Fragment key={s.id}>
-                        <tr className={s.selected ? "hover:bg-slate-800/40" : "opacity-40 bg-slate-950/50"}>
-                          <td className="p-3 text-center">
-                            <button
-                              onClick={() => handleToggleExpand(s.id)}
-                              className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"
-                              title="Desplegar para ver CUIT y Referente"
-                            >
-                              {s.isExpanded ? <ChevronUp className="w-4 h-4 text-cyan-400" /> : <ChevronDown className="w-4 h-4" />}
-                            </button>
-                          </td>
+                  <tbody className="divide-y divide-slate-800/80 bg-slate-900/40 print:bg-white print:divide-slate-300">
+                    {filteredSocios.map((s) => {
+                      const isDup = duplicateIdsSet.has(s.id);
 
-                          <td className="p-3 text-center">
-                            <input
-                              type="checkbox"
-                              checked={s.selected}
-                              onChange={(e) => handleCellEdit(s.id, "selected", e.target.checked)}
-                              className="w-4 h-4 rounded accent-cyan-500 cursor-pointer"
-                            />
-                          </td>
-
-                          <td className="p-3 font-bold text-white">
-                            <input
-                              type="text"
-                              value={s.name}
-                              onChange={(e) => handleCellEdit(s.id, "name", e.target.value)}
-                              className="bg-transparent border-b border-slate-700/50 focus:border-cyan-400 text-white font-bold text-xs w-full focus:outline-none"
-                            />
-                            <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
-                              {s.cuit !== "N/A" && <span className="font-mono text-cyan-400 font-semibold">CUIT/DNI: {s.cuit}</span>}
-                              {s.contact_person && <span>• Ref: {s.contact_person}</span>}
-                            </div>
-                          </td>
-
-                          <td className="p-3">
-                            <input
-                              type="text"
-                              value={s.category}
-                              onChange={(e) => handleCellEdit(s.id, "category", e.target.value)}
-                              className="bg-transparent border-b border-slate-700/50 focus:border-cyan-400 text-cyan-300 text-xs w-full focus:outline-none"
-                            />
-                          </td>
-
-                          <td className="p-3">
-                            <select
-                              value={s.status}
-                              onChange={(e) => handleCellEdit(s.id, "status", e.target.value as BusinessStatus)}
-                              className="bg-slate-950 text-xs border border-slate-800 rounded px-2 py-1 focus:outline-none focus:border-cyan-500"
-                            >
-                              <option value="DRAFT">🟡 Borrador</option>
-                              <option value="ACTIVE">🟢 Activo</option>
-                              <option value="INACTIVE">🔴 Inactivo</option>
-                              <option value="EXPIRED">⚠️ Deuda / Vencido</option>
-                            </select>
-                          </td>
-
-                          <td className="p-3">
-                            <input
-                              type="date"
-                              value={s.subscription_due_date}
-                              onChange={(e) => handleCellEdit(s.id, "subscription_due_date", e.target.value)}
-                              className="bg-slate-950 text-slate-200 border border-slate-800 rounded px-2 py-1 text-xs focus:outline-none focus:border-cyan-500"
-                            />
-                          </td>
-
-                          <td className="p-3 text-center">
-                            <div className="flex items-center justify-center gap-1">
+                      return (
+                        <React.Fragment key={s.id}>
+                          <tr className={`${s.selected ? "hover:bg-slate-800/40" : "opacity-40 bg-slate-950/50"} ${isDup ? "bg-rose-950/30 border-l-4 border-l-rose-500" : ""}`}>
+                            <td className="p-3 text-center print:hidden">
                               <button
-                                onClick={() => setEditingSocio({ ...s })}
-                                className="p-1.5 hover:bg-cyan-500/20 text-cyan-400 rounded transition-colors"
-                                title="Editar datos en modal flotante"
+                                onClick={() => handleToggleExpand(s.id)}
+                                className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"
+                                title="Desplegar para ver CUIT y Referente"
                               >
-                                <Edit3 className="w-3.5 h-3.5" />
+                                {s.isExpanded ? <ChevronUp className="w-4 h-4 text-cyan-400" /> : <ChevronDown className="w-4 h-4" />}
                               </button>
-                              <button
-                                onClick={() => handleDeleteRow(s.id)}
-                                className="p-1.5 hover:bg-red-500/20 text-red-400 rounded transition-colors"
-                                title="Borrar comercio"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
+                            </td>
 
-                        {/* Expandable Dropdown Row for Detailed Referente & CUIT */}
-                        {s.isExpanded && (
-                          <tr className="bg-slate-950/90 border-b border-slate-800">
-                            <td colSpan={7} className="p-4 space-y-4">
-                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs">
-                                <div>
-                                  <span className="text-cyan-400 flex items-center gap-1 font-semibold mb-1">
-                                    <UserCheck className="w-3.5 h-3.5" /> Referente / Socio:
-                                  </span>
-                                  <input
-                                    type="text"
-                                    value={s.contact_person}
-                                    onChange={(e) => handleCellEdit(s.id, "contact_person", e.target.value)}
-                                    className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-white font-semibold"
-                                  />
-                                </div>
+                            <td className="p-3 text-center print:hidden">
+                              <input
+                                type="checkbox"
+                                checked={s.selected}
+                                onChange={(e) => handleCellEdit(s.id, "selected", e.target.checked)}
+                                className="w-4 h-4 rounded accent-cyan-500 cursor-pointer"
+                              />
+                            </td>
 
-                                <div>
-                                  <span className="text-slate-400 flex items-center gap-1 font-semibold mb-1">
-                                    <CreditCard className="w-3.5 h-3.5" /> CUIT / DNI / N° Socio:
-                                  </span>
-                                  <input
-                                    type="text"
-                                    value={s.cuit}
-                                    onChange={(e) => handleCellEdit(s.id, "cuit", e.target.value)}
-                                    className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-slate-200 font-mono"
-                                  />
-                                </div>
-
-                                <div>
-                                  <span className="text-slate-400 block font-semibold mb-1">WhatsApp / Teléfono:</span>
-                                  <input
-                                    type="text"
-                                    value={s.phone}
-                                    onChange={(e) => handleCellEdit(s.id, "phone", e.target.value)}
-                                    className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-slate-200"
-                                  />
-                                </div>
-
-                                <div>
-                                  <span className="text-slate-400 block font-semibold mb-1">Dirección:</span>
-                                  <input
-                                    type="text"
-                                    value={s.address}
-                                    onChange={(e) => handleCellEdit(s.id, "address", e.target.value)}
-                                    className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-slate-200"
-                                  />
-                                </div>
+                            <td className="p-3 font-bold text-white print:text-black">
+                              <input
+                                type="text"
+                                value={s.name}
+                                onChange={(e) => handleCellEdit(s.id, "name", e.target.value)}
+                                className="bg-transparent border-b border-slate-700/50 focus:border-cyan-400 text-white font-bold text-xs w-full focus:outline-none print:border-none print:text-black"
+                              />
+                              <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5 print:text-slate-600">
+                                {s.cuit !== "N/A" && <span className="font-mono text-cyan-400 font-semibold print:text-black">CUIT/DNI: {s.cuit}</span>}
+                                {s.contact_person && <span>• Ref: {s.contact_person}</span>}
+                                {isDup && <span className="text-rose-400 font-bold bg-rose-950/60 px-1.5 py-0.5 rounded border border-rose-800">Copia Duplicada</span>}
                               </div>
+                            </td>
 
-                              <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-800/60">
-                                <span className="text-xs font-bold text-cyan-400">Acciones NORA CRM:</span>
+                            <td className="p-3">
+                              <input
+                                type="text"
+                                value={s.category}
+                                onChange={(e) => handleCellEdit(s.id, "category", e.target.value)}
+                                className="bg-transparent border-b border-slate-700/50 focus:border-cyan-400 text-cyan-300 text-xs w-full focus:outline-none print:border-none print:text-black"
+                              />
+                            </td>
 
+                            <td className="p-3">
+                              <select
+                                value={s.status}
+                                onChange={(e) => handleCellEdit(s.id, "status", e.target.value as BusinessStatus)}
+                                className="bg-slate-950 text-xs border border-slate-800 rounded px-2 py-1 focus:outline-none focus:border-cyan-500 print:bg-white print:border-none print:text-black"
+                              >
+                                <option value="DRAFT">🟡 Borrador</option>
+                                <option value="ACTIVE">🟢 Activo</option>
+                                <option value="INACTIVE">🔴 Inactivo</option>
+                                <option value="EXPIRED">⚠️ Deuda / Vencido</option>
+                              </select>
+                            </td>
+
+                            <td className="p-3">
+                              <input
+                                type="date"
+                                value={s.subscription_due_date}
+                                onChange={(e) => handleCellEdit(s.id, "subscription_due_date", e.target.value)}
+                                className="bg-slate-950 text-slate-200 border border-slate-800 rounded px-2 py-1 text-xs focus:outline-none focus:border-cyan-500 print:bg-white print:border-none print:text-black"
+                              />
+                            </td>
+
+                            <td className="p-3 text-center print:hidden">
+                              <div className="flex items-center justify-center gap-1">
                                 <button
-                                  onClick={() => handleSendNORANewsletter(s)}
-                                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 font-medium"
+                                  onClick={() => setEditingSocio({ ...s })}
+                                  className="p-1.5 hover:bg-cyan-500/20 text-cyan-400 rounded transition-colors"
+                                  title="Editar datos en modal flotante"
                                 >
-                                  <Bell className="w-3.5 h-3.5 text-cyan-400" />
-                                  <span>Enviar Novedades (WhatsApp)</span>
+                                  <Edit3 className="w-3.5 h-3.5" />
                                 </button>
-
                                 <button
-                                  onClick={() => handleSendNORADebtReminder(s)}
-                                  className="bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30 px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 font-medium"
+                                  onClick={() => handleDeleteRow(s.id)}
+                                  className="p-1.5 hover:bg-red-500/20 text-red-400 rounded transition-colors"
+                                  title="Borrar comercio"
                                 >
-                                  <AlertCircle className="w-3.5 h-3.5 text-purple-400" />
-                                  <span>Aviso de Deuda / Recordatorio Vencimiento</span>
+                                  <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </div>
                             </td>
                           </tr>
-                        )}
-                      </React.Fragment>
-                    ))}
+
+                          {/* Expandable Dropdown Row for Detailed Referente & CUIT */}
+                          {s.isExpanded && (
+                            <tr className="bg-slate-950/90 border-b border-slate-800 print:bg-slate-100">
+                              <td colSpan={7} className="p-4 space-y-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                                  <div>
+                                    <span className="text-cyan-400 flex items-center gap-1 font-semibold mb-1 print:text-black">
+                                      <UserCheck className="w-3.5 h-3.5" /> Referente / Socio:
+                                    </span>
+                                    <input
+                                      type="text"
+                                      value={s.contact_person}
+                                      onChange={(e) => handleCellEdit(s.id, "contact_person", e.target.value)}
+                                      className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-white font-semibold print:bg-white print:text-black print:border-slate-300"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <span className="text-slate-400 flex items-center gap-1 font-semibold mb-1 print:text-black">
+                                      <CreditCard className="w-3.5 h-3.5" /> CUIT / DNI / N° Socio:
+                                    </span>
+                                    <input
+                                      type="text"
+                                      value={s.cuit}
+                                      onChange={(e) => handleCellEdit(s.id, "cuit", e.target.value)}
+                                      className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-slate-200 font-mono print:bg-white print:text-black print:border-slate-300"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <span className="text-slate-400 block font-semibold mb-1 print:text-black">WhatsApp / Teléfono:</span>
+                                    <input
+                                      type="text"
+                                      value={s.phone}
+                                      onChange={(e) => handleCellEdit(s.id, "phone", e.target.value)}
+                                      className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-slate-200 print:bg-white print:text-black print:border-slate-300"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <span className="text-slate-400 block font-semibold mb-1 print:text-black">Dirección:</span>
+                                    <input
+                                      type="text"
+                                      value={s.address}
+                                      onChange={(e) => handleCellEdit(s.id, "address", e.target.value)}
+                                      className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-slate-200 print:bg-white print:text-black print:border-slate-300"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-800/60 print:hidden">
+                                  <span className="text-xs font-bold text-cyan-400">Acciones NORA CRM:</span>
+
+                                  <button
+                                    onClick={() => handleSendNORANewsletter(s)}
+                                    className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 font-medium"
+                                  >
+                                    <Bell className="w-3.5 h-3.5 text-cyan-400" />
+                                    <span>Enviar Novedades (WhatsApp)</span>
+                                  </button>
+
+                                  <button
+                                    onClick={() => handleSendNORADebtReminder(s)}
+                                    className="bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30 px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 font-medium"
+                                  >
+                                    <AlertCircle className="w-3.5 h-3.5 text-purple-400" />
+                                    <span>Aviso de Deuda / Recordatorio Vencimiento</span>
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
                     {filteredSocios.length === 0 && (
                       <tr>
                         <td colSpan={7} className="p-8 text-center text-slate-500 italic">
-                          No se encontraron comercios en tu lista. Pegá las filas de tu Excel en la caja superior y hacé clic en &ldquo;📥 Cargar y Procesar Planilla Pegada&rdquo;.
+                          No se encontraron comercios que coincidan con los filtros seleccionados.
                         </td>
                       </tr>
                     )}
@@ -857,7 +1064,7 @@ Ejemplo:
 
       {/* MODAL: AGREGAR COMERCIO NUEVO CON FORMATO OFICIAL */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 print:hidden">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-5 text-white">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="text-lg font-bold flex items-center gap-2 text-cyan-400">
@@ -1008,7 +1215,7 @@ Ejemplo:
 
       {/* MODAL: EDITAR COMERCIO EN VENTANA FLOTANTE */}
       {editingSocio && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 print:hidden">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-5 text-white">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="text-lg font-bold flex items-center gap-2 text-cyan-400">
@@ -1136,7 +1343,7 @@ Ejemplo:
 
       {/* TAB: Pitching Periodistas */}
       {activeTab === "press" && (
-        <div className="space-y-6">
+        <div className="space-y-6 print:hidden">
           <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-2xl">
             <h2 className="text-lg font-bold text-white mb-4">Lista de Outreach Periodístico</h2>
             <div className="overflow-x-auto">
@@ -1182,7 +1389,7 @@ Ejemplo:
 
       {/* TAB: Campaña Stealth */}
       {activeTab === "stealth" && (
-        <div className="space-y-6">
+        <div className="space-y-6 print:hidden">
           <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-2xl">
             <h2 className="text-lg font-bold text-white mb-2">Motor de Seducción B2B "NORA Stealth Growth"</h2>
             <p className="text-xs text-slate-400 mb-6">
@@ -1209,7 +1416,7 @@ Ejemplo:
 
       {/* TAB: Make.com & Webhooks */}
       {activeTab === "make" && (
-        <div className="space-y-6">
+        <div className="space-y-6 print:hidden">
           <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-2xl">
             <h2 className="text-lg font-bold text-white mb-2">Configuración y Testeo de Webhook Make.com</h2>
             <p className="text-xs text-slate-400 mb-4">
