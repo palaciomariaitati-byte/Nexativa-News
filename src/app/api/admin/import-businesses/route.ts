@@ -3,6 +3,27 @@ import supabaseAdmin from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
+// GET Endpoint: Obtener la lista completa de comercios cargados
+export async function GET() {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("directory_businesses")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.warn("[Import Businesses API GET] Falló consulta:", error.message);
+      return NextResponse.json({ success: true, businesses: [] });
+    }
+
+    return NextResponse.json({ success: true, businesses: data || [] });
+  } catch (err: any) {
+    console.error("[Import Businesses API GET] Error crítico:", err);
+    return NextResponse.json({ success: false, error: err.message || "Error interno del servidor." }, { status: 500 });
+  }
+}
+
+// POST Endpoint: Insertar o Publicar comercios
 export async function POST(req: Request) {
   try {
     const body = await req.json();
