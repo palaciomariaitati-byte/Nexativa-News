@@ -54,6 +54,10 @@ export default function Navbar() {
               <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
               Guía Comercial
             </Link>
+            <Link href="/empleos" className="text-sm font-semibold text-emerald-400 hover:text-emerald-300 transition-colors uppercase tracking-widest flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              Empleos & Oficios
+            </Link>
             <Link href="/store" className="text-sm font-medium hover:text-[var(--color-brand-accent)] transition-colors uppercase tracking-widest">
               Shop
             </Link>
