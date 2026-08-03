@@ -1,6 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import ImportBusinessesModal from "@/components/Admin/ImportBusinessesModal";
 
 export const dynamic = 'force-dynamic';
 
@@ -40,11 +41,17 @@ export default async function AdminSponsorsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Auspiciantes & Estadísticas</h1>
-        <Link href="/admin/sponsors/new" className="bg-[var(--color-brand-accent)] text-black px-4 py-2 rounded font-bold hover:bg-white transition-colors">
-          + Nuevo Cliente
-        </Link>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold">Auspiciantes & Páginas Amarillas</h1>
+          <p className="text-xs text-gray-400 mt-1">Gestión de comercios socios, importación de planillas y estadísticas.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <ImportBusinessesModal />
+          <Link href="/admin/sponsors/new" className="bg-[var(--color-brand-accent)] text-black px-4 py-2 rounded font-bold hover:bg-white transition-colors text-sm">
+            + Nuevo Cliente
+          </Link>
+        </div>
       </div>
 
       {errorMessage && (

@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import ImportBusinessesModal from '@/components/Admin/ImportBusinessesModal';
 
 export default function AdminJobsPage() {
   const [activeTab, setActiveTab] = useState<'oficios' | 'busquedas' | 'reseñas'>('oficios');
@@ -74,7 +75,8 @@ export default function AdminJobsPage() {
             Administración de trabajadores, búsquedas activas, calificaciones comunitarias y emisión de certificados.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <ImportBusinessesModal />
           <Link
             href="/empleos"
             target="_blank"
