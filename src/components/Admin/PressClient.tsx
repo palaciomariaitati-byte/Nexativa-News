@@ -1,14 +1,16 @@
 "use client";
 
 import React, { useState } from "react";
-import { Upload, Send, FileSpreadsheet, Newspaper, CheckCircle2, AlertCircle, Sparkles, Code2, Trash2, ChevronDown, ChevronUp, Bell, Calendar, DollarSign, Globe, ExternalLink, Rocket } from "lucide-react";
+import { Upload, Send, FileSpreadsheet, Newspaper, Sparkles, Code2, Trash2, ChevronDown, ChevronUp, Bell, AlertCircle, Rocket, ExternalLink, UserCheck, CreditCard } from "lucide-react";
 
 export type BusinessStatus = "DRAFT" | "ACTIVE" | "INACTIVE" | "EXPIRED";
 
 export interface ImportedSocio {
   id: string;
   selected: boolean;
+  cuit: string;
   name: string;
+  contact_person: string;
   category: string;
   address: string;
   phone: string;
@@ -37,7 +39,9 @@ export default function PressClient() {
     { id: "3", name: "Santiago Rossi", media: "iProUP", specialty: "Innovación & Pymes", email: "srossi@iproup.com", status: "FOLLOW_UP_1" },
   ]);
 
-  // Parse raw text or file lines into editable grid
+  /**
+   * Parser inteligente que auto-detecta columnas CUIT/DNI, Nombre Comercial, Referente y Rubro
+   */
   const handleParseData = (text: string) => {
     setRawText(text);
     if (!text.trim()) {
@@ -52,30 +56,89 @@ export default function PressClient() {
     const lines = text.trim().split("\n");
     const parsed: ImportedSocio[] = [];
 
-    lines.forEach((line, idx) => {
-      if (idx === 0 && (line.toLowerCase().includes("nombre") || line.toLowerCase().includes("rubro") || line.toLowerCase().includes("razon"))) {
-        return;
+    // Detectar separador (\t tabulación de Excel, ;, o ,)
+    const firstLine = lines[0];
+    let separator = "\t";
+    if (firstLine.includes("\t")) separator = "\t";
+    else if (firstLine.includes(";")) separator = ";";
+    else if (firstLine.includes(",")) separator = ",";
+
+    const headers = firstLine.split(separator).map(h => h.trim().toLowerCase());
+    const isHeader = headers.some(h => 
+      ["cuit", "dni", "socio", "comercio", "razon", "rubro", "actividad", "referente"].includes(h)
+    );
+
+    const startIndex = isHeader ? 1 : 0;
+
+    for (let idx = startIndex; idx < lines.length; idx++) {
+      const line = lines[idx];
+      const parts = line.split(separator).map(p => p.trim().replace(/^["']|["']$/g, ""));
+      if (parts.length === 0 || !parts[0]) continue;
+
+      let cuit = "";
+      let name = "";
+      let contact_person = "";
+      let category = "";
+      let address = "";
+      let phone = "";
+      let email = "";
+
+      if (isHeader) {
+        headers.forEach((h, colIndex) => {
+          const val = parts[colIndex] || "";
+          if (h.includes("cuit") || h.includes("dni") || h === "id" || h.includes("socio")) cuit = val;
+          else if (h.includes("comercio") || h.includes("razon") || h.includes("nombre") || h === "name") name = val;
+          else if (h.includes("referente") || h.includes("contacto") || h.includes("titular") || h.includes("persona")) contact_person = val;
+          else if (h.includes("rubro") || h.includes("actividad") || h.includes("categoria")) category = val;
+          else if (h.includes("direccion") || h.includes("domicilio") || h.includes("address")) address = val;
+          else if (h.includes("telefono") || h.includes("celular") || h.includes("whatsapp")) phone = val;
+          else if (h.includes("email") || h.includes("correo")) email = val;
+        });
+      } else {
+        // Auto-detección por tipo de datos si Columna 0 es un CUIT/DNI numérico
+        const isCol0Numeric = /^\d+$/.test(parts[0]);
+
+        if (isCol0Numeric) {
+          cuit = parts[0];
+          name = parts[1] || `Comercio ${idx}`;
+          // Si hay columna de referente o rubro
+          if (parts.length >= 4) {
+            contact_person = parts[2] || "";
+            category = parts[3] || "Servicios Generales";
+            address = parts[4] || "Ituzaingó, Corrientes";
+            phone = parts[5] || "3786611250";
+            email = parts[6] || "";
+          } else {
+            category = parts[2] || "Servicios Generales";
+            address = parts[3] || "Ituzaingó, Corrientes";
+          }
+        } else {
+          name = parts[0] || `Comercio ${idx}`;
+          category = parts[1] || "Servicios Generales";
+          address = parts[2] || "Ituzaingó, Corrientes";
+          phone = parts[3] || "3786611250";
+          email = parts[4] || "";
+        }
       }
 
-      const parts = line.split(/[,;\t]/).map(p => p.trim());
-      if (parts.length > 0 && parts[0]) {
-        parsed.push({
-          id: `socio-${idx}-${Date.now()}`,
-          selected: true,
-          name: parts[0] || `Socio ${idx + 1}`,
-          category: parts[1] || "Servicios Generales",
-          address: parts[2] || "Ituzaingó, Corrientes",
-          phone: parts[3] || "3786611250",
-          email: parts[4] || "contacto@comercio.com",
-          status: "DRAFT", // Estado BORRADOR por defecto
-          subscription_due_date: dueDateStr,
-          isExpanded: false,
-        });
-      }
-    });
+      parsed.push({
+        id: `socio-${idx}-${Date.now()}`,
+        selected: true,
+        cuit: cuit || "N/A",
+        name: name || "Comercio Local",
+        contact_person: contact_person || "Referente no especificado",
+        category: category || "Servicios Generales",
+        address: address || "Ituzaingó, Corrientes",
+        phone: phone || "3786611250",
+        email: email || "contacto@comercio.com",
+        status: "DRAFT",
+        subscription_due_date: dueDateStr,
+        isExpanded: false,
+      });
+    }
 
     setSocios(parsed);
-    setImportStatus(`Se procesaron ${parsed.length} socios en estado BORRADOR (Amarillo). Podés editar, cambiar fechas de vencimiento o presionar 'Publicar Guía Comercial'.`);
+    setImportStatus(`✅ Mapeo perfecto: Se procesaron ${parsed.length} comercios. Podés desplegar la fila (v) para ver CUIT y Referente.`);
   };
 
   // Toggle selection for all rows
@@ -117,6 +180,7 @@ export default function PressClient() {
         whatsapp: s.phone,
         phone: s.phone,
         email: s.email,
+        description: `Comercio socio (${s.name}). Referente: ${s.contact_person}. CUIT/DNI: ${s.cuit}`,
         tier: "BRONCE",
         status: s.status,
         subscription_due_date: s.subscription_due_date,
@@ -130,7 +194,7 @@ export default function PressClient() {
 
       const data = await res.json();
       if (data.success) {
-        setImportStatus(`✅ ¡Éxito! Se guardaron ${selectedSocios.length} comercios en estado BORRADOR (Amarillo). Presioná 'Publicar Guía Comercial' cuando estés listo.`);
+        setImportStatus(`✅ ¡Éxito! Se guardaron ${selectedSocios.length} comercios en estado BORRADOR (Amarillo). Presioná 'Publicar Todo' cuando estés listo.`);
       } else {
         setImportStatus(`❌ Error: ${data.error}`);
       }
@@ -169,28 +233,13 @@ export default function PressClient() {
 
   // NORA Reminder Actions
   const handleSendNORANewsletter = (socio: ImportedSocio) => {
-    const text = `Hola ${socio.name}! Te escribimos de Nexativa News para compartirte las novedades exclusivas de este mes en las Páginas Amarillas...`;
+    const text = `Hola ${socio.contact_person || socio.name}! Te escribimos de Nexativa News para compartirte las novedades de tu ficha comercial (${socio.name})...`;
     window.open(`https://wa.me/${socio.phone}?text=${encodeURIComponent(text)}`, "_blank");
   };
 
   const handleSendNORADebtReminder = (socio: ImportedSocio) => {
-    const text = `Hola ${socio.name}! Te recordamos que la membresía de tu ficha comercial en Nexativa venció el ${socio.subscription_due_date}. Para mantener tus beneficios de visibilidad y asistencia por WhatsApp NORA, podés abonar aquí...`;
+    const text = `Hola ${socio.contact_person || socio.name}! Te recordamos que la membresía de tu comercio (${socio.name}) venció el ${socio.subscription_due_date}...`;
     window.open(`https://wa.me/${socio.phone}?text=${encodeURIComponent(text)}`, "_blank");
-  };
-
-  // Get Badge Color Class according to Status
-  const getStatusBadge = (status: BusinessStatus) => {
-    switch (status) {
-      case "ACTIVE":
-        return <span className="px-2.5 py-1 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 w-fit"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>ACTIVO</span>;
-      case "INACTIVE":
-        return <span className="px-2.5 py-1 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1 w-fit"><span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>INACTIVO</span>;
-      case "EXPIRED":
-        return <span className="px-2.5 py-1 rounded text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1 w-fit"><span className="w-1.5 h-1.5 rounded-full bg-purple-400"></span>DEUDA / VENCIDO</span>;
-      case "DRAFT":
-      default:
-        return <span className="px-2.5 py-1 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1 w-fit"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>BORRADOR</span>;
-    }
   };
 
   // Handle Make.com Webhook Test
@@ -226,7 +275,7 @@ export default function PressClient() {
             Prensa & Páginas Amarillas 2.0
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Gestión de Pitching periodístico, importador masivo con estados de colores, vencimientos y NORA CRM.
+            Gestión de Pitching periodístico, importador masivo con Mapeo CUIT/Nombre/Referente y CRM NORA.
           </p>
         </div>
 
@@ -237,7 +286,7 @@ export default function PressClient() {
             className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs transition-transform active:scale-95 shadow-lg shadow-emerald-500/20"
           >
             <Rocket className="w-4 h-4" />
-            <span>{isPublishingAll ? "Publicando..." : "PUBLICAR GUÍA (PUBLICAR TODO)"}</span>
+            <span>{isPublishingAll ? "Publicando..." : "PUBLICAR TODO A GUÍA"}</span>
           </button>
 
           <a
@@ -309,7 +358,7 @@ export default function PressClient() {
           <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-2xl">
             <h2 className="text-lg font-bold text-white mb-2">Cargar y Administrar Planilla de Comercios</h2>
             <p className="text-xs text-slate-400 mb-4">
-              Pegá tus filas de Excel. Los comercios ingresarán en estado <strong className="text-amber-400">BORRADOR (Amarillo)</strong>. Podés editar sus datos, ajustar vencimientos de suscripción y presionar <strong className="text-emerald-400">"PUBLICAR GUÍA"</strong> para hacerlos visibles.
+              Pegá tus filas de Excel. El sistema reconoce automáticamente <strong className="text-cyan-400">CUIT, Nombre Fantasía, Referente y Rubro</strong>.
             </p>
 
             {/* Input Textarea */}
@@ -318,9 +367,9 @@ export default function PressClient() {
               value={rawText}
               onChange={(e) => handleParseData(e.target.value)}
               placeholder="Copiá las columnas de tu Excel y pegalas acá directamente...
-Ejemplo:
-Estudio Arq Design	Arquitectura	Av San Martin 1420	3786611250	arq@design.com
-Estética Sentirte Bien	Estética	Calle Buenos Aires 850	3786611250	spa@sentirtebien.com"
+Ejemplo (CUIT	Nombre Comercio	Referente	Rubro	Dirección	Teléfono):
+16993433	Mueblería Rube	Juan Rube	Mueblería	Av. San Martín 1420	3786611250
+10211813	Todo Hogar	Carlos Gómez	Hogar	Calle Buenos Aires 850	3786611250"
               className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-xs font-mono text-slate-200 focus:outline-none focus:border-cyan-500 mb-4"
             />
 
@@ -336,7 +385,7 @@ Estética Sentirte Bien	Estética	Calle Buenos Aires 850	3786611250	spa@sentirte
                 <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-950 p-4 rounded-xl border border-slate-800">
                   <div className="flex items-center gap-3">
                     <span className="text-xs font-bold text-white">
-                      Socios Procesados: {socios.length} ({socios.filter(s => s.selected).length} seleccionados)
+                      Comercios: {socios.length} ({socios.filter(s => s.selected).length} seleccionados)
                     </span>
                     <button
                       onClick={() => handleToggleSelectAll(true)}
@@ -381,7 +430,7 @@ Estética Sentirte Bien	Estética	Calle Buenos Aires 850	3786611250	spa@sentirte
                       <tr>
                         <th className="p-3 w-10 text-center">Detalle</th>
                         <th className="p-3 w-10 text-center">Incluir</th>
-                        <th className="p-3">Nombre / Razón Social</th>
+                        <th className="p-3">Nombre del Comercio / Razón Social</th>
                         <th className="p-3">Rubro</th>
                         <th className="p-3">Estado</th>
                         <th className="p-3">Vencimiento Membresía</th>
@@ -396,8 +445,9 @@ Estética Sentirte Bien	Estética	Calle Buenos Aires 850	3786611250	spa@sentirte
                               <button
                                 onClick={() => handleToggleExpand(s.id)}
                                 className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"
+                                title="Desplegar para ver CUIT y Referente"
                               >
-                                {s.isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                {s.isExpanded ? <ChevronUp className="w-4 h-4 text-cyan-400" /> : <ChevronDown className="w-4 h-4" />}
                               </button>
                             </td>
 
@@ -410,13 +460,18 @@ Estética Sentirte Bien	Estética	Calle Buenos Aires 850	3786611250	spa@sentirte
                               />
                             </td>
 
-                            <td className="p-3">
+                            <td className="p-3 font-bold text-white">
                               <input
                                 type="text"
                                 value={s.name}
                                 onChange={(e) => handleCellEdit(s.id, "name", e.target.value)}
-                                className="bg-transparent border-b border-slate-700/50 focus:border-cyan-400 text-white text-xs w-full focus:outline-none"
+                                className="bg-transparent border-b border-slate-700/50 focus:border-cyan-400 text-white font-bold text-xs w-full focus:outline-none"
                               />
+                              {s.cuit !== "N/A" && (
+                                <span className="text-[10px] font-mono text-slate-400 block mt-0.5">
+                                  CUIT/DNI: {s.cuit}
+                                </span>
+                              )}
                             </td>
 
                             <td className="p-3">
@@ -454,20 +509,44 @@ Estética Sentirte Bien	Estética	Calle Buenos Aires 850	3786611250	spa@sentirte
                               <button
                                 onClick={() => handleDeleteRow(s.id)}
                                 className="p-1 hover:bg-red-500/20 text-red-400 rounded transition-colors"
-                                title="Borrar socio"
+                                title="Borrar comercio"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </td>
                           </tr>
 
-                          {/* Expandable Dropdown Row for Detailed NORA Actions */}
+                          {/* Expandable Dropdown Row for Detailed Referente & CUIT */}
                           {s.isExpanded && (
-                            <tr className="bg-slate-950/80 border-b border-slate-800">
+                            <tr className="bg-slate-950/90 border-b border-slate-800">
                               <td colSpan={7} className="p-4 space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs">
                                   <div>
-                                    <span className="text-slate-500 block font-semibold mb-1">Teléfono / WhatsApp:</span>
+                                    <span className="text-cyan-400 flex items-center gap-1 font-semibold mb-1">
+                                      <UserCheck className="w-3.5 h-3.5" /> Referente / Socio:
+                                    </span>
+                                    <input
+                                      type="text"
+                                      value={s.contact_person}
+                                      onChange={(e) => handleCellEdit(s.id, "contact_person", e.target.value)}
+                                      className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-white font-semibold"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <span className="text-slate-400 flex items-center gap-1 font-semibold mb-1">
+                                      <CreditCard className="w-3.5 h-3.5" /> CUIT / DNI / N° Socio:
+                                    </span>
+                                    <input
+                                      type="text"
+                                      value={s.cuit}
+                                      onChange={(e) => handleCellEdit(s.id, "cuit", e.target.value)}
+                                      className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-slate-200 font-mono"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <span className="text-slate-400 block font-semibold mb-1">WhatsApp / Teléfono:</span>
                                     <input
                                       type="text"
                                       value={s.phone}
@@ -477,17 +556,7 @@ Estética Sentirte Bien	Estética	Calle Buenos Aires 850	3786611250	spa@sentirte
                                   </div>
 
                                   <div>
-                                    <span className="text-slate-500 block font-semibold mb-1">Email:</span>
-                                    <input
-                                      type="text"
-                                      value={s.email}
-                                      onChange={(e) => handleCellEdit(s.id, "email", e.target.value)}
-                                      className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-slate-200"
-                                    />
-                                  </div>
-
-                                  <div>
-                                    <span className="text-slate-500 block font-semibold mb-1">Dirección:</span>
+                                    <span className="text-slate-400 block font-semibold mb-1">Dirección:</span>
                                     <input
                                       type="text"
                                       value={s.address}
@@ -498,7 +567,7 @@ Estética Sentirte Bien	Estética	Calle Buenos Aires 850	3786611250	spa@sentirte
                                 </div>
 
                                 <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-800/60">
-                                  <span className="text-xs font-bold text-cyan-400">Acciones NORA:</span>
+                                  <span className="text-xs font-bold text-cyan-400">Acciones NORA CRM:</span>
 
                                   <button
                                     onClick={() => handleSendNORANewsletter(s)}
