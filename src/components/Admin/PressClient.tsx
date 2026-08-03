@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Upload, Send, FileSpreadsheet, Newspaper, Sparkles, Code2, Trash2, ChevronDown, ChevronUp, Bell, AlertCircle, Rocket, ExternalLink, UserCheck, CreditCard, Search, PlusCircle, Edit3, X, Check } from "lucide-react";
+import { Upload, Send, FileSpreadsheet, Newspaper, Sparkles, Code2, Trash2, ChevronDown, ChevronUp, Bell, AlertCircle, Rocket, ExternalLink, UserCheck, CreditCard, Search, PlusCircle, Edit3, X, Check, RefreshCw } from "lucide-react";
 
 export type BusinessStatus = "DRAFT" | "ACTIVE" | "INACTIVE" | "EXPIRED";
 
@@ -20,12 +20,15 @@ export interface ImportedSocio {
   isExpanded?: boolean;
 }
 
+const LOCAL_STORAGE_KEY = "nexativa_socios_crm_v2";
+
 export default function PressClient() {
   const [activeTab, setActiveTab] = useState<"import" | "press" | "stealth" | "make">("import");
   
   // Data Grid state
   const [socios, setSocios] = useState<ImportedSocio[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeSearchQuery, setActiveSearchQuery] = useState("");
   const [rawText, setRawText] = useState("");
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
@@ -57,9 +60,23 @@ export default function PressClient() {
     { id: "3", name: "Santiago Rossi", media: "iProUP", specialty: "Innovación & Pymes", email: "srossi@iproup.com", status: "FOLLOW_UP_1" },
   ]);
 
-  // Cargar comercios existentes desde la API al montar el componente
+  // 1. Cargar comercios desde localStorage y Supabase al iniciar
   useEffect(() => {
-    async function loadExistingBusinesses() {
+    async function initLoad() {
+      // Intento 1: Cargar desde localStorage para rápida respuesta
+      try {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setSocios(parsed);
+          }
+        }
+      } catch (e) {
+        console.warn("No se pudo leer de localStorage", e);
+      }
+
+      // Intento 2: Sincronizar desde la API Supabase
       try {
         const res = await fetch("/api/admin/import-businesses");
         const data = await res.json();
@@ -78,21 +95,43 @@ export default function PressClient() {
             subscription_due_date: b.subscription_due_date || new Date().toISOString().split("T")[0],
             isExpanded: false,
           }));
-          setSocios(mapped);
+
+          setSocios(prev => {
+            // Combinar evitando duplicados por nombre/CUIT
+            const existingNames = new Set(prev.map(s => s.name.toLowerCase()));
+            const newItems = mapped.filter(m => !existingNames.has(m.name.toLowerCase()));
+            const combined = [...prev, ...newItems];
+            try {
+              localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(combined));
+            } catch (e) {}
+            return combined;
+          });
         }
       } catch (err) {
-        console.warn("No se pudieron cargar los comercios previos:", err);
+        console.warn("No se pudieron consultar comercios previos de la BD:", err);
       }
     }
-    loadExistingBusinesses();
+
+    initLoad();
   }, []);
 
+  // Guardar en localStorage cada vez que cambien los socios
+  const updateSociosAndSave = (updater: ImportedSocio[] | ((prev: ImportedSocio[]) => ImportedSocio[])) => {
+    setSocios(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+  };
+
   /**
-   * Parser inteligente que auto-detecta columnas CUIT/DNI, Nombre Comercial, Referente y Rubro
+   * Parser bajo demanda (al hacer clic en "Procesar Planilla Pegada")
    */
-  const handleParseData = (text: string) => {
-    setRawText(text);
-    if (!text.trim()) {
+  const handleProcessPastedText = () => {
+    if (!rawText.trim()) {
+      setImportStatus("⚠️ Por favor pegá primero el texto de tu planilla en la caja.");
       return;
     }
 
@@ -100,10 +139,9 @@ export default function PressClient() {
     defaultDueDate.setDate(defaultDueDate.getDate() + 30);
     const dueDateStr = defaultDueDate.toISOString().split('T')[0];
 
-    const lines = text.trim().split("\n");
+    const lines = rawText.trim().split("\n");
     const parsed: ImportedSocio[] = [];
 
-    // Detectar separador (\t tabulación de Excel, ;, o ,)
     const firstLine = lines[0];
     let separator = "\t";
     if (firstLine.includes("\t")) separator = "\t";
@@ -142,7 +180,6 @@ export default function PressClient() {
           else if (h.includes("email") || h.includes("correo")) email = val;
         });
       } else {
-        // Auto-detección por tipo de datos si Columna 0 es un CUIT/DNI numérico
         const isCol0Numeric = /^\d+$/.test(parts[0]);
 
         if (isCol0Numeric) {
@@ -183,8 +220,24 @@ export default function PressClient() {
       });
     }
 
-    setSocios(prev => [...parsed, ...prev]);
-    setImportStatus(`✅ Mapeo perfecto: Se agregaron ${parsed.length} comercios. Podés desplegar la fila (v) o usar el buscador arriba.`);
+    if (parsed.length > 0) {
+      updateSociosAndSave(prev => [...parsed, ...prev]);
+      setRawText("");
+      setImportStatus(`🎉 ¡Se procesaron e importaron ${parsed.length} comercios a tu lista de socios! Tu planilla está guardada de forma segura.`);
+    } else {
+      setImportStatus("⚠️ No se pudieron reconocer filas válidas en el texto pegado.");
+    }
+  };
+
+  // Manejo de búsqueda por Enter o clic en Lupa
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setActiveSearchQuery(searchQuery);
+  };
+
+  const handleSearchInputChange = (text: string) => {
+    setSearchQuery(text);
+    setActiveSearchQuery(text); // Filtrado instantáneo en vivo
   };
 
   // Agregar nuevo comercio individualmente
@@ -210,7 +263,7 @@ export default function PressClient() {
       isExpanded: false,
     };
 
-    setSocios(prev => [created, ...prev]);
+    updateSociosAndSave(prev => [created, ...prev]);
     setIsAddModalOpen(false);
     setNewSocio({
       cuit: "",
@@ -223,20 +276,20 @@ export default function PressClient() {
       status: "DRAFT",
       subscription_due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
     });
-    setImportStatus(`🎉 ¡Comercio "${created.name}" agregado con éxito en el formato estándar!`);
+    setImportStatus(`🎉 ¡Comercio "${created.name}" agregado y guardado en tu lista!`);
   };
 
   // Guardar cambios de edición desde el modal flotante
   const handleSaveEditModal = () => {
     if (!editingSocio) return;
-    setSocios(prev => prev.map(s => s.id === editingSocio.id ? editingSocio : s));
+    updateSociosAndSave(prev => prev.map(s => s.id === editingSocio.id ? editingSocio : s));
     setEditingSocio(null);
-    setImportStatus(`✏️ Datos de "${editingSocio.name}" actualizados correctamente.`);
+    setImportStatus(`✏️ Datos de "${editingSocio.name}" actualizados y guardados correctamente.`);
   };
 
-  // Filtrar socios en tiempo real por Nombre, Razón Social, DNI/CUIT o Referente
+  // Filtrar socios por Nombre, Razón Social, CUIT/DNI, Referente o Rubro
   const filteredSocios = socios.filter((s) => {
-    const q = searchQuery.toLowerCase().trim();
+    const q = activeSearchQuery.toLowerCase().trim();
     if (!q) return true;
     return (
       s.name.toLowerCase().includes(q) ||
@@ -249,19 +302,19 @@ export default function PressClient() {
 
   // Toggle selection for all rows
   const handleToggleSelectAll = (select: boolean) => {
-    setSocios(prev => prev.map(s => ({ ...s, selected: select })));
+    updateSociosAndSave(prev => prev.map(s => ({ ...s, selected: select })));
   };
 
   // Delete a specific row
   const handleDeleteRow = (id: string) => {
     if (confirm("¿Seguro que querés eliminar este comercio de la lista?")) {
-      setSocios(prev => prev.filter(s => s.id !== id));
+      updateSociosAndSave(prev => prev.filter(s => s.id !== id));
     }
   };
 
   // Inline cell edit
   const handleCellEdit = (id: string, field: keyof ImportedSocio, value: any) => {
-    setSocios(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s));
+    updateSociosAndSave(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s));
   };
 
   // Toggle dropdown drawer
@@ -269,11 +322,11 @@ export default function PressClient() {
     setSocios(prev => prev.map(s => s.id === id ? { ...s, isExpanded: !s.isExpanded } : s));
   };
 
-  // Confirm and upload selected rows to API
+  // Confirm and upload selected rows to API (Mantiene los datos en pantalla)
   const handleConfirmImport = async () => {
     const selectedSocios = socios.filter(s => s.selected);
     if (selectedSocios.length === 0) {
-      setImportStatus("❌ No hay ningún socio seleccionado para importar.");
+      setImportStatus("❌ No hay ningún socio seleccionado para guardar.");
       return;
     }
 
@@ -302,12 +355,14 @@ export default function PressClient() {
 
       const data = await res.json();
       if (data.success) {
-        setImportStatus(`✅ ¡Éxito! Se guardaron ${selectedSocios.length} comercios en estado BORRADOR (Amarillo). Presioná 'Publicar Todo' cuando estés listo.`);
+        // Asegurar que la lista local permanezca guardada en memoria y localStorage
+        updateSociosAndSave(socios);
+        setImportStatus(`✅ ¡Éxito! Tu planilla de ${selectedSocios.length} comercios se guardó en el servidor y en memoria local. Presioná 'Publicar Todo' cuando quieras activarla en la web.`);
       } else {
         setImportStatus(`❌ Error: ${data.error}`);
       }
     } catch (err: any) {
-      setImportStatus(`❌ Error en la importación: ${err.message}`);
+      setImportStatus(`❌ Error al conectar con el servidor: ${err.message}. Tus datos están seguros localmente.`);
     } finally {
       setIsImporting(false);
     }
@@ -329,7 +384,7 @@ export default function PressClient() {
 
       const data = await res.json();
       if (data.success) {
-        setSocios(prev => prev.map(s => ({ ...s, status: "ACTIVE" })));
+        updateSociosAndSave(prev => prev.map(s => ({ ...s, status: "ACTIVE" })));
         setImportStatus("🚀 ¡GUÍA PUBLICADA CON ÉXITO! Todos los comercios pasaron a estado ACTIVO (Verde) y ya son visibles públicamente.");
       }
     } catch (err: any) {
@@ -383,7 +438,7 @@ export default function PressClient() {
             Prensa & Páginas Amarillas 2.0
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Buscador instantáneo por CUIT/Nombre/Referente, edición de socios y alta con formato estandarizado.
+            Buscador activo por CUIT/Nombre/Referente, protección de planillas y alta con formato estandarizado.
           </p>
         </div>
 
@@ -476,62 +531,87 @@ export default function PressClient() {
               <div>
                 <h2 className="text-lg font-bold text-white">Administrador de Socios & Comercios</h2>
                 <p className="text-xs text-slate-400">
-                  Buscá socios por CUIT, Razón Social o Referente. Modificá sus datos o agregá comercios nuevos en el formato oficial.
+                  Planilla protegida en memoria. Buscá por CUIT, Razón Social o Referente (con Enter o clic en Lupa).
                 </p>
               </div>
 
-              <button
-                onClick={() => setIsAddModalOpen(true)}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-md transition-all"
-              >
-                <PlusCircle className="w-4 h-4" />
-                <span>+ Nuevo Comercio</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsAddModalOpen(true)}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-md transition-all"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  <span>+ Nuevo Comercio</span>
+                </button>
+              </div>
             </div>
 
             {/* Input Textarea para carga masiva pegada de Excel */}
-            <details className="mb-6 bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-400">
+            <details className="mb-6 bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-400">
               <summary className="font-bold text-cyan-400 cursor-pointer flex items-center gap-2">
                 <FileSpreadsheet className="w-4 h-4" />
-                <span>📋 Haz clic aquí para importar/pegar filas desde una planilla de Excel</span>
+                <span>📋 Haz clic aquí para pegar y procesar filas desde Excel</span>
               </summary>
               <div className="mt-3 space-y-3">
                 <textarea
                   rows={4}
                   value={rawText}
-                  onChange={(e) => handleParseData(e.target.value)}
-                  placeholder="Copiá las columnas de tu Excel y pegalas acá directamente...
+                  onChange={(e) => setRawText(e.target.value)}
+                  placeholder="Copiá las columnas de tu Excel (Ctrl+C) y pegalas acá (Ctrl+V)...
 Ejemplo (CUIT	Nombre Comercio	Referente	Rubro	Dirección	Teléfono):
 16993433	Mueblería Rube	Juan Rube	Mueblería	Av. San Martín 1420	3786611250
 10211813	Todo Hogar	Carlos Gómez	Hogar	Calle Buenos Aires 850	3786611250"
                   className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200 focus:outline-none focus:border-cyan-500"
                 />
+                <button
+                  onClick={handleProcessPastedText}
+                  className="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-2 shadow-md"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>📥 Procesar y Cargar Planilla Pegada</span>
+                </button>
               </div>
             </details>
 
-            {/* BUSCADOR INSTANTÁNEO POR NOMBRE, RAZÓN SOCIAL, CUIT/DNI O REFERENTE */}
-            <div className="relative mb-6">
-              <Search className="w-4 h-4 text-cyan-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="🔍 Buscar por Nombre de Negocio, Razón Social, CUIT/CUIL, DNI o Nombre de Referente..."
-                className="w-full bg-slate-950 text-white placeholder-slate-500 pl-10 pr-4 py-3 rounded-xl border border-slate-800 text-xs sm:text-sm focus:outline-none focus:border-cyan-500 transition-colors shadow-inner"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs font-bold"
-                >
-                  ✕ Limpiar
-                </button>
-              )}
-            </div>
+            {/* BUSCADOR INSTANTÁNEO CON TECLA ENTER Y CLIC EN LUPA */}
+            <form onSubmit={handleSearchSubmit} className="relative mb-6 flex items-center gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => handleSearchInputChange(e.target.value)}
+                  placeholder="🔍 Buscar por Nombre de Negocio, Razón Social, CUIT/CUIL, DNI o Nombre de Referente..."
+                  className="w-full bg-slate-950 text-white placeholder-slate-500 pl-4 pr-10 py-3 rounded-xl border border-slate-800 text-xs sm:text-sm focus:outline-none focus:border-cyan-500 transition-colors shadow-inner"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setActiveSearchQuery("");
+                    }}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs font-bold"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Botón Lupa Operativo */}
+              <button
+                type="submit"
+                className="px-5 py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 whitespace-nowrap shadow-md"
+                title="Hacé clic aquí o presiona Enter para buscar socio"
+              >
+                <Search className="w-4 h-4" />
+                <span>Buscar</span>
+              </button>
+            </form>
 
             {importStatus && (
-              <div className="text-xs font-medium text-cyan-300 p-3 rounded-lg bg-slate-950 border border-slate-800 mb-6">
-                {importStatus}
+              <div className="text-xs font-medium text-cyan-300 p-3 rounded-lg bg-slate-950 border border-slate-800 mb-6 flex items-center justify-between">
+                <span>{importStatus}</span>
+                <button onClick={() => setImportStatus(null)} className="text-slate-400 hover:text-white font-bold ml-2">✕</button>
               </div>
             )}
 
@@ -540,11 +620,11 @@ Ejemplo (CUIT	Nombre Comercio	Referente	Rubro	Dirección	Teléfono):
               <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-950 p-4 rounded-xl border border-slate-800">
                 <div className="flex items-center gap-3 text-xs">
                   <span className="font-bold text-white">
-                    Mostrando {filteredSocios.length} de {socios.length} comercios
+                    Socios en Memoria: {socios.length} ({filteredSocios.length} visibles)
                   </span>
-                  {searchQuery && (
+                  {activeSearchQuery && (
                     <span className="text-cyan-400 font-semibold bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800">
-                      Filtro: &ldquo;{searchQuery}&rdquo;
+                      Búsqueda activa: &ldquo;{activeSearchQuery}&rdquo;
                     </span>
                   )}
                   <button
@@ -566,7 +646,7 @@ Ejemplo (CUIT	Nombre Comercio	Referente	Rubro	Dirección	Teléfono):
                   <button
                     onClick={handleConfirmImport}
                     disabled={isImporting || socios.filter(s => s.selected).length === 0}
-                    className="bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-2"
+                    className="bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-lg"
                   >
                     <Upload className="w-4 h-4" />
                     <span>{isImporting ? "Guardando..." : "Guardar Borradores"}</span>
@@ -575,7 +655,7 @@ Ejemplo (CUIT	Nombre Comercio	Referente	Rubro	Dirección	Teléfono):
                   <button
                     onClick={handlePublishAll}
                     disabled={isPublishingAll}
-                    className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs flex items-center gap-1.5"
+                    className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-lg"
                   >
                     <Rocket className="w-4 h-4" />
                     <span>Publicar Todo</span>
@@ -761,7 +841,7 @@ Ejemplo (CUIT	Nombre Comercio	Referente	Rubro	Dirección	Teléfono):
                     {filteredSocios.length === 0 && (
                       <tr>
                         <td colSpan={7} className="p-8 text-center text-slate-500 italic">
-                          No se encontraron comercios que coincidan con la búsqueda &ldquo;{searchQuery}&rdquo;.
+                          No se encontraron comercios que coincidan con la búsqueda &ldquo;{activeSearchQuery}&rdquo;.
                         </td>
                       </tr>
                     )}
