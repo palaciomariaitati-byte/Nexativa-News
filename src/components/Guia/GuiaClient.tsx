@@ -54,6 +54,7 @@ export default function GuiaClient({ initialBusinesses }: GuiaClientProps) {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isGeolocating, setIsGeolocating] = useState(false);
   const [geoStatus, setGeoStatus] = useState<string | null>(null);
+  const [isExpandedCategories, setIsExpandedCategories] = useState(false);
 
   // 1. Cargar comercios desde Supabase API y localStorage al iniciar en el cliente
   useEffect(() => {
@@ -253,26 +254,63 @@ export default function GuiaClient({ initialBusinesses }: GuiaClientProps) {
         </div>
       )}
 
-      {/* Dynamic Categories Bar */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-4 scrollbar-none">
-        {categoriesList.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => setSelectedCategory(cat)}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border ${
-              selectedCategory === cat
-                ? "bg-cyan-500 text-slate-950 border-cyan-400 font-extrabold shadow-lg shadow-cyan-500/20 scale-105"
-                : "bg-slate-900/80 text-slate-300 border-slate-800 hover:border-slate-700"
-            }`}
-          >
-            {cat}
-          </button>
-        ))}
+      {/* Dynamic Categories Header & Selector */}
+      <div className="space-y-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-900/60 p-3 rounded-2xl border border-slate-800">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider">
+              📁 Filtrar por Rubro ({categoriesList.length - 1} disponibles):
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            {/* Dropdown Selector para acceso instantáneo a cualquier rubro */}
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="w-full sm:w-auto bg-slate-950 border border-slate-800 text-cyan-300 font-extrabold text-xs px-3 py-2 rounded-xl focus:border-cyan-500 outline-none shadow"
+            >
+              {categoriesList.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat === "Todos" ? "🌐 Ver Todos los Rubros" : `🏷️ Rubro: ${cat}`}
+                </option>
+              ))}
+            </select>
+
+            <button
+              onClick={() => setIsExpandedCategories(!isExpandedCategories)}
+              className="text-xs font-bold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-xl border border-slate-700 whitespace-nowrap transition-colors"
+            >
+              {isExpandedCategories ? "▲ Menos Rubros" : "▼ Expandir Todos"}
+            </button>
+          </div>
+        </div>
+
+        {/* Dynamic Categories Pills (Píldoras Multilínea / Scroll) */}
+        <div
+          className={`flex items-center gap-2 ${
+            isExpandedCategories ? "flex-wrap" : "overflow-x-auto scrollbar-none"
+          } pb-2 transition-all`}
+        >
+          {categoriesList.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border ${
+                selectedCategory === cat
+                  ? "bg-cyan-500 text-slate-950 border-cyan-400 font-extrabold shadow-lg shadow-cyan-500/20 scale-105"
+                  : "bg-slate-900/80 text-slate-300 border-slate-800 hover:border-slate-700"
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Counter Summary */}
       <div className="flex items-center justify-between text-xs text-slate-400 border-b border-slate-800/80 pb-2">
-        <span>Mostrando <strong>{filteredBusinesses.length}</strong> comercios y servicios encontrados</span>
+        <span>Mostrando <strong>{filteredBusinesses.length}</strong> comercios y servicios en &ldquo;{selectedCategory}&rdquo;</span>
         {selectedCategory !== "Todos" && (
           <button onClick={() => setSelectedCategory("Todos")} className="text-cyan-400 font-semibold hover:underline">
             Ver todas las categorías
