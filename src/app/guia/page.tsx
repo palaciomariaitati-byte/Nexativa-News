@@ -3,6 +3,8 @@ import Link from "next/link";
 import { Sparkles, ArrowRight, Building2 } from "lucide-react";
 import supabaseAdmin from "@/lib/supabase/admin";
 import GuiaClient, { DirectoryItem } from "@/components/Guia/GuiaClient";
+import fs from "fs";
+import path from "path";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +20,18 @@ export const metadata = {
   },
 };
 
-// Curated default businesses from real local sectors
+const FALLBACK_DIRECTORY_FILE = path.join(process.cwd(), "data", "directory_businesses_local.json");
+
+function readLocalDirectory(): any[] {
+  try {
+    if (fs.existsSync(FALLBACK_DIRECTORY_FILE)) {
+      const content = fs.readFileSync(FALLBACK_DIRECTORY_FILE, "utf-8");
+      return JSON.parse(content) || [];
+    }
+  } catch (err) {}
+  return [];
+}
+
 const FALLBACK_BUSINESSES: DirectoryItem[] = [
   {
     id: "1",
@@ -88,6 +101,8 @@ const FALLBACK_BUSINESSES: DirectoryItem[] = [
 ];
 
 async function getActiveDirectoryBusinesses(): Promise<DirectoryItem[]> {
+  let dbItems: DirectoryItem[] = [];
+
   try {
     const { data: directoryData, error: dirError } = await supabaseAdmin
       .from("directory_businesses")
@@ -96,7 +111,7 @@ async function getActiveDirectoryBusinesses(): Promise<DirectoryItem[]> {
       .order("created_at", { ascending: false });
 
     if (!dirError && directoryData && directoryData.length > 0) {
-      return directoryData.map((b: any) => ({
+      dbItems = directoryData.map((b: any) => ({
         id: b.id,
         name: b.name,
         category: b.category,
@@ -110,25 +125,36 @@ async function getActiveDirectoryBusinesses(): Promise<DirectoryItem[]> {
         distance: "Cerca de ti",
       }));
     }
-
-    const { data: sponsorsData } = await supabaseAdmin.from("sponsors").select("*").limit(10);
-    if (sponsorsData && sponsorsData.length > 0) {
-      return sponsorsData.map((s: any, idx: number) => ({
-        id: s.id || `sponsor-${idx}`,
-        name: s.name,
-        category: s.category || "Servicios Locales",
-        address: s.address || "Ituzaingó, Corrientes",
-        city: "Ituzaingó",
-        whatsapp: s.whatsapp || "5493786611250",
-        phone: s.phone || "3786611250",
-        description: s.description || s.slogan || `Comercio auspiciante oficial en ${s.category || 'Ituzaingó'}.`,
-        tier: idx % 2 === 0 ? "ORO" : "PLATA",
-        isVerified: true,
-        distance: `A ${(idx + 1) * 350} metros`,
-      }));
-    }
   } catch (err) {
-    console.warn("[Guía] Usando fallback para la guía comercial:", err);
+    console.warn("[Guía] Advertencia consultando Supabase:", err);
+  }
+
+  // Leer comercios locales confirmados
+  const localList = readLocalDirectory();
+  const activeLocal: DirectoryItem[] = localList
+    .filter((b: any) => b.status === "ACTIVE")
+    .map((b: any) => ({
+      id: b.id,
+      name: b.name,
+      category: b.category,
+      address: b.address || "Ituzaingó, Corrientes",
+      city: b.city || "Ituzaingó",
+      whatsapp: b.whatsapp || b.phone || "5493786611250",
+      phone: b.phone || "3786611250",
+      description: b.description || `Comercio adherido en el rubro ${b.category}.`,
+      tier: b.tier || "BRONCE",
+      isVerified: b.is_verified ?? true,
+      distance: "Cerca de ti",
+    }));
+
+  const dbIds = new Set(dbItems.map((i) => i.id));
+  const uniqueLocal = activeLocal.filter((l) => !dbIds.has(l.id));
+  const combined = [...dbItems, ...uniqueLocal];
+
+  if (combined.length > 0) {
+    const combinedIds = new Set(combined.map((c) => c.id));
+    const filteredFallback = FALLBACK_BUSINESSES.filter((f) => !combinedIds.has(f.id));
+    return [...combined, ...filteredFallback];
   }
 
   return FALLBACK_BUSINESSES;
