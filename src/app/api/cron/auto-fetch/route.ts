@@ -3,32 +3,39 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 export const maxDuration = 60; // 60 seconds max execution time for cron
 
+// Feeds RSS de respaldo gratuitos si no hay ninguno configurado en ajustes
+const DEFAULT_RSS_FEEDS = [
+  'https://news.google.com/rss?hl=es-419&gl=AR&ceid=AR:es-419', // Google News Argentina en Vivo
+  'https://www.lanacion.com.ar/arc/outboundfeeds/rss/?outputType=xml',
+];
+
 export async function GET(request: Request) {
   try {
-    console.log("[Auto-Fetch] Inicia sincronización automática de noticias...");
+    console.log('[Auto-Fetch] Inicia sincronización automática de noticias...');
 
     const supabase = createServerSupabaseClient();
 
-    // 1. Obtener la URL del RSS configurada en Settings
-    const { data: settingsData, error: settingsError } = await supabase
-      .from('settings')
-      .select('value')
-      .eq('key', 'auto_news_rss_url')
-      .single();
+    // 1. Obtener la URL del RSS configurada en Settings o usar el Feed por defecto
+    let rssUrl = DEFAULT_RSS_FEEDS[0];
 
-    if (settingsError || !settingsData || !settingsData.value) {
-      console.log("[Auto-Fetch] No hay URL configurada en settings o hubo un error:", settingsError);
-      return NextResponse.json({ success: false, message: 'RSS URL no configurada en ajustes.' });
-    }
+    try {
+      const { data: settingsData } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', 'auto_news_rss_url')
+        .maybeSingle();
 
-    const rssUrl = settingsData.value;
-    console.log(`[Auto-Fetch] Extrayendo noticias de: ${rssUrl}`);
+      if (settingsData && settingsData.value) {
+        rssUrl = settingsData.value;
+      }
+    } catch (sErr) {}
+
+    console.log(`[Auto-Fetch] Extrayendo noticias automáticas de: ${rssUrl}`);
 
     // 2. Extraer el RSS usando el proxy rss2json
-    const proxyUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}&api_key=`; 
-    // Nota: rss2json tiene límites en la capa gratuita si no usamos api_key, pero cada 60 mins debería estar bien.
+    const proxyUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
     
-    const response = await fetch(proxyUrl);
+    const response = await fetch(proxyUrl, { cache: 'no-store' });
     if (!response.ok) {
       throw new Error(`Error HTTP: ${response.status} de rss2json`);
     }
@@ -40,19 +47,24 @@ export async function GET(request: Request) {
 
     const items = json.items || [];
     if (items.length === 0) {
-      return NextResponse.json({ success: true, message: 'No se encontraron artículos en el RSS.' });
+      return NextResponse.json({ success: true, message: 'No se encontraron artículos nuevos en el feed RSS.' });
     }
 
-    // 3. Procesar artículos nuevos
-    let addedCount = 0;
-    
-    // Obtenemos todos los URLs que ya existen para comparar rápido
-    const { data: existingArticles } = await supabase
-      .from('articles')
-      .select('external_url')
-      .not('external_url', 'is', null);
+    // 3. Obtener URLs existentes para evitar duplicados
+    let existingUrls = new Set<string>();
+    try {
+      const { data: existingArticles } = await supabase
+        .from('articles')
+        .select('external_url')
+        .not('external_url', 'is', null);
 
-    const existingUrls = new Set((existingArticles || []).map((a: any) => a.external_url));
+      if (existingArticles) {
+        existingUrls = new Set(existingArticles.map((a: any) => a.external_url));
+      }
+    } catch (e) {}
+
+    // 4. Procesar e insertar artículos nuevos
+    let addedCount = 0;
 
     for (const item of items) {
       const link = item.link;
@@ -60,15 +72,11 @@ export async function GET(request: Request) {
         continue; // Ya existe o no tiene enlace
       }
 
-      // Preparamos los datos
-      const title = item.title;
-      
-      // Limpiar el contenido HTML para el resumen
-      const rawContent = item.description || item.content || "";
-      let cleanExcerpt = rawContent.replace(/<[^>]+>/g, '').trim().substring(0, 150) + "...";
-      if (!cleanExcerpt || cleanExcerpt === "...") cleanExcerpt = "Noticia destacada extraída automáticamente.";
+      const title = item.title || 'Noticia de Última Hora';
+      const rawContent = item.description || item.content || '';
+      let cleanExcerpt = rawContent.replace(/<[^>]+>/g, '').trim().substring(0, 180) + '...';
+      if (!cleanExcerpt || cleanExcerpt === '...') cleanExcerpt = 'Noticia de última hora actualizada automáticamente en Nexativa News.';
 
-      // Extraer imagen si viene en enclosure o thumbnail
       let imageUrl = item.thumbnail || (item.enclosure && item.enclosure.link) || null;
       if (!imageUrl && rawContent.includes('<img')) {
         const imgMatch = rawContent.match(/<img[^>]+src="([^">]+)"/);
@@ -80,32 +88,33 @@ export async function GET(request: Request) {
       const payload = {
         title,
         excerpt: cleanExcerpt,
-        content: `<!-- Auto-imported from ${json.feed.title || 'RSS'} -->\n\n<p>${rawContent}</p>\n\n<p><i>Fuente original: <a href="${link}" target="_blank">Leer nota completa aquí</a></i></p>`,
-        image_url: imageUrl,
+        content: `<!-- Auto-imported from ${json.feed?.title || 'Noticias en Vivo'} -->\n\n<p>${rawContent}</p>\n\n<p><i>Fuente oficial: <a href="${link}" target="_blank" rel="noopener noreferrer">Leer nota completa aquí</a></i></p>`,
+        image_url: imageUrl || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1200&q=80',
         external_url: link,
-        category: 'internacional', // Default o podríamos mapear con item.categories
-        status: 'published', // Se publica instantáneamente según pedido
-        author_id: null,
+        category: 'general',
+        status: 'published',
+        created_at: new Date().toISOString(),
       };
 
-      const { error: insertError } = await supabase.from('articles').insert([payload]);
-      if (insertError) {
-        console.error(`[Auto-Fetch] Error insertando noticia ${title}:`, insertError);
-      } else {
-        console.log(`[Auto-Fetch] ✅ Noticia ingresada: ${title}`);
-        addedCount++;
-        existingUrls.add(link); // Añadir para no duplicar en la misma pasada
+      try {
+        const { error: insertError } = await supabase.from('articles').insert([payload]);
+        if (!insertError) {
+          console.log(`[Auto-Fetch] ✅ Noticia ingresada: ${title}`);
+          addedCount++;
+          existingUrls.add(link);
+        }
+      } catch (iErr) {
+        console.error(`[Auto-Fetch] Error insertando noticia ${title}:`, iErr);
       }
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      message: `Sincronización completa. Se añadieron ${addedCount} noticias nuevas.`,
-      added: addedCount 
+    return NextResponse.json({
+      success: true,
+      message: `🎉 Sincronización completa. Se añadieron ${addedCount} noticias automáticamente.`,
+      added: addedCount,
     });
-
   } catch (error: any) {
-    console.error("[Auto-Fetch] Error general:", error);
+    console.error('[Auto-Fetch] Error general:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
