@@ -1,14 +1,25 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import ImportBusinessesModal from '@/components/Admin/ImportBusinessesModal';
+
+interface Profile {
+  id: string;
+  full_name: string;
+  trade_category: string;
+  city: string;
+  whatsapp: string;
+  nora_score: number;
+  total_reviews: number;
+  badge_level: string;
+  status: string;
+}
 
 export default function AdminJobsPage() {
   const [activeTab, setActiveTab] = useState<'oficios' | 'busquedas' | 'reseñas'>('oficios');
 
-  // Datos mock de administración
-  const [profiles] = useState([
+  const defaultProfiles: Profile[] = [
     {
       id: '1',
       full_name: 'Pedro González',
@@ -42,7 +53,10 @@ export default function AdminJobsPage() {
       badge_level: 'ORGULLO_REGIONAL',
       status: 'ACTIVE',
     },
-  ]);
+  ];
+
+  const [profiles, setProfiles] = useState<Profile[]>(defaultProfiles);
+  const [loading, setLoading] = useState(true);
 
   const [offers] = useState([
     {
@@ -63,8 +77,61 @@ export default function AdminJobsPage() {
     },
   ]);
 
+  // Cargar postulantes dinámicos desde la API y buffer local
+  useEffect(() => {
+    async function loadProfiles() {
+      let localBuffer: Profile[] = [];
+      try {
+        const saved = localStorage.getItem('nexativa_job_profiles_v1');
+        if (saved) {
+          localBuffer = JSON.parse(saved) || [];
+        }
+      } catch (e) {}
+
+      try {
+        const res = await fetch('/api/jobs/profiles');
+        const data = await res.json();
+        if (data.success && Array.isArray(data.profiles) && data.profiles.length > 0) {
+          const apiMapped: Profile[] = data.profiles.map((p: any) => ({
+            id: p.id,
+            full_name: p.full_name,
+            trade_category: p.trade_category,
+            city: p.city || 'Ituzaingó',
+            whatsapp: p.whatsapp,
+            nora_score: Number(p.nora_score || 5.0),
+            total_reviews: Number(p.total_reviews || 0),
+            badge_level: p.badge_level || 'BRONCE',
+            status: p.status || 'ACTIVE',
+          }));
+
+          setProfiles((prev) => {
+            const apiIds = new Set(apiMapped.map((p) => p.id));
+            const filteredLocal = localBuffer.filter((l) => !apiIds.has(l.id));
+            const combined = [...apiMapped, ...filteredLocal];
+            const combinedIds = new Set(combined.map((c) => c.id));
+            const filteredDefault = defaultProfiles.filter((d) => !combinedIds.has(d.id));
+            return [...combined, ...filteredDefault];
+          });
+        } else if (localBuffer.length > 0) {
+          setProfiles((prev) => {
+            const bufferIds = new Set(localBuffer.map((l) => l.id));
+            const filteredDefault = defaultProfiles.filter((d) => !bufferIds.has(d.id));
+            return [...localBuffer, ...filteredDefault];
+          });
+        }
+      } catch (err) {
+        console.warn('Error en AdminJobsPage consultando perfiles:', err);
+        if (localBuffer.length > 0) setProfiles(localBuffer);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadProfiles();
+  }, []);
+
   return (
-    <div className="space-y-6 text-gray-100">
+    <div className="space-y-6 text-gray-100 font-sans">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-800 pb-4">
         <div>
@@ -72,24 +139,24 @@ export default function AdminJobsPage() {
             💼 Consola de Empleos & NoraScore™
           </h1>
           <p className="text-xs text-gray-400 mt-1">
-            Administración de trabajadores, búsquedas activas, calificaciones comunitarias y emisión de certificados.
+            Administración de trabajadores, postulantes en vivo, calificaciones comunitarias y emisión de certificados.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ImportBusinessesModal />
+          <Link
+            href="/prestadores"
+            target="_blank"
+            className="px-3 py-1.5 bg-emerald-700/50 hover:bg-emerald-600/60 text-emerald-300 rounded-lg text-xs font-bold border border-emerald-500/40 transition-colors flex items-center gap-1"
+          >
+            📱 Panel Móvil (/prestadores)
+          </Link>
           <Link
             href="/empleos"
             target="_blank"
             className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-xs font-semibold border border-gray-700 transition-colors"
           >
             🌐 Ver Vista Pública (/empleos)
-          </Link>
-          <Link
-            href="/brochure"
-            target="_blank"
-            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-colors"
-          >
-            📄 Dossier Comercial
           </Link>
         </div>
       </div>
@@ -104,7 +171,7 @@ export default function AdminJobsPage() {
               : 'text-gray-400 hover:text-gray-200'
           }`}
         >
-          🛠️ Trabajadores & Oficios ({profiles.length})
+          🛠️ Trabajadores & Postulantes ({profiles.length})
         </button>
         <button
           onClick={() => setActiveTab('busquedas')}
@@ -121,47 +188,59 @@ export default function AdminJobsPage() {
       {/* Tab Contents */}
       {activeTab === 'oficios' ? (
         <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden shadow-xl">
-          <table className="w-full text-left text-xs text-gray-300">
-            <thead className="bg-gray-800/80 text-gray-200 uppercase font-semibold border-b border-gray-700">
-              <tr>
-                <th className="p-3">Nombre / Rubro</th>
-                <th className="p-3">Ciudad</th>
-                <th className="p-3">WhatsApp</th>
-                <th className="p-3">NoraScore™</th>
-                <th className="p-3">Insignia</th>
-                <th className="p-3 text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-800">
-              {profiles.map((p) => (
-                <tr key={p.id} className="hover:bg-gray-800/40">
-                  <td className="p-3 font-semibold text-white">
-                    {p.full_name}
-                    <span className="block text-[11px] text-emerald-400 font-normal">{p.trade_category}</span>
-                  </td>
-                  <td className="p-3">{p.city}</td>
-                  <td className="p-3 font-mono">{p.whatsapp}</td>
-                  <td className="p-3 font-bold text-amber-400">
-                    ⭐ {p.nora_score} ({p.total_reviews} votos)
-                  </td>
-                  <td className="p-3">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
-                      {p.badge_level}
-                    </span>
-                  </td>
-                  <td className="p-3 text-right space-x-2">
-                    <Link
-                      href={`/certificados/${p.id}`}
-                      target="_blank"
-                      className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded border border-amber-500/40 font-bold"
-                    >
-                      📜 Certificado
-                    </Link>
-                  </td>
+          {loading ? (
+            <div className="p-8 text-center text-xs text-gray-400">Cargando postulantes en tiempo real...</div>
+          ) : (
+            <table className="w-full text-left text-xs text-gray-300">
+              <thead className="bg-gray-800/80 text-gray-200 uppercase font-semibold border-b border-gray-700">
+                <tr>
+                  <th className="p-3">Nombre / Rubro</th>
+                  <th className="p-3">Ciudad</th>
+                  <th className="p-3">WhatsApp</th>
+                  <th className="p-3">NoraScore™</th>
+                  <th className="p-3">Insignia</th>
+                  <th className="p-3 text-right">Acciones</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-800">
+                {profiles.map((p) => (
+                  <tr key={p.id} className="hover:bg-gray-800/40 transition-colors">
+                    <td className="p-3 font-semibold text-white">
+                      {p.full_name}
+                      <span className="block text-[11px] text-emerald-400 font-normal">{p.trade_category}</span>
+                    </td>
+                    <td className="p-3">{p.city}</td>
+                    <td className="p-3 font-mono">{p.whatsapp}</td>
+                    <td className="p-3 font-bold text-amber-400">
+                      ⭐ {p.nora_score} ({p.total_reviews} votos)
+                    </td>
+                    <td className="p-3">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                        {p.badge_level}
+                      </span>
+                    </td>
+                    <td className="p-3 text-right space-x-2">
+                      <a
+                        href={`https://wa.me/${p.whatsapp}?text=Hola%20${encodeURIComponent(p.full_name)},%20te%20escribimos%20desde%20el%20Panel%20Admin%20de%20Nexativa%20Empleos.`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2.5 py-1 bg-emerald-600/30 hover:bg-emerald-600/40 text-emerald-300 rounded border border-emerald-500/40 font-bold"
+                      >
+                        💬 Contactar
+                      </a>
+                      <Link
+                        href={`/certificados/${p.id}`}
+                        target="_blank"
+                        className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded border border-amber-500/40 font-bold"
+                      >
+                        📜 Certificado
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       ) : (
         <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden shadow-xl">

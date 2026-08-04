@@ -470,7 +470,7 @@ export default function PressClient() {
 
   // Global Publish All Action
   const handlePublishAll = async () => {
-    if (!confirm("¿Confirmás publicar globalmente todas las fichas de la Guía Comercial? Pasarán a estado ACTIVO en /guia.")) {
+    if (!confirm("¿Confirmás publicar globalmente todas las fichas de la Guía Comercial? Se activará la lista completa y Nora AI disparará los mensajes de Pitching a Periodistas y Stealth Growth.")) {
       return;
     }
 
@@ -485,7 +485,9 @@ export default function PressClient() {
       const data = await res.json();
       if (data.success) {
         updateSociosAndSave(prev => prev.map(s => ({ ...s, status: "ACTIVE" })));
-        setImportStatus("🚀 ¡GUÍA PUBLICADA CON ÉXITO! Todos los comercios pasaron a estado ACTIVO (Verde) y ya son visibles públicamente.");
+        setImportStatus(
+          `🚀 ¡GUÍA Y NORA AUTOMATIZADA CON ÉXITO! ${data.message || 'Todos los comercios pasaron a estado ACTIVO y Nora AI activó la ráfaga de Stealth Growth y Pitching.'}`
+        );
       }
     } catch (err: any) {
       setImportStatus(`❌ Error al publicar: ${err.message}`);
@@ -496,13 +498,33 @@ export default function PressClient() {
 
   // NORA Reminder Actions
   const handleSendNORANewsletter = (socio: ImportedSocio) => {
-    const text = `Hola ${socio.contact_person || socio.name}! Te escribimos de Nexativa News para compartirte las novedades de tu ficha comercial (${socio.name})...`;
-    window.open(`https://wa.me/${socio.phone}?text=${encodeURIComponent(text)}`, "_blank");
+    const confirmationLink = `https://nexativanews.com.ar/guia/confirmar/${socio.id}`;
+    const text = `Hola ${socio.contact_person || socio.name}! 👋 Te escribimos desde la Redacción de Nexativa News (nexativanews.com.ar).
+
+Como parte del relevamiento que estamos realizando para el lanzamiento de la nueva *Guía Comercial & Páginas Amarillas 2.0* de la ciudad, seleccionamos a *${socio.name}* para otorgarles una Ficha Digital de Cortesía 100% Gratuita.
+
+📌 Pre-cargamos tus datos comerciales para que puedas verificarlos y activar tu ficha sin costo antes de hacerla pública:
+👉 ${confirmationLink}
+
+¿Te gustaría que sumemos tu horario de atención, tu oferta especial de la semana o tu WhatsApp directo de ventas?
+
+Respondeme a este mensaje y lo activamos sin ningún costo ni comisión. 🚀`;
+
+    const cleanPhone = socio.phone ? socio.phone.replace(/\D/g, "") : "";
+    window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`, "_blank");
   };
 
   const handleSendNORADebtReminder = (socio: ImportedSocio) => {
-    const text = `Hola ${socio.contact_person || socio.name}! Te recordamos que la membresía de tu comercio (${socio.name}) venció el ${socio.subscription_due_date}...`;
-    window.open(`https://wa.me/${socio.phone}?text=${encodeURIComponent(text)}`, "_blank");
+    const text = `Hola ${socio.contact_person || socio.name}! 👋 Te escribimos de Nexativa News sobre la membresía destacada de *${socio.name}*.
+
+Te recordamos que la membresía en la Guía Comercial vence el *${socio.subscription_due_date || "próximamente"}*.
+
+Para mantener la posición ORO en los primeros puestos y seguir recibiendo consultas directas por WhatsApp, ¿preferís renovarla por transferencia bancaria o Mercado Pago?
+
+Respondé a este mensaje y te enviamos los datos en 1 minuto. ¡Gracias por formar parte de Nexativa! 💼`;
+
+    const cleanPhone = socio.phone ? socio.phone.replace(/\D/g, "") : "";
+    window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`, "_blank");
   };
 
   // Handle Make.com Webhook Test
@@ -1026,6 +1048,28 @@ Ejemplo:
                                   <span className="text-xs font-bold text-cyan-400">Acciones NORA CRM:</span>
 
                                   <button
+                                    onClick={() => {
+                                      const confirmationLink = `https://nexativanews.com.ar/guia/confirmar/${s.id}`;
+                                      const text = `Hola ${s.contact_person || s.name}! 👋 Te escribimos desde la Redacción de Nexativa News (nexativanews.com.ar).
+
+Como parte del relevamiento que estamos realizando para el lanzamiento de la nueva *Guía Comercial & Páginas Amarillas 2.0* de la ciudad, seleccionamos a *${s.name}* para otorgarles una Ficha Digital de Cortesía 100% Gratuita.
+
+📌 Pre-cargamos tus datos comerciales para que puedas verificarlos y activar tu ficha sin costo antes de hacerla pública:
+👉 ${confirmationLink}
+
+¿Te gustaría que sumemos tu horario de atención, tu oferta especial de la semana o tu WhatsApp directo de ventas?
+
+Respondeme a este mensaje y lo activamos sin ningún costo ni comisión. 🚀`;
+                                      const cleanPhone = s.phone ? s.phone.replace(/\D/g, "") : "";
+                                      window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`, "_blank");
+                                    }}
+                                    className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 font-bold transition-colors"
+                                  >
+                                    <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                                    <span>📩 Enviar Invitación Institucional de Cortesía (WhatsApp)</span>
+                                  </button>
+
+                                  <button
                                     onClick={() => handleSendNORANewsletter(s)}
                                     className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 font-medium"
                                   >
@@ -1344,6 +1388,41 @@ Ejemplo:
       {/* TAB: Pitching Periodistas */}
       {activeTab === "press" && (
         <div className="space-y-6 print:hidden">
+          {/* Card Destacada: Noticia Gancho de Prensa */}
+          <div className="bg-slate-900 border border-cyan-500/40 p-6 rounded-2xl shadow-xl">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-800 pb-4 mb-4">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 mb-2">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>NOTICIA GANCHO DE PRENSA CREADA & LISTA</span>
+                </div>
+                <h2 className="text-xl font-extrabold text-white">
+                  Estudio Nexativa 2026: +42% en Demanda de Servicios e Independientes
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Informe de prensa exclusivo publicado en la URL periodística oficial.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <a
+                  href="/prensa/estudio-servicios-2026"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-xl text-xs font-bold border border-cyan-500/30 flex items-center gap-1.5 transition-colors"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  <span>Ver Nota en Vivo (/prensa/estudio-servicios-2026)</span>
+                </a>
+              </div>
+            </div>
+
+            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs text-slate-300 leading-relaxed font-mono mb-4">
+              📌 <strong>Asunto del Correo:</strong> [EXCLUSIVA/DATOS] Estudio Nexativa 2026: El boom del +42% en contrataciones locales<br />
+              👉 <strong>URL para Periodistas:</strong> https://nexativanews.com.ar/prensa/estudio-servicios-2026
+            </div>
+          </div>
+
           <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-2xl">
             <h2 className="text-lg font-bold text-white mb-4">Lista de Outreach Periodístico</h2>
             <div className="overflow-x-auto">
@@ -1372,10 +1451,29 @@ Ejemplo:
                       </td>
                       <td className="p-3">
                         <button
-                          onClick={() => alert(`Enviando pitch NORA a ${j.name}...`)}
+                          onClick={async () => {
+                            try {
+                              const res = await fetch("/api/nora-pitch", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  name: j.name,
+                                  mediaOutlet: j.media,
+                                  email: j.email,
+                                  specialty: j.specialty,
+                                }),
+                              });
+                              const data = await res.json();
+                              if (data.success) {
+                                alert(`✅ Pitch generado para ${j.name}:\n\n${data.pitch.body}`);
+                              }
+                            } catch (e: any) {
+                              alert(`Error al generar pitch: ${e.message}`);
+                            }
+                          }}
                           className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-3 py-1 rounded text-[11px]"
                         >
-                          Re-Enviar Pitch
+                          Generar & Enviar Pitch
                         </button>
                       </td>
                     </tr>

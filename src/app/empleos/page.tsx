@@ -37,6 +37,13 @@ export default function EmpleosPage() {
   const [selectedProfile, setSelectedProfile] = useState<JobProfile | null>(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [showNoraWelcomeModal, setShowNoraWelcomeModal] = useState(false);
+  const [noraResult, setNoraResult] = useState<{
+    noraGreeting: string;
+    waLink: string;
+    mobilePanelUrl: string;
+    profile: JobProfile;
+  } | null>(null);
 
   // Formulario de Reseña
   const [reviewerName, setReviewerName] = useState('');
@@ -55,10 +62,10 @@ export default function EmpleosPage() {
   const [regWhatsapp, setRegWhatsapp] = useState('');
   const [regBio, setRegBio] = useState('');
   const [submittingReg, setSubmittingReg] = useState(false);
+  const [copiedGreeting, setCopiedGreeting] = useState(false);
 
-  // Cargar datos de muestra / reales
+  // Cargar datos de muestra / reales desde la API
   useEffect(() => {
-    // Datos iniciales de demostración de alta calidad para la región
     const demoProfiles: JobProfile[] = [
       {
         id: '1',
@@ -86,7 +93,7 @@ export default function EmpleosPage() {
       },
       {
         id: '3',
-        full_name: 'Carlos ' + 'Charly' + ' Benítez',
+        full_name: 'Carlos "Charly" Benítez',
         trade_category: 'Electricista Domiciliario',
         bio: 'Tableros, cortocircuitos, luces LED y cableado general. Atención de urgencias 24/7.',
         city: 'Ituzaingó',
@@ -121,10 +128,122 @@ export default function EmpleosPage() {
       },
     ];
 
-    setProfiles(demoProfiles);
-    setOffers(demoOffers);
-    setLoading(false);
+    async function loadRealProfiles() {
+      // 1. Cargar almacenamiento local inmediato
+      let localBuffer: JobProfile[] = [];
+      try {
+        const saved = localStorage.getItem('nexativa_job_profiles_v1');
+        if (saved) {
+          localBuffer = JSON.parse(saved) || [];
+        }
+      } catch (e) {}
+
+      try {
+        const res = await fetch('/api/jobs/profiles');
+        const data = await res.json();
+        if (data.success && Array.isArray(data.profiles) && data.profiles.length > 0) {
+          const apiProfiles: JobProfile[] = data.profiles.map((p: any) => ({
+            id: p.id,
+            full_name: p.full_name,
+            trade_category: p.trade_category,
+            bio: p.bio || '',
+            city: p.city || 'Ituzaingó',
+            province: p.province || 'Corrientes',
+            whatsapp: p.whatsapp,
+            nora_score: Number(p.nora_score || 5.0),
+            total_reviews: Number(p.total_reviews || 0),
+            badge_level: p.badge_level || 'BRONCE',
+          }));
+          
+          setProfiles((prev) => {
+            const apiIds = new Set(apiProfiles.map((p) => p.id));
+            const filteredLocal = localBuffer.filter((l) => !apiIds.has(l.id));
+            const combined = [...apiProfiles, ...filteredLocal];
+            const combinedIds = new Set(combined.map((c) => c.id));
+            const filteredDemo = demoProfiles.filter((d) => !combinedIds.has(d.id));
+            return [...combined, ...filteredDemo];
+          });
+        } else {
+          setProfiles((prev) => {
+            const bufferIds = new Set(localBuffer.map((l) => l.id));
+            const filteredDemo = demoProfiles.filter((d) => !bufferIds.has(d.id));
+            return [...localBuffer, ...filteredDemo];
+          });
+        }
+      } catch (err) {
+        console.warn('Error cargando perfiles reales:', err);
+        setProfiles(localBuffer.length > 0 ? localBuffer : demoProfiles);
+      } finally {
+        setOffers(demoOffers);
+        setLoading(false);
+      }
+    }
+
+    loadRealProfiles();
   }, []);
+
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmittingReg(true);
+
+    try {
+      const res = await fetch('/api/jobs/profiles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          full_name: regName,
+          trade_category: regCategory,
+          city: regCity,
+          whatsapp: regWhatsapp,
+          bio: regBio,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success && data.profile) {
+        const newProf: JobProfile = {
+          id: data.profile.id,
+          full_name: data.profile.full_name,
+          trade_category: data.profile.trade_category,
+          bio: data.profile.bio || regBio,
+          city: data.profile.city || regCity,
+          province: data.profile.province || 'Corrientes',
+          whatsapp: data.profile.whatsapp || regWhatsapp,
+          nora_score: Number(data.profile.nora_score || 5.0),
+          total_reviews: 0,
+          badge_level: 'BRONCE',
+        };
+
+        setProfiles((prev) => {
+          const updated = [newProf, ...prev];
+          try {
+            localStorage.setItem('nexativa_job_profiles_v1', JSON.stringify(updated));
+          } catch (e) {}
+          return updated;
+        });
+
+        setNoraResult({
+          noraGreeting: data.noraGreeting,
+          waLink: data.waLink,
+          mobilePanelUrl: data.mobilePanelUrl,
+          profile: newProf,
+        });
+
+        // Limpiar formulario y alternar modales
+        setRegName('');
+        setRegWhatsapp('');
+        setRegBio('');
+        setShowRegisterModal(false);
+        setShowNoraWelcomeModal(true);
+      } else {
+        alert(data.error || 'No se pudo completar el registro.');
+      }
+    } catch (err: any) {
+      alert('Error registrando postulante: ' + (err.message || 'Error de conexión'));
+    } finally {
+      setSubmittingReg(false);
+    }
+  };
 
   const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -467,14 +586,7 @@ export default function EmpleosPage() {
               Sin comisiones ni intermediarios. Sumate a la comunidad de trabajadores de Nexativa.
             </p>
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                alert('¡Felicidades! Tu perfil ha sido registrado correctamente en Nexativa Empleos.');
-                setShowRegisterModal(false);
-              }}
-              className="space-y-4"
-            >
+            <form onSubmit={handleRegisterSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-300 mb-1">Nombre Completo</label>
                 <input
@@ -545,12 +657,80 @@ export default function EmpleosPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold shadow-lg"
+                  disabled={submittingReg}
+                  className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold shadow-lg disabled:opacity-50"
                 >
-                  🚀 Registrar mi Perfil Gratis
+                  {submittingReg ? 'Registrando...' : '🚀 Registrar mi Perfil Gratis'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Salutación de Nora AI & Link al Panel Móvil */}
+      {showNoraWelcomeModal && noraResult && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-900 border border-emerald-500/50 rounded-2xl max-w-lg w-full p-6 text-gray-100 shadow-2xl animate-fade-in">
+            <div className="flex items-center gap-3 mb-4 border-b border-gray-800 pb-3">
+              <div className="w-12 h-12 rounded-full bg-emerald-500/20 border border-emerald-400 flex items-center justify-center text-2xl shadow-inner">
+                🤖
+              </div>
+              <div>
+                <h3 className="text-xl font-extrabold text-white">
+                  🎉 ¡Perfil Activado por <span className="text-emerald-400">Nora AI</span>!
+                </h3>
+                <p className="text-xs text-emerald-400 font-semibold">
+                  Salutación generada y Panel Móvil habilitado
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-300 mb-3 font-semibold uppercase tracking-wider">
+              Mensaje Oficial de Salutación enviado:
+            </p>
+
+            <div className="bg-gray-950 border border-gray-800 rounded-xl p-4 mb-6 font-mono text-xs text-emerald-300 leading-relaxed whitespace-pre-wrap select-all">
+              {noraResult.noraGreeting}
+            </div>
+
+            <div className="space-y-3">
+              <Link
+                href="/prestadores"
+                target="_blank"
+                className="w-full py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm text-center flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-600/25"
+              >
+                📱 IR A MI PANEL MÓVIL (/prestadores)
+              </Link>
+
+              <a
+                href={noraResult.waLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-3 px-4 rounded-xl bg-gray-800 hover:bg-gray-700 text-emerald-400 font-bold text-xs text-center border border-emerald-500/40 flex items-center justify-center gap-2 transition-colors"
+              >
+                💬 Abrir Salutación en WhatsApp de Nora
+              </a>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(noraResult.noraGreeting);
+                    setCopiedGreeting(true);
+                    setTimeout(() => setCopiedGreeting(false), 3000);
+                  }}
+                  className="flex-1 py-2 px-3 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-semibold border border-gray-700"
+                >
+                  {copiedGreeting ? '✅ Copiado al portapapeles' : '📋 Copiar Mensaje'}
+                </button>
+                <button
+                  onClick={() => setShowNoraWelcomeModal(false)}
+                  className="py-2 px-4 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs font-semibold border border-gray-700"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

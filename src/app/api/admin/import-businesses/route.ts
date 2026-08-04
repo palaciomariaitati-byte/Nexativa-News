@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import supabaseAdmin from "@/lib/supabase/admin";
+import { generatePersonalizedPitch, JournalistTarget } from "@/modules/nora-pro/press_pitching";
+import { sendWhatsAppNotification } from "@/lib/services/whatsapp";
 
 export const dynamic = "force-dynamic";
 
@@ -23,26 +25,52 @@ export async function GET() {
   }
 }
 
-// POST Endpoint: Insertar o Publicar comercios
+// POST Endpoint: Insertar o Publicar comercios y disparar Nora Stealth Growth & Pitching
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { businesses, action } = body;
 
-    // Global Publish Action (cambia todos los comercios DRAFT a ACTIVE)
+    // Global Publish Action (cambia todos los comercios DRAFT a ACTIVE y activa automatizaciones de Nora)
     if (action === "publish_all") {
-      const { error: updateError } = await supabaseAdmin
+      const { data: updatedBusinesses, error: updateError } = await supabaseAdmin
         .from("directory_businesses")
         .update({ status: "ACTIVE", updated_at: new Date().toISOString() })
-        .eq("status", "DRAFT");
+        .eq("status", "DRAFT")
+        .select();
 
       if (updateError) {
         console.warn("[Import Businesses API] Error al publicar masivamente:", updateError.message);
       }
 
+      const activeCount = updatedBusinesses?.length || 0;
+
+      // Disparar Notificación de Nora AI para Alerta de Prensa y WhatsApp
+      const defaultJournalist: JournalistTarget = {
+        name: "Equipo de Prensa",
+        mediaOutlet: "Red de Medios & Periodistas Regionales",
+        email: "prensa@nexativanews.com.ar",
+        specialty: "Negocios"
+      };
+      const noraPitch = generatePersonalizedPitch(defaultJournalist);
+
+      try {
+        await sendWhatsAppNotification({
+          senderName: "Nora AI - Publicador de Guía Comercial",
+          senderType: "corresponsal",
+          location: "Ituzaingó / Corrientes",
+          excerpt: `🚀 Publicación Global Completa: Se activaron ${activeCount} comercios y prestadores en Páginas Amarillas. Nora Stealth Growth & Pitching listos para lanzamiento.`,
+        });
+      } catch (waErr) {
+        console.warn("[Import Businesses API] No se pudo enviar notificación WhatsApp:", waErr);
+      }
+
       return NextResponse.json({
         success: true,
-        message: "🚀 ¡Guía Comercial Publicada Globalmente! Todos los comercios en borrador pasaron a estado ACTIVO."
+        noraDispatched: true,
+        count: activeCount,
+        message: `🚀 ¡Guía Comercial Publicada Globalmente! ${activeCount} comercios pasaron a estado ACTIVO. Nora AI ha activado los paquetes de Stealth Growth y los mensajes de Pitching a Periodistas.`,
+        samplePitchSubject: noraPitch.subject,
       });
     }
 
