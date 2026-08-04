@@ -37,6 +37,7 @@ export default function ConfirmarFichaPage() {
     name: "",
     category: "",
     description: "",
+    featured_offer: "",
     address: "",
     whatsapp: "",
     phone: "",
@@ -58,6 +59,7 @@ export default function ConfirmarFichaPage() {
             name: data.business.name || "",
             category: data.business.category || "",
             description: data.business.description || "",
+            featured_offer: data.business.featured_offer || "",
             address: data.business.address || "Ituzaingó, Corrientes",
             whatsapp: data.business.whatsapp || "",
             phone: data.business.phone || "",
@@ -89,6 +91,7 @@ export default function ConfirmarFichaPage() {
             name: demoObj.name,
             category: demoObj.category,
             description: demoObj.description,
+            featured_offer: "",
             address: demoObj.address,
             whatsapp: demoObj.whatsapp,
             phone: demoObj.phone,
@@ -240,13 +243,27 @@ export default function ConfirmarFichaPage() {
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-300 mb-1">Descripción del Negocio & Ofertas</label>
+                  <label className="block font-bold text-slate-300 mb-1">Descripción General del Negocio</label>
                   <textarea
-                    rows={3}
+                    rows={2}
                     value={editForm.description}
                     onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-200 focus:border-cyan-500 outline-none leading-relaxed"
                   />
+                </div>
+
+                <div className="bg-slate-950/80 p-3 rounded-xl border border-amber-500/30">
+                  <label className="block font-extrabold text-amber-300 mb-1">🔥 Plato del Día / Promo de la Semana (Se mostrará en la Trivia /g/play)</label>
+                  <input
+                    type="text"
+                    placeholder="Ej: 2x1 en Hamburguesas Artesanales + Papas Rústicas los Sábados"
+                    value={editForm.featured_offer || ""}
+                    onChange={(e) => setEditForm({ ...editForm, featured_offer: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-amber-200 font-bold focus:border-amber-400 outline-none text-xs"
+                  />
+                  <span className="text-[10px] text-slate-400 block mt-1">
+                    💡 Esta oferta rotará automáticamente en las preguntas del minijuego de tus clientes.
+                  </span>
                 </div>
 
                 <div>

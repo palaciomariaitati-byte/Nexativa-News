@@ -42,7 +42,6 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: false, error: 'ID de comercio requerido.' }, { status: 400 });
     }
 
-    // 1. Intentar buscar en Supabase
     try {
       const { data, error } = await supabaseAdmin
         .from('directory_businesses')
@@ -55,7 +54,6 @@ export async function GET(req: Request) {
       }
     } catch (dbErr) {}
 
-    // 2. Buscar en fallback local
     const localList = readLocalDirectory();
     const foundLocal = localList.find((b) => b.id === id);
     if (foundLocal) {
@@ -76,6 +74,7 @@ export async function POST(req: Request) {
       name,
       category,
       description,
+      featured_offer, // Plato del día / Promo de la semana agregada por el cliente
       address,
       whatsapp,
       phone,
@@ -96,14 +95,15 @@ export async function POST(req: Request) {
     if (name) updateFields.name = name.trim();
     if (category) updateFields.category = category.trim();
     if (description) updateFields.description = description.trim();
+    if (featured_offer) updateFields.featured_offer = featured_offer.trim();
     if (address) updateFields.address = address.trim();
     if (whatsapp) updateFields.whatsapp = whatsapp.trim();
     if (phone) updateFields.phone = phone.trim();
     if (email) updateFields.email = email.trim();
     if (website) updateFields.website = website.trim();
 
-    // Actualizar en Supabase
     let finalBusiness = { id, ...updateFields };
+
     try {
       const { data, error } = await supabaseAdmin
         .from('directory_businesses')
@@ -117,12 +117,12 @@ export async function POST(req: Request) {
       }
     } catch (supaErr) {}
 
-    // Guardar en fallback local servidor
+    // Guardar en fallback local y actualizar la lista de socios CRM local
     saveLocalBusiness(finalBusiness);
 
     return NextResponse.json({
       success: true,
-      message: '🎉 ¡Ficha comercial activada y publicada exitosamente en la Guía Comercial!',
+      message: '🎉 ¡Ficha comercial y ofertas actualizadas exitosamente!',
       business: finalBusiness,
     });
   } catch (err: any) {
