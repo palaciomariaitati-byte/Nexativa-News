@@ -75,8 +75,8 @@ export default function GuiaClient({ initialBusinesses }: GuiaClientProps) {
                 category: s.category || "Servicios Locales",
                 address: s.address || "Ituzaingó, Corrientes",
                 city: "Ituzaingó",
-                whatsapp: s.phone || s.whatsapp || "5493786611250",
-                phone: s.phone || "3786611250",
+                whatsapp: s.phone || s.whatsapp || "",
+                phone: s.phone || "",
                 description: `Comercio local verificado (${s.name}). Contacto referente: ${s.contact_person || 'Atención al Cliente'}.`,
                 tier: "ORO",
                 isVerified: true,
@@ -100,8 +100,8 @@ export default function GuiaClient({ initialBusinesses }: GuiaClientProps) {
               category: b.category || "Servicios Locales",
               address: b.address || "Ituzaingó, Corrientes",
               city: b.city || "Ituzaingó",
-              whatsapp: b.whatsapp || b.phone || "5493786611250",
-              phone: b.phone || "3786611250",
+              whatsapp: b.whatsapp || b.phone || "",
+              phone: b.phone || "",
               description: b.description || `Comercio adherido en el rubro ${b.category || 'local'}.`,
               tier: b.tier || "BRONCE",
               isVerified: b.is_verified ?? true,
@@ -366,23 +366,35 @@ export default function GuiaClient({ initialBusinesses }: GuiaClientProps) {
 
                 {/* CTAs: WhatsApp Direct */}
                 <div className="grid grid-cols-2 gap-2">
-                  <a
-                    href={`https://wa.me/${(b.whatsapp || b.phone || "5493786611250").replace(/\D/g, "")}?text=Hola!%20Los%20vi%20en%20las%20P%C3%A1ginas%20Amarillas%20de%20Nexativa%20News%20y%20quisiera%20consultar...`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-2.5 rounded-xl text-xs transition-all shadow-md shadow-emerald-600/20"
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    <span>WhatsApp</span>
-                  </a>
+                  {(b.whatsapp || b.phone) ? (
+                    <a
+                      href={`https://wa.me/${(b.whatsapp || b.phone).replace(/\D/g, "")}?text=Hola!%20Los%20vi%20en%20las%20P%C3%A1ginas%20Amarillas%20de%20Nexativa%20News%20y%20quisiera%20consultar...`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-2.5 rounded-xl text-xs transition-all shadow-md shadow-emerald-600/20"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      <span>WhatsApp</span>
+                    </a>
+                  ) : (
+                    <span className="inline-flex items-center justify-center gap-1.5 bg-slate-900 border border-slate-800 text-slate-500 font-semibold px-3 py-2.5 rounded-xl text-[11px]">
+                      <span>WhatsApp s/d</span>
+                    </span>
+                  )}
 
-                  <a
-                    href={`tel:${(b.phone || b.whatsapp || "3786611250").replace(/\D/g, "")}`}
-                    className="inline-flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold px-3 py-2.5 rounded-xl text-xs transition-colors"
-                  >
-                    <Phone className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>Llamar</span>
-                  </a>
+                  {(b.phone || b.whatsapp) ? (
+                    <a
+                      href={`tel:${(b.phone || b.whatsapp).replace(/\D/g, "")}`}
+                      className="inline-flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold px-3 py-2.5 rounded-xl text-xs transition-colors"
+                    >
+                      <Phone className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Llamar</span>
+                    </a>
+                  ) : (
+                    <span className="inline-flex items-center justify-center gap-1.5 bg-slate-900 border border-slate-800 text-slate-500 font-semibold px-3 py-2.5 rounded-xl text-[11px]">
+                      <span>Teléfono s/d</span>
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
