@@ -60,14 +60,14 @@ export default function GuiaClient({ initialBusinesses }: GuiaClientProps) {
     async function syncClientBusinesses() {
       let localItems: DirectoryItem[] = [];
 
-      // A. Cargar desde localStorage de socios CRM importados
+      // A. Cargar desde localStorage de socios CRM importados (Solo ACTIVOS en vista pública)
       try {
         const savedSocios = localStorage.getItem("nexativa_socios_crm_v3");
         if (savedSocios) {
           const parsed = JSON.parse(savedSocios);
           if (Array.isArray(parsed)) {
             localItems = parsed
-              .filter((s: any) => s.status === "ACTIVE" || s.status === "DRAFT")
+              .filter((s: any) => s.status === "ACTIVE")
               .map((s: any, idx: number) => ({
                 id: s.id || `local-socio-${idx}`,
                 name: s.name || "Comercio Socio",
@@ -86,25 +86,27 @@ export default function GuiaClient({ initialBusinesses }: GuiaClientProps) {
         }
       } catch (e) {}
 
-      // B. Cargar desde la API backend de importación y perfiles
+      // B. Cargar desde la API backend (Solo comercios ACTIVOS)
       try {
         const res = await fetch("/api/admin/import-businesses");
         const data = await res.json();
         if (data.success && Array.isArray(data.businesses) && data.businesses.length > 0) {
-          const apiItems: DirectoryItem[] = data.businesses.map((b: any, idx: number) => ({
-            id: b.id || `api-b-${idx}`,
-            name: b.name || "Comercio Registrado",
-            category: b.category || "Servicios Locales",
-            address: b.address || "Ituzaingó, Corrientes",
-            city: b.city || "Ituzaingó",
-            whatsapp: b.whatsapp || b.phone || "5493786611250",
-            phone: b.phone || "3786611250",
-            description: b.description || `Comercio adherido en el rubro ${b.category || 'local'}.`,
-            tier: b.tier || "BRONCE",
-            isVerified: b.is_verified ?? true,
-            distance: "Cerca de ti",
-            status: b.status || "ACTIVE",
-          }));
+          const apiItems: DirectoryItem[] = data.businesses
+            .filter((b: any) => b.status === "ACTIVE")
+            .map((b: any, idx: number) => ({
+              id: b.id || `api-b-${idx}`,
+              name: b.name || "Comercio Registrado",
+              category: b.category || "Servicios Locales",
+              address: b.address || "Ituzaingó, Corrientes",
+              city: b.city || "Ituzaingó",
+              whatsapp: b.whatsapp || b.phone || "5493786611250",
+              phone: b.phone || "3786611250",
+              description: b.description || `Comercio adherido en el rubro ${b.category || 'local'}.`,
+              tier: b.tier || "BRONCE",
+              isVerified: b.is_verified ?? true,
+              distance: "Cerca de ti",
+              status: b.status || "ACTIVE",
+            }));
 
           setBusinesses((prev) => {
             const apiIds = new Set(apiItems.map((i) => i.id));
