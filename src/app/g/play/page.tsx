@@ -11,7 +11,7 @@ interface GameQuestion {
   options: string[];
   correctIndex: number;
   explanation: string;
-  bannerOffer?: string; // Oferta/Plato del sponsor para esta pregunta
+  bannerOffer?: string;
 }
 
 const GAME_SECTORS: Record<string, { title: string; subtitle: string; icon: string; defaultOffer: string; questions: GameQuestion[] }> = {
@@ -59,7 +59,7 @@ const GAME_SECTORS: Record<string, { title: string; subtitle: string; icon: stri
     title: "Desafío Gastronómico & Gourmet",
     subtitle: "Completá la trivia gastronómica de 4 niveles y sumá 1.000 Puntos NexaPay.",
     icon: "🍳",
-    defaultOffer: "🔥 Menú de la Semana: Promo 2x1 en Hamburguesas Artesanales + Papas Rústicas.",
+    defaultOffer: "🔥 Menú del Día: Plato de Autor + Bebida con Descuento Exclusivo.",
     questions: [
       {
         id: 1,
@@ -83,7 +83,7 @@ const GAME_SECTORS: Record<string, { title: string; subtitle: string; icon: stri
         options: ["Mate cocido con Chipá mbocá", "Té negro con leche", "Café expreso italiano"],
         correctIndex: 0,
         explanation: "¡Así es! El mate y el chipá mbocá al asador son tradición pura.",
-        bannerOffer: "☕ Merienda Completa: Mate cocido quemado con mermelada artesanal y chipá.",
+        bannerOffer: "☕ Merienda Completa: Mate cocido quemado con mermelada artesanal.",
       },
       {
         id: 4,
@@ -91,7 +91,7 @@ const GAME_SECTORS: Record<string, { title: string; subtitle: string; icon: stri
         options: ["Uso de vegetales de estación y caldo concentrado", "Cocción en microondas", "Servirse helado"],
         correctIndex: 0,
         explanation: "¡Perfecto! Un buen sofrito con vegetales frescos e ingredientes de campo le dan sabor único.",
-        bannerOffer: "🍲 Almuerzo Ejecutivo: Guiso de Campo de cocción lenta a precio especial.",
+        bannerOffer: "🍲 Almuerzo Ejecutivo: Guiso de Campo de cocción lenta.",
       },
     ],
   },
@@ -217,8 +217,16 @@ const GAME_SECTORS: Record<string, { title: string; subtitle: string; icon: stri
   },
 };
 
-// Límites de Stock Diario de Premios Mayores (Para evitar regalos descontrolados)
-const MAX_DAILY_JACKPOTS = 3; 
+// Control de Cupos Semanales de Premios Mayores (3 por semana por comercio)
+const MAX_WEEKLY_JACKPOTS = 3;
+
+function getWeekNumber(d: Date) {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  return Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+}
 
 function GameContent() {
   const searchParams = useSearchParams();
@@ -227,9 +235,10 @@ function GameContent() {
 
   const currentSector = GAME_SECTORS[utmCampaign] || GAME_SECTORS.gastro;
   const [merchantName, setMerchantName] = useState("Comercio Auspiciante");
+  const [merchantData, setMerchantData] = useState<any | null>(null);
 
-  // Control de Stock Diario de Premios Mayores
-  const [jackpotsRemaining, setJackpotsRemaining] = useState(MAX_DAILY_JACKPOTS);
+  // Control de Stock Semanal de Premios Mayores
+  const [jackpotsRemaining, setJackpotsRemaining] = useState(MAX_WEEKLY_JACKPOTS);
 
   // Estado del Juego (4 Preguntas)
   const [currentQIndex, setCurrentQIndex] = useState(0);
@@ -256,20 +265,25 @@ function GameContent() {
     }
     setSessionToken(sess);
 
-    // Cargar stock diario consumido hoy para este comercio
+    // Cargar stock semanal consumido para este comercio
     try {
-      const todayStr = new Date().toISOString().split("T")[0];
-      const stockKey = `jackpot_stock_${utmSource}_${todayStr}`;
-      const usedToday = Number(localStorage.getItem(stockKey) || 0);
-      setJackpotsRemaining(Math.max(0, MAX_DAILY_JACKPOTS - usedToday));
+      const weekNum = getWeekNumber(new Date());
+      const year = new Date().getFullYear();
+      const stockKey = `jackpot_stock_weekly_${utmSource}_${year}_W${weekNum}`;
+      const usedThisWeek = Number(localStorage.getItem(stockKey) || 0);
+      setJackpotsRemaining(Math.max(0, MAX_WEEKLY_JACKPOTS - usedThisWeek));
     } catch (e) {}
 
+    // Leer datos del comercio desde localStorage / CRM
     try {
       const savedSocios = localStorage.getItem("nexativa_socios_crm_v3");
       if (savedSocios) {
         const list = JSON.parse(savedSocios);
         const found = list.find((s: any) => s.id === utmSource || s.name.toLowerCase().includes(utmSource.toLowerCase()));
-        if (found) setMerchantName(found.name);
+        if (found) {
+          setMerchantName(found.name);
+          setMerchantData(found);
+        }
       }
     } catch (e) {}
 
@@ -350,16 +364,34 @@ function GameContent() {
   const handleClaimJackpotTreasure = () => {
     if (jackpotsRemaining <= 0) return;
     try {
-      const todayStr = new Date().toISOString().split("T")[0];
-      const stockKey = `jackpot_stock_${utmSource}_${todayStr}`;
-      const usedToday = Number(localStorage.getItem(stockKey) || 0);
-      localStorage.setItem(stockKey, String(usedToday + 1));
-      setJackpotsRemaining(Math.max(0, MAX_DAILY_JACKPOTS - (usedToday + 1)));
+      const weekNum = getWeekNumber(new Date());
+      const year = new Date().getFullYear();
+      const stockKey = `jackpot_stock_weekly_${utmSource}_${year}_W${weekNum}`;
+      const usedThisWeek = Number(localStorage.getItem(stockKey) || 0);
+      localStorage.setItem(stockKey, String(usedThisWeek + 1));
+      setJackpotsRemaining(Math.max(0, MAX_WEEKLY_JACKPOTS - (usedThisWeek + 1)));
     } catch (e) {}
     setShowTreasureMode(true);
   };
 
+  // Dinámica de rotación de ofertas del perfil del cliente en cada pregunta
   const q = currentSector.questions[currentQIndex];
+  const dynamicBannerOffer = React.useMemo(() => {
+    if (!merchantData) return q.bannerOffer || currentSector.defaultOffer;
+
+    switch (currentQIndex) {
+      case 0:
+        return `🔥 ${merchantData.name}: ${merchantData.description || 'Promoción especial en el rubro ' + merchantData.category}`;
+      case 1:
+        return `📍 Ubicación de ${merchantData.name}: ${merchantData.address || 'Ituzaingó, Corrientes'} • Consultas por WhatsApp`;
+      case 2:
+        return `⭐ Comercio Adherido en ${merchantData.category} • Beneficios en consumo presencial`;
+      case 3:
+        return `🎉 ¡Sumá Puntos NexaPay y canjeá tu descuento en ${merchantData.name}!`;
+      default:
+        return currentSector.defaultOffer;
+    }
+  }, [merchantData, currentQIndex, q.bannerOffer, currentSector.defaultOffer]);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans pb-28 selection:bg-cyan-500 selection:text-slate-950">
@@ -388,7 +420,7 @@ function GameContent() {
             <span className="text-3xl">{currentSector.icon}</span>
             <div>
               <span className="text-[10px] font-black uppercase text-cyan-400 tracking-widest block">
-                NORA AI • DESAFÍO DE 4 NIVELES
+                NORA AI • TRIVIA DE 4 NIVELES
               </span>
               <h1 className="text-lg font-black text-white leading-tight">{currentSector.title}</h1>
             </div>
@@ -396,12 +428,12 @@ function GameContent() {
           <p className="text-xs text-slate-300 leading-relaxed font-light">{currentSector.subtitle}</p>
         </div>
 
-        {/* BANNER SHOWCASE PUBLICITARIO PERMANENTE DEL SPONSOR */}
-        <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-2xl mb-6 flex items-center gap-3 animate-pulse">
+        {/* BANNER SHOWCASE PUBLICITARIO DINÁMICO QUE LEE EL PERFIL DEL COMERCIO */}
+        <div className="bg-amber-500/10 border border-amber-500/30 p-3.5 rounded-2xl mb-6 flex items-center gap-3 animate-fade-in shadow-lg">
           <Flame className="w-5 h-5 text-amber-400 flex-shrink-0" />
           <div className="text-xs">
-            <span className="font-bold text-amber-300 block uppercase text-[10px]">OFERTA DESTACADA DE {merchantName.toUpperCase()}:</span>
-            <span className="text-slate-200 font-semibold">{q.bannerOffer || currentSector.defaultOffer}</span>
+            <span className="font-bold text-amber-300 block uppercase text-[10px]">OFERTA DEL ANUNCIANTE ({merchantName.toUpperCase()}):</span>
+            <span className="text-slate-100 font-semibold">{dynamicBannerOffer}</span>
           </div>
         </div>
 
@@ -462,7 +494,7 @@ function GameContent() {
             )}
           </div>
         ) : (
-          /* Pantalla de Elección Dual de Recompensa con Control de Stock Diario */
+          /* Pantalla de Elección Dual con Control Semanal y Regla de Consumición Mínima */
           <div className="bg-slate-900 border border-emerald-500/40 rounded-3xl p-6 text-center space-y-6 shadow-2xl animate-fade-in">
             <div className="inline-flex p-4 bg-emerald-500/20 rounded-full text-emerald-400">
               <Trophy className="w-12 h-12" />
@@ -474,10 +506,10 @@ function GameContent() {
               </p>
             </div>
 
-            {/* Badge de Control de Cupos Diarios de Premios Mayores */}
-            <div className="inline-flex items-center gap-1.5 bg-slate-950 border border-slate-800 text-amber-300 text-[11px] font-bold px-3 py-1.5 rounded-full">
+            {/* Control de Cupos Semanales */}
+            <div className="inline-flex items-center gap-1.5 bg-slate-950 border border-slate-800 text-amber-300 text-[11px] font-bold px-3.5 py-1.5 rounded-full">
               <Tag className="w-3.5 h-3.5 text-amber-400" />
-              <span>Premios Mayores del Día: {jackpotsRemaining} / {MAX_DAILY_JACKPOTS} disponibles</span>
+              <span>Premios Mayores de la Semana: {jackpotsRemaining} / {MAX_WEEKLY_JACKPOTS} disponibles</span>
             </div>
 
             {!showTreasureMode ? (
@@ -497,20 +529,24 @@ function GameContent() {
                   <span>🎟️ CANJEAR DESCUENTO EN MOSTRADOR (1.000 PTS)</span>
                 </button>
 
-                {/* OPCIÓN B: BÚSQUEDA DEL TESORO (CON VERIFICACIÓN DE STOCK) */}
+                {/* OPCIÓN B: BÚSQUEDA DEL TESORO CON CONSUMISIÓN MÍNIMA Y CUPO SEMANAL */}
                 {jackpotsRemaining > 0 ? (
                   <button
                     onClick={handleClaimJackpotTreasure}
                     className="w-full py-4 px-4 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs shadow-xl shadow-amber-500/25 flex items-center justify-center gap-2 active:scale-95 transition-transform"
                   >
-                    <span>🍔 IR POR LA HAMBURGUESA COMPLETA (Quedan {jackpotsRemaining} hoy)</span>
+                    <span>🍔 IR POR LA HAMBURGUESA COMPLETA (Quedan {jackpotsRemaining} esta semana)</span>
                   </button>
                 ) : (
                   <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs text-slate-400 flex items-center justify-center gap-2">
                     <AlertTriangle className="w-4 h-4 text-amber-400" />
-                    <span>El cupo del premio mayor de hoy fue alcanzado ({MAX_DAILY_JACKPOTS}/{MAX_DAILY_JACKPOTS}). ¡Usá tus 1.000 Pts para el descuento directo!</span>
+                    <span>El cupo semanal del premio mayor fue alcanzado ({MAX_WEEKLY_JACKPOTS}/{MAX_WEEKLY_JACKPOTS}). ¡Usá tus 1.000 Pts para el descuento directo!</span>
                   </div>
                 )}
+
+                <p className="text-[10px] text-slate-400 leading-tight">
+                  * El Premio Mayor de la Hamburguesa Completa es válido por 1 consumición previa en el local (ej. bebida/entrada) los días Sábados o según disponibilidad del restaurante.
+                </p>
               </div>
             ) : (
               /* MODO BÚSQUEDA DEL TESORO REVELADO */
@@ -521,11 +557,11 @@ function GameContent() {
                 </div>
 
                 <p className="text-xs text-amber-100 leading-relaxed">
-                  ¡Excelente decisión! El <strong>Premio Mayor Gratis (Stock: {jackpotsRemaining} disponible hoy)</strong> está oculto dentro de uno de los artículos de noticias o en la sección de Empleos de Nexativa News.
+                  ¡Excelente decisión! El <strong>Premio Mayor (Quedan {jackpotsRemaining} disponibles esta semana)</strong> está oculto dentro de uno de los artículos de noticias o en la sección de Empleos de Nexativa News.
                 </p>
 
                 <div className="p-3 bg-slate-950/80 rounded-xl border border-amber-500/30 text-xs text-amber-200">
-                  💡 <strong>Pista Secreta de Nora AI:</strong> Navegá por las noticias de hoy o la Guía Comercial. Buscá el ícono de la <strong>Hamburguesa Dorada 🍔🎁</strong> al pie de los artículos para reclamar tu premio directo sin costo.
+                  💡 <strong>Pista Secreta de Nora AI:</strong> Navegá por las noticias de hoy o la Guía Comercial. Buscá el ícono de la <strong>Hamburguesa Dorada 🍔🎁</strong> al pie de los artículos para reclamar tu premio. Válido con 1 consumición previa en el local.
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 pt-2">
