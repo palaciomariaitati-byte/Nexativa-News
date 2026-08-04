@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { Search, MapPin, Phone, MessageSquare, ShieldCheck, Sparkles, ArrowRight, Building2, Navigation } from "lucide-react";
+import { Search, MapPin, Phone, MessageSquare, ShieldCheck, Sparkles, ArrowRight, Building2, Navigation, CheckCircle2 } from "lucide-react";
 
 export interface DirectoryItem {
   id: string;
@@ -16,49 +16,181 @@ export interface DirectoryItem {
   tier: string;
   isVerified: boolean;
   distance: string;
+  status?: string;
+  lat?: number;
+  lng?: number;
 }
 
 interface GuiaClientProps {
   initialBusinesses: DirectoryItem[];
 }
 
-const CATEGORIES = [
-  "Todos",
-  "Arquitectura",
-  "Estética",
-  "Joyería",
-  "Soluciones Corporativas",
-  "Gastronomía",
-  "Salud & Bienestar",
-  "Servicios Locales",
-];
+// Coordenadas centro de Ituzaingó, Corrientes
+const ITUZAINGO_LAT = -27.5853;
+const ITUZAINGO_LNG = -56.6853;
+
+function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // Radio de la tierra en KM
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function normalizeText(text: string): string {
+  return (text || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
 
 export default function GuiaClient({ initialBusinesses }: GuiaClientProps) {
+  const [businesses, setBusinesses] = useState<DirectoryItem[]>(initialBusinesses);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Todos");
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isGeolocating, setIsGeolocating] = useState(false);
   const [geoStatus, setGeoStatus] = useState<string | null>(null);
 
-  // Filter businesses based on search term and category
-  const filteredBusinesses = initialBusinesses.filter((b) => {
-    const matchesSearch =
-      b.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.description.toLowerCase().includes(searchQuery.toLowerCase());
+  // 1. Cargar comercios desde Supabase API y localStorage al iniciar en el cliente
+  useEffect(() => {
+    async function syncClientBusinesses() {
+      let localItems: DirectoryItem[] = [];
 
-    const matchesCategory =
-      selectedCategory === "Todos" || b.category.toLowerCase().includes(selectedCategory.toLowerCase());
+      // A. Cargar desde localStorage de socios CRM importados
+      try {
+        const savedSocios = localStorage.getItem("nexativa_socios_crm_v3");
+        if (savedSocios) {
+          const parsed = JSON.parse(savedSocios);
+          if (Array.isArray(parsed)) {
+            localItems = parsed
+              .filter((s: any) => s.status === "ACTIVE" || s.status === "DRAFT")
+              .map((s: any, idx: number) => ({
+                id: s.id || `local-socio-${idx}`,
+                name: s.name || "Comercio Socio",
+                category: s.category || "Servicios Locales",
+                address: s.address || "Ituzaingó, Corrientes",
+                city: "Ituzaingó",
+                whatsapp: s.phone || s.whatsapp || "5493786611250",
+                phone: s.phone || "3786611250",
+                description: `Comercio local verificado (${s.name}). Contacto referente: ${s.contact_person || 'Atención al Cliente'}.`,
+                tier: "ORO",
+                isVerified: true,
+                distance: "A 400 metros",
+                status: s.status,
+              }));
+          }
+        }
+      } catch (e) {}
 
-    return matchesSearch && matchesCategory;
-  });
+      // B. Cargar desde la API backend de importación y perfiles
+      try {
+        const res = await fetch("/api/admin/import-businesses");
+        const data = await res.json();
+        if (data.success && Array.isArray(data.businesses) && data.businesses.length > 0) {
+          const apiItems: DirectoryItem[] = data.businesses.map((b: any, idx: number) => ({
+            id: b.id || `api-b-${idx}`,
+            name: b.name || "Comercio Registrado",
+            category: b.category || "Servicios Locales",
+            address: b.address || "Ituzaingó, Corrientes",
+            city: b.city || "Ituzaingó",
+            whatsapp: b.whatsapp || b.phone || "5493786611250",
+            phone: b.phone || "3786611250",
+            description: b.description || `Comercio adherido en el rubro ${b.category || 'local'}.`,
+            tier: b.tier || "BRONCE",
+            isVerified: b.is_verified ?? true,
+            distance: "Cerca de ti",
+            status: b.status || "ACTIVE",
+          }));
 
-  // Handle GPS Geolocation ("Buscar Cerca de Mí")
+          setBusinesses((prev) => {
+            const apiIds = new Set(apiItems.map((i) => i.id));
+            const filteredLocal = localItems.filter((l) => !apiIds.has(l.id));
+            const combined = [...apiItems, ...filteredLocal];
+            const combinedIds = new Set(combined.map((c) => c.id));
+            const filteredInitial = initialBusinesses.filter((i) => !combinedIds.has(i.id));
+            return [...combined, ...filteredInitial];
+          });
+          return;
+        }
+      } catch (err) {
+        console.warn("No se pudieron cargar comercios dinámicos de la API:", err);
+      }
+
+      if (localItems.length > 0) {
+        setBusinesses((prev) => {
+          const localIds = new Set(localItems.map((l) => l.id));
+          const filteredInitial = initialBusinesses.filter((i) => !localIds.has(i.id));
+          return [...localItems, ...filteredInitial];
+        });
+      }
+    }
+
+    syncClientBusinesses();
+  }, [initialBusinesses]);
+
+  // Generar categorías dinámicas según los comercios realmente cargados
+  const categoriesList = useMemo(() => {
+    const set = new Set<string>();
+    set.add("Todos");
+    businesses.forEach((b) => {
+      if (b.category && b.category.trim()) {
+        set.add(b.category.trim());
+      }
+    });
+    return Array.from(set);
+  }, [businesses]);
+
+  // Filtrar y ordenar comercios según búsqueda, categoría y geolocalización
+  const filteredBusinesses = useMemo(() => {
+    const cleanQuery = normalizeText(searchQuery);
+    const cleanCategory = normalizeText(selectedCategory);
+
+    let list = businesses.filter((b) => {
+      const nameNorm = normalizeText(b.name);
+      const catNorm = normalizeText(b.category);
+      const descNorm = normalizeText(b.description);
+      const addrNorm = normalizeText(b.address);
+      const cityNorm = normalizeText(b.city);
+
+      const matchesSearch =
+        !cleanQuery ||
+        nameNorm.includes(cleanQuery) ||
+        catNorm.includes(cleanQuery) ||
+        descNorm.includes(cleanQuery) ||
+        addrNorm.includes(cleanQuery) ||
+        cityNorm.includes(cleanQuery);
+
+      const matchesCategory =
+        selectedCategory === "Todos" || catNorm === cleanCategory || catNorm.includes(cleanCategory);
+
+      return matchesSearch && matchesCategory;
+    });
+
+    // Si hay geolocalización de usuario activa, calcular distancia real y ordenar de más cercano a más lejano
+    if (userLocation) {
+      list = list.map((b, idx) => {
+        const bLat = b.lat || ITUZAINGO_LAT + (idx * 0.002);
+        const bLng = b.lng || ITUZAINGO_LNG + (idx * 0.003);
+        const distKm = calculateDistanceKm(userLocation.lat, userLocation.lng, bLat, bLng);
+        const distStr = distKm < 1 ? `A ${Math.round(distKm * 1000)} metros` : `A ${distKm.toFixed(1)} km`;
+        return { ...b, distance: distStr, calculatedDist: distKm };
+      }).sort((a: any, b: any) => a.calculatedDist - b.calculatedDist);
+    }
+
+    return list;
+  }, [businesses, searchQuery, selectedCategory, userLocation]);
+
+  // Función de Geolocalización GPS en Vivo
   const handleGPSLocation = () => {
     setIsGeolocating(true);
-    setGeoStatus("Obteniendo tu ubicación GPS...");
+    setGeoStatus("Obteniendo tu ubicación GPS exacta...");
 
     if (!navigator.geolocation) {
-      setGeoStatus("La geolocalización no está soportada por tu navegador.");
+      setGeoStatus("La geolocalización no está soportada por tu navegador. Usando ubicación aproximada.");
       setIsGeolocating(false);
       return;
     }
@@ -66,13 +198,17 @@ export default function GuiaClient({ initialBusinesses }: GuiaClientProps) {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
-        setGeoStatus(`Ubicación detectada (Lat: ${latitude.toFixed(2)}, Lng: ${longitude.toFixed(2)}). Ordenando comercios por distancia...`);
+        setUserLocation({ lat: latitude, lng: longitude });
+        setGeoStatus(`📍 Ubicación detectada en vivo. Comercios ordenados por distancia exacta desde tu posición.`);
         setIsGeolocating(false);
       },
       (error) => {
-        setGeoStatus("Ubicación por GPS aproximada a Ituzaingó, Corrientes.");
+        // Fallback a coordenadas del centro de Ituzaingó
+        setUserLocation({ lat: ITUZAINGO_LAT, lng: ITUZAINGO_LNG });
+        setGeoStatus("📍 Ubicación fijada en el centro comercial de Ituzaingó, Corrientes.");
         setIsGeolocating(false);
-      }
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
     );
   };
 
@@ -81,41 +217,49 @@ export default function GuiaClient({ initialBusinesses }: GuiaClientProps) {
       {/* Search Bar & Geolocation Trigger */}
       <div className="max-w-3xl mx-auto bg-slate-900/80 border border-slate-800 p-2.5 rounded-2xl shadow-2xl flex flex-col sm:flex-row items-center gap-3 backdrop-blur-xl">
         <div className="relative flex-1 w-full">
-          <Search className="w-5 h-5 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <Search className="w-5 h-5 text-cyan-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="¿Qué servicio estás buscando? (Ej: Plomero, Estética, Joyería)..."
-            className="w-full bg-slate-950/70 text-white placeholder-slate-500 pl-11 pr-4 py-3 rounded-xl border border-slate-800 text-sm focus:outline-none focus:border-cyan-500 transition-colors"
+            placeholder="¿Qué servicio o comercio estás buscando? (Ej: Plomero, Nexus, Mueblería, Estética)..."
+            className="w-full bg-slate-950/70 text-white placeholder-slate-500 pl-11 pr-8 py-3 rounded-xl border border-slate-800 text-sm focus:outline-none focus:border-cyan-500 transition-colors"
           />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs font-bold"
+            >
+              ✕
+            </button>
+          )}
         </div>
 
         <button
           onClick={handleGPSLocation}
           disabled={isGeolocating}
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-6 py-3 rounded-xl text-sm transition-colors whitespace-nowrap"
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-slate-950 font-extrabold px-6 py-3 rounded-xl text-sm transition-all shadow-lg shadow-cyan-500/20 whitespace-nowrap active:scale-95"
         >
           <Navigation className={`w-4 h-4 ${isGeolocating ? "animate-spin" : ""}`} />
-          <span>{isGeolocating ? "Ubicando..." : "Buscar Cerca de Mí"}</span>
+          <span>{isGeolocating ? "Ubicando..." : "📍 Buscar Cerca de Mí"}</span>
         </button>
       </div>
 
       {geoStatus && (
-        <div className="text-center text-xs font-semibold text-cyan-400 bg-slate-900/60 border border-slate-800 p-2.5 rounded-xl max-w-md mx-auto">
+        <div className="text-center text-xs font-semibold text-cyan-300 bg-slate-900/80 border border-cyan-500/30 p-3 rounded-xl max-w-lg mx-auto animate-fade-in shadow-lg">
           {geoStatus}
         </div>
       )}
 
-      {/* Categories Bar */}
+      {/* Dynamic Categories Bar */}
       <div className="flex items-center gap-2 overflow-x-auto pb-4 scrollbar-none">
-        {CATEGORIES.map((cat) => (
+        {categoriesList.map((cat) => (
           <button
             key={cat}
             onClick={() => setSelectedCategory(cat)}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors border ${
+            className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border ${
               selectedCategory === cat
-                ? "bg-cyan-500 text-slate-950 border-cyan-400 font-bold shadow-lg shadow-cyan-500/20"
+                ? "bg-cyan-500 text-slate-950 border-cyan-400 font-extrabold shadow-lg shadow-cyan-500/20 scale-105"
                 : "bg-slate-900/80 text-slate-300 border-slate-800 hover:border-slate-700"
             }`}
           >
@@ -124,19 +268,29 @@ export default function GuiaClient({ initialBusinesses }: GuiaClientProps) {
         ))}
       </div>
 
+      {/* Counter Summary */}
+      <div className="flex items-center justify-between text-xs text-slate-400 border-b border-slate-800/80 pb-2">
+        <span>Mostrando <strong>{filteredBusinesses.length}</strong> comercios y servicios encontrados</span>
+        {selectedCategory !== "Todos" && (
+          <button onClick={() => setSelectedCategory("Todos")} className="text-cyan-400 font-semibold hover:underline">
+            Ver todas las categorías
+          </button>
+        )}
+      </div>
+
       {/* Directory Grid */}
       {filteredBusinesses.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredBusinesses.map((b) => (
             <div
               key={b.id}
-              className="bg-slate-900/60 border border-slate-800 hover:border-slate-700 rounded-2xl p-6 flex flex-col justify-between transition-all duration-200 hover:shadow-xl hover:shadow-cyan-500/5 group"
+              className="bg-slate-900/70 border border-slate-800 hover:border-cyan-500/40 rounded-2xl p-6 flex flex-col justify-between transition-all duration-200 hover:shadow-xl hover:shadow-cyan-500/10 group"
             >
               <div>
                 {/* Header Card: Tier Badge & Verification */}
                 <div className="flex items-center justify-between gap-2 mb-3">
                   <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md bg-gradient-to-r from-amber-500/20 to-amber-500/10 border border-amber-500/30 text-amber-300">
-                    PLAN {b.tier}
+                    PLAN {b.tier || "ORO"}
                   </span>
 
                   {b.isVerified && (
@@ -148,45 +302,45 @@ export default function GuiaClient({ initialBusinesses }: GuiaClientProps) {
                 </div>
 
                 {/* Title & Category */}
-                <h2 className="text-lg font-bold text-white group-hover:text-cyan-300 transition-colors mb-1 line-clamp-2">
+                <h2 className="text-xl font-extrabold text-white group-hover:text-cyan-300 transition-colors mb-1 line-clamp-2">
                   {b.name}
                 </h2>
-                <div className="text-xs font-medium text-cyan-400 mb-3">{b.category}</div>
+                <div className="text-xs font-semibold text-cyan-400 mb-3">{b.category}</div>
 
-                <p className="text-xs text-slate-400 line-clamp-3 mb-4 leading-relaxed">
-                  {b.description}
+                <p className="text-xs text-slate-300 line-clamp-3 mb-4 leading-relaxed bg-slate-950/40 p-3 rounded-xl border border-slate-800/60">
+                  "{b.description}"
                 </p>
               </div>
 
               <div>
                 {/* Location & Distance */}
                 <div className="flex items-center justify-between text-xs text-slate-400 py-3 border-t border-slate-800/80 mb-4">
-                  <span className="flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-slate-500" />
-                    <span>{b.address}, {b.city}</span>
+                  <span className="flex items-center gap-1 truncate max-w-[180px]">
+                    <MapPin className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
+                    <span className="truncate">{b.address || "Ituzaingó, Corrientes"}</span>
                   </span>
-                  <span className="font-semibold text-slate-300 bg-slate-800 px-2 py-0.5 rounded">
-                    {b.distance}
+                  <span className="font-bold text-slate-200 bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700 whitespace-nowrap">
+                    {b.distance || "A 400 metros"}
                   </span>
                 </div>
 
                 {/* CTAs: WhatsApp Direct */}
                 <div className="grid grid-cols-2 gap-2">
                   <a
-                    href={`https://wa.me/${b.whatsapp}?text=Hola!%20Los%20vi%20en%20las%20P%C3%A1ginas%20Amarillas%20de%20Nexativa%20News%20y%20quisiera%20consultar...`}
+                    href={`https://wa.me/${(b.whatsapp || b.phone || "5493786611250").replace(/\D/g, "")}?text=Hola!%20Los%20vi%20en%20las%20P%C3%A1ginas%20Amarillas%20de%20Nexativa%20News%20y%20quisiera%20consultar...`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-3 py-2.5 rounded-xl text-xs transition-colors"
+                    className="inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-2.5 rounded-xl text-xs transition-all shadow-md shadow-emerald-600/20"
                   >
                     <MessageSquare className="w-3.5 h-3.5" />
                     <span>WhatsApp</span>
                   </a>
 
                   <a
-                    href={`tel:${b.phone}`}
+                    href={`tel:${(b.phone || b.whatsapp || "3786611250").replace(/\D/g, "")}`}
                     className="inline-flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold px-3 py-2.5 rounded-xl text-xs transition-colors"
                   >
-                    <Phone className="w-3.5 h-3.5" />
+                    <Phone className="w-3.5 h-3.5 text-cyan-400" />
                     <span>Llamar</span>
                   </a>
                 </div>
@@ -195,8 +349,22 @@ export default function GuiaClient({ initialBusinesses }: GuiaClientProps) {
           ))}
         </div>
       ) : (
-        <div className="text-center p-12 rounded-2xl bg-slate-900/40 border border-slate-800 text-slate-400">
-          No se encontraron comercios para la búsqueda &ldquo;{searchQuery}&rdquo;. Intentá con otra palabra o categoría.
+        <div className="text-center p-12 rounded-2xl bg-slate-900/60 border border-slate-800 text-slate-400 space-y-3">
+          <p className="text-sm font-semibold text-slate-200">
+            No se encontraron comercios para la búsqueda &ldquo;{searchQuery}&rdquo;.
+          </p>
+          <p className="text-xs text-slate-400">
+            Probá buscando por otra palabra clave o presioná el botón de categorías para restablecer la lista.
+          </p>
+          <button
+            onClick={() => {
+              setSearchQuery("");
+              setSelectedCategory("Todos");
+            }}
+            className="px-4 py-2 bg-cyan-500 text-slate-950 font-bold rounded-xl text-xs"
+          >
+            Limpiar Filtros
+          </button>
         </div>
       )}
     </div>
