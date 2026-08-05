@@ -6,6 +6,28 @@ import type { Article, NewsCategory } from "@/lib/types";
 import { NEWS_TAB_LABELS } from "@/lib/types";
 
 // ----------------------------------------------------------------
+// Helper sanitize text
+// ----------------------------------------------------------------
+function sanitizeExcerpt(raw: string | null): string {
+  if (!raw) return "";
+  let text = raw
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ");
+
+  // Remover cualquier etiqueta HTML
+  text = text.replace(/<[^>]+>/g, "").trim();
+
+  // Remover URLs pegadas en la descripción
+  text = text.replace(/https?:\/\/\S+/gi, "").trim();
+
+  return text;
+}
+
+// ----------------------------------------------------------------
 // Props
 // ----------------------------------------------------------------
 interface NewsTabsProps {
@@ -33,40 +55,30 @@ export default function NewsTabs({
     [initialTab]: initialArticles,
   });
 
-  // ----- Fetch helper (runs only on tab change, NOT on every render) -----
+  // ----- Fetch helper (Estricto por categoría elegida) -----
   const fetchArticles = useCallback(async (category: NewsCategory) => {
     const supabase = getSupabaseBrowserClient();
     const { data, error: dbError } = await supabase
       .from("articles")
       .select("id, title, excerpt, image_url, category, created_at, external_url")
       .eq("status", "published")
-      .or(`category.eq.${category},category.eq.general,category.is.null`)
+      .eq("category", category) // Búsqueda ESTRICTA por rubro
       .order("created_at", { ascending: false })
       .limit(20);
 
-    if (!dbError && data && data.length > 0) {
-      return data as unknown as Article[];
-    }
-
-    const { data: fallback } = await supabase
-      .from("articles")
-      .select("id, title, excerpt, image_url, category, created_at, external_url")
-      .eq("status", "published")
-      .order("created_at", { ascending: false })
-      .limit(20);
-
-    return (fallback ?? []) as unknown as Article[];
+    if (dbError) throw dbError;
+    return (data ?? []) as unknown as Article[];
   }, []);
 
   // ----- Tab switch handler -----
   const handleTabChange = useCallback(
     async (label: string) => {
-      if (label === activeTab) return; // already active
+      if (label === activeTab) return; // ya activo
 
       setActiveTab(label);
       setError(null);
 
-      // Serve from cache if available
+      // Si ya está en caché, usarlo
       if (cacheRef.current[label]) {
         setArticles(cacheRef.current[label]);
         return;
@@ -81,7 +93,7 @@ export default function NewsTabs({
         setArticles(data);
       } catch (err) {
         console.error("Error fetching articles:", err);
-        setError("Error al cargar las noticias. Intenta nuevamente.");
+        setError("Error al cargar las noticias de esta categoría.");
         setArticles([]);
       } finally {
         setLoading(false);
@@ -90,33 +102,28 @@ export default function NewsTabs({
     [activeTab, fetchArticles]
   );
 
-  // ----- Sync when initialArticles change (e.g. page revalidation) -----
   useEffect(() => {
     cacheRef.current[initialTab] = initialArticles;
     if (activeTab === initialTab) {
-       
       setArticles(initialArticles);
     }
   }, [initialArticles, initialTab, activeTab]);
 
-  // ----------------------------------------------------------------
-  // Render
-  // ----------------------------------------------------------------
   return (
     <div className="glass-panel overflow-hidden">
       {/* ---- Tab bar ---- */}
-      <div className="flex border-b border-white/10 bg-black/20">
+      <div className="flex border-b border-white/10 bg-black/20 overflow-x-auto">
         {tabLabels.map((label) => (
           <button
             key={label}
             id={`news-tab-${label.toLowerCase()}`}
             onClick={() => handleTabChange(label)}
             className={`
-              flex-1 px-4 py-2.5 text-sm font-semibold tracking-wide
+              flex-1 px-4 py-3 text-xs sm:text-sm font-bold tracking-wide uppercase whitespace-nowrap
               transition-all duration-200 cursor-pointer
               ${
                 activeTab === label
-                  ? "bg-[var(--color-brand-accent)] text-black border-b-2 border-white shadow-sm"
+                  ? "bg-[var(--color-brand-accent)] text-black border-b-2 border-white shadow-sm font-black"
                   : "text-gray-400 hover:text-white hover:bg-white/5"
               }
             `}
@@ -127,15 +134,17 @@ export default function NewsTabs({
       </div>
 
       {/* ---- Content ---- */}
-      <div className="p-3 min-h-[180px]">
+      <div className="p-4 min-h-[220px]">
         {/* Loading skeleton */}
         {loading && (
-          <div className="space-y-3 animate-pulse">
+          <div className="space-y-4 animate-pulse">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="space-y-2">
-                <div className="h-4 bg-white/10 rounded w-3/4" />
-                <div className="h-3 bg-white/5 rounded w-full" />
-                <div className="h-px bg-white/5 mt-2" />
+              <div key={i} className="flex gap-4">
+                <div className="w-24 h-24 bg-white/10 rounded-lg shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-white/10 rounded w-3/4" />
+                  <div className="h-3 bg-white/5 rounded w-full" />
+                </div>
               </div>
             ))}
           </div>
@@ -144,114 +153,90 @@ export default function NewsTabs({
         {/* Error state */}
         {!loading && error && (
           <div className="flex flex-col items-center justify-center py-8 text-center">
-            <svg
-              className="w-10 h-10 text-red-300 mb-3"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"
-              />
-            </svg>
-            <p className="text-sm text-red-500 font-medium">{error}</p>
+            <p className="text-xs text-red-400 font-bold">{error}</p>
           </div>
         )}
 
-        {/* Empty state */}
+        {/* Empty state por categoría */}
         {!loading && !error && articles.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <svg
-              className="w-12 h-12 text-gray-300 mb-3"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V18a2.25 2.25 0 0 0 2.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 0 0 2.25 2.25h13.5"
-              />
-            </svg>
-            <p className="text-sm text-gray-400 font-medium">
-              No hay noticias disponibles en esta categoría
+          <div className="flex flex-col items-center justify-center py-10 text-center space-y-2">
+            <div className="p-3 bg-white/5 rounded-full text-gray-500 mb-1">
+              📰
+            </div>
+            <p className="text-xs font-bold text-gray-300 uppercase tracking-wider">
+              No hay publicaciones recientes en {activeTab}
             </p>
-            <p className="text-xs text-gray-300 mt-1">
-              Vuelve pronto para nuevas publicaciones
+            <p className="text-[11px] text-gray-500 max-w-xs">
+              Sincronizá el bot de ingesta o agregá una fuente RSS del rubro {activeTab} en Ajustes.
             </p>
           </div>
         )}
 
-        {/* Article list */}
+        {/* Lista Estricta de Noticias */}
         {!loading && !error && articles.length > 0 && (
-          <ul className="space-y-2">
+          <ul className="space-y-4">
             {articles.map((article) => {
+              const cleanSummary = sanitizeExcerpt(article.excerpt);
+
               const content = (
-                <div className="flex gap-4 items-start">
+                <div className="flex gap-4 items-start group">
                   {article.image_url && (
                     <img 
                       src={article.image_url} 
                       alt={article.title} 
-                      className="w-24 h-24 sm:w-32 sm:h-32 object-cover rounded-lg border border-white/10 shrink-0" 
+                      className="w-24 h-24 sm:w-32 sm:h-28 object-cover rounded-xl border border-white/10 shrink-0 group-hover:scale-105 transition-transform duration-300" 
                     />
                   )}
                   <div className="flex-1">
-                    <h4 className="font-bold text-sm text-gray-200 group-hover:text-[var(--color-brand-accent)] transition-colors leading-snug">
+                    <h4 className="font-bold text-sm sm:text-base text-gray-100 group-hover:text-[var(--color-brand-accent)] transition-colors leading-snug">
                       {article.title}
                     </h4>
-                  {article.excerpt && (
-                    <p className="text-xs text-gray-400 mt-2 line-clamp-2 leading-relaxed">
-                      {article.excerpt}
-                    </p>
-                  )}
-                  {article.created_at && (
-                    <time className="text-[11px] text-gray-500 mt-2 block">
-                      {new Date(article.created_at).toLocaleDateString("es-AR", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
-                    </time>
-                  )}
+
+                    {cleanSummary && (
+                      <p className="text-xs text-gray-400 mt-2 line-clamp-2 leading-relaxed font-light">
+                        {cleanSummary}
+                      </p>
+                    )}
+
+                    {article.created_at && (
+                      <time className="text-[10px] text-cyan-400 font-mono mt-2 block">
+                        📅 {new Date(article.created_at).toLocaleDateString("es-AR", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </time>
+                    )}
                   </div>
                 </div>
               );
 
-              const rawUrl = (article as any).external_url;
-              const hasExternalUrl = rawUrl && typeof rawUrl === 'string' && rawUrl.trim() !== "" && rawUrl.trim() !== "null";
-
               return (
-                <li
-                  key={article.id}
-                  className="group px-3 py-3 rounded-xl hover:bg-white/5 transition-all duration-300 border border-transparent hover:border-white/10"
-                >
-                  {hasExternalUrl ? (
-                    <a href={rawUrl} target="_blank" rel="noopener noreferrer" className="block w-full h-full">
+                <li key={article.id} className="border-b border-white/5 pb-4 last:border-0 last:pb-0">
+                  {article.external_url ? (
+                    <a
+                      href={article.external_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block hover:no-underline"
+                    >
                       {content}
                     </a>
                   ) : (
-                    <a href={`/noticias/${article.id}`} className="block w-full h-full">
+                    <a href={`/noticias/${article.id}`} className="block hover:no-underline">
                       {content}
                     </a>
                   )}
-                  {/* Legal Notice Ley 11.723 */}
-                  <div className="mt-3 pt-3 border-t border-white/5 text-[10px] text-gray-500">
-                    <p className="mb-1 leading-tight">
-                      <strong>Aviso Legal:</strong> Esta nota fue procesada y adaptada regionalmente por nuestro sistema editorial autónomo bajo el <strong>Derecho de Cita (Ley 11.723)</strong>.
-                    </p>
-                    <a href="https://wa.me/5493786414533" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white underline">
-                      Reportar Error o Solicitar Rectificación
-                    </a>
-                  </div>
                 </li>
               );
             })}
           </ul>
         )}
+      </div>
+
+      {/* Footer Legal Transparente */}
+      <div className="px-4 py-2 bg-black/40 border-t border-white/5 text-[10px] text-gray-500 flex items-center justify-between">
+        <span>Aviso Legal: Notas adaptadas regionalmente bajo el Derecho de Citas (Ley 11.723).</span>
       </div>
     </div>
   );
