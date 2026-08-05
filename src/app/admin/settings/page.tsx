@@ -119,17 +119,48 @@ export default function AdminSettingsPage() {
           </p>
         </div>
 
-        <div className="bg-gradient-to-r from-pink-900/30 to-orange-900/30 border border-pink-500/50 p-4 rounded-xl mb-6">
-          <label className="block text-sm font-bold text-pink-400 mb-2 uppercase">Integración Automática de Redes (Make.com Webhook)</label>
-          <input
-            type="url"
-            name="make_webhook_url"
-            value={settings.make_webhook_url || ""}
-            onChange={handleChange}
-            className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-pink-500"
-            placeholder="Ej: https://hook.eu1.make.com/xxxxxxxxxxxxxxx"
-          />
-          <p className="text-xs text-white/50 mt-2">Pega aquí el enlace de tu Webhook de Make.com. Al publicar una Noticia o Anuncio, el sistema enviará los datos allí automáticamente para que se auto-publiquen en Instagram, Facebook y X.</p>
+        <div className="bg-gradient-to-r from-pink-900/30 to-orange-900/30 border border-pink-500/50 p-4 rounded-xl mb-6 space-y-4">
+          <div>
+            <label className="block text-sm font-bold text-pink-400 mb-2 uppercase">Integración Automática de Redes (Make.com Webhook)</label>
+            <input
+              type="url"
+              name="make_webhook_url"
+              value={settings.make_webhook_url || ""}
+              onChange={handleChange}
+              className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-pink-500 text-xs font-mono"
+              placeholder="Ej: https://hook.eu1.make.com/xxxxxxxxxxxxxxx"
+            />
+            <p className="text-xs text-white/50 mt-1">Pega aquí tu Webhook de Make.com para auto-publicar en redes sociales.</p>
+          </div>
+
+          <div className="pt-3 border-t border-white/10 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-pink-300 mb-1 uppercase">Instagram Graph API Token (Publicación Directa)</label>
+              <input
+                type="text"
+                name="instagram_access_token"
+                value={settings.instagram_access_token || ""}
+                onChange={handleChange}
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white text-xs font-mono focus:outline-none focus:border-pink-500"
+                placeholder="Token de acceso de Meta / Instagram"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-pink-300 mb-1 uppercase">Instagram User ID / ID de Cuenta</label>
+              <input
+                type="text"
+                name="instagram_account_id"
+                value={settings.instagram_account_id || ""}
+                onChange={handleChange}
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white text-xs font-mono focus:outline-none focus:border-pink-500"
+                placeholder="Ej: 178414000000000"
+              />
+            </div>
+          </div>
+          <p className="text-[11px] text-pink-200/70">
+            ⚡ <strong>Publicación Nativa Directa:</strong> Si completás tu Token de Instagram y ID de Cuenta, Nexativa News publicará directamente en tu feed de Instagram sin necesitar servicios externos.
+          </p>
         </div>
 
         <div className="bg-emerald-900/30 border border-emerald-500/50 p-4 rounded-xl mb-6">

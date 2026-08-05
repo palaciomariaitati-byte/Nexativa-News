@@ -161,7 +161,7 @@ export default function NewsEditorPage() {
       if (data) savedId = data.id;
     }
 
-    const wantToPublish = confirm("¿Deseas anunciar esta noticia en Redes Sociales (Make.com) ahora mismo?");
+    const wantToPublish = confirm("¿Deseas anunciar esta noticia en Redes Sociales ahora mismo?");
     if (wantToPublish && savedId) {
       try {
         const res = await fetch("/api/social-publish", {
@@ -170,10 +170,13 @@ export default function NewsEditorPage() {
           body: JSON.stringify({ id: savedId, type: "news" })
         });
         const result = await res.json();
-        if (result.success) alert("¡Noticia enviada a Redes Sociales con éxito!");
-        else alert("Error al enviar a redes: " + result.error);
+        if (result.success) {
+          alert(result.message || "¡Noticia procesada para redes sociales con éxito!");
+        } else {
+          alert("Error al enviar a redes: " + (result.error || "No se pudo completar el webhook"));
+        }
       } catch (err) {
-        alert("Fallo de conexión al disparar el webhook de redes.");
+        alert("Fallo de conexión al disparar el envío a redes.");
       }
     }
 
