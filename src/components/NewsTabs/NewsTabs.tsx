@@ -39,13 +39,23 @@ export default function NewsTabs({
     const { data, error: dbError } = await supabase
       .from("articles")
       .select("id, title, excerpt, image_url, category, created_at, external_url")
-      .eq("category", category)
+      .eq("status", "published")
+      .or(`category.eq.${category},category.eq.general,category.is.null`)
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (!dbError && data && data.length > 0) {
+      return data as unknown as Article[];
+    }
+
+    const { data: fallback } = await supabase
+      .from("articles")
+      .select("id, title, excerpt, image_url, category, created_at, external_url")
       .eq("status", "published")
       .order("created_at", { ascending: false })
       .limit(20);
 
-    if (dbError) throw dbError;
-    return (data ?? []) as unknown as Article[];
+    return (fallback ?? []) as unknown as Article[];
   }, []);
 
   // ----- Tab switch handler -----

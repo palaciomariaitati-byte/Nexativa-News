@@ -4,19 +4,29 @@ import type { Article, Product, Sponsor, StreamVideo } from "../types";
 export async function getPublishedArticles(category: string): Promise<Article[]> {
   try {
     const supabase = createServerSupabaseClient();
+    
+    // Primero intentar buscar por la categoría específica o 'general'
     const { data, error } = await supabase
       .from("articles")
       .select("id, title, excerpt, image_url, category, created_at, external_url")
-      .eq("category", category)
+      .eq("status", "published")
+      .or(`category.eq.${category},category.eq.general,category.is.null`)
+      .order("created_at", { ascending: false })
+      .limit(12);
+
+    if (!error && data && data.length > 0) {
+      return data as unknown as Article[];
+    }
+
+    // Fallback: traer cualquier artículo publicado
+    const { data: fallbackData } = await supabase
+      .from("articles")
+      .select("id, title, excerpt, image_url, category, created_at, external_url")
       .eq("status", "published")
       .order("created_at", { ascending: false })
-      .limit(10);
+      .limit(12);
 
-    if (error) {
-      console.error("Error fetching articles:", error);
-      return [];
-    }
-    return (data || []) as unknown as Article[];
+    return (fallbackData || []) as unknown as Article[];
   } catch (error) {
     console.error("Error in getPublishedArticles:", error);
     return [];

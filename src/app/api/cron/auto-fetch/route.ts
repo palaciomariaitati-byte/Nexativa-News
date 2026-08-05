@@ -5,9 +5,9 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const maxDuration = 60; // 60 seconds max execution time for cron
 
-// Feeds RSS de respaldo gratuitos directos sin apis de terceros
+// Feeds RSS de respaldo gratuitos directos
 const DEFAULT_RSS_FEEDS = [
-  'https://news.google.com/rss?hl=es-419&gl=AR&ceid=AR:es-419', // Google News Argentina en Vivo
+  'https://news.google.com/rss?hl=es-419&gl=AR&ceid=AR:es-419', // Google News Argentina
 ];
 
 function cleanCdata(text: string): string {
@@ -16,6 +16,22 @@ function cleanCdata(text: string): string {
     .replace(/<!\[CDATA\[/g, '')
     .replace(/\]\]>/g, '')
     .trim();
+}
+
+function detectCategoryFromUrlOrText(rssUrl: string, title: string): string {
+  const lowerUrl = rssUrl.toLowerCase();
+  const lowerTitle = title.toLowerCase();
+
+  if (lowerUrl.includes('sports') || lowerUrl.includes('tycsports') || lowerUrl.includes('ole') || lowerTitle.includes('fútbol') || lowerTitle.includes('boca') || lowerTitle.includes('river')) {
+    return 'deportes';
+  }
+  if (lowerUrl.includes('corrientes') || lowerUrl.includes('ituzaing') || lowerUrl.includes('ellitoral') || lowerTitle.includes('corrientes') || lowerTitle.includes('ituzaingó')) {
+    return 'local';
+  }
+  if (lowerUrl.includes('mundo') || lowerUrl.includes('internacional') || lowerTitle.includes('eeuu') || lowerTitle.includes('europa') || lowerTitle.includes('ucrania')) {
+    return 'internacional';
+  }
+  return 'nacional'; // Por defecto Nacional (Coincide con la pestaña por defecto de Nexativa)
 }
 
 function parseRssXml(xmlText: string) {
@@ -28,7 +44,6 @@ function parseRssXml(xmlText: string) {
     const titleMatch = itemXml.match(/<title>([\s\S]*?)<\/title>/i);
     const linkMatch = itemXml.match(/<link>([\s\S]*?)<\/link>/i);
     const descMatch = itemXml.match(/<description>([\s\S]*?)<\/description>/i);
-    const pubDateMatch = itemXml.match(/<pubDate>([\s\S]*?)<\/pubDate>/i);
 
     const title = cleanCdata(titleMatch ? titleMatch[1] : '');
     const link = cleanCdata(linkMatch ? linkMatch[1] : '');
@@ -55,11 +70,19 @@ function parseRssXml(xmlText: string) {
 
 export async function GET(request: Request) {
   try {
-    console.log('[Auto-Fetch] Inicia sincronización automática de noticias multi-fuente...');
+    console.log('[Auto-Fetch] Inicia ingesta inteligente de noticias por categoría...');
 
     const supabase = createServerSupabaseClient();
 
-    // 1. Obtener lista de URLs de RSS (pueden ser múltiples separadas por salto de línea o coma)
+    // Migración automática: cambiar artículos existentes con categoría 'general' a 'nacional'
+    try {
+      await supabase
+        .from('articles')
+        .update({ category: 'nacional' })
+        .or('category.is.null,category.eq.general');
+    } catch (mErr) {}
+
+    // 1. Obtener lista de URLs RSS configuradas
     let rssUrls: string[] = DEFAULT_RSS_FEEDS;
     try {
       const { data: settingsData } = await supabase
@@ -70,7 +93,6 @@ export async function GET(request: Request) {
 
       if (settingsData && settingsData.value && settingsData.value.trim()) {
         const raw = settingsData.value.trim();
-        // Separar por salto de línea o coma
         const splitUrls = raw
           .split(/[\n,]+/)
           .map((u: string) => u.trim())
@@ -81,8 +103,6 @@ export async function GET(request: Request) {
         }
       }
     } catch (sErr) {}
-
-    console.log(`[Auto-Fetch] Extrayendo de ${rssUrls.length} fuentes RSS:`, rssUrls);
 
     // 2. Cargar URLs de artículos existentes para evitar duplicados
     let existingUrls = new Set<string>();
@@ -97,7 +117,7 @@ export async function GET(request: Request) {
       }
     } catch (e) {}
 
-    // 3. Iterar por cada fuente RSS y acumular noticias nuevas
+    // 3. Iterar e insertar noticias con categoría mapeada
     let totalAddedCount = 0;
     const defaultImages = [
       'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1200&q=80',
@@ -115,25 +135,21 @@ export async function GET(request: Request) {
           cache: 'no-store',
         });
 
-        if (!resRss.ok) {
-          console.warn(`[Auto-Fetch] No se pudo leer la fuente: ${rssUrl} (Status ${resRss.status})`);
-          continue;
-        }
+        if (!resRss.ok) continue;
 
         const xmlText = await resRss.text();
         const items = parseRssXml(xmlText);
 
         for (const item of items) {
           const link = item.link;
-          if (!link || existingUrls.has(link)) {
-            continue;
-          }
+          if (!link || existingUrls.has(link)) continue;
 
           const title = item.title;
           const rawContent = item.description || '';
           let cleanExcerpt = rawContent.replace(/<[^>]+>/g, '').trim().substring(0, 180) + '...';
-          if (!cleanExcerpt || cleanExcerpt === '...') cleanExcerpt = 'Noticia de última hora publicada en vivo en Nexativa News.';
+          if (!cleanExcerpt || cleanExcerpt === '...') cleanExcerpt = 'Noticia destacada publicada en vivo en Nexativa News.';
 
+          const category = detectCategoryFromUrlOrText(rssUrl, title);
           const randomImg = defaultImages[totalAddedCount % defaultImages.length];
 
           const payload = {
@@ -142,14 +158,14 @@ export async function GET(request: Request) {
             content: `<p>${rawContent || cleanExcerpt}</p>\n\n<p><i>Fuente oficial: <a href="${link}" target="_blank" rel="noopener noreferrer">Leer nota completa en el portal de origen</a></i></p>`,
             image_url: item.thumbnail || randomImg,
             external_url: link,
-            category: 'general',
+            category: category, // 'nacional' | 'deportes' | 'local' | 'internacional'
             status: 'published',
             created_at: new Date().toISOString(),
           };
 
           const { error: insertError } = await supabase.from('articles').insert([payload]);
           if (!insertError) {
-            console.log(`[Auto-Fetch] ✅ Noticia ingresada: ${title}`);
+            console.log(`[Auto-Fetch] ✅ Noticia ingresada (${category}): ${title}`);
             totalAddedCount++;
             existingUrls.add(link);
           }
@@ -161,7 +177,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `🎉 Sincronización multi-fuente completa. Se añadieron ${totalAddedCount} noticias automáticas desde ${rssUrls.length} fuentes.`,
+      message: `🎉 Ingesta inteligente completa. Se publicaron ${totalAddedCount} noticias visibles en el portal.`,
       added: totalAddedCount,
       sourcesCount: rssUrls.length,
     });
