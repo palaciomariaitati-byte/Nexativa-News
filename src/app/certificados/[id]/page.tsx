@@ -1,7 +1,8 @@
 "use client";
 
-import React, { use } from 'react';
+import React, { use, useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 
 interface CertProps {
   params: Promise<{ id: string }>;
@@ -9,20 +10,96 @@ interface CertProps {
 
 export default function CertificadoPage({ params }: CertProps) {
   const { id } = use(params);
+  const searchParams = useSearchParams();
 
-  // Datos mock / dinámicos para el certificado de prueba
-  const certData = {
+  const queryName = searchParams.get('name');
+  const queryTrade = searchParams.get('trade');
+  const queryCity = searchParams.get('city');
+  const queryScore = searchParams.get('score');
+  const queryBadge = searchParams.get('badge');
+
+  const [certData, setCertData] = useState({
     code: `NEX-ORO-2026-${id.slice(0, 4).toUpperCase()}`,
-    recipientName: id === '3' ? 'Carlos "Charly" Benítez' : 'Pedro González',
-    tradeCategory: id === '3' ? 'Electricista Domiciliario Matriculado' : 'Plomero / Gasista Matriculado',
-    noraScore: id === '3' ? 5.0 : 4.95,
-    reviewsCount: id === '3' ? 32 : 28,
-    badgeLevel: id === '3' ? 'ORGULLO REGIONAL' : 'INSIGNIA ORO',
-    city: 'Ituzaingó',
+    recipientName: queryName || 'Pedro González',
+    tradeCategory: queryTrade || 'Plomero / Gasista Matriculado',
+    noraScore: queryScore ? Number(queryScore) : 4.95,
+    reviewsCount: 28,
+    badgeLevel: queryBadge || 'INSIGNIA ORO',
+    city: queryCity || 'Ituzaingó',
     province: 'Corrientes',
-    issueDate: '02 de Agosto de 2026',
+    issueDate: '05 de Agosto de 2026',
     verifyUrl: `https://www.nexativanews.com.ar/empleos`,
-  };
+  });
+
+  useEffect(() => {
+    async function loadWorkerDetails() {
+      // 1. Si vienen parámetros en la URL, priorizarlos
+      if (queryName && queryTrade) {
+        setCertData({
+          code: `NEX-${(queryBadge || 'ORO').slice(0, 3).toUpperCase()}-2026-${id.slice(0, 4).toUpperCase()}`,
+          recipientName: queryName,
+          tradeCategory: queryTrade,
+          noraScore: queryScore ? Number(queryScore) : 5.0,
+          reviewsCount: 15,
+          badgeLevel: queryBadge || 'BRONCE',
+          city: queryCity || 'Ituzaingó',
+          province: 'Corrientes',
+          issueDate: '05 de Agosto de 2026',
+          verifyUrl: `https://www.nexativanews.com.ar/empleos`,
+        });
+        return;
+      }
+
+      // 2. Si no vienen en la URL, consultar la API dinámicamente
+      try {
+        const res = await fetch('/api/jobs/profiles');
+        const data = await res.json();
+        if (data.success && Array.isArray(data.profiles)) {
+          const found = data.profiles.find((p: any) => p.id === id);
+          if (found) {
+            setCertData({
+              code: `NEX-${(found.badge_level || 'ORO').slice(0, 3).toUpperCase()}-2026-${id.slice(0, 4).toUpperCase()}`,
+              recipientName: found.full_name,
+              tradeCategory: found.trade_category,
+              noraScore: Number(found.nora_score || 5.0),
+              reviewsCount: Number(found.total_reviews || 10),
+              badgeLevel: found.badge_level || 'BRONCE',
+              city: found.city || 'Ituzaingó',
+              province: 'Corrientes',
+              issueDate: '05 de Agosto de 2026',
+              verifyUrl: `https://www.nexativanews.com.ar/empleos`,
+            });
+            return;
+          }
+        }
+      } catch (e) {}
+
+      // 3. Fallback a buffer de localStorage
+      try {
+        const saved = localStorage.getItem('nexativa_job_profiles_v1');
+        if (saved) {
+          const parsed = JSON.parse(saved) || [];
+          const foundLocal = parsed.find((p: any) => p.id === id);
+          if (foundLocal) {
+            setCertData({
+              code: `NEX-${(foundLocal.badge_level || 'ORO').slice(0, 3).toUpperCase()}-2026-${id.slice(0, 4).toUpperCase()}`,
+              recipientName: foundLocal.full_name,
+              tradeCategory: foundLocal.trade_category,
+              noraScore: Number(foundLocal.nora_score || 5.0),
+              reviewsCount: Number(foundLocal.total_reviews || 5),
+              badgeLevel: foundLocal.badge_level || 'BRONCE',
+              city: foundLocal.city || 'Ituzaingó',
+              province: 'Corrientes',
+              issueDate: '05 de Agosto de 2026',
+              verifyUrl: `https://www.nexativanews.com.ar/empleos`,
+            });
+          }
+        }
+      } catch (e) {}
+    }
+
+    loadWorkerDetails();
+  }, [id, queryName, queryTrade, queryCity, queryScore, queryBadge]);
 
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(
     certData.verifyUrl
@@ -33,10 +110,10 @@ export default function CertificadoPage({ params }: CertProps) {
       {/* Botones de Acción (Ocultos al Imprimir) */}
       <div className="print:hidden max-w-4xl w-full flex items-center justify-between gap-4 mb-6 font-sans">
         <Link
-          href="/empleos"
+          href="/admin/jobs"
           className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
         >
-          ← Volver a Empleos
+          ← Volver a la Consola de Empleos
         </Link>
         <div className="flex items-center gap-3">
           <button

@@ -77,58 +77,82 @@ export default function AdminJobsPage() {
     },
   ]);
 
-  // Cargar postulantes dinámicos desde la API y buffer local
-  useEffect(() => {
-    async function loadProfiles() {
-      let localBuffer: Profile[] = [];
-      try {
-        const saved = localStorage.getItem('nexativa_job_profiles_v1');
-        if (saved) {
-          localBuffer = JSON.parse(saved) || [];
-        }
-      } catch (e) {}
-
-      try {
-        const res = await fetch('/api/jobs/profiles');
-        const data = await res.json();
-        if (data.success && Array.isArray(data.profiles) && data.profiles.length > 0) {
-          const apiMapped: Profile[] = data.profiles.map((p: any) => ({
-            id: p.id,
-            full_name: p.full_name,
-            trade_category: p.trade_category,
-            city: p.city || 'Ituzaingó',
-            whatsapp: p.whatsapp,
-            nora_score: Number(p.nora_score || 5.0),
-            total_reviews: Number(p.total_reviews || 0),
-            badge_level: p.badge_level || 'BRONCE',
-            status: p.status || 'ACTIVE',
-          }));
-
-          setProfiles((prev) => {
-            const apiIds = new Set(apiMapped.map((p) => p.id));
-            const filteredLocal = localBuffer.filter((l) => !apiIds.has(l.id));
-            const combined = [...apiMapped, ...filteredLocal];
-            const combinedIds = new Set(combined.map((c) => c.id));
-            const filteredDefault = defaultProfiles.filter((d) => !combinedIds.has(d.id));
-            return [...combined, ...filteredDefault];
-          });
-        } else if (localBuffer.length > 0) {
-          setProfiles((prev) => {
-            const bufferIds = new Set(localBuffer.map((l) => l.id));
-            const filteredDefault = defaultProfiles.filter((d) => !bufferIds.has(d.id));
-            return [...localBuffer, ...filteredDefault];
-          });
-        }
-      } catch (err) {
-        console.warn('Error en AdminJobsPage consultando perfiles:', err);
-        if (localBuffer.length > 0) setProfiles(localBuffer);
-      } finally {
-        setLoading(false);
+  const loadProfiles = async () => {
+    setLoading(true);
+    let localBuffer: Profile[] = [];
+    try {
+      const saved = localStorage.getItem('nexativa_job_profiles_v1');
+      if (saved) {
+        localBuffer = JSON.parse(saved) || [];
       }
-    }
+    } catch (e) {}
 
+    try {
+      const res = await fetch('/api/jobs/profiles');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.profiles) && data.profiles.length > 0) {
+        const apiMapped: Profile[] = data.profiles.map((p: any) => ({
+          id: p.id,
+          full_name: p.full_name,
+          trade_category: p.trade_category,
+          city: p.city || 'Ituzaingó',
+          whatsapp: p.whatsapp,
+          nora_score: Number(p.nora_score || 5.0),
+          total_reviews: Number(p.total_reviews || 0),
+          badge_level: p.badge_level || 'BRONCE',
+          status: p.status || 'ACTIVE',
+        }));
+
+        setProfiles((prev) => {
+          const apiIds = new Set(apiMapped.map((p) => p.id));
+          const filteredLocal = localBuffer.filter((l) => !apiIds.has(l.id));
+          const combined = [...apiMapped, ...filteredLocal];
+          const combinedIds = new Set(combined.map((c) => c.id));
+          const filteredDefault = defaultProfiles.filter((d) => !combinedIds.has(d.id));
+          return [...combined, ...filteredDefault];
+        });
+      } else if (localBuffer.length > 0) {
+        setProfiles((prev) => {
+          const bufferIds = new Set(localBuffer.map((l) => l.id));
+          const filteredDefault = defaultProfiles.filter((d) => !bufferIds.has(d.id));
+          return [...localBuffer, ...filteredDefault];
+        });
+      }
+    } catch (err) {
+      if (localBuffer.length > 0) setProfiles(localBuffer);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     loadProfiles();
   }, []);
+
+  const handleDeleteProfile = async (id: string, name: string) => {
+    if (!confirm(`¿Estás seguro de que deseas eliminar a "${name}" de la consola de empleos?`)) return;
+
+    try {
+      await fetch('/api/jobs/profiles', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+    } catch (e) {}
+
+    // Eliminar de localStorage
+    try {
+      const saved = localStorage.getItem('nexativa_job_profiles_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved) || [];
+        const filtered = parsed.filter((p: any) => p.id !== id);
+        localStorage.setItem('nexativa_job_profiles_v1', JSON.stringify(filtered));
+      }
+    } catch (e) {}
+
+    setProfiles((prev) => prev.filter((p) => p.id !== id));
+    alert(`¡Postulante "${name}" eliminado exitosamente!`);
+  };
 
   return (
     <div className="space-y-6 text-gray-100 font-sans">
@@ -203,41 +227,55 @@ export default function AdminJobsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800">
-                {profiles.map((p) => (
-                  <tr key={p.id} className="hover:bg-gray-800/40 transition-colors">
-                    <td className="p-3 font-semibold text-white">
-                      {p.full_name}
-                      <span className="block text-[11px] text-emerald-400 font-normal">{p.trade_category}</span>
-                    </td>
-                    <td className="p-3">{p.city}</td>
-                    <td className="p-3 font-mono">{p.whatsapp}</td>
-                    <td className="p-3 font-bold text-amber-400">
-                      ⭐ {p.nora_score} ({p.total_reviews} votos)
-                    </td>
-                    <td className="p-3">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
-                        {p.badge_level}
-                      </span>
-                    </td>
-                    <td className="p-3 text-right space-x-2">
-                      <a
-                        href={`https://wa.me/${p.whatsapp}?text=Hola%20${encodeURIComponent(p.full_name)},%20te%20escribimos%20desde%20el%20Panel%20Admin%20de%20Nexativa%20Empleos.`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-2.5 py-1 bg-emerald-600/30 hover:bg-emerald-600/40 text-emerald-300 rounded border border-emerald-500/40 font-bold"
-                      >
-                        💬 Contactar
-                      </a>
-                      <Link
-                        href={`/certificados/${p.id}`}
-                        target="_blank"
-                        className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded border border-amber-500/40 font-bold"
-                      >
-                        📜 Certificado
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
+                {profiles.map((p) => {
+                  const welcomeMessage = `¡Hola, ${p.full_name}! 👋 Te damos la bienvenida a Nexativa Empleos & Oficios en ${p.city}.\n\nTu perfil profesional en el rubro *${p.trade_category}* ya se encuentra activo.\n\n📱 Podés gestionar tus servicios y mostrar tu QR de reputación en tu Panel Móvil aquí:\n👉 https://www.nexativanews.com.ar/prestadores`;
+                  const waUrl = `https://wa.me/${p.whatsapp}?text=${encodeURIComponent(welcomeMessage)}`;
+                  const certUrl = `/certificados/${p.id}?name=${encodeURIComponent(p.full_name)}&trade=${encodeURIComponent(p.trade_category)}&city=${encodeURIComponent(p.city)}&score=${p.nora_score}&badge=${encodeURIComponent(p.badge_level)}`;
+
+                  return (
+                    <tr key={p.id} className="hover:bg-gray-800/40 transition-colors">
+                      <td className="p-3 font-semibold text-white">
+                        {p.full_name}
+                        <span className="block text-[11px] text-emerald-400 font-normal">{p.trade_category}</span>
+                      </td>
+                      <td className="p-3">{p.city}</td>
+                      <td className="p-3 font-mono">{p.whatsapp}</td>
+                      <td className="p-3 font-bold text-amber-400">
+                        ⭐ {p.nora_score} ({p.total_reviews} votos)
+                      </td>
+                      <td className="p-3">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                          {p.badge_level}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right space-x-2">
+                        <a
+                          href={waUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1 bg-emerald-600/30 hover:bg-emerald-600/40 text-emerald-300 rounded border border-emerald-500/40 font-bold"
+                          title="Enviar mensaje de bienvenida por WhatsApp con el link del Panel Móvil"
+                        >
+                          💬 Contactar
+                        </a>
+                        <Link
+                          href={certUrl}
+                          target="_blank"
+                          className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded border border-amber-500/40 font-bold"
+                        >
+                          📜 Certificado
+                        </Link>
+                        <button
+                          onClick={() => handleDeleteProfile(p.id, p.full_name)}
+                          className="px-2 py-1 bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded border border-red-500/30 font-bold"
+                          title="Borrar postulante de la consola"
+                        >
+                          🗑️ Borrar
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}

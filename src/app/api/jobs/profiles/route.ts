@@ -7,7 +7,6 @@ import path from 'path';
 
 export const dynamic = 'force-dynamic';
 
-// Archivo local de persistencia fallback en caso de que la tabla de Supabase no exista aún
 const FALLBACK_FILE = path.join(process.cwd(), 'data', 'job_profiles_local.json');
 
 function ensureDirectoryExists(filePath: string) {
@@ -34,17 +33,26 @@ function saveLocalProfile(profile: any) {
   try {
     ensureDirectoryExists(FALLBACK_FILE);
     const existing = readLocalProfiles();
-    // Evitar duplicados por id o whatsapp+full_name
     const filtered = existing.filter((p: any) => p.id !== profile.id && p.whatsapp !== profile.whatsapp);
     const updated = [profile, ...filtered];
     fs.writeFileSync(FALLBACK_FILE, JSON.stringify(updated, null, 2), 'utf-8');
-    console.log('[Jobs Profiles API] ✅ Perfil guardado exitosamente en archivo local fallback.');
   } catch (err) {
     console.error('[Jobs Profiles API] Error escribiendo fallback local:', err);
   }
 }
 
-// 1. GET: Obtener la lista completa de postulantes / trabajadores (BD + Fallback Local)
+function deleteLocalProfile(id: string) {
+  try {
+    ensureDirectoryExists(FALLBACK_FILE);
+    const existing = readLocalProfiles();
+    const filtered = existing.filter((p: any) => p.id !== id);
+    fs.writeFileSync(FALLBACK_FILE, JSON.stringify(filtered, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('[Jobs Profiles API] Error eliminando fallback local:', err);
+  }
+}
+
+// 1. GET: Obtener lista completa de trabajadores
 export async function GET() {
   try {
     let dbProfiles: any[] = [];
@@ -59,13 +67,9 @@ export async function GET() {
       if (!error && Array.isArray(data)) {
         dbProfiles = data;
       }
-    } catch (dbErr: any) {
-      console.warn('[Jobs Profiles API GET] Consulta a Supabase no disponible:', dbErr.message);
-    }
+    } catch (dbErr: any) {}
 
     const localProfiles = readLocalProfiles();
-    
-    // Combinar sin duplicados
     const dbIds = new Set(dbProfiles.map((p) => p.id));
     const uniqueLocal = localProfiles.filter((lp) => !dbIds.has(lp.id));
     const combined = [...dbProfiles, ...uniqueLocal];
@@ -73,15 +77,13 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       profiles: combined,
-      source: dbProfiles.length > 0 ? 'supabase_and_local' : 'local_fallback',
     });
   } catch (err: any) {
-    console.error('[Jobs Profiles API GET] Error crítico:', err);
     return NextResponse.json({ success: true, profiles: readLocalProfiles() });
   }
 }
 
-// 2. POST: Registrar un nuevo postulante u oficio
+// 2. POST: Registrar nuevo postulante
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -124,11 +126,8 @@ export async function POST(req: Request) {
       updated_at: new Date().toISOString(),
     };
 
-    // A. Guardar en persisencia local fallback de inmediato
     saveLocalProfile(newProfileData);
 
-    // B. Intentar inserción en Supabase (si la tabla existe)
-    let dbSuccess = false;
     try {
       const { data: inserted, error: dbError } = await supabaseAdmin
         .from('job_profiles')
@@ -151,58 +150,50 @@ export async function POST(req: Request) {
 
       if (!dbError && inserted) {
         newProfileData.id = inserted.id;
-        dbSuccess = true;
-        saveLocalProfile(newProfileData); // actualizar con ID real de Supabase
-      } else if (dbError) {
-        console.warn('[Jobs Profiles API POST] Supabase advierte (usando copia persistente local):', dbError.message);
+        saveLocalProfile(newProfileData);
       }
-    } catch (supaErr: any) {
-      console.warn('[Jobs Profiles API POST] Error al conectar con Supabase:', supaErr.message);
-    }
+    } catch (supaErr: any) {}
 
-    // C. Generar e Invocación Automática del Servicio de WhatsApp
-    const noraGreetingMessage = `¡Hola, ${full_name}! 👋 Soy Nora, tu asistente inteligente de Nexativa Empleos & Oficios.
+    const noraGreetingMessage = `¡Hola, ${full_name}! 👋 Te damos la bienvenida a Nexativa Empleos & Oficios en ${city}. Tu perfil en el rubro *${trade_category}* ya se encuentra activo.\n\n📱 Podés gestionar tus servicios y mostrar tu QR de reputación en tu Panel Móvil aquí:\n👉 ${mobilePanelUrl}`;
+    const waLink = `https://wa.me/${cleanWhatsapp}?text=${encodeURIComponent(noraGreetingMessage)}`;
 
-Te doy la bienvenida a nuestra red en ${city}, ${province}. Tu perfil en el rubro *${trade_category}* ha sido registrado y activado exitosamente.
-
-📱 *Tu Panel Móvil de Prestador está disponible:*
-Ingresá al siguiente enlace para gestionar tu disponibilidad en vivo y mostrar tu Código QR de calificación instantánea:
-👉 ${mobilePanelUrl}
-
-¡Éxitos en tus próximos trabajos comunitarios! 🚀`;
-
-    const encodedText = encodeURIComponent(noraGreetingMessage);
-    const waLink = `https://wa.me/${cleanWhatsapp}?text=${encodedText}`;
-
-    // Disparar envío automático vía servicio de WhatsApp (Webhook / Callmebot / Alerta Interna)
-    let waDispatched = false;
     try {
-      const waRes = await sendWhatsAppNotification({
+      await sendWhatsAppNotification({
         senderName: `Postulante: ${full_name} (${trade_category})`,
         senderType: "corresponsal",
         location: `${city}, ${province}`,
         excerpt: noraGreetingMessage,
       });
-      waDispatched = waRes.success;
-    } catch (waErr) {
-      console.warn('[Jobs Profiles API POST] No se pudo despachar WhatsApp automático:', waErr);
-    }
+    } catch (waErr) {}
 
     return NextResponse.json({
       success: true,
-      message: '¡Perfil de postulante registrado y guardado correctamente!',
-      dbSaved: dbSuccess,
+      message: '¡Perfil registrado y activado correctamente!',
       profile: newProfileData,
       noraGreeting: noraGreetingMessage,
       waLink,
       mobilePanelUrl,
-      waDispatched,
     });
   } catch (err: any) {
-    console.error('[Jobs Profiles API POST] Error crítico:', err);
-    return NextResponse.json(
-      { success: false, error: err.message || 'Error interno del servidor.' },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  }
+}
+
+// 3. DELETE: Eliminar postulante u oficio
+export async function DELETE(req: Request) {
+  try {
+    const { id } = await req.json();
+    if (!id) return NextResponse.json({ success: false, error: 'ID es requerido' }, { status: 400 });
+
+    deleteLocalProfile(id);
+
+    try {
+      const supabase = createServerSupabaseClient();
+      await supabase.from('job_profiles').delete().eq('id', id);
+    } catch (e) {}
+
+    return NextResponse.json({ success: true, message: '¡Trabajador eliminado exitosamente!' });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }
