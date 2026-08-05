@@ -1,14 +1,16 @@
 "use client";
 
-import React, { use, useState, useEffect } from 'react';
+import React, { use, useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+
+export const dynamic = 'force-dynamic';
 
 interface CertProps {
   params: Promise<{ id: string }>;
 }
 
-export default function CertificadoPage({ params }: CertProps) {
+function CertificadoContent({ params }: CertProps) {
   const { id } = use(params);
   const searchParams = useSearchParams();
 
@@ -227,5 +229,13 @@ export default function CertificadoPage({ params }: CertProps) {
         }
       `}</style>
     </div>
+  );
+}
+
+export default function CertificadoPage({ params }: CertProps) {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-950 text-slate-300 p-8 text-center">Cargando Certificado...</div>}>
+      <CertificadoContent params={params} />
+    </Suspense>
   );
 }

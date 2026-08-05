@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 
-export default function PrestadoresDashboardPage() {
+export const dynamic = 'force-dynamic';
+
+function PrestadoresContent() {
   const searchParams = useSearchParams();
   const queryId = searchParams.get('id');
   const queryName = searchParams.get('name');
@@ -23,6 +25,7 @@ export default function PrestadoresDashboardPage() {
     totalJobs: 1,
     badge: 'BRONCE',
     whatsapp: '',
+    status: 'ACTIVE',
   });
 
   useEffect(() => {
@@ -49,7 +52,9 @@ export default function PrestadoresDashboardPage() {
             totalJobs: Number(found.total_reviews || 1),
             badge: found.badge_level || 'BRONCE',
             whatsapp: found.whatsapp || '',
+            status: found.status || 'ACTIVE',
           };
+          setIsOnline(found.status !== 'BUSY');
           setProviderData(profileData);
           try {
             localStorage.setItem('nexativa_active_prestador', JSON.stringify(profileData));
@@ -64,6 +69,7 @@ export default function PrestadoresDashboardPage() {
         if (saved) {
           const parsed = JSON.parse(saved);
           if (parsed && parsed.name) {
+            setIsOnline(parsed.status !== 'BUSY');
             setProviderData(parsed);
             return;
           }
@@ -81,7 +87,9 @@ export default function PrestadoresDashboardPage() {
           totalJobs: Number(first.total_reviews || 1),
           badge: first.badge_level || 'BRONCE',
           whatsapp: first.whatsapp || '',
+          status: first.status || 'ACTIVE',
         };
+        setIsOnline(first.status !== 'BUSY');
         setProviderData(profileData);
       } else {
         setProviderData({
@@ -92,6 +100,7 @@ export default function PrestadoresDashboardPage() {
           totalJobs: 1,
           badge: 'BRONCE',
           whatsapp: '',
+          status: 'ACTIVE',
         });
       }
     }
@@ -314,5 +323,13 @@ export default function PrestadoresDashboardPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function PrestadoresDashboardPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#0B0F19] text-gray-300 p-8 text-center">Cargando Panel Móvil...</div>}>
+      <PrestadoresContent />
+    </Suspense>
   );
 }

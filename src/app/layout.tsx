@@ -31,6 +31,9 @@ const inter = Inter({
   display: "swap",
 });
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export const viewport: Viewport = {
   themeColor: "#0B0F19",
 };
