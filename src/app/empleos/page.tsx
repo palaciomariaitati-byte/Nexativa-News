@@ -14,6 +14,7 @@ interface JobProfile {
   nora_score: number;
   total_reviews: number;
   badge_level: string;
+  status?: string;
 }
 
 interface JobOffer {
@@ -31,7 +32,12 @@ export default function EmpleosPage() {
   const [activeTab, setActiveTab] = useState<'oficios' | 'busquedas'>('oficios');
   const [profiles, setProfiles] = useState<JobProfile[]>([]);
   const [offers, setOffers] = useState<JobOffer[]>([]);
+  const [onlyAvailable, setOnlyAvailable] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const displayProfiles = profiles
+    .filter((p) => (onlyAvailable ? p.status !== 'BUSY' : true))
+    .sort((a, b) => (a.status === 'BUSY' ? 1 : 0) - (b.status === 'BUSY' ? 1 : 0));
   
   // Modales
   const [selectedProfile, setSelectedProfile] = useState<JobProfile | null>(null);
@@ -372,72 +378,105 @@ export default function EmpleosPage() {
         {loading ? (
           <div className="text-center py-20 text-gray-500">Cargando la oferta regional...</div>
         ) : activeTab === 'oficios' ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {profiles.map((profile) => (
-              <div
-                key={profile.id}
-                className="bg-gray-900/80 border border-gray-800 rounded-2xl p-6 flex flex-col justify-between hover:border-emerald-500/40 transition-all shadow-xl"
+          <div className="space-y-6">
+            {/* Barra de Filtro de Disponibilidad en Vivo */}
+            <div className="flex justify-between items-center bg-gray-900/60 p-4 rounded-2xl border border-gray-800 flex-wrap gap-4">
+              <p className="text-xs text-gray-300 font-semibold">
+                Mostrando <strong className="text-white">{displayProfiles.length}</strong> especialistas en la zona
+              </p>
+
+              <button
+                onClick={() => setOnlyAvailable(!onlyAvailable)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border flex items-center gap-2 ${
+                  onlyAvailable
+                    ? 'bg-emerald-600 text-white border-emerald-400 shadow-lg shadow-emerald-600/30 font-extrabold'
+                    : 'bg-gray-800/80 text-gray-300 border-gray-700 hover:border-emerald-500/40'
+                }`}
               >
-                <div>
-                  <div className="flex items-start justify-between gap-2 mb-3">
-                    <div>
-                      <h3 className="text-xl font-bold text-white">{profile.full_name}</h3>
-                      <p className="text-emerald-400 text-sm font-semibold">{profile.trade_category}</p>
-                    </div>
-                    <div className="text-right">
-                      <div className="flex items-center gap-1 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/30">
-                        <span className="text-amber-400">⭐</span>
-                        <span className="text-sm font-bold text-emerald-300">{profile.nora_score}</span>
+                <span className={`w-2.5 h-2.5 rounded-full ${onlyAvailable ? 'bg-emerald-300 animate-ping' : 'bg-emerald-500'}`}></span>
+                {onlyAvailable ? '🟢 Mostrando Solo Disponibles Ahora' : '🔍 Filtrar Solo Disponibles en Vivo'}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {displayProfiles.map((profile) => (
+                <div
+                  key={profile.id}
+                  className="bg-gray-900/80 border border-gray-800 rounded-2xl p-6 flex flex-col justify-between hover:border-emerald-500/40 transition-all shadow-xl relative"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <div>
+                        <h3 className="text-xl font-bold text-white">{profile.full_name}</h3>
+                        <p className="text-emerald-400 text-sm font-semibold">{profile.trade_category}</p>
                       </div>
-                      <span className="text-[11px] text-gray-400 block mt-1">({profile.total_reviews} votos)</span>
+                      <div className="text-right">
+                        <div className="flex items-center gap-1 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/30">
+                          <span className="text-amber-400">⭐</span>
+                          <span className="text-sm font-bold text-emerald-300">{profile.nora_score}</span>
+                        </div>
+                        <span className="text-[11px] text-gray-400 block mt-1">({profile.total_reviews} votos)</span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 mb-4">
+                      {renderBadge(profile.badge_level)}
+
+                      {profile.status === 'BUSY' ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-900/40 text-rose-300 border border-rose-700/50">
+                          <span className="w-2 h-2 rounded-full bg-rose-500"></span> 🔴 OCUPADO EN TAREA
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 shadow-sm">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> 🟢 DISPONIBLE AHORA
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-gray-300 text-sm mb-4 leading-relaxed line-clamp-3">
+                      "{profile.bio}"
+                    </p>
+                    
+                    <div className="text-xs text-gray-400 mb-6 flex items-center gap-1.5">
+                      📍 <span>{profile.city}, {profile.province}</span>
                     </div>
                   </div>
 
-                  <div className="mb-4">{renderBadge(profile.badge_level)}</div>
-
-                  <p className="text-gray-300 text-sm mb-4 leading-relaxed line-clamp-3">
-                    "{profile.bio}"
-                  </p>
-                  
-                  <div className="text-xs text-gray-400 mb-6 flex items-center gap-1.5">
-                    📍 <span>{profile.city}, {profile.province}</span>
-                  </div>
-                </div>
-
-                <div className="space-y-2 pt-4 border-t border-gray-800/80">
-                  <a
-                    href={`https://wa.me/${profile.whatsapp}?text=Hola%20${encodeURIComponent(
-                      profile.full_name
-                    )},%20te%20encontré%20en%20Nexativa%20Empleos%20y%20quiero%20consultar%20tus%20servicios.`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm text-center flex items-center justify-center gap-2 transition-colors shadow-md"
-                  >
-                    💬 Contactar por WhatsApp
-                  </a>
-
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => {
-                        setSelectedProfile(profile);
-                        setShowReviewModal(true);
-                      }}
-                      className="flex-1 py-2 px-3 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold text-xs text-center border border-gray-700 transition-colors"
+                  <div className="space-y-2 pt-4 border-t border-gray-800/80">
+                    <a
+                      href={`https://wa.me/${profile.whatsapp}?text=Hola%20${encodeURIComponent(
+                        profile.full_name
+                      )},%20te%20encontré%20en%20Nexativa%20Empleos%20y%20quiero%20consultar%20tus%20servicios.`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm text-center flex items-center justify-center gap-2 transition-colors shadow-md"
                     >
-                      ⭐ Calificar
-                    </button>
-                    {(profile.badge_level === 'ORO' || profile.badge_level === 'ORGULLO_REGIONAL') && (
-                      <Link
-                        href={`/certificados/${profile.id}`}
-                        className="py-2 px-3 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-xs text-center border border-amber-500/40 transition-colors flex items-center gap-1"
+                      💬 Contactar por WhatsApp
+                    </a>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          setSelectedProfile(profile);
+                          setShowReviewModal(true);
+                        }}
+                        className="flex-1 py-2 px-3 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold text-xs text-center border border-gray-700 transition-colors"
                       >
-                        📜 Certificado
-                      </Link>
-                    )}
+                        ⭐ Calificar
+                      </button>
+                      {(profile.badge_level === 'ORO' || profile.badge_level === 'ORGULLO_REGIONAL') && (
+                        <Link
+                          href={`/certificados/${profile.id}?name=${encodeURIComponent(profile.full_name)}&trade=${encodeURIComponent(profile.trade_category)}&score=${profile.nora_score}&badge=${encodeURIComponent(profile.badge_level)}`}
+                          className="py-2 px-3 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-xs text-center border border-amber-500/40 transition-colors flex items-center gap-1"
+                        >
+                          📜 Certificado
+                        </Link>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

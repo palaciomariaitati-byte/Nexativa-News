@@ -99,7 +99,27 @@ export default function PrestadoresDashboardPage() {
     loadActiveProvider();
   }, [queryId, queryName]);
 
+  const handleToggleOnline = async () => {
+    const nextState = !isOnline;
+    setIsOnline(nextState);
+    const newStatus = nextState ? 'ACTIVE' : 'BUSY';
+
+    const updatedData = { ...providerData, status: newStatus };
+    setProviderData(updatedData);
+
+    try {
+      localStorage.setItem('nexativa_active_prestador', JSON.stringify(updatedData));
+      await fetch('/api/jobs/profiles/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: providerData.id, status: newStatus }),
+      });
+    } catch (e) {}
+  };
+
   const handleSelectProfile = (profile: any) => {
+    const isAct = profile.status !== 'BUSY';
+    setIsOnline(isAct);
     const selected = {
       id: profile.id,
       name: profile.full_name,
@@ -108,6 +128,7 @@ export default function PrestadoresDashboardPage() {
       totalJobs: Number(profile.total_reviews || 1),
       badge: profile.badge_level || 'BRONCE',
       whatsapp: profile.whatsapp || '',
+      status: profile.status || 'ACTIVE',
     };
     setProviderData(selected);
     try {
@@ -164,15 +185,15 @@ export default function PrestadoresDashboardPage() {
           </p>
           <div className="flex items-center justify-center gap-4">
             <button
-              onClick={() => setIsOnline(!isOnline)}
+              onClick={handleToggleOnline}
               className={`w-full py-3.5 px-6 rounded-xl font-extrabold text-sm transition-all shadow-lg flex items-center justify-center gap-2 ${
                 isOnline
                   ? 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-emerald-600/20'
-                  : 'bg-rose-900/60 text-rose-300 border border-rose-700/50'
+                  : 'bg-rose-900/80 text-rose-200 border border-rose-600 shadow-rose-900/40'
               }`}
             >
-              <span className={`w-3 h-3 rounded-full ${isOnline ? 'bg-emerald-300 animate-ping' : 'bg-rose-500'}`}></span>
-              {isOnline ? '🟢 DISPONIBLE PARA TRABAJOS' : '🔴 OCUPADO / NO DISPONIBLE'}
+              <span className={`w-3 h-3 rounded-full ${isOnline ? 'bg-emerald-300 animate-ping' : 'bg-rose-400'}`}></span>
+              {isOnline ? '🟢 DISPONIBLE PARA TRABAJOS' : '🔴 OCUPADO / EN TAREA'}
             </button>
           </div>
         </div>
