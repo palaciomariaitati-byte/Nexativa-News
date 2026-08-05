@@ -64,6 +64,13 @@ export class NewsGenerator {
   }
 
   /**
+   * Alias de compatibilidad para rotación de noticias
+   */
+  public async generateNewArticles(count: number = 2): Promise<any[]> {
+    return this.generateItuzaingoNews(count);
+  }
+
+  /**
    * Genera y reescribe automáticamente noticias locales de Ituzaingó y Corrientes con la voz de Nora AI
    */
   public async generateItuzaingoNews(count: number = 3): Promise<any[]> {
