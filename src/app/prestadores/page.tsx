@@ -2,31 +2,129 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 
 export default function PrestadoresDashboardPage() {
+  const searchParams = useSearchParams();
+  const queryId = searchParams.get('id');
+  const queryName = searchParams.get('name');
+
   const [isOnline, setIsOnline] = useState(true);
   const [showQRModal, setShowQRModal] = useState(false);
+  const [showSelectModal, setShowSelectModal] = useState(false);
   const [currentJobId, setCurrentJobId] = useState('');
+  const [allProfiles, setAllProfiles] = useState<any[]>([]);
 
-  const providerData = {
-    name: 'Don Pedro González',
-    trade: 'Plomero / Gasista Matriculado',
-    noraScore: 4.95,
-    totalJobs: 28,
-    badge: 'ORO',
-    whatsapp: '5493786401122',
+  const [providerData, setProviderData] = useState({
+    id: '1',
+    name: 'Cargando perfil...',
+    trade: 'Prestador Registrado',
+    noraScore: 5.0,
+    totalJobs: 1,
+    badge: 'BRONCE',
+    whatsapp: '',
+  });
+
+  useEffect(() => {
+    async function loadActiveProvider() {
+      let profiles: any[] = [];
+      try {
+        const res = await fetch('/api/jobs/profiles');
+        const data = await res.json();
+        if (data.success && Array.isArray(data.profiles)) {
+          profiles = data.profiles;
+          setAllProfiles(profiles);
+        }
+      } catch (e) {}
+
+      // 1. Si viene por query param name o id
+      if (queryName || queryId) {
+        const found = profiles.find(p => p.id === queryId || p.full_name.toLowerCase().includes((queryName || '').toLowerCase()));
+        if (found) {
+          const profileData = {
+            id: found.id,
+            name: found.full_name,
+            trade: found.trade_category,
+            noraScore: Number(found.nora_score || 5.0),
+            totalJobs: Number(found.total_reviews || 1),
+            badge: found.badge_level || 'BRONCE',
+            whatsapp: found.whatsapp || '',
+          };
+          setProviderData(profileData);
+          try {
+            localStorage.setItem('nexativa_active_prestador', JSON.stringify(profileData));
+          } catch (e) {}
+          return;
+        }
+      }
+
+      // 2. Si hay un prestador activo guardado en el teléfono
+      try {
+        const saved = localStorage.getItem('nexativa_active_prestador');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && parsed.name) {
+            setProviderData(parsed);
+            return;
+          }
+        }
+      } catch (e) {}
+
+      // 3. Fallback al primer perfil de la lista o genérico
+      if (profiles.length > 0) {
+        const first = profiles[0];
+        const profileData = {
+          id: first.id,
+          name: first.full_name,
+          trade: first.trade_category,
+          noraScore: Number(first.nora_score || 5.0),
+          totalJobs: Number(first.total_reviews || 1),
+          badge: first.badge_level || 'BRONCE',
+          whatsapp: first.whatsapp || '',
+        };
+        setProviderData(profileData);
+      } else {
+        setProviderData({
+          id: '1',
+          name: 'Prestador de Oficio',
+          trade: 'Especialista Registrado',
+          noraScore: 5.0,
+          totalJobs: 1,
+          badge: 'BRONCE',
+          whatsapp: '',
+        });
+      }
+    }
+
+    loadActiveProvider();
+  }, [queryId, queryName]);
+
+  const handleSelectProfile = (profile: any) => {
+    const selected = {
+      id: profile.id,
+      name: profile.full_name,
+      trade: profile.trade_category,
+      noraScore: Number(profile.nora_score || 5.0),
+      totalJobs: Number(profile.total_reviews || 1),
+      badge: profile.badge_level || 'BRONCE',
+      whatsapp: profile.whatsapp || '',
+    };
+    setProviderData(selected);
+    try {
+      localStorage.setItem('nexativa_active_prestador', JSON.stringify(selected));
+    } catch (e) {}
+    setShowSelectModal(false);
   };
 
   const handleGenerateQR = () => {
-    // Generar un ID dinámico único para la sesión de trabajo
     const jobId = `JOB-${Date.now().toString().slice(-6)}`;
     setCurrentJobId(jobId);
     setShowQRModal(true);
   };
 
   const ratingUrl = typeof window !== 'undefined' 
-    ? `${window.location.origin}/calificar/${currentJobId}`
-    : `https://www.nexativanews.com.ar/calificar/${currentJobId}`;
+    ? `${window.location.origin}/calificar/${currentJobId}?providerId=${providerData.id}`
+    : `https://www.nexativanews.com.ar/calificar/${currentJobId}?providerId=${providerData.id}`;
 
   const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
     ratingUrl
@@ -38,11 +136,19 @@ export default function PrestadoresDashboardPage() {
         {/* Header App Bar */}
         <div className="flex items-center justify-between pb-4 mb-6 border-b border-gray-800">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-emerald-600/20 border border-emerald-500/40 flex items-center justify-center font-bold text-emerald-400">
+            <div className="w-11 h-11 rounded-full bg-emerald-600/20 border border-emerald-500/40 flex items-center justify-center font-bold text-emerald-400 text-sm">
               PRO
             </div>
             <div>
-              <h1 className="text-lg font-bold text-white leading-tight">{providerData.name}</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg font-bold text-white leading-tight">{providerData.name}</h1>
+                <button
+                  onClick={() => setShowSelectModal(true)}
+                  className="text-[10px] text-emerald-400 font-bold underline hover:text-emerald-300"
+                >
+                  (Cambiar)
+                </button>
+              </div>
               <p className="text-xs text-emerald-400 font-semibold">{providerData.trade}</p>
             </div>
           </div>
@@ -104,7 +210,7 @@ export default function PrestadoresDashboardPage() {
         {/* Links útiles */}
         <div className="space-y-2 mb-8">
           <Link
-            href={`/certificados/3`}
+            href={`/certificados/${providerData.id}?name=${encodeURIComponent(providerData.name)}&trade=${encodeURIComponent(providerData.trade)}&score=${providerData.noraScore}&badge=${encodeURIComponent(providerData.badge)}`}
             className="w-full py-3 px-4 rounded-xl bg-gray-900 hover:bg-gray-800 border border-gray-800 text-amber-300 text-xs font-bold text-center flex items-center justify-center gap-2 transition-colors"
           >
             📜 Mi Certificado de Excelencia Imprimible
@@ -125,6 +231,36 @@ export default function PrestadoresDashboardPage() {
         </p>
       </div>
 
+      {/* Modal para Seleccionar / Cambiar Perfil Activo */}
+      {showSelectModal && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-900 border border-emerald-500/40 rounded-3xl max-w-sm w-full p-6 text-gray-100 shadow-2xl">
+            <h3 className="text-lg font-bold text-white mb-2 text-center">Seleccioná tu Perfil de Prestador</h3>
+            <p className="text-xs text-gray-400 mb-4 text-center">Elegí tu nombre para ver tu panel personalizado:</p>
+
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              {allProfiles.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => handleSelectProfile(p)}
+                  className="w-full p-3 bg-gray-800 hover:bg-emerald-900/40 border border-gray-700 hover:border-emerald-500/50 rounded-xl text-left transition-colors"
+                >
+                  <p className="font-bold text-white text-xs">{p.full_name}</p>
+                  <p className="text-[11px] text-emerald-400">{p.trade_category} ({p.city || 'Ituzaingó'})</p>
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setShowSelectModal(false)}
+              className="w-full mt-4 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold text-xs"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Modal QR de Cobro / Calificación en Vivo */}
       {showQRModal && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 z-50">
@@ -144,7 +280,7 @@ export default function PrestadoresDashboardPage() {
             />
 
             <p className="text-xs text-gray-300 mb-6">
-              El cliente calificará con 5 estrellas desde su teléfono sin necesidad de instalar nada.
+              El cliente calificará a <strong>{providerData.name}</strong> con 5 estrellas desde su teléfono sin necesidad de instalar nada.
             </p>
 
             <button
