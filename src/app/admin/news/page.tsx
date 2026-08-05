@@ -74,7 +74,25 @@ export default function AdminNewsPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-serif text-[var(--color-brand-accent)] tracking-widest uppercase">Prensa & Noticias</h1>
-        <div className="flex gap-4">
+        <div className="flex gap-3 flex-wrap">
+          <button 
+            onClick={async () => {
+              setLoading(true);
+              const res = await fetch("/api/admin/auto-classify");
+              const data = await res.json();
+              if (data.success) {
+                alert(data.message);
+                fetchArticles();
+              } else {
+                alert("Error al clasificar: " + (data.message || data.error));
+              }
+              setLoading(false);
+            }}
+            className="bg-emerald-600/30 hover:bg-emerald-600/50 border border-emerald-500/50 text-emerald-300 px-4 py-2 rounded-lg font-bold uppercase tracking-wider text-xs transition-colors flex items-center gap-1.5"
+          >
+            🎯 Auto-Clasificar por Rubro
+          </button>
+
           <button 
             onClick={async () => {
               setLoading(true);
@@ -88,11 +106,11 @@ export default function AdminNewsPage() {
               }
               setLoading(false);
             }}
-            className="bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/50 text-white px-6 py-2 rounded-lg font-bold uppercase tracking-wider text-sm transition-colors flex items-center gap-2"
+            className="bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/50 text-white px-4 py-2 rounded-lg font-bold uppercase tracking-wider text-xs transition-colors flex items-center gap-1.5"
           >
             Sincronizar Ahora
           </button>
-          <Link href="/admin/news/editor" className="bg-[var(--color-brand-accent)] hover:bg-[var(--color-brand-accent-hover)] text-black px-6 py-2 rounded-lg font-bold uppercase tracking-wider text-sm transition-colors">
+          <Link href="/admin/news/editor" className="bg-[var(--color-brand-accent)] hover:bg-[var(--color-brand-accent-hover)] text-black px-4 py-2 rounded-lg font-bold uppercase tracking-wider text-xs transition-colors">
             + Nueva Noticia
           </Link>
         </div>

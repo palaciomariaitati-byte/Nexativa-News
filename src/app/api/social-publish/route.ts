@@ -9,12 +9,12 @@ export async function POST(req: Request) {
 
     const supabase = await createServerSupabaseClient();
 
-    // 1. Obtener la URL del Webhook
-    const { data: settingsItem } = await supabase.from('settings').select('value').eq('key', 'make_webhook_url').single();
+    // 1. Obtener la URL del Webhook de Make.com
+    const { data: settingsItem } = await supabase.from('settings').select('value').eq('key', 'make_webhook_url').maybeSingle();
     if (!settingsItem?.value) {
       return NextResponse.json({ error: "No hay una URL de Webhook de Make configurada en Redes Sociales." }, { status: 400 });
     }
-    const make_webhook_url = settingsItem.value;
+    const make_webhook_url = settingsItem.value.trim();
 
     let payload: any = { source: type, url: "https://www.nexativanews.com.ar" };
     let tableToUpdate = "";
@@ -38,30 +38,38 @@ export async function POST(req: Request) {
       const { data: article, error } = await supabase.from("articles").select("*").eq("id", id).single();
       if (error || !article) return NextResponse.json({ error: "Noticia no encontrada" }, { status: 404 });
 
-      // Si es una noticia, usamos a Nora para generar un copy rápido y atractivo
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) throw new Error("No Gemini API Key");
-      
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-      
-      const prompt = `Actúa como Community Manager Experto. Escribe UN solo post (copy) cautivador y viral para redes sociales sobre esta noticia. Usa emojis, hashtags relevantes y un tono profesional pero atrapante. 
-      Título: ${article.title}
-      Resumen: ${article.excerpt}
-      Cuerpo: ${article.content.substring(0, 1000)}`;
+      // Generar copy seguro con soporte Multi-Key y fallback en caso de error de API key
+      let socialCopy = `📰 ${article.title}\n\n${article.excerpt || ''}\n\n👉 Leé la nota completa en https://www.nexativanews.com.ar/noticias/${article.id}\n#NexativaNews #Argentina`;
 
-      const result = await model.generateContent(prompt);
-      const socialCopy = result.response.text();
+      const apiKey = process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY_FALLBACK || process.env.GEMINI_API_KEY_FALLBACK_2;
+      
+      if (apiKey) {
+        try {
+          const genAI = new GoogleGenerativeAI(apiKey);
+          const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+          
+          const prompt = `Actúa como Community Manager periodístico. Escribe UN solo post (copy) cautivador y viral para redes sociales sobre esta noticia. Usa emojis, hashtags relevantes y un tono profesional pero atrapante. 
+          Título: ${article.title}
+          Resumen: ${article.excerpt || ''}`;
+
+          const result = await model.generateContent(prompt);
+          const text = result.response.text();
+          if (text) socialCopy = text;
+        } catch (aiErr: any) {
+          console.warn("[Social Publish] Gemini API key falló, usando plantilla segura de respaldo:", aiErr.message);
+        }
+      }
 
       payload = {
         ...payload,
         title: article.title,
         content: socialCopy,
         image_url: article.image_url,
-        url: `https://www.nexativanews.com.ar/news/${article.slug || id}`,
-        category: article.category
+        url: `https://www.nexativanews.com.ar/noticias/${article.id}`,
+        category: article.category || 'nacional'
       };
       tableToUpdate = "articles";
+
     } else if (type === "press_release" || type === "press_pitch") {
       const { generateHito1PressKit } = await import('@/modules/nora-pro/press_generator');
       const pressKit = generateHito1PressKit();
@@ -87,7 +95,7 @@ export async function POST(req: Request) {
     });
 
     if (!makeRes.ok) {
-      return NextResponse.json({ error: "Make.com rechazó la petición: " + makeRes.statusText }, { status: 500 });
+      return NextResponse.json({ error: "Make.com respondió con estado: " + makeRes.statusText }, { status: 500 });
     }
 
     // 4. Marcar como publicado en redes
@@ -95,10 +103,10 @@ export async function POST(req: Request) {
       await supabase.from(tableToUpdate).update({ social_published: true }).eq("id", id);
     }
 
-    return NextResponse.json({ success: true, message: "Webhook enviado con éxito" });
+    return NextResponse.json({ success: true, message: "🎉 Noticia enviada a redes exitosamente" });
 
   } catch (error: any) {
-    console.error("Error en social-publish:", error);
-    return NextResponse.json({ error: error.message || "Error interno del servidor" }, { status: 500 });
+    console.error("[Social Publish Error]:", error);
+    return NextResponse.json({ error: error.message || "Error al procesar envío a redes" }, { status: 500 });
   }
 }
