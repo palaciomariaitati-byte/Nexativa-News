@@ -269,14 +269,31 @@ export default function AdminNewsPage() {
             </div>
 
             {/* Preview de la foto */}
-            {shareModalData.imageUrl && (
-              <div className="relative h-44 rounded-xl overflow-hidden border border-white/10">
-                <img src={shareModalData.imageUrl} alt="" className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-3">
-                  <p className="text-white text-xs font-bold line-clamp-1">{shareModalData.title}</p>
-                </div>
+            <div className="relative h-48 rounded-xl overflow-hidden border border-white/10 bg-slate-950">
+              <img 
+                src={shareModalData.imageUrl || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1200&q=80'} 
+                alt="" 
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  target.onerror = null;
+                  target.src = 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1200&q=80';
+                }}
+                className="w-full h-full object-cover" 
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex items-end justify-between p-3">
+                <p className="text-white text-xs font-bold line-clamp-1 max-w-[70%]">{shareModalData.title}</p>
+                {shareModalData.imageUrl && (
+                  <a 
+                    href={shareModalData.imageUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="bg-black/60 hover:bg-black/90 text-pink-300 border border-pink-500/40 text-[10px] font-bold uppercase px-2.5 py-1 rounded-lg backdrop-blur-md transition-colors"
+                  >
+                    📥 Descargar Foto
+                  </a>
+                )}
               </div>
-            )}
+            </div>
 
             {/* Texto copy de Nora AI */}
             <div>
