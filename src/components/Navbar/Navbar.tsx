@@ -24,11 +24,9 @@ export default function Navbar() {
       <nav className="sticky top-0 z-50 glass-panel rounded-none border-t-0 border-x-0 border-b border-white/10 bg-slate-950/90 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           {/* Logo */}
-          <div className="flex-1 flex items-center justify-between sm:justify-start">
-            <Link href="/" className="text-2xl sm:text-3xl font-serif font-bold tracking-widest text-[var(--color-brand-accent)]">
-              NEXATIVA<span className="text-white font-light">NEWS</span>
-            </Link>
-          </div>
+          <Link href="/" className="text-xl sm:text-3xl font-serif font-bold tracking-widest text-[var(--color-brand-accent)] shrink-0">
+            NEXATIVA<span className="text-white font-light">NEWS</span>
+          </Link>
 
           {/* Navigation links (Desktop) */}
           <div className="hidden lg:flex items-center space-x-6">
@@ -68,16 +66,23 @@ export default function Navbar() {
           {/* Mobile Menu Button */}
           <div className="flex items-center gap-2 lg:hidden">
             <Link
-              href="/empleos"
-              className="text-[10px] font-black text-emerald-300 bg-emerald-950/80 px-2.5 py-1.5 rounded-lg border border-emerald-500/40 uppercase tracking-wider flex items-center gap-1"
+              href="/guia"
+              className="text-[10px] font-black text-cyan-300 bg-cyan-950/80 px-2 py-1.5 rounded-lg border border-cyan-500/40 uppercase tracking-wider flex items-center gap-1"
             >
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> Empleos
+              Guía
+            </Link>
+
+            <Link
+              href="/empleos"
+              className="text-[10px] font-black text-emerald-300 bg-emerald-950/80 px-2 py-1.5 rounded-lg border border-emerald-500/40 uppercase tracking-wider flex items-center gap-1"
+            >
+              Empleos
             </Link>
 
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 text-white/80 hover:text-white bg-white/5 rounded-xl border border-white/10"
-              aria-label="Abrir Menú"
+              className="p-2 text-white/90 hover:text-white bg-white/10 rounded-xl border border-white/20 active:scale-95 transition-transform"
+              aria-label="Abrir Menú Hamburguesa"
             >
               {mobileMenuOpen ? <X className="w-6 h-6 text-pink-400" /> : <Menu className="w-6 h-6 text-[var(--color-brand-accent)]" />}
             </button>
