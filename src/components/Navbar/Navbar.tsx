@@ -63,28 +63,38 @@ export default function Navbar() {
             )}
           </div>
 
-          {/* Mobile Menu Button */}
-          <div className="flex items-center gap-2 lg:hidden">
+          {/* Mobile Menu Button (< 1024px) */}
+          <div className="flex items-center gap-1.5 lg:hidden shrink-0">
             <Link
               href="/guia"
-              className="text-[10px] font-black text-cyan-300 bg-cyan-950/80 px-2 py-1.5 rounded-lg border border-cyan-500/40 uppercase tracking-wider flex items-center gap-1"
+              className="hidden sm:inline-flex text-[10px] font-black text-cyan-300 bg-cyan-950/80 px-2 py-1 rounded-lg border border-cyan-500/40 uppercase tracking-wider items-center gap-1"
             >
               Guía
             </Link>
 
             <Link
               href="/empleos"
-              className="text-[10px] font-black text-emerald-300 bg-emerald-950/80 px-2 py-1.5 rounded-lg border border-emerald-500/40 uppercase tracking-wider flex items-center gap-1"
+              className="hidden sm:inline-flex text-[10px] font-black text-emerald-300 bg-emerald-950/80 px-2 py-1 rounded-lg border border-emerald-500/40 uppercase tracking-wider items-center gap-1"
             >
               Empleos
             </Link>
 
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 text-white/90 hover:text-white bg-white/10 rounded-xl border border-white/20 active:scale-95 transition-transform"
+              className="px-3 py-2 text-amber-300 font-extrabold text-xs bg-amber-500/20 hover:bg-amber-500/30 rounded-xl border border-amber-500/50 flex items-center gap-1.5 active:scale-95 transition-all shadow-lg shadow-amber-500/10 shrink-0"
               aria-label="Abrir Menú Hamburguesa"
             >
-              {mobileMenuOpen ? <X className="w-6 h-6 text-pink-400" /> : <Menu className="w-6 h-6 text-[var(--color-brand-accent)]" />}
+              {mobileMenuOpen ? (
+                <>
+                  <X className="w-5 h-5 text-pink-400" />
+                  <span className="tracking-wider">CERRAR</span>
+                </>
+              ) : (
+                <>
+                  <Menu className="w-5 h-5 text-amber-400" />
+                  <span className="tracking-wider">MENÚ</span>
+                </>
+              )}
             </button>
           </div>
         </div>
