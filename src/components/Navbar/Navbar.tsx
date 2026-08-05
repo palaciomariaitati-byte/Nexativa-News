@@ -21,15 +21,15 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className="sticky top-0 z-50 glass-panel rounded-none border-t-0 border-x-0 border-b border-white/10 bg-slate-950/90 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+      <nav className="sticky top-0 z-50 glass-panel rounded-none border-t-0 border-x-0 border-b border-white/10 bg-slate-950/95 backdrop-blur-md w-full overflow-x-hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="text-xl sm:text-3xl font-serif font-bold tracking-widest text-[var(--color-brand-accent)] shrink-0">
+          <Link href="/" className="text-xl sm:text-2xl font-serif font-bold tracking-widest text-[var(--color-brand-accent)] shrink-0">
             NEXATIVA<span className="text-white font-light">NEWS</span>
           </Link>
 
-          {/* Navigation links (Desktop) */}
-          <div className="hidden lg:flex items-center space-x-6">
+          {/* Navigation links (Desktop: md:flex) */}
+          <div className="hidden md:flex items-center space-x-4 lg:space-x-6">
             <Link href="/" className="text-xs font-bold hover:text-[var(--color-brand-accent)] transition-colors uppercase tracking-widest">
               Inicio
             </Link>
@@ -47,7 +47,7 @@ export default function Navbar() {
               Guía Comercial
             </Link>
             <Link href="/empleos" className="text-xs font-bold text-emerald-400 hover:text-emerald-300 transition-colors uppercase tracking-widest flex items-center gap-1.5 bg-emerald-950/40 px-3 py-1.5 rounded-full border border-emerald-500/30">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
               Empleos & Oficios
             </Link>
             <Link href="/store" className="text-xs font-bold hover:text-[var(--color-brand-accent)] transition-colors uppercase tracking-widest">
@@ -63,25 +63,11 @@ export default function Navbar() {
             )}
           </div>
 
-          {/* Mobile Menu Button (< 1024px) */}
-          <div className="flex items-center gap-1.5 lg:hidden shrink-0">
-            <Link
-              href="/guia"
-              className="hidden sm:inline-flex text-[10px] font-black text-cyan-300 bg-cyan-950/80 px-2 py-1 rounded-lg border border-cyan-500/40 uppercase tracking-wider items-center gap-1"
-            >
-              Guía
-            </Link>
-
-            <Link
-              href="/empleos"
-              className="hidden sm:inline-flex text-[10px] font-black text-emerald-300 bg-emerald-950/80 px-2 py-1 rounded-lg border border-emerald-500/40 uppercase tracking-wider items-center gap-1"
-            >
-              Empleos
-            </Link>
-
+          {/* Mobile Menu Button (< 768px) */}
+          <div className="flex items-center gap-2 md:hidden shrink-0">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="px-3 py-2 text-amber-300 font-extrabold text-xs bg-amber-500/20 hover:bg-amber-500/30 rounded-xl border border-amber-500/50 flex items-center gap-1.5 active:scale-95 transition-all shadow-lg shadow-amber-500/10 shrink-0"
+              className="px-3.5 py-2 text-amber-300 font-black text-xs bg-amber-500/20 hover:bg-amber-500/30 rounded-xl border border-amber-500/50 flex items-center gap-2 active:scale-95 transition-all shadow-lg shadow-amber-500/10 shrink-0"
               aria-label="Abrir Menú Hamburguesa"
             >
               {mobileMenuOpen ? (
@@ -92,7 +78,7 @@ export default function Navbar() {
               ) : (
                 <>
                   <Menu className="w-5 h-5 text-amber-400" />
-                  <span className="tracking-wider">MENÚ</span>
+                  <span className="tracking-wider">MENÚ ☰</span>
                 </>
               )}
             </button>
@@ -101,12 +87,12 @@ export default function Navbar() {
 
         {/* Mobile Drawer Dropdown Menu */}
         {mobileMenuOpen && (
-          <div className="lg:hidden border-t border-white/10 bg-slate-950/95 backdrop-blur-xl p-4 space-y-3 animate-in slide-in-from-top duration-200">
+          <div className="md:hidden border-t border-white/10 bg-slate-950/98 backdrop-blur-2xl p-4 space-y-3 shadow-2xl animate-in slide-in-from-top duration-200">
             <div className="grid grid-cols-2 gap-2 font-sans text-xs">
               <Link
                 href="/guia"
                 onClick={() => setMobileMenuOpen(false)}
-                className="p-3 bg-cyan-950/40 border border-cyan-500/40 rounded-xl text-cyan-300 font-bold flex items-center gap-2"
+                className="p-3.5 bg-cyan-950/50 border border-cyan-500/40 rounded-xl text-cyan-300 font-bold flex items-center gap-2 text-xs"
               >
                 <StoreIcon className="w-4 h-4 text-cyan-400" /> Guía Comercial
               </Link>
@@ -114,7 +100,7 @@ export default function Navbar() {
               <Link
                 href="/empleos"
                 onClick={() => setMobileMenuOpen(false)}
-                className="p-3 bg-emerald-950/40 border border-emerald-500/40 rounded-xl text-emerald-300 font-bold flex items-center gap-2"
+                className="p-3.5 bg-emerald-950/50 border border-emerald-500/40 rounded-xl text-emerald-300 font-bold flex items-center gap-2 text-xs"
               >
                 <Briefcase className="w-4 h-4 text-emerald-400" /> Empleos & Oficios
               </Link>
@@ -122,7 +108,7 @@ export default function Navbar() {
               <Link
                 href="/prestadores"
                 onClick={() => setMobileMenuOpen(false)}
-                className="p-3 bg-emerald-900/30 border border-emerald-600/30 rounded-xl text-emerald-200 font-semibold flex items-center gap-2"
+                className="p-3.5 bg-emerald-900/40 border border-emerald-600/30 rounded-xl text-emerald-200 font-bold flex items-center gap-2 text-xs"
               >
                 <UserCheck className="w-4 h-4 text-emerald-400" /> Panel Prestador
               </Link>
@@ -130,7 +116,7 @@ export default function Navbar() {
               <Link
                 href="/news"
                 onClick={() => setMobileMenuOpen(false)}
-                className="p-3 bg-white/5 border border-white/10 rounded-xl text-white font-semibold flex items-center gap-2"
+                className="p-3.5 bg-white/5 border border-white/10 rounded-xl text-white font-bold flex items-center gap-2 text-xs"
               >
                 <Newspaper className="w-4 h-4 text-amber-400" /> Noticias
               </Link>
@@ -138,7 +124,7 @@ export default function Navbar() {
               <Link
                 href="/clasico"
                 onClick={() => setMobileMenuOpen(false)}
-                className="p-3 bg-white/5 border border-white/10 rounded-xl text-orange-200 font-semibold flex items-center gap-2"
+                className="p-3.5 bg-white/5 border border-white/10 rounded-xl text-orange-200 font-bold flex items-center gap-2 text-xs"
               >
                 <BookOpen className="w-4 h-4 text-orange-400" /> Edición Clásica
               </Link>
@@ -146,7 +132,7 @@ export default function Navbar() {
               <Link
                 href="/store"
                 onClick={() => setMobileMenuOpen(false)}
-                className="p-3 bg-white/5 border border-white/10 rounded-xl text-white font-semibold flex items-center gap-2"
+                className="p-3.5 bg-white/5 border border-white/10 rounded-xl text-white font-bold flex items-center gap-2 text-xs"
               >
                 <Sparkles className="w-4 h-4 text-pink-400" /> Shop / Productos
               </Link>
@@ -156,7 +142,7 @@ export default function Navbar() {
               <Link
                 href="/admin"
                 onClick={() => setMobileMenuOpen(false)}
-                className="block text-center w-full py-3 bg-[var(--color-brand-accent)] text-black font-bold text-xs uppercase tracking-widest rounded-xl"
+                className="block text-center w-full py-3.5 bg-[var(--color-brand-accent)] text-black font-bold text-xs uppercase tracking-widest rounded-xl shadow-lg"
               >
                 Consola Admin
               </Link>
