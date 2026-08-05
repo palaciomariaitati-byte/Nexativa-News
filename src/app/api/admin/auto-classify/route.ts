@@ -19,26 +19,10 @@ function cleanExcerptText(raw: string | null): string {
   return text.substring(0, 180);
 }
 
-function isValidArticleImage(url: string | null): boolean {
-  if (!url) return false;
-  const u = url.toLowerCase();
-  if (
-    u.includes('googleusercontent') ||
-    u.includes('news.google') ||
-    u.includes('logo') ||
-    u.includes('icon') ||
-    u.includes('favicon') ||
-    u.includes('placeholder')
-  ) {
-    return false;
-  }
-  return u.startsWith('http');
-}
-
 function detectCategoryAndImage(title: string, excerpt: string) {
   const t = (title + ' ' + excerpt).toLowerCase();
 
-  // ⚽ DEPORTES (Fútbol, Mastantuono, Real Madrid, Racing, Boca, River, San Lorenzo, Selección, Tenis, Básquet)
+  // ⚽ DEPORTES (Mastantuono, Real Madrid, Racing, Boca, River, San Lorenzo, Selección, Tenis, Básquet, Liga, Copa, Gol, Salas)
   if (
     t.includes('mastantuono') ||
     t.includes('real madrid') ||
@@ -99,7 +83,7 @@ function detectCategoryAndImage(title: string, excerpt: string) {
     };
   }
 
-  // ⚖️ POLICIALES & JUSTICIA (Asesinado, Chats, Maltrato, Chaco, Juez, Policiales, Fiscal)
+  // ⚖️ POLICIALES & JUSTICIA (Asesinado, Chats, Maltrato, Chaco, Juez, Policiales, Fiscal, Crimen)
   if (
     t.includes('asesinado') ||
     t.includes('novia') ||
@@ -149,6 +133,14 @@ function detectCategoryAndImage(title: string, excerpt: string) {
     };
   }
 
+  // 🎭 CULTURA (Música, Teatro, Libro, Recital)
+  if (t.includes('teatro') || t.includes('música') || t.includes('recital') || t.includes('cine') || t.includes('libro')) {
+    return {
+      category: 'cultural',
+      image_url: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1200&q=80',
+    };
+  }
+
   // 🇦🇷 NACIONAL (Por defecto)
   return {
     category: 'nacional',
@@ -172,15 +164,21 @@ export async function GET(req: Request) {
 
     for (const art of articles) {
       const cleanExcerpt = cleanExcerptText(art.excerpt);
-      const { category, image_url } = detectCategoryAndImage(art.title, cleanExcerpt);
+      const { category: detectedCat, image_url: topicImg } = detectCategoryAndImage(art.title, cleanExcerpt);
 
-      const isInvalidImg = !isValidArticleImage(art.image_url);
-      const finalImg = isInvalidImg ? image_url : art.image_url;
+      // Si la foto actual es nula, es el diario genérico o logo de google, la reemplazamos forzosamente
+      const isGenericOrGoogle =
+        !art.image_url ||
+        art.image_url.includes('google') ||
+        art.image_url.includes('logo') ||
+        art.image_url.includes('photo-1504711434969-e33886168f5c');
+
+      const finalImg = isGenericOrGoogle ? topicImg : art.image_url;
 
       const { error: upErr } = await supabase
         .from('articles')
         .update({
-          category,
+          category: detectedCat,
           image_url: finalImg,
           excerpt: cleanExcerpt,
         })
@@ -191,7 +189,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `🎉 Auto-clasificación HD completa. Se actualizaron ${updatedCount} noticias eliminando logos de Google y fragmentos HTML.`,
+      message: `🎉 Auto-clasificación HD forzada completa. Se actualizaron las portadas de ${updatedCount} noticias.`,
       count: updatedCount,
     });
   } catch (err: any) {
