@@ -183,7 +183,12 @@ export default function NewsTabs({
                   {article.image_url && (
                     <img 
                       src={article.image_url} 
-                      alt={article.title} 
+                      alt="" 
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        target.onerror = null;
+                        target.src = 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1200&q=80';
+                      }}
                       className="w-24 h-24 sm:w-32 sm:h-28 object-cover rounded-xl border border-white/10 shrink-0 group-hover:scale-105 transition-transform duration-300" 
                     />
                   )}
