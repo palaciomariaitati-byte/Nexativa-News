@@ -92,7 +92,8 @@ export async function generateArticles(
   locationContext: string,
   operatorName: string,
   imageBuffer?: Buffer | null,
-  videoBuffer?: Buffer | null
+  videoBuffer?: Buffer | null,
+  includeCopete: boolean = true
 ): Promise<any> {
   const hfWorkerUrl = process.env.HF_NORA_WORKER_URL || "https://noranexora-nora-ia-worker.hf.space";
   
@@ -172,7 +173,7 @@ Instrucciones de redacción y procesamiento:
 
 A) VERSION_NEXATIVA (Master Copy):
    - Tono: Profesional, riguroso, de alta gama e inmediato.
-   - Estructura: Título impactante y optimizado para SEO para Nexativa News. Copete (Deck/Excerpt) corto y atrapante de no más de 150 caracteres. Cuerpo detallado formateado en HTML (usa <p> y <strong>).
+   - Estructura: Título impactante y optimizado para SEO para Nexativa News. ${includeCopete ? 'Copete (Deck/Excerpt) corto y atrapante de no más de 150 caracteres.' : 'REGLA EXPRESA DE COPETE: El editor eligió NO incluir copete/bajada. Deja el campo "excerpt" estrictamente como una cadena vacía ("").'} Cuerpo detallado formateado en HTML (usa <p> y <strong>).
    - Tags: Genera exactamente 5 palabras clave de meta-etiquetas de SEO locales y geolocalizadas.
 
 B) VERSION_PARTNER (Syndicated Alternative Copy):
@@ -401,6 +402,9 @@ export async function POST(request: Request) {
       }
     }
 
+    const includeCopeteParam = formData.get("include_copete");
+    const includeCopete = includeCopeteParam !== "false";
+
     let status = "PENDING_REVIEW";
     let transcriptionText = "";
     let versionNexativa = null;
@@ -419,7 +423,7 @@ export async function POST(request: Request) {
       const fallbackTitle = rawMetadataTitle || "Reporte de Corresponsal en Staging";
       versionNexativa = {
         title: `[BORRADOR PENDIENTE] ${fallbackTitle}`,
-        excerpt: "Error de entrada en exteriores. Requiere edición y revisión manual.",
+        excerpt: includeCopete ? "Error de entrada en exteriores. Requiere edición y revisión manual." : "",
         content: `<p>Se ha recibido el reporte del corresponsal, pero no contiene texto, audio ni multimedia válido. Edite este borrador manualmente.</p>`,
         tags: ["Revisión", "Corresponsal", "Entrada Vacía", "Ituzaingó", "Corrientes"]
       };
@@ -459,9 +463,13 @@ export async function POST(request: Request) {
           locationContext,
           operatorName,
           imageBuffer,
-          videoBuffer
+          videoBuffer,
+          includeCopete
         );
         versionNexativa = copies.version_nexativa;
+        if (!includeCopete && versionNexativa) {
+          versionNexativa.excerpt = "";
+        }
         versionPartner = copies.version_partner;
         status = "PENDING_REVIEW";
       } catch (err: any) {

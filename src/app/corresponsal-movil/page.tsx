@@ -53,7 +53,10 @@ export default function CorresponsalMovilPage() {
   const [attachedImagePreview, setAttachedImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Video Fields (up to 5 mins / 100MB, edited by Nora IA to 60s)
+  // Video Fields & Duración Elegible (60s vs 180s)
+  const [maxVideoDuration, setMaxVideoDuration] = useState<60 | 180>(60);
+  const [includeCopete, setIncludeCopete] = useState<boolean>(true);
+
   const [attachedVideo, setAttachedVideo] = useState<File | null>(null);
   const [attachedVideoPreview, setAttachedVideoPreview] = useState<string | null>(null);
   const videoFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -62,7 +65,7 @@ export default function CorresponsalMovilPage() {
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [cameraFacingMode, setCameraFacingMode] = useState<"environment" | "user">("environment");
   const [isVideoRecording, setIsVideoRecording] = useState(false);
-  const [videoSecondsLeft, setVideoSecondsLeft] = useState(60);
+  const [videoSecondsLeft, setVideoSecondsLeft] = useState<number>(60);
   const [recordedVideo, setRecordedVideo] = useState<Blob | null>(null);
   const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
   const liveVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -331,7 +334,7 @@ export default function CorresponsalMovilPage() {
 
       videoMediaRecorderRef.current.start(500);
       setIsVideoRecording(true);
-      setVideoSecondsLeft(60);
+      setVideoSecondsLeft(maxVideoDuration);
 
       videoTimerRef.current = setInterval(() => {
         setVideoSecondsLeft((prev) => {
@@ -373,7 +376,7 @@ export default function CorresponsalMovilPage() {
     setRecordedVideoUrl(null);
     setAttachedVideo(null);
     setAttachedVideoPreview(null);
-    setVideoSecondsLeft(60);
+    setVideoSecondsLeft(maxVideoDuration);
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -484,6 +487,8 @@ export default function CorresponsalMovilPage() {
       formData.append("geolocation_coordinates", coords || "-27.5973, -56.6874");
       formData.append("raw_metadata_title", `${isAnon ? "🟢 [Reporte Ciudadano]" : "🎤 [Corresponsal]"}: ${finalName}`);
       formData.append("timestamp_utc", new Date().toISOString());
+      formData.append("include_copete", includeCopete ? "true" : "false");
+      formData.append("max_video_duration", maxVideoDuration.toString());
 
       if (inputText.trim()) {
         formData.append("draft_text", inputText.trim());
@@ -711,8 +716,78 @@ export default function CorresponsalMovilPage() {
             />
           </div>
 
-          {/* Media Attachment Actions */}
-          {/* Media Attachment Actions (Foto, Audio, Filmar Video 60s, Subir Video 60s) */}
+          {/* Opciones de Configuración Editorial (Duración Video & Copete) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-black/40 p-3 rounded-xl border border-white/10 text-xs">
+            {/* Duración del Video Editable */}
+            <div>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">
+                ⏱️ Duración Máxima de Video
+              </label>
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMaxVideoDuration(60);
+                    setVideoSecondsLeft(60);
+                  }}
+                  className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-[11px] border transition-all ${
+                    maxVideoDuration === 60
+                      ? 'bg-purple-600 text-white border-purple-400 font-extrabold shadow'
+                      : 'bg-white/5 text-gray-400 border-white/10 hover:text-white'
+                  }`}
+                >
+                  ⚡ 60 Segundos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMaxVideoDuration(180);
+                    setVideoSecondsLeft(180);
+                  }}
+                  className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-[11px] border transition-all ${
+                    maxVideoDuration === 180
+                      ? 'bg-purple-600 text-white border-purple-400 font-extrabold shadow'
+                      : 'bg-white/5 text-gray-400 border-white/10 hover:text-white'
+                  }`}
+                >
+                  📽️ 180s (3 min)
+                </button>
+              </div>
+            </div>
+
+            {/* Incluir Copete Periodístico */}
+            <div>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">
+                📝 Copete Periodístico
+              </label>
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => setIncludeCopete(true)}
+                  className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-[11px] border transition-all ${
+                    includeCopete
+                      ? 'bg-emerald-600 text-white border-emerald-400 font-extrabold shadow'
+                      : 'bg-white/5 text-gray-400 border-white/10 hover:text-white'
+                  }`}
+                >
+                  🟢 Sí (Con Copete)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIncludeCopete(false)}
+                  className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-[11px] border transition-all ${
+                    !includeCopete
+                      ? 'bg-amber-600 text-white border-amber-400 font-extrabold shadow'
+                      : 'bg-white/5 text-gray-400 border-white/10 hover:text-white'
+                  }`}
+                >
+                  ⚪ No (Sin Copete)
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Media Attachment Actions (Foto, Audio, Filmar Video, Subir Video) */}
           <div className="grid grid-cols-2 gap-3">
             {/* Image attachment */}
             <div>
@@ -792,7 +867,7 @@ export default function CorresponsalMovilPage() {
                     <Trash2 className="w-4 h-4" />
                   </button>
                   <div className="flex-1 py-2 px-3 bg-red-950/60 border border-red-500/40 text-red-300 rounded-xl text-[11px] font-bold truncate text-center">
-                    Video Filmado (60s)
+                    Video Filmado ({maxVideoDuration}s)
                   </div>
                 </div>
               ) : (
@@ -801,12 +876,12 @@ export default function CorresponsalMovilPage() {
                   onClick={startVideoRecording}
                   className="w-full py-3 px-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 flex items-center justify-center gap-2 text-xs font-bold"
                 >
-                  <Video className="w-4 h-4 text-red-500" /> Filmar Video (60s)
+                  <Video className="w-4 h-4 text-red-500" /> Filmar Video ({maxVideoDuration}s)
                 </button>
               )}
             </div>
 
-            {/* Video File Upload (60s) */}
+            {/* Video File Upload */}
             <div>
               <input
                 type="file"
@@ -825,7 +900,7 @@ export default function CorresponsalMovilPage() {
                 }`}
               >
                 <Video className="w-4 h-4 text-purple-400" />
-                {attachedVideo ? "Video Adjunto" : "Subir Video (60s)"}
+                {attachedVideo ? "Video Adjunto" : `Subir Video (${maxVideoDuration}s)`}
               </button>
             </div>
           </div>

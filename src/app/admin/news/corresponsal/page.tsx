@@ -796,15 +796,34 @@ export default function CorresponsalStagingPage() {
                           </div>
 
                           <div className="space-y-2">
-                            <label className="block text-xs uppercase text-white/50 font-bold">Copete (Deck)</label>
+                            <div className="flex justify-between items-center">
+                              <label className="block text-xs uppercase text-white/50 font-bold">Copete / Bajada Periodística</label>
+                              <div className="flex items-center gap-1 text-[10px]">
+                                <button
+                                  type="button"
+                                  onClick={() => setEditNexativaExcerpt("")}
+                                  className={`px-2 py-0.5 rounded font-bold transition-colors ${
+                                    !editNexativaExcerpt
+                                      ? 'bg-amber-500/30 text-amber-300 border border-amber-500/40'
+                                      : 'bg-white/5 text-gray-400 hover:text-white'
+                                  }`}
+                                >
+                                  ⚪ Omitir Copete
+                                </button>
+                              </div>
+                            </div>
                             <textarea
                               value={editNexativaExcerpt}
                               onChange={(e) => setEditNexativaExcerpt(e.target.value)}
                               rows={2}
+                              placeholder="Ingresá el copete o dejalo en blanco si preferís omitirlo..."
                               maxLength={150}
                               className="w-full bg-black/40 border border-white/20 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
                             />
-                            <p className="text-[10px] text-white/30 text-right">{editNexativaExcerpt.length}/150 caracteres</p>
+                            <p className="text-[10px] text-white/40 flex justify-between">
+                              <span>{editNexativaExcerpt ? '🟢 Copete activo' : '⚪ Copete omitido (La noticia iniciará directamente en el cuerpo)'}</span>
+                              <span>{editNexativaExcerpt.length}/150 caracteres</span>
+                            </p>
                           </div>
 
                           <div className="space-y-2">
