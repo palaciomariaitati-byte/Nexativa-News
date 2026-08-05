@@ -1,10 +1,15 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-const ENABLE_NORA_PRO = process.env.ENABLE_NORA_PRO === 'true';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
-const MOCK_RSS_URL = 'https://news.google.com/rss?hl=es-419&gl=AR&ceid=AR:es-419';
+// Feeds automáticos enfocados en Ituzaingó, Corrientes y la Región Litoral
+const ITUZAINGO_RSS_FEEDS = [
+  'https://news.google.com/rss/search?q=Ituzaing%C3%B3+Corrientes&hl=es-419&gl=AR&ceid=AR:es-419',
+  'https://news.google.com/rss/search?q=Yacyret%C3%A1+Ituzaing%C3%B3&hl=es-419&gl=AR&ceid=AR:es-419',
+  'https://news.google.com/rss/search?q=Esteros+del+Iber%C3%A1+Corrientes&hl=es-419&gl=AR&ceid=AR:es-419',
+  'https://www.ellitoral.com.ar/rss/seccion/corrientes',
+];
 
 function cleanCdata(text: string): string {
   if (!text) return '';
@@ -39,7 +44,6 @@ function parseRssXml(xmlText: string) {
       items.push({
         title,
         link,
-        content: rawDesc,
         description: rawDesc,
         thumbnail: imageUrl,
       });
@@ -59,55 +63,51 @@ export class NewsGenerator {
     }
   }
 
-  public async generateNewArticles(count: number = 2): Promise<any[]> {
+  /**
+   * Genera y reescribe automáticamente noticias locales de Ituzaingó y Corrientes con la voz de Nora AI
+   */
+  public async generateItuzaingoNews(count: number = 3): Promise<any[]> {
     try {
       const supabase = createServerSupabaseClient();
 
-      let rssUrl = MOCK_RSS_URL;
-      try {
-        const { data: settingsData } = await supabase
-          .from('settings')
-          .select('value')
-          .eq('key', 'auto_news_rss_url')
-          .maybeSingle();
-
-        if (settingsData && settingsData.value && settingsData.value.trim()) {
-          rssUrl = settingsData.value.trim();
-        }
-      } catch (sErr) {}
-
-      // Fetch directo del XML (Sin rss2json)
-      const resRss = await fetch(rssUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'application/rss+xml, application/xml, text/xml, */*',
-        },
-        cache: 'no-store',
-      });
-
-      if (!resRss.ok) {
-        console.warn(`[Nora News Generator] Error HTTP ${resRss.status} al leer RSS directo.`);
-        return [];
-      }
-
-      const xmlText = await resRss.text();
-      const items = parseRssXml(xmlText);
-
-      if (items.length === 0) return [];
-
+      // Cargar URLs existentes para no repetir
       const { data: existingArticles } = await supabase
         .from('articles')
         .select('external_url')
         .not('external_url', 'is', null);
 
       const existingUrls = new Set((existingArticles || []).map((a: any) => a.external_url));
-      const newItems = items.filter((item: any) => item.link && !existingUrls.has(item.link));
-      const itemsToProcess = newItems.slice(0, count);
+      const collectedItems: any[] = [];
 
+      for (const rssUrl of ITUZAINGO_RSS_FEEDS) {
+        try {
+          const res = await fetch(rssUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Accept': 'application/rss+xml, application/xml, text/xml, */*',
+            },
+            cache: 'no-store',
+          });
+
+          if (res.ok) {
+            const xmlText = await res.text();
+            const items = parseRssXml(xmlText);
+            for (const item of items) {
+              if (item.link && !existingUrls.has(item.link)) {
+                collectedItems.push(item);
+              }
+            }
+          }
+        } catch (fErr) {}
+      }
+
+      if (collectedItems.length === 0) return [];
+
+      const itemsToProcess = collectedItems.slice(0, count);
       const generatedArticles = [];
 
       for (const item of itemsToProcess) {
-        const article = await this.rewriteArticleWithGemini(item);
+        const article = await this.rewriteArticleWithNora(item);
         if (article) {
           generatedArticles.push(article);
         }
@@ -115,51 +115,50 @@ export class NewsGenerator {
 
       return generatedArticles;
     } catch (error) {
-      console.error("[Nora News Generator] Error:", error);
+      console.error("[Nora News Generator] Error en generación de noticias de Ituzaingó:", error);
       return [];
     }
   }
 
-  private async rewriteArticleWithGemini(item: any): Promise<any | null> {
-    const rawContent = item.content || item.description || "";
+  /**
+   * Procesa la novedad con Nora AI (Gemini) adaptándola al tono local de Ituzaingó y generando copy para redes
+   */
+  private async rewriteArticleWithNora(item: any): Promise<any | null> {
+    const rawContent = item.description || "";
     const title = item.title || "";
     const link = item.link || "";
 
-    let imageUrl = item.thumbnail || (item.enclosure && item.enclosure.link) || null;
-    if (!imageUrl && rawContent.includes('<img')) {
-      const imgMatch = rawContent.match(/<img[^>]+src="([^">]+)"/i);
-      if (imgMatch && imgMatch[1]) {
-        imageUrl = imgMatch[1];
-      }
-    }
-
     const apiKey = process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY_FALLBACK;
 
+    const defaultImage = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80';
+
     if (!apiKey) {
-      console.warn("No GEMINI_API_KEY found, returning raw item as fallback.");
       return {
         title,
-        excerpt: rawContent.replace(/<[^>]+>/g, '').substring(0, 150) + "...",
-        content: `<p>${rawContent}</p><p><i>Fuente: <a href="${link}" target="_blank" rel="noopener noreferrer">Enlace Original</a></i></p>`,
-        image_url: imageUrl || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1200&q=80',
+        excerpt: rawContent.replace(/<[^>]+>/g, '').substring(0, 160) + "...",
+        content: `<p>${rawContent}</p><p><i>Fuente local: <a href="${link}" target="_blank" rel="noopener noreferrer">Leer nota completa aquí</a></i></p>`,
+        image_url: item.thumbnail || defaultImage,
         external_url: link,
-        category: 'general',
-        status: 'published'
+        category: 'local',
+        status: 'published',
+        social_copy: `📰 ${title}\n\nConocé los detalles en Nexativa News 👇\n#Ituzaingó #Corrientes #NexativaNews`
       };
     }
 
     const prompt = `
-Eres NORA, redactora periodística de Nexativa News en Argentina.
-Tu tarea es tomar la noticia provista y reescribirla de manera completa, inteligente y original para respetarlos derechos de autor ("fair use").
+Eres NORA AI, la Jefa de Redacción y Periodista Principal de Nexativa News (nexativanews.com.ar) en Ituzaingó, Corrientes, Argentina.
+
+Tu objetivo es tomar la siguiente novedad periodística de Ituzaingó o la provincia de Corrientes y redactarla con un estilo impecable de periodismo de cercanía, profesional, respetando el "fair use" y agregando interpretación de valor local.
 
 Título original: ${title}
-Contenido: ${rawContent.replace(/<[^>]+>/g, '')}
+Contenido fuente: ${rawContent.replace(/<[^>]+>/g, '')}
 
-Devuelve la respuesta ESTRICTAMENTE en este formato JSON sin markdown:
+Devuelve la respuesta ESTRICTAMENTE en este formato JSON sin bloques de código markdown:
 {
-  "newTitle": "Título atrapante nuevo",
-  "excerpt": "Resumen corto de 150 caracteres...",
-  "htmlContent": "<p>Contenido periodístico reescrito...</p>"
+  "newTitle": "Título impactante con enfoque local",
+  "excerpt": "Resumen conciso y atrapante de no más de 160 caracteres...",
+  "htmlContent": "<p>Primer párrafo introductorio enfocado en la comunidad de Ituzaingó y Corrientes...</p><p>Segundo párrafo con los detalles sustanciales...</p>",
+  "socialCopy": "📲 COPY PARA INSTAGRAM/FACEBOOK/X:\\n\\n¡ÚLTIMO MOMENTO EN ITUZAINGÓ! 🌿\\n[Resumen atrapante de 2 líneas]\\n\\n👉 Leé la nota completa en nexativanews.com.ar\\n\\n#Ituzaingó #Corrientes #NexativaNews #Iberá"
 }
     `;
 
@@ -171,27 +170,28 @@ Devuelve la respuesta ESTRICTAMENTE en este formato JSON sin markdown:
       const cleanedText = textResponse.replace(/^\`\`\`json/m, '').replace(/^\`\`\`/m, '').trim();
       const parsed = JSON.parse(cleanedText);
 
-      const finalHtmlContent = `${parsed.htmlContent}\n\n<p><i>Fuente original: <a href="${link}" target="_blank" rel="noopener noreferrer">Leer nota completa aquí</a></i></p>`;
+      const finalHtmlContent = `${parsed.htmlContent}\n\n<p><i>Fuente periodística: <a href="${link}" target="_blank" rel="noopener noreferrer">Leer nota completa en el portal de origen</a></i></p>`;
 
       return {
         title: parsed.newTitle || title,
         excerpt: parsed.excerpt || title,
         content: finalHtmlContent,
-        image_url: imageUrl || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1200&q=80',
+        image_url: item.thumbnail || defaultImage,
         external_url: link,
-        category: 'general',
+        category: 'local',
         status: 'published',
-        author_id: null
+        author_id: null,
+        social_copy: parsed.socialCopy || `📰 ${parsed.newTitle}\n\nLeé la nota en Nexativa News 👇\n#Ituzaingó #Corrientes`
       };
     } catch (error) {
       console.error("[Nora News Generator] Error Gemini:", error);
       return {
         title,
-        excerpt: rawContent.replace(/<[^>]+>/g, '').substring(0, 150) + "...",
+        excerpt: rawContent.replace(/<[^>]+>/g, '').substring(0, 160) + "...",
         content: `<p>${rawContent}</p><p><i>Fuente: <a href="${link}" target="_blank" rel="noopener noreferrer">Enlace Original</a></i></p>`,
-        image_url: imageUrl || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1200&q=80',
+        image_url: item.thumbnail || defaultImage,
         external_url: link,
-        category: 'general',
+        category: 'local',
         status: 'published'
       };
     }
