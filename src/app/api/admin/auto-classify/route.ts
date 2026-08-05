@@ -22,17 +22,22 @@ function cleanExcerptText(raw: string | null): string {
 function detectCategoryAndImage(title: string, excerpt: string) {
   const t = (title + ' ' + excerpt).toLowerCase();
 
-  // ⚽ DEPORTES (Mastantuono, Real Madrid, Racing, Boca, River, San Lorenzo, Selección, Tenis, Básquet, Liga, Copa, Gol, Salas)
+  // ⚽ DEPORTES (Messi, Inter Miami, Leagues Cup, Mastantuono, Real Madrid, Racing, Boca, River, San Lorenzo, Selección, Tenis, Básquet, Liga, Copa, Gol, Salas, Palermo)
   if (
+    t.includes('messi') ||
+    t.includes('inter miami') ||
+    t.includes('leagues cup') ||
     t.includes('mastantuono') ||
     t.includes('real madrid') ||
     t.includes('salas') ||
+    t.includes('palermo') ||
     t.includes('fútbol') ||
     t.includes('futbol') ||
     t.includes('boca') ||
     t.includes('river') ||
     t.includes('racing') ||
     t.includes('san lorenzo') ||
+    t.includes('independiente') ||
     t.includes('tenis') ||
     t.includes('básquet') ||
     t.includes('liga profesional') ||
@@ -166,14 +171,14 @@ export async function GET(req: Request) {
       const cleanExcerpt = cleanExcerptText(art.excerpt);
       const { category: detectedCat, image_url: topicImg } = detectCategoryAndImage(art.title, cleanExcerpt);
 
-      // Si la foto actual es nula, es el diario genérico o logo de google, la reemplazamos forzosamente
+      // Forzar actualización de categoría e imagen por rubro para todas las noticias
       const isGenericOrGoogle =
         !art.image_url ||
         art.image_url.includes('google') ||
         art.image_url.includes('logo') ||
         art.image_url.includes('photo-1504711434969-e33886168f5c');
 
-      const finalImg = isGenericOrGoogle ? topicImg : art.image_url;
+      const finalImg = isGenericOrGoogle ? topicImg : topicImg;
 
       const { error: upErr } = await supabase
         .from('articles')
