@@ -103,26 +103,51 @@ function CertificadoContent({ params }: CertProps) {
     loadWorkerDetails();
   }, [id, queryName, queryTrade, queryCity, queryScore, queryBadge]);
 
+  const [certType, setCertType] = useState<'BIENVENIDA' | 'LOGROS'>('BIENVENIDA');
+
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(
     certData.verifyUrl
   )}`;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4 sm:p-8 font-serif">
-      {/* Botones de Acción (Ocultos al Imprimir) */}
-      <div className="print:hidden max-w-4xl w-full flex items-center justify-between gap-4 mb-6 font-sans">
-        <Link
-          href="/admin/jobs"
-          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
-        >
-          ← Volver a la Consola de Empleos
-        </Link>
+      {/* Botones de Acción y Selector de Modalidad (Ocultos al Imprimir) */}
+      <div className="print:hidden max-w-4xl w-full flex flex-col sm:flex-row items-center justify-between gap-4 mb-6 font-sans">
+        <div className="flex items-center gap-2 bg-slate-900/90 p-1.5 rounded-xl border border-slate-800">
+          <button
+            onClick={() => setCertType('BIENVENIDA')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              certType === 'BIENVENIDA'
+                ? 'bg-emerald-600 text-white shadow-lg'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            📜 Acreditación de Bienvenida
+          </button>
+          <button
+            onClick={() => setCertType('LOGROS')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              certType === 'LOGROS'
+                ? 'bg-amber-600 text-white shadow-lg'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            🏆 Técnico del Mes & Logros
+          </button>
+        </div>
+
         <div className="flex items-center gap-3">
+          <Link
+            href="/admin/jobs"
+            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5"
+          >
+            ← Consola
+          </Link>
           <button
             onClick={() => window.print()}
-            className="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg shadow-lg shadow-amber-500/20 transition-all flex items-center gap-2 text-sm"
+            className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg shadow-lg shadow-amber-500/20 transition-all flex items-center gap-2 text-xs"
           >
-            🖨️ Imprimir / Guardar en PDF (A4)
+            🖨️ Imprimir PDF (A4)
           </button>
         </div>
       </div>
@@ -144,15 +169,15 @@ function CertificadoContent({ params }: CertProps) {
         <div className="text-center mb-8 relative z-10">
           <div className="flex items-center justify-center gap-3 mb-2">
             <span className="text-2xl font-bold tracking-widest text-amber-800 font-sans uppercase">
-              NEXATIVA NEWS
+              NEXATIVA NEWS & RED COMUNITARIA
             </span>
           </div>
           <p className="text-xs font-sans tracking-widest text-slate-600 uppercase mb-4">
-            Plataforma Periodística y Red Comunitaria de Ituzaingó, Corrientes
+            Acreditación Digital de Prestadores y Técnicos de Ituzaingó, Corrientes
           </p>
 
           <h1 className="text-3xl sm:text-4xl font-extrabold text-amber-900 tracking-tight font-serif uppercase mb-2">
-            Certificado de Excelencia Comunitaria
+            {certType === 'BIENVENIDA' ? 'Certificado de Bienvenida y Operador Acreditado' : 'Certificado de Excelencia & Técnico del Mes'}
           </h1>
           <div className="w-32 h-1 bg-amber-600 mx-auto rounded-full"></div>
         </div>
@@ -160,7 +185,9 @@ function CertificadoContent({ params }: CertProps) {
         {/* Cuerpo Principal */}
         <div className="text-center my-8 relative z-10">
           <p className="text-sm font-sans italic text-slate-700 mb-2">
-            Por cuanto la comunidad de vecinos y clientes ha calificado con la máxima distinción a:
+            {certType === 'BIENVENIDA'
+              ? 'Por cuanto la Red Comunitaria Nexativa certifica oficialmente al profesional:'
+              : 'Por cuanto la comunidad de vecinos y clientes ha calificado con la máxima distinción a:'}
           </p>
 
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 my-4 font-serif underline decoration-amber-500/40 underline-offset-8">
@@ -168,12 +195,18 @@ function CertificadoContent({ params }: CertProps) {
           </h2>
 
           <p className="text-lg font-sans font-semibold text-amber-800 mb-6">
-            Especialista en: <span className="text-slate-900">{certData.tradeCategory}</span>
+            Especialista Acreditado en: <span className="text-slate-900">{certData.tradeCategory}</span>
           </p>
 
-          <p className="text-xs sm:text-sm font-sans text-slate-700 max-w-2xl mx-auto leading-relaxed mb-6">
-            Se otorga la máxima acreditación <strong className="text-amber-900">{certData.badgeLevel}</strong> respaldada por el algoritmo de reputación transparente <strong className="text-amber-900">NoraScore™</strong>, habiendo alcanzado un puntaje promedio de <span className="font-bold text-amber-800">⭐ {certData.noraScore} / 5.0</span> en más de <span className="font-bold text-amber-800">{certData.reviewsCount} opiniones reales</span> de vecinos de {certData.city}.
-          </p>
+          {certType === 'BIENVENIDA' ? (
+            <p className="text-xs sm:text-sm font-sans text-slate-700 max-w-2xl mx-auto leading-relaxed mb-6">
+              Se otorga la presente constancia de <strong className="text-amber-900">BIENVENIDA U OPERADOR CERTIFICADO</strong> acreditando su registro oficial y habilitación técnica en la plataforma Nexativa para atender a la comunidad de vecinos de <strong className="text-amber-900">{certData.city}</strong> con transparencia, identidad verificada y ética profesional.
+            </p>
+          ) : (
+            <p className="text-xs sm:text-sm font-sans text-slate-700 max-w-2xl mx-auto leading-relaxed mb-6">
+              Se otorga la máxima distinción <strong className="text-amber-900">{certData.badgeLevel} / TÉCNICO DEL MES</strong> respaldada por el algoritmo de reputación transparente <strong className="text-amber-900">NoraScore™</strong>, habiendo alcanzado un puntaje sobresaliente de <span className="font-bold text-amber-800">⭐ {certData.noraScore} / 5.0</span> en más de <span className="font-bold text-amber-800">{certData.reviewsCount} opiniones reales</span> de clientes en {certData.city}.
+            </p>
+          )}
         </div>
 
         {/* Footer y Elementos de Verificación */}

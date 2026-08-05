@@ -108,6 +108,9 @@ function PrestadoresContent() {
     loadActiveProvider();
   }, [queryId, queryName]);
 
+  const [providerZone, setProviderZone] = useState('Ituzaingó Centro');
+  const [detectingGPS, setDetectingGPS] = useState(false);
+
   const handleToggleOnline = async () => {
     const nextState = !isOnline;
     setIsOnline(nextState);
@@ -118,12 +121,54 @@ function PrestadoresContent() {
 
     try {
       localStorage.setItem('nexativa_active_prestador', JSON.stringify(updatedData));
+      
+      const savedProfiles = localStorage.getItem('nexativa_job_profiles_v1');
+      if (savedProfiles) {
+        const parsed = JSON.parse(savedProfiles);
+        if (Array.isArray(parsed)) {
+          const updatedProfiles = parsed.map((p: any) => 
+            p.id === providerData.id || p.full_name === providerData.name ? { ...p, status: newStatus } : p
+          );
+          localStorage.setItem('nexativa_job_profiles_v1', JSON.stringify(updatedProfiles));
+        }
+      }
+
       await fetch('/api/jobs/profiles/status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: providerData.id, status: newStatus }),
       });
     } catch (e) {}
+  };
+
+  const handleUpdateZone = (zone: string) => {
+    setProviderZone(zone);
+    const updatedData = { ...providerData, city: zone };
+    setProviderData(updatedData as any);
+    try {
+      localStorage.setItem('nexativa_active_prestador', JSON.stringify(updatedData));
+    } catch (e) {}
+  };
+
+  const handleDetectGPS = () => {
+    setDetectingGPS(true);
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setDetectingGPS(false);
+          const zoneStr = `GPS (${pos.coords.latitude.toFixed(3)}, ${pos.coords.longitude.toFixed(3)})`;
+          handleUpdateZone(zoneStr);
+          alert(`Ubicación GPS fijada: ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`);
+        },
+        () => {
+          setDetectingGPS(false);
+          alert("No se pudo obtener el GPS. Seleccioná tu barrio manualmente.");
+        }
+      );
+    } else {
+      setDetectingGPS(false);
+      alert("GPS no soportado en este dispositivo.");
+    }
   };
 
   const handleSelectProfile = (profile: any) => {
@@ -194,17 +239,63 @@ function PrestadoresContent() {
           </p>
           <div className="flex items-center justify-center gap-4">
             <button
+              type="button"
               onClick={handleToggleOnline}
-              className={`w-full py-3.5 px-6 rounded-xl font-extrabold text-sm transition-all shadow-lg flex items-center justify-center gap-2 ${
+              className={`w-full py-4 px-6 rounded-xl font-extrabold text-sm transition-all shadow-xl flex items-center justify-center gap-2.5 active:scale-95 ${
                 isOnline
-                  ? 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-emerald-600/20'
-                  : 'bg-rose-900/80 text-rose-200 border border-rose-600 shadow-rose-900/40'
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30 border border-emerald-400'
+                  : 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/30 border border-rose-400'
               }`}
             >
-              <span className={`w-3 h-3 rounded-full ${isOnline ? 'bg-emerald-300 animate-ping' : 'bg-rose-400'}`}></span>
-              {isOnline ? '🟢 DISPONIBLE PARA TRABAJOS' : '🔴 OCUPADO / EN TAREA'}
+              <span className={`w-3.5 h-3.5 rounded-full ${isOnline ? 'bg-white animate-ping' : 'bg-white'}`}></span>
+              {isOnline ? '🟢 DISPONIBLE AHORA (En Vivo)' : '🔴 OCUPADO / EN TAREA'}
             </button>
           </div>
+          <p className="text-[11px] text-gray-400 mt-2 font-medium">
+            {isOnline ? '🟢 Aparecés primero en la lista de disponibles para clientes.' : '🔴 No recibirás solicitudes directas mientras estés en tarea.'}
+          </p>
+        </div>
+
+        {/* Configuración de Ubicación por Cercanía */}
+        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 mb-6 shadow-xl">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">
+              📍 Tu Ubicación Actual / Zona de Servicio
+            </p>
+            <span className="text-[11px] font-extrabold text-cyan-300 bg-cyan-950/80 px-2.5 py-1 rounded-full border border-cyan-500/40">
+              {providerZone}
+            </span>
+          </div>
+
+          <p className="text-xs text-gray-400 mb-3">
+            Fijá tu ubicación para aparecer sugerido a los vecinos más cercanos en Ituzaingó:
+          </p>
+
+          <div className="grid grid-cols-2 gap-2 text-xs font-bold mb-3">
+            {["Ituzaingó Centro", "Barrio Paraná", "Villa Olivari", "San Antonio", "Itá Porá", "Zona Puerto"].map((z) => (
+              <button
+                key={z}
+                type="button"
+                onClick={() => handleUpdateZone(z)}
+                className={`py-2 px-3 rounded-xl border text-left transition-all ${
+                  providerZone === z
+                    ? "bg-cyan-600 text-white border-cyan-400 font-extrabold shadow-md"
+                    : "bg-gray-950 text-gray-300 border-gray-800 hover:border-gray-700"
+                }`}
+              >
+                📍 {z}
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={handleDetectGPS}
+            className="w-full py-2.5 bg-cyan-950/50 hover:bg-cyan-900/60 border border-cyan-500/40 text-cyan-300 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all"
+          >
+            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+            {detectingGPS ? "Detectando coordenadas GPS..." : "📡 Activar Detección Exacta por GPS"}
+          </button>
         </div>
 
         {/* Métricas NoraScore™ */}

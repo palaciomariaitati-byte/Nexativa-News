@@ -12,7 +12,15 @@ export default function NoraAgent() {
   const currentHoveredContext = useRef<string | null>(null);
   const hasTriggeredBottom = useRef<boolean>(false);
 
-  if (pathname?.startsWith("/admin") || pathname?.startsWith("/corresponsal-movil")) {
+  // Nora Vendedora debe estar únicamente en páginas de ventas (Tienda, Productos, Checkout, Brochure)
+  const isSalesPage = 
+    pathname === "/store" || 
+    pathname?.startsWith("/product/") || 
+    pathname === "/checkout" || 
+    pathname === "/brochure" || 
+    pathname?.startsWith("/prensa");
+
+  if (!isSalesPage) {
     return null;
   }
 
