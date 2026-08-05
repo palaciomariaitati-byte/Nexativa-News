@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 export const maxDuration = 60; // 60 seconds max execution time for cron
 
 // Feeds RSS de respaldo gratuitos directos sin apis de terceros
@@ -34,7 +36,6 @@ function parseRssXml(xmlText: string) {
     const pubDate = pubDateMatch ? pubDateMatch[1] : new Date().toISOString();
 
     if (title && link) {
-      // Extraer imagen del HTML si existe
       let imageUrl = null;
       const imgMatch = rawDesc.match(/<img[^>]+src="([^">]+)"/i);
       if (imgMatch && imgMatch[1]) {
