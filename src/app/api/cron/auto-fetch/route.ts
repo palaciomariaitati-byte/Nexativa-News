@@ -1,19 +1,35 @@
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { NewsGenerator } from '@/modules/nora-pro/news_generator';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-export const maxDuration = 60; // 60 seconds max execution time for cron
+export const maxDuration = 60; // 60 segundos tiempo máximo de ejecución
 
-// Feeds RSS de respaldo directos
-const DEFAULT_RSS_FEEDS = [
+// Feeds RSS directos de medios oficiales (Infobae, Clarín, La Nación, TyC Sports, El Litoral)
+// Estos medios entregan imágenes reales HD en sus tags media:content / enclosure
+const DIRECT_MEDIA_FEEDS = [
+  'https://www.infobae.com/arc/outboundfeeds/rss/?outputType=xml',
+  'https://www.lanacion.com.ar/arc/outboundfeeds/rss/?outputType=xml',
+  'https://www.clarin.com/rss/lo-ultimo/',
+  'https://www.tycsports.com/rss/rss.xml',
+  'https://www.ellitoral.com.ar/rss',
   'https://news.google.com/rss/search?q=Ituzaing%C3%B3+Corrientes&hl=es-419&gl=AR&ceid=AR:es-419',
-  'https://news.google.com/rss?hl=es-419&gl=AR&ceid=AR:es-419',
 ];
 
-function cleanExcerptText(raw: string): string {
-  if (!raw) return '';
+function cleanCdata(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/<!\[CDATA\[/g, '')
+    .replace(/\]\]>/g, '')
+    .trim();
+}
+
+/**
+ * Limpia y desinfecta el texto del resumen eliminando etiquetas HTML y códigos escapados como &lt;a href...
+ */
+function sanitizeExcerptText(raw: string | null): string {
+  if (!raw) return 'Noticia destacada en vivo en Nexativa News.';
+
   let text = raw
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
@@ -22,9 +38,119 @@ function cleanExcerptText(raw: string): string {
     .replace(/&#39;/g, "'")
     .replace(/&nbsp;/g, ' ');
 
+  // Eliminar cualquier código HTML o enlaces
   text = text.replace(/<[^>]+>/g, '').trim();
   text = text.replace(/https?:\/\/\S+/gi, '').trim();
+
+  // Si queda muy corto o con símbolos raros, dar texto limpio por defecto
+  if (!text || text.length < 10) return 'Noticia publicada y maquetada en vivo en Nexativa News.';
+
   return text.substring(0, 180);
+}
+
+/**
+ * Determina si una URL de imagen es válida y NO es un logo genérico de Google
+ */
+function isValidArticleImage(url: string | null): boolean {
+  if (!url) return false;
+  const u = url.toLowerCase();
+
+  if (
+    u.includes('googleusercontent') ||
+    u.includes('news.google') ||
+    u.includes('logo') ||
+    u.includes('icon') ||
+    u.includes('favicon') ||
+    u.includes('placeholder')
+  ) {
+    return false;
+  }
+  return u.startsWith('http');
+}
+
+/**
+ * Clasificador temático de imágenes contextuales en HD para cuando un medio no provee foto
+ */
+function getTopicImage(title: string, category: string): string {
+  const t = title.toLowerCase();
+
+  // ⚽ DEPORTES (Fútbol, Mastantuono, Real Madrid, Racing, Boca, River, San Lorenzo, Selección, Tenis, Básquet)
+  if (
+    category === 'deportes' ||
+    t.includes('mastantuono') ||
+    t.includes('real madrid') ||
+    t.includes('salas') ||
+    t.includes('fútbol') ||
+    t.includes('futbol') ||
+    t.includes('boca') ||
+    t.includes('river') ||
+    t.includes('racing') ||
+    t.includes('gol') ||
+    t.includes('partido') ||
+    t.includes('dt ')
+  ) {
+    return 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=1200&q=80';
+  }
+
+  // 🏥 SALUD / MEDICINA (Psicólogo, Chaco, Crohn, Sarcopenia, Sangre, Virus, Vacuna, Estudio)
+  if (
+    t.includes('psicólogo') ||
+    t.includes('psicologo') ||
+    t.includes('sangre') ||
+    t.includes('crohn') ||
+    t.includes('sarcopenia') ||
+    t.includes('enfermedad') ||
+    t.includes('salud') ||
+    t.includes('médic') ||
+    t.includes('estudio') ||
+    t.includes('hospital')
+  ) {
+    return 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=1200&q=80';
+  }
+
+  // 🏛️ POLÍTICA & GOBIERNO (Milei, Brasil, Conflicto, Ley de Tierras, Sesión, Congreso)
+  if (
+    t.includes('milei') ||
+    t.includes('brasil') ||
+    t.includes('ley de tierras') ||
+    t.includes('congreso') ||
+    t.includes('diputados') ||
+    t.includes('senadores') ||
+    t.includes('gobierno') ||
+    t.includes('presidente')
+  ) {
+    return 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?auto=format&fit=crop&w=1200&q=80';
+  }
+
+  // 🌿 CORRIENTES & REGIONAL (Ituzaingó, Iberá, Yacyretá, Valdés, Paraná, Río)
+  if (
+    category === 'local' ||
+    t.includes('corrientes') ||
+    t.includes('ituzaingó') ||
+    t.includes('ituzaingo') ||
+    t.includes('iberá') ||
+    t.includes('yacyretá') ||
+    t.includes('río') ||
+    t.includes('paraná')
+  ) {
+    return 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80';
+  }
+
+  // ⚖️ POLICIALES & JUSTICIA (Asesinado, Chats, Maltrato, Chaco, Juez, Policiales, Fiscal)
+  if (
+    t.includes('asesinado') ||
+    t.includes('novia') ||
+    t.includes('chats') ||
+    t.includes('maltrato') ||
+    t.includes('crimen') ||
+    t.includes('policía') ||
+    t.includes('detenido') ||
+    t.includes('justicia')
+  ) {
+    return 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=1200&q=80';
+  }
+
+  return 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1200&q=80';
 }
 
 function detectCategoryFromUrlOrText(rssUrl: string, title: string): string {
@@ -39,6 +165,8 @@ function detectCategoryFromUrlOrText(rssUrl: string, title: string): string {
     lowerTitle.includes('boca') ||
     lowerTitle.includes('river') ||
     lowerTitle.includes('racing') ||
+    lowerTitle.includes('mastantuono') ||
+    lowerTitle.includes('real madrid') ||
     lowerTitle.includes('salas') ||
     lowerTitle.includes('partido')
   ) {
@@ -58,94 +186,85 @@ function detectCategoryFromUrlOrText(rssUrl: string, title: string): string {
     lowerUrl.includes('internacional') ||
     lowerTitle.includes('eeuu') ||
     lowerTitle.includes('europa') ||
-    lowerTitle.includes('sudáfrica')
+    lowerTitle.includes('sudáfrica') ||
+    lowerTitle.includes('ucrania')
   ) {
     return 'internacional';
   }
   return 'nacional';
 }
 
-function getContextualImage(title: string, category: string): string {
-  const t = title.toLowerCase();
+/**
+ * Parsea el XML del feed buscando imágenes en media:content, enclosure, media:thumbnail e img tags HTML
+ */
+function parseRssXml(xmlText: string) {
+  const items: any[] = [];
+  const itemMatches = Array.from(xmlText.matchAll(/<item>([\s\S]*?)<\/item>/gi));
 
-  if (category === 'deportes' || t.includes('salas') || t.includes('fútbol') || t.includes('boca') || t.includes('river') || t.includes('racing') || t.includes('gol')) {
-    return 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=1200&q=80';
-  }
-  if (t.includes('sangre') || t.includes('crohn') || t.includes('sarcopenia') || t.includes('enfermedad') || t.includes('salud') || t.includes('médic')) {
-    return 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=1200&q=80';
-  }
-  if (category === 'internacional' || t.includes('sudáfrica') || t.includes('eeuu') || t.includes('europa') || t.includes('cumbre')) {
-    return 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?auto=format&fit=crop&w=1200&q=80';
-  }
-  if (category === 'local' || t.includes('corrientes') || t.includes('ituzaingó') || t.includes('iberá') || t.includes('río') || t.includes('paraná')) {
-    return 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80';
+  for (const match of itemMatches) {
+    const itemXml = match[1];
+
+    const titleMatch = itemXml.match(/<title>([\s\S]*?)<\/title>/i);
+    const linkMatch = itemXml.match(/<link>([\s\S]*?)<\/link>/i);
+    const descMatch = itemXml.match(/<description>([\s\S]*?)<\/description>/i);
+
+    const title = cleanCdata(titleMatch ? titleMatch[1] : '');
+    const link = cleanCdata(linkMatch ? linkMatch[1] : '');
+    const rawDesc = cleanCdata(descMatch ? descMatch[1] : '');
+
+    if (title && link) {
+      let imageUrl: string | null = null;
+
+      // 1. Buscar en <media:content url="...">
+      const mediaMatch = itemXml.match(/<media:content[^>]+url=["']([^"']+)["']/i);
+      if (mediaMatch && mediaMatch[1] && isValidArticleImage(mediaMatch[1])) {
+        imageUrl = mediaMatch[1];
+      }
+
+      // 2. Buscar en <enclosure url="...">
+      if (!imageUrl) {
+        const enclosureMatch = itemXml.match(/<enclosure[^>]+url=["']([^"']+)["']/i);
+        if (enclosureMatch && enclosureMatch[1] && isValidArticleImage(enclosureMatch[1])) {
+          imageUrl = enclosureMatch[1];
+        }
+      }
+
+      // 3. Buscar en <media:thumbnail url="...">
+      if (!imageUrl) {
+        const thumbMatch = itemXml.match(/<media:thumbnail[^>]+url=["']([^"']+)["']/i);
+        if (thumbMatch && thumbMatch[1] && isValidArticleImage(thumbMatch[1])) {
+          imageUrl = thumbMatch[1];
+        }
+      }
+
+      // 4. Buscar en <img src="..."> en el contenido HTML
+      if (!imageUrl && rawDesc.includes('<img')) {
+        const imgMatch = rawDesc.match(/<img[^>]+src=["']([^"']+)["']/i);
+        if (imgMatch && imgMatch[1] && isValidArticleImage(imgMatch[1])) {
+          imageUrl = imgMatch[1];
+        }
+      }
+
+      items.push({
+        title,
+        link,
+        description: rawDesc,
+        thumbnail: imageUrl,
+      });
+    }
   }
 
-  return 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1200&q=80';
+  return items;
 }
 
 export async function GET(request: Request) {
   try {
-    console.log('[Auto-Fetch] Inicia ingesta periodística de NORA AI para Ituzaingó y Fuentes Globales...');
+    console.log('[Auto-Fetch] Inicia sincronización HD de imágenes de medios oficiales...');
 
     const supabase = createServerSupabaseClient();
-    let totalAddedCount = 0;
 
-    // 1. Obtener Webhook de Make.com para redes sociales (si está configurado)
-    let makeWebhookUrl = '';
-    try {
-      const { data: makeSetting } = await supabase
-        .from('settings')
-        .select('value')
-        .eq('key', 'make_webhook_url')
-        .maybeSingle();
-
-      if (makeSetting && makeSetting.value) {
-        makeWebhookUrl = makeSetting.value.trim();
-      }
-    } catch (mErr) {}
-
-    // 2. Invocación de NORA AI para redactar noticias locales exclusivas de Ituzaingó & Corrientes
-    try {
-      const nora = new NewsGenerator();
-      const ituzaingoArticles = await nora.generateItuzaingoNews(2);
-
-      for (const art of ituzaingoArticles) {
-        const { data: insertedData, error: insErr } = await supabase
-          .from('articles')
-          .insert([art])
-          .select('id')
-          .single();
-
-        if (!insErr) {
-          totalAddedCount++;
-          console.log(`[Auto-Fetch] 🧠 NORA AI publicó noticia local: ${art.title}`);
-
-          // Disparar Webhook a Make.com para auto-publicar en Redes Sociales (Instagram, Facebook, X)
-          if (makeWebhookUrl && insertedData?.id) {
-            try {
-              await fetch(makeWebhookUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  title: art.title,
-                  excerpt: art.excerpt,
-                  url: `https://nexativanews.com.ar/noticias/${insertedData.id}`,
-                  image_url: art.image_url,
-                  social_copy: art.social_copy,
-                  category: art.category,
-                }),
-              });
-            } catch (wErr) {}
-          }
-        }
-      }
-    } catch (noraErr) {
-      console.error('[Auto-Fetch] Error en Nora AI local:', noraErr);
-    }
-
-    // 3. Obtener lista de URLs RSS generales
-    let rssUrls: string[] = DEFAULT_RSS_FEEDS;
+    // 1. Cargar lista de fuentes (Usar medios oficiales directos si no hay o para complementar)
+    let rssUrls: string[] = DIRECT_MEDIA_FEEDS;
     try {
       const { data: settingsData } = await supabase
         .from('settings')
@@ -161,12 +280,12 @@ export async function GET(request: Request) {
           .filter((u: string) => u.startsWith('http'));
 
         if (splitUrls.length > 0) {
-          rssUrls = splitUrls;
+          rssUrls = Array.from(new Set([...splitUrls, ...DIRECT_MEDIA_FEEDS]));
         }
       }
     } catch (sErr) {}
 
-    // 4. Cargar URLs de artículos existentes
+    // 2. Cargar URLs de artículos existentes
     let existingUrls = new Set<string>();
     try {
       const { data: existingArticles } = await supabase
@@ -179,7 +298,9 @@ export async function GET(request: Request) {
       }
     } catch (e) {}
 
-    // 5. Ingesta general complementaria
+    // 3. Ingesta de noticias con foto real HD
+    let totalAddedCount = 0;
+
     for (const rssUrl of rssUrls) {
       try {
         const resRss = await fetch(rssUrl, {
@@ -193,23 +314,21 @@ export async function GET(request: Request) {
         if (!resRss.ok) continue;
 
         const xmlText = await resRss.text();
-        const itemMatches = Array.from(xmlText.matchAll(/<item>([\s\S]*?)<\/item>/gi));
+        const items = parseRssXml(xmlText);
 
-        for (const match of itemMatches) {
-          const itemXml = match[1];
-          const titleMatch = itemXml.match(/<title>([\s\S]*?)<\/title>/i);
-          const linkMatch = itemXml.match(/<link>([\s\S]*?)<\/link>/i);
-          const descMatch = itemXml.match(/<description>([\s\S]*?)<\/description>/i);
-
-          const title = titleMatch ? titleMatch[1].replace(/<!\[CDATA\[/g, '').replace(/\]\]>/g, '').trim() : '';
-          const link = linkMatch ? linkMatch[1].replace(/<!\[CDATA\[/g, '').replace(/\]\]>/g, '').trim() : '';
-          const rawDesc = descMatch ? descMatch[1].replace(/<!\[CDATA\[/g, '').replace(/\]\]>/g, '').trim() : '';
-
+        for (const item of items) {
+          const link = item.link;
           if (!link || existingUrls.has(link)) continue;
 
-          const cleanExcerpt = cleanExcerptText(rawDesc) || 'Noticia destacada publicada en vivo en Nexativa News.';
+          const title = item.title;
+          const cleanExcerpt = sanitizeExcerptText(item.description);
           const category = detectCategoryFromUrlOrText(rssUrl, title);
-          const finalImage = getContextualImage(title, category);
+
+          // Asignar imagen real del medio u foto contextual HD representativa del tema
+          let finalImage = item.thumbnail;
+          if (!isValidArticleImage(finalImage)) {
+            finalImage = getTopicImage(title, category);
+          }
 
           const payload = {
             title,
@@ -224,17 +343,47 @@ export async function GET(request: Request) {
 
           const { error: insertError } = await supabase.from('articles').insert([payload]);
           if (!insertError) {
+            console.log(`[Auto-Fetch] ✅ Noticia ingresada con foto HD (${category}): ${title}`);
             totalAddedCount++;
             existingUrls.add(link);
           }
         }
-      } catch (fErr) {}
+      } catch (feedErr) {
+        console.error(`[Auto-Fetch] Error procesando fuente ${rssUrl}:`, feedErr);
+      }
     }
+
+    // 4. Limpieza y actualización masiva de todas las noticias en la BD que tenían logos de Google o código <a href=
+    try {
+      const { data: allArticles } = await supabase
+        .from('articles')
+        .select('id, title, excerpt, category, image_url')
+        .eq('status', 'published');
+
+      if (allArticles) {
+        for (const art of allArticles) {
+          const cleanEx = sanitizeExcerptText(art.excerpt);
+          const isGoogleLogo = !isValidArticleImage(art.image_url);
+          const targetCategory = detectCategoryFromUrlOrText('', art.title);
+          const correctImg = isGoogleLogo ? getTopicImage(art.title, targetCategory) : art.image_url;
+
+          const updates: any = {};
+          if (art.excerpt !== cleanEx) updates.excerpt = cleanEx;
+          if (art.image_url !== correctImg) updates.image_url = correctImg;
+          if (art.category === 'general' || !art.category) updates.category = targetCategory;
+
+          if (Object.keys(updates).length > 0) {
+            await supabase.from('articles').update(updates).eq('id', art.id);
+          }
+        }
+      }
+    } catch (uErr) {}
 
     return NextResponse.json({
       success: true,
-      message: `🎉 NORA AI procesó y publicó ${totalAddedCount} noticias locales e internacionales en Nexativa News.`,
+      message: `🎉 Sincronización HD completa. Se reemplazaron logos de Google por portadas HD y se limpiaron los resúmenes.`,
       added: totalAddedCount,
+      sourcesCount: rssUrls.length,
     });
   } catch (error: any) {
     console.error('[Auto-Fetch] Error general:', error);

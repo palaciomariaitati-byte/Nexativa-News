@@ -15,14 +15,33 @@ function cleanExcerptText(raw: string | null): string {
 
   text = text.replace(/<[^>]+>/g, '').trim();
   text = text.replace(/https?:\/\/\S+/gi, '').trim();
+  if (!text || text.length < 10) return 'Noticia publicada y maquetada en vivo en Nexativa News.';
   return text.substring(0, 180);
+}
+
+function isValidArticleImage(url: string | null): boolean {
+  if (!url) return false;
+  const u = url.toLowerCase();
+  if (
+    u.includes('googleusercontent') ||
+    u.includes('news.google') ||
+    u.includes('logo') ||
+    u.includes('icon') ||
+    u.includes('favicon') ||
+    u.includes('placeholder')
+  ) {
+    return false;
+  }
+  return u.startsWith('http');
 }
 
 function detectCategoryAndImage(title: string, excerpt: string) {
   const t = (title + ' ' + excerpt).toLowerCase();
 
-  // ⚽ DEPORTES (Fútbol, Maxi Salas, Racing, Boca, River, San Lorenzo, Selección, Tenis, Básquet, Liga, DT, Gol)
+  // ⚽ DEPORTES (Fútbol, Mastantuono, Real Madrid, Racing, Boca, River, San Lorenzo, Selección, Tenis, Básquet)
   if (
+    t.includes('mastantuono') ||
+    t.includes('real madrid') ||
     t.includes('salas') ||
     t.includes('fútbol') ||
     t.includes('futbol') ||
@@ -30,7 +49,6 @@ function detectCategoryAndImage(title: string, excerpt: string) {
     t.includes('river') ||
     t.includes('racing') ||
     t.includes('san lorenzo') ||
-    t.includes('independiente') ||
     t.includes('tenis') ||
     t.includes('básquet') ||
     t.includes('liga profesional') ||
@@ -62,16 +80,18 @@ function detectCategoryAndImage(title: string, excerpt: string) {
     };
   }
 
-  // 🏥 SALUD & CIENCIA (Sangre, Crohn, Sarcopenia, Estudio Médico, Cáncer, Vacuna, Virus, Hospital)
+  // 🏥 SALUD & MEDICINA (Psicólogo, Chaco, Crohn, Sarcopenia, Estudio Médico, Cáncer, Vacuna, Virus, Hospital)
   if (
-    t.includes('crohn') ||
+    t.includes('psicólogo') ||
+    t.includes('psicologo') ||
     t.includes('sangre') ||
+    t.includes('crohn') ||
     t.includes('sarcopenia') ||
     t.includes('salud') ||
     t.includes('médic') ||
-    t.includes('estudio científico') ||
-    t.includes('cáncer') ||
-    t.includes('vacuna')
+    t.includes('estudio') ||
+    t.includes('vacuna') ||
+    t.includes('hospital')
   ) {
     return {
       category: 'nacional',
@@ -79,7 +99,24 @@ function detectCategoryAndImage(title: string, excerpt: string) {
     };
   }
 
-  // 🌍 INTERNACIONAL (Sudáfrica, EEUU, Europa, Cumbre, China, Ucrania, Israel, Cancillería)
+  // ⚖️ POLICIALES & JUSTICIA (Asesinado, Chats, Maltrato, Chaco, Juez, Policiales, Fiscal)
+  if (
+    t.includes('asesinado') ||
+    t.includes('novia') ||
+    t.includes('chats') ||
+    t.includes('maltrato') ||
+    t.includes('crimen') ||
+    t.includes('policía') ||
+    t.includes('detenido') ||
+    t.includes('justicia')
+  ) {
+    return {
+      category: 'nacional',
+      image_url: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=1200&q=80',
+    };
+  }
+
+  // 🌍 INTERNACIONAL (Sudáfrica, EEUU, Europa, Cumbre, China, Ucrania, Israel)
   if (
     t.includes('sudáfrica') ||
     t.includes('sudafrica') ||
@@ -96,11 +133,19 @@ function detectCategoryAndImage(title: string, excerpt: string) {
     };
   }
 
-  // 🎭 CULTURA (Música, Teatro, Libro, Arte, Cine, Concierto)
-  if (t.includes('teatro') || t.includes('música') || t.includes('recital') || t.includes('cine') || t.includes('libro')) {
+  // 🏛️ POLÍTICA & GOBIERNO (Milei, Brasil, Conflicto, Ley de Tierras, Sesión)
+  if (
+    t.includes('milei') ||
+    t.includes('brasil') ||
+    t.includes('ley de tierras') ||
+    t.includes('congreso') ||
+    t.includes('diputados') ||
+    t.includes('senadores') ||
+    t.includes('gobierno')
+  ) {
     return {
-      category: 'cultural',
-      image_url: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1200&q=80',
+      category: 'nacional',
+      image_url: 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?auto=format&fit=crop&w=1200&q=80',
     };
   }
 
@@ -115,7 +160,6 @@ export async function GET(req: Request) {
   try {
     const supabase = await createServerSupabaseClient();
 
-    // 1. Obtener todas las noticias para auto-clasificar
     const { data: articles, error } = await supabase
       .from('articles')
       .select('id, title, excerpt, category, image_url');
@@ -130,12 +174,14 @@ export async function GET(req: Request) {
       const cleanExcerpt = cleanExcerptText(art.excerpt);
       const { category, image_url } = detectCategoryAndImage(art.title, cleanExcerpt);
 
-      // Actualizar en la BD
+      const isInvalidImg = !isValidArticleImage(art.image_url);
+      const finalImg = isInvalidImg ? image_url : art.image_url;
+
       const { error: upErr } = await supabase
         .from('articles')
         .update({
           category,
-          image_url: art.image_url && !art.image_url.includes('unsplash') ? art.image_url : image_url,
+          image_url: finalImg,
           excerpt: cleanExcerpt,
         })
         .eq('id', art.id);
@@ -145,7 +191,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `🎉 Auto-clasificación masiva completa. Se clasificaron ${updatedCount} noticias correctamente por rubro e imagen.`,
+      message: `🎉 Auto-clasificación HD completa. Se actualizaron ${updatedCount} noticias eliminando logos de Google y fragmentos HTML.`,
       count: updatedCount,
     });
   } catch (err: any) {
