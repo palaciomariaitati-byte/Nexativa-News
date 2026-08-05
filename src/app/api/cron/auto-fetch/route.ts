@@ -33,7 +33,6 @@ function parseRssXml(xmlText: string) {
     const title = cleanCdata(titleMatch ? titleMatch[1] : '');
     const link = cleanCdata(linkMatch ? linkMatch[1] : '');
     const rawDesc = cleanCdata(descMatch ? descMatch[1] : '');
-    const pubDate = pubDateMatch ? pubDateMatch[1] : new Date().toISOString();
 
     if (title && link) {
       let imageUrl = null;
@@ -46,7 +45,6 @@ function parseRssXml(xmlText: string) {
         title,
         link,
         description: rawDesc,
-        pubDate,
         thumbnail: imageUrl,
       });
     }
@@ -57,12 +55,12 @@ function parseRssXml(xmlText: string) {
 
 export async function GET(request: Request) {
   try {
-    console.log('[Auto-Fetch] Inicia sincronización automática de noticias directas...');
+    console.log('[Auto-Fetch] Inicia sincronización automática de noticias multi-fuente...');
 
     const supabase = createServerSupabaseClient();
 
-    // 1. Obtener URL del RSS
-    let rssUrl = DEFAULT_RSS_FEEDS[0];
+    // 1. Obtener lista de URLs de RSS (pueden ser múltiples separadas por salto de línea o coma)
+    let rssUrls: string[] = DEFAULT_RSS_FEEDS;
     try {
       const { data: settingsData } = await supabase
         .from('settings')
@@ -71,33 +69,22 @@ export async function GET(request: Request) {
         .maybeSingle();
 
       if (settingsData && settingsData.value && settingsData.value.trim()) {
-        rssUrl = settingsData.value.trim();
+        const raw = settingsData.value.trim();
+        // Separar por salto de línea o coma
+        const splitUrls = raw
+          .split(/[\n,]+/)
+          .map((u: string) => u.trim())
+          .filter((u: string) => u.startsWith('http'));
+
+        if (splitUrls.length > 0) {
+          rssUrls = splitUrls;
+        }
       }
     } catch (sErr) {}
 
-    console.log(`[Auto-Fetch] Extrayendo noticias directas de: ${rssUrl}`);
+    console.log(`[Auto-Fetch] Extrayendo de ${rssUrls.length} fuentes RSS:`, rssUrls);
 
-    // 2. Fetch directo del XML (Sin depender de rss2json)
-    const resRss = await fetch(rssUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/rss+xml, application/xml, text/xml, */*',
-      },
-      cache: 'no-store',
-    });
-
-    if (!resRss.ok) {
-      throw new Error(`Error HTTP ${resRss.status} al leer el feed RSS directo.`);
-    }
-
-    const xmlText = await resRss.text();
-    const items = parseRssXml(xmlText);
-
-    if (items.length === 0) {
-      return NextResponse.json({ success: true, message: 'No se encontraron artículos en el feed RSS.' });
-    }
-
-    // 3. Filtrar artículos existentes
+    // 2. Cargar URLs de artículos existentes para evitar duplicados
     let existingUrls = new Set<string>();
     try {
       const { data: existingArticles } = await supabase
@@ -110,54 +97,73 @@ export async function GET(request: Request) {
       }
     } catch (e) {}
 
-    // 4. Insertar noticias nuevas
-    let addedCount = 0;
+    // 3. Iterar por cada fuente RSS y acumular noticias nuevas
+    let totalAddedCount = 0;
     const defaultImages = [
       'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1200&q=80',
       'https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&w=1200&q=80',
       'https://images.unsplash.com/photo-1585829365295-ab7cd400c167?auto=format&fit=crop&w=1200&q=80',
     ];
 
-    for (const item of items) {
-      const link = item.link;
-      if (!link || existingUrls.has(link)) {
-        continue;
-      }
-
-      const title = item.title;
-      const rawContent = item.description || '';
-      let cleanExcerpt = rawContent.replace(/<[^>]+>/g, '').trim().substring(0, 180) + '...';
-      if (!cleanExcerpt || cleanExcerpt === '...') cleanExcerpt = 'Noticia de última hora publicada en vivo en Nexativa News.';
-
-      const randomImg = defaultImages[addedCount % defaultImages.length];
-
-      const payload = {
-        title,
-        excerpt: cleanExcerpt,
-        content: `<p>${rawContent || cleanExcerpt}</p>\n\n<p><i>Fuente oficial: <a href="${link}" target="_blank" rel="noopener noreferrer">Leer nota completa en el portal de origen</a></i></p>`,
-        image_url: item.thumbnail || randomImg,
-        external_url: link,
-        category: 'general',
-        status: 'published',
-        created_at: new Date().toISOString(),
-      };
-
+    for (const rssUrl of rssUrls) {
       try {
-        const { error: insertError } = await supabase.from('articles').insert([payload]);
-        if (!insertError) {
-          console.log(`[Auto-Fetch] ✅ Noticia ingresada: ${title}`);
-          addedCount++;
-          existingUrls.add(link);
+        const resRss = await fetch(rssUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/rss+xml, application/xml, text/xml, */*',
+          },
+          cache: 'no-store',
+        });
+
+        if (!resRss.ok) {
+          console.warn(`[Auto-Fetch] No se pudo leer la fuente: ${rssUrl} (Status ${resRss.status})`);
+          continue;
         }
-      } catch (iErr) {
-        console.error(`[Auto-Fetch] Error insertando noticia ${title}:`, iErr);
+
+        const xmlText = await resRss.text();
+        const items = parseRssXml(xmlText);
+
+        for (const item of items) {
+          const link = item.link;
+          if (!link || existingUrls.has(link)) {
+            continue;
+          }
+
+          const title = item.title;
+          const rawContent = item.description || '';
+          let cleanExcerpt = rawContent.replace(/<[^>]+>/g, '').trim().substring(0, 180) + '...';
+          if (!cleanExcerpt || cleanExcerpt === '...') cleanExcerpt = 'Noticia de última hora publicada en vivo en Nexativa News.';
+
+          const randomImg = defaultImages[totalAddedCount % defaultImages.length];
+
+          const payload = {
+            title,
+            excerpt: cleanExcerpt,
+            content: `<p>${rawContent || cleanExcerpt}</p>\n\n<p><i>Fuente oficial: <a href="${link}" target="_blank" rel="noopener noreferrer">Leer nota completa en el portal de origen</a></i></p>`,
+            image_url: item.thumbnail || randomImg,
+            external_url: link,
+            category: 'general',
+            status: 'published',
+            created_at: new Date().toISOString(),
+          };
+
+          const { error: insertError } = await supabase.from('articles').insert([payload]);
+          if (!insertError) {
+            console.log(`[Auto-Fetch] ✅ Noticia ingresada: ${title}`);
+            totalAddedCount++;
+            existingUrls.add(link);
+          }
+        }
+      } catch (feedErr) {
+        console.error(`[Auto-Fetch] Error procesando fuente ${rssUrl}:`, feedErr);
       }
     }
 
     return NextResponse.json({
       success: true,
-      message: `🎉 Sincronización completa. Se añadieron ${addedCount} noticias automáticamente.`,
-      added: addedCount,
+      message: `🎉 Sincronización multi-fuente completa. Se añadieron ${totalAddedCount} noticias automáticas desde ${rssUrls.length} fuentes.`,
+      added: totalAddedCount,
+      sourcesCount: rssUrls.length,
     });
   } catch (error: any) {
     console.error('[Auto-Fetch] Error general:', error);

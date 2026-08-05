@@ -105,16 +105,18 @@ export default function AdminSettingsPage() {
         </div>
 
         <div className="bg-indigo-900/30 border border-indigo-500/50 p-4 rounded-xl mb-6">
-          <label className="block text-sm font-bold text-indigo-400 mb-2 uppercase">Fuente Automática de Noticias (Bot de Ingesta)</label>
-          <input
-            type="url"
+          <label className="block text-sm font-bold text-indigo-400 mb-2 uppercase">Fuentes Automáticas de Noticias (Bot Ingesta Multi-RSS)</label>
+          <textarea
             name="auto_news_rss_url"
+            rows={4}
             value={settings.auto_news_rss_url || ""}
-            onChange={handleChange}
-            className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-indigo-500"
-            placeholder="Ej: https://www.infobae.com/arc/outboundfeeds/rss/?outputType=xml"
+            onChange={(e) => setSettings({ ...settings, [e.target.name]: e.target.value })}
+            className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white font-mono text-xs focus:outline-none focus:border-indigo-500 leading-relaxed"
+            placeholder="Pegá tus URLs RSS (una por línea):&#10;https://news.google.com/rss?hl=es-419&gl=AR&ceid=AR:es-419&#10;https://www.lanacion.com.ar/arc/outboundfeeds/rss/?outputType=xml&#10;https://www.clarin.com/rss/lo-ultimo/"
           />
-          <p className="text-xs text-white/50 mt-2">El bot leerá este enlace RSS cada 60 minutos y publicará automáticamente las noticias nuevas en tu base de datos.</p>
+          <p className="text-xs text-white/60 mt-2">
+            💡 <strong>Soporta Múltiples Fuentes:</strong> Podés pegar varios enlaces RSS (uno por línea). El bot recorrerá cada uno de los diarios automáticamente y publicará las noticias nuevas sin duplicar.
+          </p>
         </div>
 
         <div className="bg-gradient-to-r from-pink-900/30 to-orange-900/30 border border-pink-500/50 p-4 rounded-xl mb-6">
