@@ -34,9 +34,24 @@ export default function EmpleosPage() {
   const [offers, setOffers] = useState<JobOffer[]>([]);
   const [onlyAvailable, setOnlyAvailable] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('TODOS');
+
+  const categoriesList = ['TODOS', ...Array.from(new Set(profiles.map(p => p.trade_category)))];
 
   const displayProfiles = profiles
-    .filter((p) => (onlyAvailable ? p.status !== 'BUSY' : true))
+    .filter((p) => {
+      const matchesAvailable = onlyAvailable ? p.status !== 'BUSY' : true;
+      const matchesSearch =
+        !searchQuery ||
+        p.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.trade_category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.bio.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory =
+        selectedCategory === 'TODOS' || p.trade_category.toLowerCase().includes(selectedCategory.toLowerCase());
+
+      return matchesAvailable && matchesSearch && matchesCategory;
+    })
     .sort((a, b) => (a.status === 'BUSY' ? 1 : 0) - (b.status === 'BUSY' ? 1 : 0));
   
   // Modales
@@ -379,23 +394,77 @@ export default function EmpleosPage() {
           <div className="text-center py-20 text-gray-500">Cargando la oferta regional...</div>
         ) : activeTab === 'oficios' ? (
           <div className="space-y-6">
-            {/* Barra de Filtro de Disponibilidad en Vivo */}
-            <div className="flex justify-between items-center bg-gray-900/60 p-4 rounded-2xl border border-gray-800 flex-wrap gap-4">
-              <p className="text-xs text-gray-300 font-semibold">
-                Mostrando <strong className="text-white">{displayProfiles.length}</strong> especialistas en la zona
-              </p>
+            {/* Barra Multifiltro por Rubro, Búsqueda y Disponibilidad */}
+            <div className="bg-gray-900/90 p-5 rounded-2xl border border-gray-800 space-y-4 shadow-xl">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                {/* Buscador de Texto */}
+                <div className="relative w-full sm:w-80">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="🔍 Buscar por plomero, electricista, costura..."
+                    className="w-full bg-black/60 border border-gray-700 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-400 focus:outline-none focus:border-emerald-500 transition-colors"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-3 top-2.5 text-xs text-gray-400 hover:text-white"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
 
-              <button
-                onClick={() => setOnlyAvailable(!onlyAvailable)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border flex items-center gap-2 ${
-                  onlyAvailable
-                    ? 'bg-emerald-600 text-white border-emerald-400 shadow-lg shadow-emerald-600/30 font-extrabold'
-                    : 'bg-gray-800/80 text-gray-300 border-gray-700 hover:border-emerald-500/40'
-                }`}
-              >
-                <span className={`w-2.5 h-2.5 rounded-full ${onlyAvailable ? 'bg-emerald-300 animate-ping' : 'bg-emerald-500'}`}></span>
-                {onlyAvailable ? '🟢 Mostrando Solo Disponibles Ahora' : '🔍 Filtrar Solo Disponibles en Vivo'}
-              </button>
+                {/* Botón de Filtro de Disponibilidad en Vivo */}
+                <button
+                  onClick={() => setOnlyAvailable(!onlyAvailable)}
+                  className={`w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-2 ${
+                    onlyAvailable
+                      ? 'bg-emerald-600 text-white border-emerald-400 shadow-lg shadow-emerald-600/30 font-extrabold'
+                      : 'bg-gray-800 text-gray-300 border-gray-700 hover:border-emerald-500/40'
+                  }`}
+                >
+                  <span className={`w-2.5 h-2.5 rounded-full ${onlyAvailable ? 'bg-emerald-300 animate-ping' : 'bg-emerald-500'}`}></span>
+                  {onlyAvailable ? '🟢 Mostrando Solo Disponibles Ahora' : '🟢 Filtrar Disponibles en Vivo'}
+                </button>
+              </div>
+
+              {/* Chips / Píldoras de Categorías y Rubros */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+                <span className="text-gray-400 font-semibold uppercase text-[10px] shrink-0">Rubro:</span>
+                {categoriesList.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`px-3 py-1 rounded-lg font-bold transition-all shrink-0 uppercase text-[10px] tracking-wider ${
+                      selectedCategory === cat
+                        ? 'bg-emerald-500 text-slate-950 font-black shadow'
+                        : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex justify-between items-center text-[11px] text-gray-400 pt-1 border-t border-gray-800/60">
+                <span>
+                  Mostrando <strong className="text-emerald-400">{displayProfiles.length}</strong> especialistas {selectedCategory !== 'TODOS' ? `en ${selectedCategory}` : ''}
+                </span>
+                {(searchQuery || selectedCategory !== 'TODOS' || onlyAvailable) && (
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setSelectedCategory('TODOS');
+                      setOnlyAvailable(false);
+                    }}
+                    className="text-emerald-400 font-bold hover:underline"
+                  >
+                    Restablecer Filtros
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
