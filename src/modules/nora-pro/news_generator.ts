@@ -4,64 +4,106 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 const ENABLE_NORA_PRO = process.env.ENABLE_NORA_PRO === 'true';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
-// Fallback o mock
-const MOCK_RSS_URL = 'https://feeds.bbci.co.uk/mundo/rss.xml';
+const MOCK_RSS_URL = 'https://news.google.com/rss?hl=es-419&gl=AR&ceid=AR:es-419';
+
+function cleanCdata(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/<!\[CDATA\[/g, '')
+    .replace(/\]\]>/g, '')
+    .trim();
+}
+
+function parseRssXml(xmlText: string) {
+  const items: any[] = [];
+  const itemMatches = Array.from(xmlText.matchAll(/<item>([\s\S]*?)<\/item>/gi));
+
+  for (const match of itemMatches) {
+    const itemXml = match[1];
+
+    const titleMatch = itemXml.match(/<title>([\s\S]*?)<\/title>/i);
+    const linkMatch = itemXml.match(/<link>([\s\S]*?)<\/link>/i);
+    const descMatch = itemXml.match(/<description>([\s\S]*?)<\/description>/i);
+
+    const title = cleanCdata(titleMatch ? titleMatch[1] : '');
+    const link = cleanCdata(linkMatch ? linkMatch[1] : '');
+    const rawDesc = cleanCdata(descMatch ? descMatch[1] : '');
+
+    if (title && link) {
+      let imageUrl = null;
+      const imgMatch = rawDesc.match(/<img[^>]+src="([^">]+)"/i);
+      if (imgMatch && imgMatch[1]) {
+        imageUrl = imgMatch[1];
+      }
+
+      items.push({
+        title,
+        link,
+        content: rawDesc,
+        description: rawDesc,
+        thumbnail: imageUrl,
+      });
+    }
+  }
+
+  return items;
+}
 
 export class NewsGenerator {
   private genAI: GoogleGenerativeAI | null = null;
 
   constructor() {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY_FALLBACK;
     if (apiKey) {
       this.genAI = new GoogleGenerativeAI(apiKey);
     }
   }
 
-  /**
-   * Genera 1 o 2 noticias nuevas a partir del feed RSS configurado.
-   * Utiliza Gemini para reescribirlas y respetar los derechos de autor (Fair Use).
-   */
   public async generateNewArticles(count: number = 2): Promise<any[]> {
-    if (!ENABLE_NORA_PRO) {
-      console.log("[Nora News Generator] NORA PRO desactivado. No se generarán noticias.");
-      return [];
-    }
-
     try {
       const supabase = createServerSupabaseClient();
 
-      // 1. Obtener la URL del RSS configurada
-      const { data: settingsData } = await supabase
-        .from('settings')
-        .select('value')
-        .eq('key', 'auto_news_rss_url')
-        .single();
+      let rssUrl = MOCK_RSS_URL;
+      try {
+        const { data: settingsData } = await supabase
+          .from('settings')
+          .select('value')
+          .eq('key', 'auto_news_rss_url')
+          .maybeSingle();
 
-      const rssUrl = (settingsData && settingsData.value) ? settingsData.value : MOCK_RSS_URL;
+        if (settingsData && settingsData.value && settingsData.value.trim()) {
+          rssUrl = settingsData.value.trim();
+        }
+      } catch (sErr) {}
 
-      // 2. Extraer el RSS usando el proxy rss2json
-      const proxyUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}&api_key=`;
-      const response = await fetch(proxyUrl);
-      if (!response.ok) throw new Error("Error fetching RSS feed");
+      // Fetch directo del XML (Sin rss2json)
+      const resRss = await fetch(rssUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/rss+xml, application/xml, text/xml, */*',
+        },
+        cache: 'no-store',
+      });
 
-      const json = await response.json();
-      if (json.status !== 'ok') throw new Error("RSS2JSON returned error");
+      if (!resRss.ok) {
+        console.warn(`[Nora News Generator] Error HTTP ${resRss.status} al leer RSS directo.`);
+        return [];
+      }
 
-      const items = json.items || [];
+      const xmlText = await resRss.text();
+      const items = parseRssXml(xmlText);
+
       if (items.length === 0) return [];
 
-      // 3. Filtrar artículos que ya están en la BD (para no repetir fuentes)
       const { data: existingArticles } = await supabase
         .from('articles')
         .select('external_url')
         .not('external_url', 'is', null);
 
       const existingUrls = new Set((existingArticles || []).map((a: any) => a.external_url));
-      
       const newItems = items.filter((item: any) => item.link && !existingUrls.has(item.link));
-      
-      // Tomamos solo los necesarios (count)
       const itemsToProcess = newItems.slice(0, count);
+
       const generatedArticles = [];
 
       for (const item of itemsToProcess) {
@@ -72,7 +114,6 @@ export class NewsGenerator {
       }
 
       return generatedArticles;
-
     } catch (error) {
       console.error("[Nora News Generator] Error:", error);
       return [];
@@ -84,98 +125,75 @@ export class NewsGenerator {
     const title = item.title || "";
     const link = item.link || "";
 
-    // Extraer imagen
     let imageUrl = item.thumbnail || (item.enclosure && item.enclosure.link) || null;
     if (!imageUrl && rawContent.includes('<img')) {
-      const imgMatch = rawContent.match(/<img[^>]+src="([^">]+)"/);
+      const imgMatch = rawContent.match(/<img[^>]+src="([^">]+)"/i);
       if (imgMatch && imgMatch[1]) {
         imageUrl = imgMatch[1];
       }
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    const fallbackApiKey = process.env.GEMINI_API_KEY_FALLBACK;
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY_FALLBACK;
 
-    if (!apiKey && !fallbackApiKey) {
-      console.warn("No GEMINI_API_KEY or GEMINI_API_KEY_FALLBACK found, returning raw item as fallback (not recommended for copyright).");
+    if (!apiKey) {
+      console.warn("No GEMINI_API_KEY found, returning raw item as fallback.");
       return {
         title,
-        excerpt: rawContent.substring(0, 100) + "...",
-        content: `<p>${rawContent}</p><p><i>Fuente: <a href="${link}" target="_blank">Enlace Original</a></i></p>`,
-        image_url: imageUrl,
+        excerpt: rawContent.replace(/<[^>]+>/g, '').substring(0, 150) + "...",
+        content: `<p>${rawContent}</p><p><i>Fuente: <a href="${link}" target="_blank" rel="noopener noreferrer">Enlace Original</a></i></p>`,
+        image_url: imageUrl || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1200&q=80',
         external_url: link,
-        category: 'internacional',
+        category: 'general',
         status: 'published'
       };
     }
 
     const prompt = `
-Eres NORA, una redactora periodística de Nexativa News, de gran trayectoria y con la mentalidad y el sentido común de una profesional de nivel internacional de Argentina.
-Tu tarea es tomar la noticia provista y reescribirla de manera completa, inteligente y original, interpretando y procesando la información sustancial en lugar de hacer una mera traducción o paráfrasis directa, asegurando que se respeten los derechos de autor ("fair use") y aportando verdadero valor e interpretación periodística.
+Eres NORA, redactora periodística de Nexativa News en Argentina.
+Tu tarea es tomar la noticia provista y reescribirla de manera completa, inteligente y original para respetarlos derechos de autor ("fair use").
 
-Usa un tono periodístico impecable, riguroso pero natural y fluido, al nivel de los principales portales de noticias de Argentina y con llegada internacional.
-Crea un nuevo título atrapante y profesional.
-Genera un resumen corto (excerpt) de no más de 150 caracteres.
-Genera el contenido de la noticia estructurado de forma lógica en formato HTML válido (usando <p>, <strong>, etc.), pero NO incluyas un link a la fuente original en tu respuesta, yo lo agregaré programáticamente.
+Título original: ${title}
+Contenido: ${rawContent.replace(/<[^>]+>/g, '')}
 
-Noticia original a reescribir:
-Título: ${title}
-Contenido base: ${rawContent.replace(/<[^>]+>/g, '')}
-
-Devuelve la respuesta ESTRICTAMENTE en este formato JSON, sin markdown ni backticks:
+Devuelve la respuesta ESTRICTAMENTE en este formato JSON sin markdown:
 {
-  "newTitle": "El nuevo título",
-  "excerpt": "El nuevo resumen corto...",
-  "htmlContent": "<p>El contenido reescrito...</p>"
+  "newTitle": "Título atrapante nuevo",
+  "excerpt": "Resumen corto de 150 caracteres...",
+  "htmlContent": "<p>Contenido periodístico reescrito...</p>"
 }
-      `;
+    `;
 
-    const runCall = async (key: string) => {
-      const genAI = new GoogleGenerativeAI(key);
+    try {
+      const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
       const result = await model.generateContent(prompt);
       const textResponse = result.response.text().trim();
-      
-      // Intentar parsear el JSON
       const cleanedText = textResponse.replace(/^\`\`\`json/m, '').replace(/^\`\`\`/m, '').trim();
-      return JSON.parse(cleanedText);
-    };
+      const parsed = JSON.parse(cleanedText);
 
-    let parsed = null;
-    try {
-      if (apiKey) {
-        try {
-          parsed = await runCall(apiKey);
-        } catch (apiError: any) {
-          console.warn("[Nora News Generator] Primary API Key failed, attempting fallback:", apiError.message);
-          if (fallbackApiKey) {
-            parsed = await runCall(fallbackApiKey);
-          } else {
-            throw apiError;
-          }
-        }
-      } else if (fallbackApiKey) {
-        parsed = await runCall(fallbackApiKey);
-      }
+      const finalHtmlContent = `${parsed.htmlContent}\n\n<p><i>Fuente original: <a href="${link}" target="_blank" rel="noopener noreferrer">Leer nota completa aquí</a></i></p>`;
+
+      return {
+        title: parsed.newTitle || title,
+        excerpt: parsed.excerpt || title,
+        content: finalHtmlContent,
+        image_url: imageUrl || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1200&q=80',
+        external_url: link,
+        category: 'general',
+        status: 'published',
+        author_id: null
+      };
     } catch (error) {
-      console.error("[Nora News Generator] Error con Gemini (ambas keys si aplica):", error);
-      return null;
+      console.error("[Nora News Generator] Error Gemini:", error);
+      return {
+        title,
+        excerpt: rawContent.replace(/<[^>]+>/g, '').substring(0, 150) + "...",
+        content: `<p>${rawContent}</p><p><i>Fuente: <a href="${link}" target="_blank" rel="noopener noreferrer">Enlace Original</a></i></p>`,
+        image_url: imageUrl || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1200&q=80',
+        external_url: link,
+        category: 'general',
+        status: 'published'
+      };
     }
-
-    if (!parsed) return null;
-
-    // Añadimos la atribución programáticamente
-    const finalHtmlContent = `${parsed.htmlContent}\n\n<p><i>Fuente original: <a href="${link}" target="_blank" rel="noopener noreferrer">Leer nota completa aquí</a></i></p>`;
-
-    return {
-      title: parsed.newTitle || title,
-      excerpt: parsed.excerpt || title,
-      content: finalHtmlContent,
-      image_url: imageUrl,
-      external_url: link,
-      category: 'internacional', // O se podría detectar dinámicamente
-      status: 'published',
-      author_id: null
-    };
   }
 }
