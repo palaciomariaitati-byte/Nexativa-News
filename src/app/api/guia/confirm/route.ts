@@ -74,7 +74,7 @@ export async function POST(req: Request) {
       name,
       category,
       description,
-      featured_offer, // Plato del día / Promo de la semana agregada por el cliente
+      featured_offer,
       address,
       whatsapp,
       phone,
@@ -82,48 +82,51 @@ export async function POST(req: Request) {
       website,
     } = body;
 
-    if (!id) {
-      return NextResponse.json({ success: false, error: 'ID de comercio requerido.' }, { status: 400 });
-    }
+    const businessId = (id && id !== 'nuevo') ? id : `BIZ-${Date.now()}`;
 
-    const updateFields: any = {
+    const newBusiness: any = {
+      id: businessId,
+      name: (name || 'Comercio Registrado').trim(),
+      category: (category || 'Servicios Generales').trim(),
+      description: (description || 'Comercio local registrado en la Guía Comercial de Ituzaingó.').trim(),
+      featured_offer: (featured_offer || '').trim(),
+      address: (address || 'Ituzaingó, Corrientes').trim(),
+      city: 'Ituzaingó',
+      province: 'Corrientes',
+      whatsapp: (whatsapp || phone || '').trim(),
+      phone: (phone || whatsapp || '').trim(),
+      email: (email || '').trim(),
+      website: (website || '').trim(),
       status: 'ACTIVE',
       stealth_status: 'SUBSCRIBED',
+      tier: 'ORO',
+      is_verified: true,
       updated_at: new Date().toISOString(),
     };
-
-    if (name) updateFields.name = name.trim();
-    if (category) updateFields.category = category.trim();
-    if (description) updateFields.description = description.trim();
-    if (featured_offer) updateFields.featured_offer = featured_offer.trim();
-    if (address) updateFields.address = address.trim();
-    if (whatsapp) updateFields.whatsapp = whatsapp.trim();
-    if (phone) updateFields.phone = phone.trim();
-    if (email) updateFields.email = email.trim();
-    if (website) updateFields.website = website.trim();
-
-    let finalBusiness = { id, ...updateFields };
 
     try {
       const { data, error } = await supabaseAdmin
         .from('directory_businesses')
-        .update(updateFields)
-        .eq('id', id)
+        .upsert([newBusiness])
         .select()
         .single();
 
       if (!error && data) {
-        finalBusiness = data;
+        saveLocalBusiness(data);
+        return NextResponse.json({
+          success: true,
+          message: '🎉 ¡Ficha comercial y ofertas actualizadas exitosamente!',
+          business: data,
+        });
       }
     } catch (supaErr) {}
 
-    // Guardar en fallback local y actualizar la lista de socios CRM local
-    saveLocalBusiness(finalBusiness);
+    saveLocalBusiness(newBusiness);
 
     return NextResponse.json({
       success: true,
-      message: '🎉 ¡Ficha comercial y ofertas actualizadas exitosamente!',
-      business: finalBusiness,
+      message: '🎉 ¡Ficha comercial activada y publicada exitosamente!',
+      business: newBusiness,
     });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });

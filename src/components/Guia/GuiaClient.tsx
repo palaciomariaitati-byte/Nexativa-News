@@ -56,6 +56,14 @@ export default function GuiaClient({ initialBusinesses }: GuiaClientProps) {
   const [geoStatus, setGeoStatus] = useState<string | null>(null);
   const [isExpandedCategories, setIsExpandedCategories] = useState(false);
 
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [bizName, setBizName] = useState("");
+  const [bizCategory, setBizCategory] = useState("Gastronomía");
+  const [bizAddress, setBizAddress] = useState("Ituzaingó, Corrientes");
+  const [bizWhatsapp, setBizWhatsapp] = useState("");
+  const [bizDesc, setBizDesc] = useState("");
+  const [submittingBiz, setSubmittingBiz] = useState(false);
+
   const handleDeleteBusiness = async (id: string) => {
     if (!confirm("¿Estás seguro de eliminar este comercio de prueba de la Guía Comercial?")) return;
     try {
@@ -80,6 +88,54 @@ export default function GuiaClient({ initialBusinesses }: GuiaClientProps) {
       alert("¡Comercio eliminado con éxito!");
     } catch (e) {
       alert("Error al eliminar el comercio.");
+    }
+  };
+
+  const handleRegisterNewBusiness = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bizName.trim() || !bizWhatsapp.trim()) {
+      alert("Por favor ingresá el Nombre del Comercio y el WhatsApp de contacto.");
+      return;
+    }
+    setSubmittingBiz(true);
+    try {
+      const res = await fetch("/api/guia/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: bizName.trim(),
+          category: bizCategory,
+          address: bizAddress.trim(),
+          whatsapp: bizWhatsapp.trim(),
+          description: bizDesc.trim() || `Comercio socio verificado (${bizName}).`,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.business) {
+        const newB: DirectoryItem = {
+          id: data.business.id,
+          name: data.business.name,
+          category: data.business.category,
+          address: data.business.address,
+          city: "Ituzaingó",
+          whatsapp: data.business.whatsapp,
+          phone: data.business.phone || data.business.whatsapp,
+          description: data.business.description,
+          tier: "ORO",
+          isVerified: true,
+          distance: "A 400 metros",
+        };
+        setBusinesses((prev) => [newB, ...prev]);
+        setShowRegisterModal(false);
+        setBizName("");
+        setBizWhatsapp("");
+        setBizDesc("");
+        alert("🎉 ¡Tu comercio ha sido registrado y publicado exitosamente en las Páginas Amarillas 2.0!");
+      }
+    } catch (err) {
+      alert("Error al registrar el comercio.");
+    } finally {
+      setSubmittingBiz(false);
     }
   };
 
@@ -268,10 +324,17 @@ export default function GuiaClient({ initialBusinesses }: GuiaClientProps) {
         <button
           onClick={handleGPSLocation}
           disabled={isGeolocating}
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-slate-950 font-extrabold px-6 py-3 rounded-xl text-sm transition-all shadow-lg shadow-cyan-500/20 whitespace-nowrap active:scale-95"
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-slate-950 font-extrabold px-5 py-3 rounded-xl text-sm transition-all shadow-lg shadow-cyan-500/20 whitespace-nowrap active:scale-95"
         >
           <Navigation className={`w-4 h-4 ${isGeolocating ? "animate-spin" : ""}`} />
-          <span>{isGeolocating ? "Ubicando..." : "📍 Buscar Cerca de Mí"}</span>
+          <span>{isGeolocating ? "Ubicando..." : "📍 Cerca de Mí"}</span>
+        </button>
+
+        <button
+          onClick={() => setShowRegisterModal(true)}
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold px-5 py-3 rounded-xl text-sm transition-all shadow-lg shadow-emerald-600/25 whitespace-nowrap active:scale-95"
+        >
+          <span>➕ Sumar Mi Comercio Gratis</span>
         </button>
       </div>
 
@@ -452,6 +515,123 @@ export default function GuiaClient({ initialBusinesses }: GuiaClientProps) {
           >
             Limpiar Filtros
           </button>
+        </div>
+      )}
+
+      {/* Modal Sumar Mi Comercio Gratis */}
+      {showRegisterModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 sm:p-8 text-slate-100 shadow-2xl">
+            <div className="flex justify-between items-center mb-6 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 text-xl font-bold">
+                  🏬
+                </div>
+                <div>
+                  <h3 className="text-xl font-extrabold text-white">Sumar Mi Comercio Gratis</h3>
+                  <p className="text-xs text-slate-400">Páginas Amarillas 2.0 • Nexativa News</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowRegisterModal(false)}
+                className="text-slate-400 hover:text-white text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleRegisterNewBusiness} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
+                  Nombre del Comercio o Empresa *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej: Mueblería & Deco El Puerto"
+                  value={bizName}
+                  onChange={(e) => setBizName(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-sm focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
+                  Rubro / Categoría *
+                </label>
+                <select
+                  value={bizCategory}
+                  onChange={(e) => setBizCategory(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-sm focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="Gastronomía">Gastronomía & Sabores</option>
+                  <option value="Estética">Estética & Bienestar</option>
+                  <option value="Arquitectura">Arquitectura & Construcción</option>
+                  <option value="Joyeria">Joyería & Regalos</option>
+                  <option value="Comercio">Comercio General</option>
+                  <option value="Salud">Salud & Farmacia</option>
+                  <option value="Servicios Locales">Servicios Locales</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
+                  Número de WhatsApp de Atención (con código de área) *
+                </label>
+                <input
+                  type="tel"
+                  required
+                  placeholder="Ej: 3786401122"
+                  value={bizWhatsapp}
+                  onChange={(e) => setBizWhatsapp(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-sm focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
+                  Dirección / Barrio
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: Av. San Martín 1250, Ituzaingó"
+                  value={bizAddress}
+                  onChange={(e) => setBizAddress(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-sm focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
+                  Descripción o Promoción Especial
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Breve presentación de tus productos o servicios..."
+                  value={bizDesc}
+                  onChange={(e) => setBizDesc(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-sm focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowRegisterModal(false)}
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingBiz}
+                  className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold shadow-lg disabled:opacity-50"
+                >
+                  {submittingBiz ? "Publicando..." : "🚀 Publicar Mi Comercio Gratis"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

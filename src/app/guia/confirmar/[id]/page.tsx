@@ -29,7 +29,7 @@ export default function ConfirmarFichaPage() {
   const [loading, setLoading] = useState(true);
   const [activating, setActivating] = useState(false);
   const [activated, setActivated] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
 
   // Estado editable
