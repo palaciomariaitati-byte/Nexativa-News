@@ -56,6 +56,33 @@ export default function GuiaClient({ initialBusinesses }: GuiaClientProps) {
   const [geoStatus, setGeoStatus] = useState<string | null>(null);
   const [isExpandedCategories, setIsExpandedCategories] = useState(false);
 
+  const handleDeleteBusiness = async (id: string) => {
+    if (!confirm("¿Estás seguro de eliminar este comercio de prueba de la Guía Comercial?")) return;
+    try {
+      await fetch("/api/admin/import-businesses", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+
+      try {
+        const savedSocios = localStorage.getItem("nexativa_socios_crm_v3");
+        if (savedSocios) {
+          const parsed = JSON.parse(savedSocios);
+          if (Array.isArray(parsed)) {
+            const filtered = parsed.filter((s: any) => s.id !== id);
+            localStorage.setItem("nexativa_socios_crm_v3", JSON.stringify(filtered));
+          }
+        }
+      } catch (e) {}
+
+      setBusinesses((prev) => prev.filter((b) => b.id !== id));
+      alert("¡Comercio eliminado con éxito!");
+    } catch (e) {
+      alert("Error al eliminar el comercio.");
+    }
+  };
+
   // 1. Cargar comercios desde Supabase API y localStorage al iniciar en el cliente
   useEffect(() => {
     async function syncClientBusinesses() {
@@ -396,6 +423,14 @@ export default function GuiaClient({ initialBusinesses }: GuiaClientProps) {
                     </span>
                   )}
                 </div>
+
+                <button
+                  onClick={() => handleDeleteBusiness(b.id)}
+                  className="w-full mt-2.5 inline-flex items-center justify-center gap-1.5 bg-red-950/40 hover:bg-red-900/70 text-red-400 font-semibold px-3 py-2 rounded-xl text-xs border border-red-800/40 transition-colors"
+                  title="Eliminar comercio de prueba"
+                >
+                  🗑️ Borrar Comercio de Prueba
+                </button>
               </div>
             </div>
           ))}

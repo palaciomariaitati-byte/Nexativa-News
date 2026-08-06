@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import supabaseAdmin from "@/lib/supabase/admin";
 import { generatePersonalizedPitch, JournalistTarget } from "@/modules/nora-pro/press_pitching";
 import { sendWhatsAppNotification } from "@/lib/services/whatsapp";
+import fs from "fs";
+import path from "path";
 
 export const dynamic = "force-dynamic";
 
@@ -128,5 +130,43 @@ export async function POST(req: Request) {
   } catch (err: any) {
     console.error("[Import Businesses API] Error crítico:", err);
     return NextResponse.json({ success: false, error: err.message || "Error interno del servidor." }, { status: 500 });
+  }
+}
+
+// DELETE Endpoint: Eliminar un comercio de la Guía Comercial por ID
+export async function DELETE(req: Request) {
+  try {
+    const { id } = await req.json();
+    if (!id) {
+      return NextResponse.json({ success: false, error: "ID es requerido" }, { status: 400 });
+    }
+
+    try {
+      const { error } = await supabaseAdmin
+        .from("directory_businesses")
+        .delete()
+        .eq("id", id);
+      if (error) {
+        console.warn("[Import Businesses API DELETE] Error en Supabase:", error.message);
+      }
+    } catch (dbErr) {}
+
+    // Eliminar también del archivo JSON fallback local si existe
+    try {
+      const filePath = path.join(process.cwd(), "data", "directory_businesses_local.json");
+      if (fs.existsSync(filePath)) {
+        const content = fs.readFileSync(filePath, "utf-8");
+        const parsed = JSON.parse(content) || [];
+        const filtered = parsed.filter((b: any) => b.id !== id);
+        fs.writeFileSync(filePath, JSON.stringify(filtered, null, 2), "utf-8");
+      }
+    } catch (fErr) {}
+
+    return NextResponse.json({
+      success: true,
+      message: "¡Comercio eliminado exitosamente de la Guía Comercial!",
+    });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }
