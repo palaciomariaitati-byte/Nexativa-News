@@ -195,7 +195,8 @@ function detectCategoryFromUrlOrText(rssUrl: string, title: string): string {
 }
 
 /**
- * Parsea el XML del feed buscando imágenes en media:content, enclosure, media:thumbnail e img tags HTML
+ * Parsea el XML del feed buscando imágenes en media:content, enclosure, media:thumbnail e img tags HTML.
+ * Aplica POLÍTICA ESTRICTA DE NOTICIAS ACTUALES (Descharta noticias de más de 48 hs de antigüedad).
  */
 function parseRssXml(xmlText: string) {
   const items: any[] = [];
@@ -207,21 +208,47 @@ function parseRssXml(xmlText: string) {
     const titleMatch = itemXml.match(/<title>([\s\S]*?)<\/title>/i);
     const linkMatch = itemXml.match(/<link>([\s\S]*?)<\/link>/i);
     const descMatch = itemXml.match(/<description>([\s\S]*?)<\/description>/i);
+    const pubDateMatch = itemXml.match(/<(pubDate|dc:date|updated|published)>([\s\S]*?)<\/(pubDate|dc:date|updated|published)>/i);
 
     const title = cleanCdata(titleMatch ? titleMatch[1] : '');
     const link = cleanCdata(linkMatch ? linkMatch[1] : '');
     const rawDesc = cleanCdata(descMatch ? descMatch[1] : '');
+    const pubDateStr = cleanCdata(pubDateMatch ? pubDateMatch[2] : '');
 
     if (title && link) {
+      // 1. POLÍTICA ESTRICTA DE NOTICIAS ACTUALES (Rechazar artículos antiguos > 48 horas)
+      let itemDate = new Date();
+      if (pubDateStr) {
+        const parsedDate = new Date(pubDateStr);
+        if (!isNaN(parsedDate.getTime())) {
+          itemDate = parsedDate;
+        }
+      }
+
+      const now = new Date();
+      const hoursDiff = (now.getTime() - itemDate.getTime()) / (1000 * 60 * 60);
+
+      // Descartar si tiene más de 48 horas de antigüedad
+      if (hoursDiff > 48) {
+        console.log(`[Auto-Fetch] ⛔ Rechazada noticia antigua (${itemDate.toISOString().slice(0, 10)}): ${title}`);
+        continue;
+      }
+
+      // Descartar si la URL contiene patrones de fechas pasadas (ej: /2026-5-1- o /2025/ o /2024/)
+      if (link.match(/\/(202[0-5]|2026-[1-7])-/i)) {
+        console.log(`[Auto-Fetch] ⛔ Rechazada noticia con URL fechada en el pasado: ${link}`);
+        continue;
+      }
+
       let imageUrl: string | null = null;
 
-      // 1. Buscar en <media:content url="...">
+      // 2. Buscar en <media:content url="...">
       const mediaMatch = itemXml.match(/<media:content[^>]+url=["']([^"']+)["']/i);
       if (mediaMatch && mediaMatch[1] && isValidArticleImage(mediaMatch[1])) {
         imageUrl = mediaMatch[1];
       }
 
-      // 2. Buscar en <enclosure url="...">
+      // 3. Buscar en <enclosure url="...">
       if (!imageUrl) {
         const enclosureMatch = itemXml.match(/<enclosure[^>]+url=["']([^"']+)["']/i);
         if (enclosureMatch && enclosureMatch[1] && isValidArticleImage(enclosureMatch[1])) {
@@ -229,7 +256,7 @@ function parseRssXml(xmlText: string) {
         }
       }
 
-      // 3. Buscar en <media:thumbnail url="...">
+      // 4. Buscar en <media:thumbnail url="...">
       if (!imageUrl) {
         const thumbMatch = itemXml.match(/<media:thumbnail[^>]+url=["']([^"']+)["']/i);
         if (thumbMatch && thumbMatch[1] && isValidArticleImage(thumbMatch[1])) {
@@ -237,7 +264,7 @@ function parseRssXml(xmlText: string) {
         }
       }
 
-      // 4. Buscar en <img src="..."> en el contenido HTML
+      // 5. Buscar en <img src="..."> en el contenido HTML
       if (!imageUrl && rawDesc.includes('<img')) {
         const imgMatch = rawDesc.match(/<img[^>]+src=["']([^"']+)["']/i);
         if (imgMatch && imgMatch[1] && isValidArticleImage(imgMatch[1])) {
@@ -248,6 +275,7 @@ function parseRssXml(xmlText: string) {
       items.push({
         title,
         link,
+        pubDate: itemDate.toISOString(),
         description: rawDesc,
         thumbnail: imageUrl,
       });
@@ -338,12 +366,12 @@ export async function GET(request: Request) {
             external_url: link,
             category: category,
             status: 'published',
-            created_at: new Date().toISOString(),
+            created_at: item.pubDate || new Date().toISOString(),
           };
 
           const { error: insertError } = await supabase.from('articles').insert([payload]);
           if (!insertError) {
-            console.log(`[Auto-Fetch] ✅ Noticia ingresada con foto HD (${category}): ${title}`);
+            console.log(`[Auto-Fetch] ✅ Noticia reciente ingresada (${category}): ${title}`);
             totalAddedCount++;
             existingUrls.add(link);
           }
@@ -353,31 +381,20 @@ export async function GET(request: Request) {
       }
     }
 
-    // 4. Limpieza y actualización masiva de todas las noticias en la BD que tenían logos de Google o código <a href=
+    // 4. Purga y limpieza estricta de noticias antiguas (> 48h o URLs fechadas en el pasado) en la BD
     try {
-      const { data: allArticles } = await supabase
+      const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+      const { data: oldArticles } = await supabase
         .from('articles')
-        .select('id, title, excerpt, category, image_url')
-        .eq('status', 'published');
+        .select('id, title, external_url, created_at')
+        .lt('created_at', twoDaysAgo);
 
-      if (allArticles) {
-        for (const art of allArticles) {
-          const cleanEx = sanitizeExcerptText(art.excerpt);
-          const isGoogleLogo = !isValidArticleImage(art.image_url);
-          const targetCategory = detectCategoryFromUrlOrText('', art.title);
-          const correctImg = isGoogleLogo ? getTopicImage(art.title, targetCategory) : art.image_url;
-
-          const updates: any = {};
-          if (art.excerpt !== cleanEx) updates.excerpt = cleanEx;
-          if (art.image_url !== correctImg) updates.image_url = correctImg;
-          if (art.category === 'general' || !art.category) updates.category = targetCategory;
-
-          if (Object.keys(updates).length > 0) {
-            await supabase.from('articles').update(updates).eq('id', art.id);
-          }
-        }
+      if (oldArticles && oldArticles.length > 0) {
+        const oldIds = oldArticles.map((a: any) => a.id);
+        await supabase.from('articles').delete().in('id', oldIds);
+        console.log(`[Auto-Fetch] 🧹 Purgadas ${oldIds.length} noticias de fecha obsoleta de la base de datos.`);
       }
-    } catch (uErr) {}
+    } catch (purgeErr) {}
 
     return NextResponse.json({
       success: true,
