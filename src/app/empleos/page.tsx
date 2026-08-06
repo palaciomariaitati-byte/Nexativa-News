@@ -117,21 +117,6 @@ export default function EmpleosPage() {
   const [submittingOffer, setSubmittingOffer] = useState(false);
 
   // Handlers de borrado directo
-  const handleDeleteProfile = async (id: string) => {
-    if (!confirm("¿Estás seguro de eliminar este perfil de trabajador / prestador?")) return;
-    try {
-      await fetch('/api/jobs/profiles', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
-      });
-      setProfiles((prev) => prev.filter((p) => p.id !== id));
-      alert("¡Perfil eliminado correctamente!");
-    } catch (e) {
-      alert("Error al eliminar perfil.");
-    }
-  };
-
   const handleDeleteOffer = async (id: string) => {
     if (!confirm("¿Estás seguro de borrar esta búsqueda laboral activa?")) return;
     try {
