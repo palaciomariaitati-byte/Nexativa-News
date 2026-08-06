@@ -87,6 +87,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               <Link href="/admin/marketing" className={`px-4 py-2 rounded-lg text-sm transition-colors text-[var(--color-brand-accent)] font-bold hover:bg-white/10`}>
                 Marketing & Ads
               </Link>
+              <Link href="/admin/valen" className={`px-4 py-2 rounded-lg text-sm transition-colors text-indigo-400 font-bold hover:bg-indigo-500/20 flex items-center gap-2 border border-indigo-500/30 bg-indigo-500/10`}>
+                <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+                🌐 VALEN (Chief Growth CEO)
+              </Link>
               <Link href="/admin/press" className={`px-4 py-2 rounded-lg text-sm transition-colors text-cyan-400 font-bold hover:bg-white/10 flex items-center gap-2`}>
                 <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
                 Prensa & Páginas Amarillas 2.0
