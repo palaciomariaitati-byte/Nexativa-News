@@ -10,8 +10,11 @@ export const metadata = {
 
 export const revalidate = 0; // Disable static caching
 
-// Helper to extract fallback image from content if main media is video
+const defaultFallbackImage = "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=800&q=80";
+
+// Helper to extract fallback image from content if main media is video or broken
 const getDisplayImage = (article: any) => {
+  if (!article) return defaultFallbackImage;
   const isVideo = (url: string) => {
     if (!url) return false;
     return url.match(/\.(mp4|webm|ogg)$/i) || url.includes('youtube.com') || url.includes('youtu.be');
@@ -20,7 +23,7 @@ const getDisplayImage = (article: any) => {
     return article.image_url;
   }
   const imgMatch = article.content?.match(/<img[^>]+src="([^">]+)"/);
-  return imgMatch ? imgMatch[1] : null;
+  return imgMatch ? imgMatch[1] : defaultFallbackImage;
 };
 
 export default async function ClassicNewspaperPage() {

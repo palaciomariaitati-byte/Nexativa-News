@@ -172,70 +172,82 @@ export default function NewsTabs({
           </div>
         )}
 
-        {/* Lista Estricta de Noticias */}
+        {/* Lista Estricta de Noticias (Máximo 4 Destacadas por Segmento para no saturar la Portada) */}
         {!loading && !error && articles.length > 0 && (
-          <ul className="space-y-4">
-            {articles.map((article) => {
-              const cleanSummary = sanitizeExcerpt(article.excerpt);
+          <div className="space-y-4">
+            <ul className="space-y-4">
+              {articles.slice(0, 4).map((article) => {
+                const cleanSummary = sanitizeExcerpt(article.excerpt);
 
-              const content = (
-                <div className="flex gap-4 items-start group">
-                  {article.image_url && (
-                    <img 
-                      src={article.image_url} 
-                      alt="" 
-                      onError={(e) => {
-                        const target = e.currentTarget;
-                        target.onerror = null;
-                        target.src = 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1200&q=80';
-                      }}
-                      className="w-24 h-24 sm:w-32 sm:h-28 object-cover rounded-xl border border-white/10 shrink-0 group-hover:scale-105 transition-transform duration-300" 
-                    />
-                  )}
-                  <div className="flex-1">
-                    <h4 className="font-bold text-sm sm:text-base text-gray-100 group-hover:text-[var(--color-brand-accent)] transition-colors leading-snug">
-                      {article.title}
-                    </h4>
-
-                    {cleanSummary && (
-                      <p className="text-xs text-gray-400 mt-2 line-clamp-2 leading-relaxed font-light">
-                        {cleanSummary}
-                      </p>
+                const content = (
+                  <div className="flex gap-4 items-start group">
+                    {article.image_url && (
+                      <img 
+                        src={article.image_url} 
+                        alt="" 
+                        onError={(e) => {
+                          const target = e.currentTarget;
+                          target.onerror = null;
+                          target.src = 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1200&q=80';
+                        }}
+                        className="w-24 h-24 sm:w-32 sm:h-28 object-cover rounded-xl border border-white/10 shrink-0 group-hover:scale-105 transition-transform duration-300" 
+                      />
                     )}
+                    <div className="flex-1">
+                      <h4 className="font-bold text-sm sm:text-base text-gray-100 group-hover:text-[var(--color-brand-accent)] transition-colors leading-snug">
+                        {article.title}
+                      </h4>
 
-                    {article.created_at && (
-                      <time className="text-[10px] text-cyan-400 font-mono mt-2 block">
-                        📅 {new Date(article.created_at).toLocaleDateString("es-AR", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}
-                      </time>
-                    )}
+                      {cleanSummary && (
+                        <p className="text-xs text-gray-400 mt-2 line-clamp-2 leading-relaxed font-light">
+                          {cleanSummary}
+                        </p>
+                      )}
+
+                      {article.created_at && (
+                        <time className="text-[10px] text-cyan-400 font-mono mt-2 block">
+                          📅 {new Date(article.created_at).toLocaleDateString("es-AR", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </time>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
+                );
 
-              return (
-                <li key={article.id} className="border-b border-white/5 pb-4 last:border-0 last:pb-0">
-                  {article.external_url ? (
-                    <a
-                      href={article.external_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block hover:no-underline"
-                    >
-                      {content}
-                    </a>
-                  ) : (
-                    <a href={`/noticias/${article.id}`} className="block hover:no-underline">
-                      {content}
-                    </a>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+                return (
+                  <li key={article.id} className="border-b border-white/5 pb-4 last:border-0 last:pb-0">
+                    {article.external_url ? (
+                      <a
+                        href={article.external_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block hover:no-underline"
+                      >
+                        {content}
+                      </a>
+                    ) : (
+                      <a href={`/noticias/${article.id}`} className="block hover:no-underline">
+                        {content}
+                      </a>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+
+            {/* Enlace al Portal Completo de Noticias */}
+            <div className="pt-4 border-t border-white/10 text-center">
+              <a
+                href="/news"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-[var(--color-brand-accent)] text-black font-extrabold text-xs uppercase tracking-widest rounded-xl hover:bg-white transition-all shadow-lg shadow-amber-500/10"
+              >
+                📰 Explorar Todas las Noticias en el Portal Completo ({articles.length}+) →
+              </a>
+            </div>
+          </div>
         )}
       </div>
 
