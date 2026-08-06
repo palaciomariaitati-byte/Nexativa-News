@@ -34,22 +34,22 @@ export async function GET(request: Request) {
 
     let archivedCount = 0;
 
-    // 2. Archivar las noticias viejas para que no salgan en el panel
+    // 2. Eliminar físicamente las noticias viejas para mantener la base de datos limpia y ordenada
     if (oldArticles && oldArticles.length > 0) {
       const oldIds = oldArticles.map(a => a.id);
-      const { error: updateError } = await supabase
+      const { error: deleteError } = await supabase
         .from('articles')
-        .update({ status: 'archived' })
+        .delete()
         .in('id', oldIds);
 
-      if (updateError) {
-        throw new Error(`Error archiving articles: ${updateError.message}`);
+      if (deleteError) {
+        throw new Error(`Error deleting old articles: ${deleteError.message}`);
       }
 
       archivedCount = oldIds.length;
-      console.log(`[News Rotation] Se archivaron ${archivedCount} noticias antiguas.`);
+      console.log(`[News Rotation] Se eliminaron definitivamente ${archivedCount} noticias antiguas.`);
     } else {
-      console.log("[News Rotation] No se encontraron noticias mayores a 24 hs para archivar.");
+      console.log("[News Rotation] No se encontraron noticias mayores a 24 hs para eliminar.");
     }
 
     // 3. Generar nuevas noticias si se archivaron noticias, o si hay muy pocas publicadas

@@ -156,10 +156,28 @@ function detectCategoryAndImage(title: string, excerpt: string) {
 export async function GET(req: Request) {
   try {
     const supabase = await createServerSupabaseClient();
+    const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
 
+    // 1. Purga automática de noticias obsoletas (> 48h o con estado 'archived')
+    try {
+      const { data: oldArticles } = await supabase
+        .from('articles')
+        .select('id')
+        .or(`created_at.lt.${twoDaysAgo},status.eq.archived`);
+
+      if (oldArticles && oldArticles.length > 0) {
+        const oldIds = oldArticles.map((a: any) => a.id);
+        await supabase.from('articles').delete().in('id', oldIds);
+        console.log(`[Auto-Classify] 🧹 Purgadas ${oldIds.length} noticias obsoletas de la base de datos.`);
+      }
+    } catch (purgeErr) {}
+
+    // 2. Seleccionar únicamente noticias publicadas en las últimas 48 horas
     const { data: articles, error } = await supabase
       .from('articles')
-      .select('id, title, excerpt, category, image_url');
+      .select('id, title, excerpt, category, image_url')
+      .eq('status', 'published')
+      .gte('created_at', twoDaysAgo);
 
     if (error || !articles) {
       return NextResponse.json({ success: false, error: error?.message || 'No se obtuvieron artículos' }, { status: 500 });
