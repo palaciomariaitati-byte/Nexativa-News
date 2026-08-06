@@ -56,18 +56,21 @@ function deleteLocalProfile(id: string) {
 export async function GET() {
   try {
     let dbProfiles: any[] = [];
-    const supabase = createServerSupabaseClient();
     
     try {
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from('job_profiles')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (!error && Array.isArray(data)) {
         dbProfiles = data;
+      } else if (error) {
+        console.error('[Jobs Profiles API GET] Error cargando perfiles:', error);
       }
-    } catch (dbErr: any) {}
+    } catch (dbErr: any) {
+      console.error('[Jobs Profiles API GET] Catch dbErr:', dbErr);
+    }
 
     const localProfiles = readLocalProfiles();
     const dbIds = new Set(dbProfiles.map((p) => p.id));
@@ -110,8 +113,8 @@ export async function POST(req: Request) {
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.nexativanews.com.ar';
     const mobilePanelUrl = `${baseUrl}/prestadores`;
 
-    const newProfileData = {
-      id: `job-prof-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    const newProfileData: any = {
+      id: `temp-${Date.now()}`,
       full_name: full_name.trim(),
       trade_category: trade_category.trim(),
       city: city.trim(),
@@ -144,7 +147,6 @@ export async function POST(req: Request) {
           email: newProfileData.email,
           bio: newProfileData.bio,
           cv_url: newProfileData.cv_url,
-          cv_filename: newProfileData.cv_filename,
           nora_score: newProfileData.nora_score,
           total_reviews: newProfileData.total_reviews,
           badge_level: newProfileData.badge_level,
@@ -154,11 +156,15 @@ export async function POST(req: Request) {
         .select()
         .single();
 
-      if (!dbError && inserted) {
+      if (dbError) {
+        console.error('[Jobs Profiles API POST] Error insertando en Supabase:', dbError);
+      } else if (inserted) {
         newProfileData.id = inserted.id;
         saveLocalProfile(newProfileData);
       }
-    } catch (supaErr: any) {}
+    } catch (supaErr: any) {
+      console.error('[Jobs Profiles API POST] Supabase catch error:', supaErr);
+    }
 
     const noraGreetingMessage = `¡Hola, ${full_name}! 👋 Te damos la bienvenida a Nexativa Empleos & Oficios en ${city}. Tu perfil en el rubro *${trade_category}* ya se encuentra activo.\n\n📱 Podés gestionar tus servicios y mostrar tu QR de reputación en tu Panel Móvil aquí:\n👉 ${mobilePanelUrl}`;
     const waLink = `https://wa.me/${cleanWhatsapp}?text=${encodeURIComponent(noraGreetingMessage)}`;
