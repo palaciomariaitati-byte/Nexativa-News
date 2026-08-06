@@ -251,6 +251,15 @@ export default function EmpleosPage() {
     async function loadRealProfiles() {
       // 1. Cargar almacenamiento local inmediato
       let localBuffer: JobProfile[] = [];
+      let deletedIds = new Set<string>();
+
+      try {
+        const deletedSaved = localStorage.getItem('nexativa_deleted_job_profile_ids');
+        if (deletedSaved) {
+          deletedIds = new Set(JSON.parse(deletedSaved));
+        }
+      } catch (e) {}
+
       try {
         const saved = localStorage.getItem('nexativa_job_profiles_v1');
         if (saved) {
@@ -262,39 +271,41 @@ export default function EmpleosPage() {
         const res = await fetch('/api/jobs/profiles');
         const data = await res.json();
         if (data.success && Array.isArray(data.profiles) && data.profiles.length > 0) {
-          const apiProfiles: JobProfile[] = data.profiles.map((p: any) => ({
-            id: p.id,
-            full_name: p.full_name,
-            trade_category: p.trade_category,
-            bio: p.bio || '',
-            city: p.city || 'Ituzaingó',
-            province: p.province || 'Corrientes',
-            whatsapp: p.whatsapp,
-            nora_score: Number(p.nora_score || 5.0),
-            total_reviews: Number(p.total_reviews || 0),
-            badge_level: p.badge_level || 'BRONCE',
-            cv_url: p.cv_url || undefined,
-            cv_filename: p.cv_filename || undefined,
-          }));
+          const apiProfiles: JobProfile[] = data.profiles
+            .filter((p: any) => !deletedIds.has(p.id))
+            .map((p: any) => ({
+              id: p.id,
+              full_name: p.full_name,
+              trade_category: p.trade_category,
+              bio: p.bio || '',
+              city: p.city || 'Ituzaingó',
+              province: p.province || 'Corrientes',
+              whatsapp: p.whatsapp,
+              nora_score: Number(p.nora_score || 5.0),
+              total_reviews: Number(p.total_reviews || 0),
+              badge_level: p.badge_level || 'BRONCE',
+              cv_url: p.cv_url || undefined,
+              cv_filename: p.cv_filename || undefined,
+            }));
           
           setProfiles((prev) => {
             const apiIds = new Set(apiProfiles.map((p) => p.id));
-            const filteredLocal = localBuffer.filter((l) => !apiIds.has(l.id));
+            const filteredLocal = localBuffer.filter((l) => !apiIds.has(l.id) && !deletedIds.has(l.id));
             const combined = [...apiProfiles, ...filteredLocal];
             const combinedIds = new Set(combined.map((c) => c.id));
-            const filteredDemo = demoProfiles.filter((d) => !combinedIds.has(d.id));
+            const filteredDemo = demoProfiles.filter((d) => !combinedIds.has(d.id) && !deletedIds.has(d.id));
             return [...combined, ...filteredDemo];
           });
         } else {
           setProfiles((prev) => {
             const bufferIds = new Set(localBuffer.map((l) => l.id));
-            const filteredDemo = demoProfiles.filter((d) => !bufferIds.has(d.id));
-            return [...localBuffer, ...filteredDemo];
+            const filteredDemo = demoProfiles.filter((d) => !bufferIds.has(d.id) && !deletedIds.has(d.id));
+            return [...localBuffer.filter(l => !deletedIds.has(l.id)), ...filteredDemo];
           });
         }
       } catch (err) {
         console.warn('Error cargando perfiles reales:', err);
-        setProfiles(localBuffer.length > 0 ? localBuffer : demoProfiles);
+        setProfiles(localBuffer.filter(l => !deletedIds.has(l.id)));
       } finally {
         setOffers(demoOffers);
         setLoading(false);
@@ -303,6 +314,36 @@ export default function EmpleosPage() {
 
     loadRealProfiles();
   }, []);
+
+  const handleDeleteProfile = async (id: string) => {
+    if (!confirm('¿Estás seguro de que deseas eliminar este perfil?')) return;
+
+    try {
+      await fetch('/api/jobs/profiles', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+    } catch (e) {}
+
+    try {
+      const deletedSaved = localStorage.getItem('nexativa_deleted_job_profile_ids');
+      const deletedList: string[] = deletedSaved ? JSON.parse(deletedSaved) : [];
+      if (!deletedList.includes(id)) {
+        deletedList.push(id);
+        localStorage.setItem('nexativa_deleted_job_profile_ids', JSON.stringify(deletedList));
+      }
+
+      const saved = localStorage.getItem('nexativa_job_profiles_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved) || [];
+        const filtered = parsed.filter((p: any) => p.id !== id);
+        localStorage.setItem('nexativa_job_profiles_v1', JSON.stringify(filtered));
+      }
+    } catch (e) {}
+
+    setProfiles((prev) => prev.filter((p) => p.id !== id));
+  };
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

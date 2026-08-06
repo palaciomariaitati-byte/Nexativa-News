@@ -200,11 +200,15 @@ export async function DELETE(req: Request) {
     deleteLocalProfile(id);
 
     try {
-      const supabase = createServerSupabaseClient();
-      await supabase.from('job_profiles').delete().eq('id', id);
-    } catch (e) {}
+      const { error } = await supabaseAdmin.from('job_profiles').delete().eq('id', id);
+      if (error) {
+        console.error('[Jobs Profiles DELETE] Error borrando de Supabase:', error);
+      }
+    } catch (e) {
+      console.error('[Jobs Profiles DELETE] Catch error:', e);
+    }
 
-    return NextResponse.json({ success: true, message: '¡Trabajador eliminado exitosamente!' });
+    return NextResponse.json({ success: true, message: 'Perfil eliminado correctamente' });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
