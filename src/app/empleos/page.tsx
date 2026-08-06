@@ -15,6 +15,8 @@ interface JobProfile {
   total_reviews: number;
   badge_level: string;
   status?: string;
+  cv_url?: string;
+  cv_filename?: string;
 }
 
 interface JobOffer {
@@ -82,8 +84,26 @@ export default function EmpleosPage() {
   const [regCity, setRegCity] = useState('Ituzaingó');
   const [regWhatsapp, setRegWhatsapp] = useState('');
   const [regBio, setRegBio] = useState('');
+  const [regCvUrl, setRegCvUrl] = useState('');
+  const [regCvFileName, setRegCvFileName] = useState('');
   const [submittingReg, setSubmittingReg] = useState(false);
   const [copiedGreeting, setCopiedGreeting] = useState(false);
+
+  const handleCvFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert("El archivo del CV no debe superar los 5MB.");
+        return;
+      }
+      setRegCvFileName(file.name);
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setRegCvUrl(ev.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   // Formulario de Búsqueda Laboral
   const [showJobOfferModal, setShowJobOfferModal] = useState(false);
@@ -252,6 +272,8 @@ export default function EmpleosPage() {
             nora_score: Number(p.nora_score || 5.0),
             total_reviews: Number(p.total_reviews || 0),
             badge_level: p.badge_level || 'BRONCE',
+            cv_url: p.cv_url || undefined,
+            cv_filename: p.cv_filename || undefined,
           }));
           
           setProfiles((prev) => {
@@ -295,6 +317,8 @@ export default function EmpleosPage() {
           city: regCity,
           whatsapp: regWhatsapp,
           bio: regBio,
+          cv_url: regCvUrl || null,
+          cv_filename: regCvFileName || null,
         }),
       });
 
@@ -311,6 +335,8 @@ export default function EmpleosPage() {
           nora_score: Number(data.profile.nora_score || 5.0),
           total_reviews: 0,
           badge_level: 'BRONCE',
+          cv_url: data.profile.cv_url,
+          cv_filename: data.profile.cv_filename,
         };
 
         setProfiles((prev) => {
@@ -599,7 +625,7 @@ export default function EmpleosPage() {
                       💬 Contactar por WhatsApp
                     </a>
 
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <button
                         onClick={() => {
                           setSelectedProfile(profile);
@@ -609,6 +635,17 @@ export default function EmpleosPage() {
                       >
                         ⭐ Calificar
                       </button>
+                      {profile.cv_url && (
+                        <a
+                          href={profile.cv_url}
+                          download={profile.cv_filename || `CV_${profile.full_name}.pdf`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="py-2 px-3 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 font-bold text-xs text-center border border-emerald-500/40 transition-colors flex items-center gap-1"
+                        >
+                          📄 Ver CV
+                        </a>
+                      )}
                       {(profile.badge_level === 'ORO' || profile.badge_level === 'ORGULLO_REGIONAL') && (
                         <Link
                           href={`/certificados/${profile.id}?name=${encodeURIComponent(profile.full_name)}&trade=${encodeURIComponent(profile.trade_category)}&score=${profile.nora_score}&badge=${encodeURIComponent(profile.badge_level)}`}
@@ -844,6 +881,21 @@ export default function EmpleosPage() {
                   onChange={(e) => setRegBio(e.target.value)}
                   className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1">📄 Cargar Currículum Vitae (CV) (PDF / Word - Opcional)</label>
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx"
+                  onChange={handleCvFileChange}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-xs text-gray-300 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-600 file:text-white hover:file:bg-emerald-500"
+                />
+                {regCvFileName && (
+                  <p className="text-xs text-emerald-400 font-semibold mt-1">
+                    ✓ Archivo adjunto: {regCvFileName}
+                  </p>
+                )}
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-800">

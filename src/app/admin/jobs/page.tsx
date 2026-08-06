@@ -14,6 +14,8 @@ interface Profile {
   total_reviews: number;
   badge_level: string;
   status: string;
+  cv_url?: string;
+  cv_filename?: string;
 }
 
 export default function AdminJobsPage() {
@@ -101,6 +103,8 @@ export default function AdminJobsPage() {
           total_reviews: Number(p.total_reviews || 0),
           badge_level: p.badge_level || 'BRONCE',
           status: p.status || 'ACTIVE',
+          cv_url: p.cv_url || undefined,
+          cv_filename: p.cv_filename || undefined,
         }));
 
         setProfiles((prev) => {
@@ -249,6 +253,18 @@ export default function AdminJobsPage() {
                         </span>
                       </td>
                       <td className="p-3 text-right space-x-2">
+                        {p.cv_url && (
+                          <a
+                            href={p.cv_url}
+                            download={p.cv_filename || `CV_${p.full_name}.pdf`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-2.5 py-1 bg-indigo-600/30 hover:bg-indigo-600/40 text-indigo-300 rounded border border-indigo-500/40 font-bold"
+                            title="Ver / Descargar Currículum Vitae del postulante"
+                          >
+                            📄 CV
+                          </a>
+                        )}
                         <a
                           href={waUrl}
                           target="_blank"

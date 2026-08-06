@@ -34,7 +34,25 @@ function PrestadoresContent() {
   const [regCity, setRegCity] = useState('Ituzaingó Centro');
   const [regWhatsapp, setRegWhatsapp] = useState('');
   const [regBio, setRegBio] = useState('');
+  const [regCvUrl, setRegCvUrl] = useState('');
+  const [regCvFileName, setRegCvFileName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleCvFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert("El archivo del CV no debe superar los 5MB.");
+        return;
+      }
+      setRegCvFileName(file.name);
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setRegCvUrl(ev.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   useEffect(() => {
     async function loadActiveProvider() {
@@ -128,6 +146,8 @@ function PrestadoresContent() {
           city: regCity,
           whatsapp: regWhatsapp.trim(),
           bio: regBio.trim(),
+          cv_url: regCvUrl || null,
+          cv_filename: regCvFileName || null,
         }),
       });
       const data = await res.json();
@@ -142,6 +162,8 @@ function PrestadoresContent() {
           whatsapp: data.profile.whatsapp,
           status: 'ACTIVE',
           city: data.profile.city,
+          cv_url: data.profile.cv_url,
+          cv_filename: data.profile.cv_filename,
         };
         setProviderData(newProf);
         setIsOnline(true);
@@ -325,6 +347,21 @@ function PrestadoresContent() {
               />
             </div>
 
+            <div>
+              <label className="block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-1">📄 Adjuntar Currículum Vitae (CV) (PDF / Word - Opcional)</label>
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx"
+                onChange={handleCvFileChange}
+                className="w-full px-4 py-2.5 rounded-xl bg-gray-800 border border-gray-700 text-xs text-gray-300 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-600 file:text-white hover:file:bg-emerald-500"
+              />
+              {regCvFileName && (
+                <p className="text-xs text-emerald-400 font-semibold mt-1">
+                  ✓ Archivo seleccionado: {regCvFileName}
+                </p>
+              )}
+            </div>
+
             <button
               type="submit"
               disabled={isSubmitting}
@@ -333,17 +370,6 @@ function PrestadoresContent() {
               {isSubmitting ? 'Procesando...' : '🚀 Inscribirme & Activar Mi Panel Privado'}
             </button>
           </form>
-
-          {allProfiles.length > 0 && (
-            <div className="mt-6 pt-4 border-t border-gray-800 text-center">
-              <button
-                onClick={() => setShowSelectModal(true)}
-                className="text-xs text-emerald-400 hover:underline font-semibold"
-              >
-                ¿Ya estabas inscripto previamente? Seleccionar Mi Perfil →
-              </button>
-            </div>
-          )}
         </div>
       </div>
     );
@@ -359,15 +385,7 @@ function PrestadoresContent() {
               PRO
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold text-white leading-tight">{providerData.name}</h1>
-                <button
-                  onClick={() => setShowSelectModal(true)}
-                  className="text-[10px] text-emerald-400 font-bold underline hover:text-emerald-300"
-                >
-                  (Cambiar)
-                </button>
-              </div>
+              <h1 className="text-lg font-bold text-white leading-tight">{providerData.name}</h1>
               <p className="text-xs text-emerald-400 font-semibold">{providerData.trade}</p>
             </div>
           </div>
@@ -483,6 +501,17 @@ function PrestadoresContent() {
 
         {/* Links útiles */}
         <div className="space-y-2 mb-8">
+          {(providerData as any).cv_url && (
+            <a
+              href={(providerData as any).cv_url}
+              download={(providerData as any).cv_filename || "Mi_CV_Nexativa.pdf"}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-3 px-4 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/40 text-emerald-300 text-xs font-bold text-center flex items-center justify-center gap-2 transition-colors"
+            >
+              📄 Ver / Descargar Mi CV Adjunto
+            </a>
+          )}
           <Link
             href={`/certificados/${providerData.id}?name=${encodeURIComponent(providerData.name)}&trade=${encodeURIComponent(providerData.trade)}&score=${providerData.noraScore}&badge=${encodeURIComponent(providerData.badge)}`}
             className="w-full py-3 px-4 rounded-xl bg-gray-900 hover:bg-gray-800 border border-gray-800 text-amber-300 text-xs font-bold text-center flex items-center justify-center gap-2 transition-colors"
@@ -504,36 +533,6 @@ function PrestadoresContent() {
           ⚖️ <strong>Aviso Legal y Deslinde de Responsabilidad:</strong> Nexativa News e IA Nora actúan únicamente como soporte tecnológico y nexo comunitario gratuito de contacto entre particulares independientes. Nexativa News no asume responsabilidad civil, laboral ni comercial sobre la ejecución de los trabajos.
         </p>
       </div>
-
-      {/* Modal para Seleccionar / Cambiar Perfil Activo */}
-      {showSelectModal && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-900 border border-emerald-500/40 rounded-3xl max-w-sm w-full p-6 text-gray-100 shadow-2xl">
-            <h3 className="text-lg font-bold text-white mb-2 text-center">Seleccioná tu Perfil de Prestador</h3>
-            <p className="text-xs text-gray-400 mb-4 text-center">Elegí tu nombre para ver tu panel personalizado:</p>
-
-            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-              {allProfiles.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => handleSelectProfile(p)}
-                  className="w-full p-3 bg-gray-800 hover:bg-emerald-900/40 border border-gray-700 hover:border-emerald-500/50 rounded-xl text-left transition-colors"
-                >
-                  <p className="font-bold text-white text-xs">{p.full_name}</p>
-                  <p className="text-[11px] text-emerald-400">{p.trade_category} ({p.city || 'Ituzaingó'})</p>
-                </button>
-              ))}
-            </div>
-
-            <button
-              onClick={() => setShowSelectModal(false)}
-              className="w-full mt-4 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold text-xs"
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Modal QR de Cobro / Calificación en Vivo */}
       {showQRModal && (

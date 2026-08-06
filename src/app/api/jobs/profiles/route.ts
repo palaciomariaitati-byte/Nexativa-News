@@ -95,6 +95,8 @@ export async function POST(req: Request) {
       whatsapp,
       bio,
       email,
+      cv_url,
+      cv_filename,
     } = body;
 
     if (!full_name || !trade_category || !whatsapp) {
@@ -117,6 +119,8 @@ export async function POST(req: Request) {
       whatsapp: cleanWhatsapp,
       email: email ? email.trim() : null,
       bio: bio ? bio.trim() : '',
+      cv_url: cv_url || null,
+      cv_filename: cv_filename || null,
       nora_score: 5.00,
       total_reviews: 0,
       badge_level: 'BRONCE',
@@ -139,6 +143,8 @@ export async function POST(req: Request) {
           whatsapp: newProfileData.whatsapp,
           email: newProfileData.email,
           bio: newProfileData.bio,
+          cv_url: newProfileData.cv_url,
+          cv_filename: newProfileData.cv_filename,
           nora_score: newProfileData.nora_score,
           total_reviews: newProfileData.total_reviews,
           badge_level: newProfileData.badge_level,
