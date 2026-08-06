@@ -55,14 +55,17 @@ export default function NewsTabs({
     [initialTab]: initialArticles,
   });
 
-  // ----- Fetch helper (Estricto por categoría elegida) -----
+  // ----- Fetch helper (Estricto por categoría elegida y fecha actual) -----
   const fetchArticles = useCallback(async (category: NewsCategory) => {
     const supabase = getSupabaseBrowserClient();
+    const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+
     const { data, error: dbError } = await supabase
       .from("articles")
       .select("id, title, excerpt, image_url, category, created_at, external_url")
       .eq("status", "published")
       .eq("category", category) // Búsqueda ESTRICTA por rubro
+      .gte("created_at", twoDaysAgo) // POLÍTICA ESTRICTA DE NOTICIAS DE HOY / ÚLTIMAS 48H
       .order("created_at", { ascending: false })
       .limit(20);
 

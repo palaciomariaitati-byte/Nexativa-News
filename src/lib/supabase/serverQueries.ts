@@ -4,11 +4,14 @@ import type { Article, Product, Sponsor, StreamVideo } from "../types";
 export async function getPublishedArticles(category: string): Promise<Article[]> {
   try {
     const supabase = createServerSupabaseClient();
+    const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+
     const { data, error } = await supabase
       .from("articles")
       .select("id, title, excerpt, image_url, category, created_at, external_url")
       .eq("status", "published")
       .eq("category", category)
+      .gte("created_at", twoDaysAgo) // POLÍTICA ESTRICTA DE FRESCURA PERIODÍSTICA (FECHA ACTUAL / 48H MAX)
       .order("created_at", { ascending: false })
       .limit(12);
 
