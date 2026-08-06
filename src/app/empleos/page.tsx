@@ -85,6 +85,84 @@ export default function EmpleosPage() {
   const [submittingReg, setSubmittingReg] = useState(false);
   const [copiedGreeting, setCopiedGreeting] = useState(false);
 
+  // Formulario de Búsqueda Laboral
+  const [showJobOfferModal, setShowJobOfferModal] = useState(false);
+  const [offerTitle, setOfferTitle] = useState('');
+  const [offerCategory, setOfferCategory] = useState('Gastronomía');
+  const [offerDesc, setOfferDesc] = useState('');
+  const [offerEmployer, setOfferEmployer] = useState('');
+  const [offerWhatsapp, setOfferWhatsapp] = useState('');
+  const [offerLocation, setOfferLocation] = useState('Ituzaingó, Corrientes');
+  const [submittingOffer, setSubmittingOffer] = useState(false);
+
+  // Handlers de borrado directo
+  const handleDeleteProfile = async (id: string) => {
+    if (!confirm("¿Estás seguro de eliminar este perfil de trabajador / prestador?")) return;
+    try {
+      await fetch('/api/jobs/profiles', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      setProfiles((prev) => prev.filter((p) => p.id !== id));
+      alert("¡Perfil eliminado correctamente!");
+    } catch (e) {
+      alert("Error al eliminar perfil.");
+    }
+  };
+
+  const handleDeleteOffer = async (id: string) => {
+    if (!confirm("¿Estás seguro de borrar esta búsqueda laboral activa?")) return;
+    try {
+      await fetch('/api/jobs/offers', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      setOffers((prev) => prev.filter((o) => o.id !== id));
+      alert("¡Búsqueda laboral eliminada!");
+    } catch (e) {
+      alert("Error al eliminar la búsqueda.");
+    }
+  };
+
+  const handleCreateJobOffer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!offerTitle.trim() || !offerWhatsapp.trim()) {
+      alert("Ingresá el título del puesto y el WhatsApp de contacto.");
+      return;
+    }
+    setSubmittingOffer(true);
+    try {
+      const res = await fetch('/api/jobs/offers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: offerTitle.trim(),
+          category: offerCategory,
+          description: offerDesc.trim(),
+          employer_name: offerEmployer.trim() || 'Comercio / Empleador Local',
+          whatsapp: offerWhatsapp.trim(),
+          location: offerLocation,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.offer) {
+        setOffers((prev) => [data.offer, ...prev]);
+        setShowJobOfferModal(false);
+        setOfferTitle('');
+        setOfferDesc('');
+        setOfferEmployer('');
+        setOfferWhatsapp('');
+        alert("🎉 ¡Búsqueda laboral publicada con éxito!");
+      }
+    } catch (err) {
+      alert("Error al publicar la búsqueda laboral.");
+    } finally {
+      setSubmittingOffer(false);
+    }
+  };
+
   // Cargar datos de muestra / reales desde la API
   useEffect(() => {
     const demoProfiles: JobProfile[] = [
@@ -353,14 +431,12 @@ export default function EmpleosPage() {
           >
             ➕ Publicar mi Servicio / Oficio Gratis
           </button>
-          <a
-            href="https://wa.me/5493786401122?text=Hola%20Nora,%20quiero%20publicar%20una%20búsqueda%20laboral%20en%20Nexativa"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-6 py-3 rounded-xl font-bold bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 transition-all"
+          <button
+            onClick={() => setShowJobOfferModal(true)}
+            className="px-6 py-3 rounded-xl font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/25 transition-all transform hover:-translate-y-0.5"
           >
             💼 Publicar Búsqueda Laboral
-          </a>
+          </button>
         </div>
       </div>
 
@@ -541,6 +617,13 @@ export default function EmpleosPage() {
                           📜 Certificado
                         </Link>
                       )}
+                      <button
+                        onClick={() => handleDeleteProfile(profile.id)}
+                        className="py-2 px-2.5 rounded-lg bg-red-950/60 hover:bg-red-900 text-red-400 font-semibold text-xs text-center border border-red-800/60 transition-colors"
+                        title="Borrar usuario de la búsqueda"
+                      >
+                        🗑️ Borrar
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -560,7 +643,7 @@ export default function EmpleosPage() {
                       {offer.category}
                     </span>
                     <span className="text-xs text-gray-400 font-mono">
-                      {offer.job_type.replace('_', ' ')}
+                      {(offer.job_type || 'PART_TIME').replace('_', ' ')}
                     </span>
                   </div>
 
@@ -571,16 +654,24 @@ export default function EmpleosPage() {
                   <div className="text-xs text-gray-400 mb-6">📍 {offer.location}</div>
                 </div>
 
-                <a
-                  href={`https://wa.me/${offer.employer_whatsapp}?text=Hola,%20vi%20la%20búsqueda%20laboral%20"${encodeURIComponent(
-                    offer.title
-                  )}"%20en%20Nexativa%20Empleos%20y%20quisiera%20postularme.`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm text-center flex items-center justify-center gap-2 transition-colors shadow-md"
-                >
-                  📩 Postularme por WhatsApp Directo
-                </a>
+                <div className="space-y-2">
+                  <a
+                    href={`https://wa.me/${offer.employer_whatsapp || (offer as any).whatsapp || '5493786401122'}?text=Hola,%20vi%20la%20búsqueda%20laboral%20"${encodeURIComponent(
+                      offer.title
+                    )}"%20en%20Nexativa%20Empleos%20y%20quisiera%20postularme.`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm text-center flex items-center justify-center gap-2 transition-colors shadow-md"
+                  >
+                    📩 Postularme por WhatsApp Directo
+                  </a>
+                  <button
+                    onClick={() => handleDeleteOffer(offer.id)}
+                    className="w-full py-2 px-3 rounded-lg bg-red-950/40 hover:bg-red-900/70 text-red-400 font-semibold text-xs text-center border border-red-800/40 transition-colors"
+                  >
+                    🗑️ Borrar Búsqueda Laboral
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -769,6 +860,117 @@ export default function EmpleosPage() {
                   className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold shadow-lg disabled:opacity-50"
                 >
                   {submittingReg ? 'Registrando...' : '🚀 Registrar mi Perfil Gratis'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Publicar Búsqueda Laboral */}
+      {showJobOfferModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl max-w-lg w-full p-6 text-gray-100 shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                💼 Publicar Nueva Búsqueda Laboral
+              </h3>
+              <button
+                onClick={() => setShowJobOfferModal(false)}
+                className="text-gray-400 hover:text-white text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateJobOffer} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1">Título del Puesto u Oficio Buscado</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej: Se busca Mozo / Ayudante de Cocina"
+                  value={offerTitle}
+                  onChange={(e) => setOfferTitle(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1">Rubro / Categoría</label>
+                <select
+                  value={offerCategory}
+                  onChange={(e) => setOfferCategory(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="Gastronomía">Gastronomía & Comercio</option>
+                  <option value="Construcción">Construcción & Mantenimiento</option>
+                  <option value="Administración">Administración & Oficina</option>
+                  <option value="Limpieza & Hogar">Limpieza & Servicio Doméstico</option>
+                  <option value="Atención al Cliente">Atención al Cliente</option>
+                  <option value="Otros">Otros Rubros</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1">Nombre del Comercio, Empresa o Vecino</label>
+                <input
+                  type="text"
+                  placeholder="Ej: Restó Don Juan / Vecino Particular"
+                  value={offerEmployer}
+                  onChange={(e) => setOfferEmployer(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1">Número de WhatsApp de Contacto</label>
+                <input
+                  type="tel"
+                  required
+                  placeholder="Ej: 3786401122"
+                  value={offerWhatsapp}
+                  onChange={(e) => setOfferWhatsapp(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1">Ubicación / Ciudad</label>
+                <input
+                  type="text"
+                  value={offerLocation}
+                  onChange={(e) => setOfferLocation(e.target.value)}
+                  placeholder="Ej: Ituzaingó, Corrientes"
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1">Requisitos y Detalles del Empleo</label>
+                <textarea
+                  rows={3}
+                  placeholder="Describí las tareas, horarios y requisitos..."
+                  value={offerDesc}
+                  onChange={(e) => setOfferDesc(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-800">
+                <button
+                  type="button"
+                  onClick={() => setShowJobOfferModal(false)}
+                  className="px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-semibold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingOffer}
+                  className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold shadow-lg disabled:opacity-50"
+                >
+                  {submittingOffer ? 'Publicando...' : '💼 Publicar Búsqueda Gratis'}
                 </button>
               </div>
             </form>

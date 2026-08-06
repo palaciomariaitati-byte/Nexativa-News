@@ -28,6 +28,14 @@ function PrestadoresContent() {
     status: 'ACTIVE',
   });
 
+  const [hasActiveProfile, setHasActiveProfile] = useState<boolean | null>(null);
+  const [regName, setRegName] = useState('');
+  const [regTrade, setRegTrade] = useState('Plomero / Gasista');
+  const [regCity, setRegCity] = useState('Ituzaingó Centro');
+  const [regWhatsapp, setRegWhatsapp] = useState('');
+  const [regBio, setRegBio] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   useEffect(() => {
     async function loadActiveProvider() {
       let profiles: any[] = [];
@@ -40,7 +48,7 @@ function PrestadoresContent() {
         }
       } catch (e) {}
 
-      // 1. Si viene por query param name o id
+      // 1. Si viene por query param name o id explícito
       if (queryName || queryId) {
         const found = profiles.find(p => p.id === queryId || p.full_name.toLowerCase().includes((queryName || '').toLowerCase()));
         if (found) {
@@ -53,9 +61,11 @@ function PrestadoresContent() {
             badge: found.badge_level || 'BRONCE',
             whatsapp: found.whatsapp || '',
             status: found.status || 'ACTIVE',
+            city: found.city || 'Ituzaingó',
           };
           setIsOnline(found.status !== 'BUSY');
           setProviderData(profileData);
+          setHasActiveProfile(true);
           try {
             localStorage.setItem('nexativa_active_prestador', JSON.stringify(profileData));
           } catch (e) {}
@@ -63,50 +73,72 @@ function PrestadoresContent() {
         }
       }
 
-      // 2. Si hay un prestador activo guardado en el teléfono
+      // 2. Si este dispositivo ya se inscribió y tiene perfil guardado localmente
       try {
         const saved = localStorage.getItem('nexativa_active_prestador');
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (parsed && parsed.name) {
+          if (parsed && parsed.name && parsed.id) {
             setIsOnline(parsed.status !== 'BUSY');
             setProviderData(parsed);
+            setHasActiveProfile(true);
             return;
           }
         }
       } catch (e) {}
 
-      // 3. Fallback al primer perfil de la lista o genérico
-      if (profiles.length > 0) {
-        const first = profiles[0];
-        const profileData = {
-          id: first.id,
-          name: first.full_name,
-          trade: first.trade_category,
-          noraScore: Number(first.nora_score || 5.0),
-          totalJobs: Number(first.total_reviews || 1),
-          badge: first.badge_level || 'BRONCE',
-          whatsapp: first.whatsapp || '',
-          status: first.status || 'ACTIVE',
-        };
-        setIsOnline(first.status !== 'BUSY');
-        setProviderData(profileData);
-      } else {
-        setProviderData({
-          id: '1',
-          name: 'Prestador de Oficio',
-          trade: 'Especialista Registrado',
-          noraScore: 5.0,
-          totalJobs: 1,
-          badge: 'BRONCE',
-          whatsapp: '',
-          status: 'ACTIVE',
-        });
-      }
+      // 3. NINGÚN FALLBACK A OTRO USUARIO REGISTRADO EN EL SISTEMA
+      // Si el celular no tiene perfil propio, mostrar pantalla de inscripción
+      setHasActiveProfile(false);
     }
 
     loadActiveProvider();
   }, [queryId, queryName]);
+
+  const handleRegisterNewPrestador = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!regName.trim() || !regWhatsapp.trim()) {
+      alert("Por favor ingresá tu nombre y WhatsApp.");
+      return;
+    }
+    setIsSubmitting(true);
+
+    try {
+      const res = await fetch('/api/jobs/profiles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          full_name: regName.trim(),
+          trade_category: regTrade,
+          city: regCity,
+          whatsapp: regWhatsapp.trim(),
+          bio: regBio.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.profile) {
+        const newProf = {
+          id: data.profile.id,
+          name: data.profile.full_name,
+          trade: data.profile.trade_category,
+          noraScore: 5.0,
+          totalJobs: 1,
+          badge: 'BRONCE',
+          whatsapp: data.profile.whatsapp,
+          status: 'ACTIVE',
+          city: data.profile.city,
+        };
+        setProviderData(newProf);
+        setIsOnline(true);
+        setHasActiveProfile(true);
+        localStorage.setItem('nexativa_active_prestador', JSON.stringify(newProf));
+      }
+    } catch (err) {
+      alert("Error al completar la inscripción.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const [providerZone, setProviderZone] = useState('Ituzaingó Centro');
   const [detectingGPS, setDetectingGPS] = useState(false);
@@ -204,6 +236,100 @@ function PrestadoresContent() {
   const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
     ratingUrl
   )}`;
+
+  if (hasActiveProfile === false) {
+    return (
+      <div className="min-h-screen bg-[#0B0F19] text-gray-100 p-4 sm:p-6 font-sans flex flex-col justify-center items-center">
+        <div className="max-w-md w-full bg-gray-900 border border-gray-800 rounded-3xl p-6 sm:p-8 shadow-2xl">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 bg-emerald-500/20 border border-emerald-500/40 rounded-2xl flex items-center justify-center mx-auto mb-4 text-emerald-400 text-2xl font-bold">
+              🛠️
+            </div>
+            <h1 className="text-2xl font-extrabold text-white">Inscripción de Prestador</h1>
+            <p className="text-sm text-gray-400 mt-2">
+              Registrá tu oficio o servicio profesional en Ituzaingó y abrí tu panel privado de reputación comunitaria NoraScore™.
+            </p>
+          </div>
+
+          <form onSubmit={handleRegisterNewPrestador} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-1">Nombre Completo</label>
+              <input
+                type="text"
+                required
+                value={regName}
+                onChange={(e) => setRegName(e.target.value)}
+                placeholder="Ej: Juan Carlos Pérez"
+                className="w-full px-4 py-3 rounded-xl bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-1">Rubro / Especialidad</label>
+              <select
+                value={regTrade}
+                onChange={(e) => setRegTrade(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-emerald-500"
+              >
+                <option value="Plomero / Gasista">Plomero / Gasista</option>
+                <option value="Electricista Matriculado">Electricista Matriculado</option>
+                <option value="Albañilería & Construcción">Albañilería & Construcción</option>
+                <option value="Jardinería & Parquización">Jardinería & Parquización</option>
+                <option value="Técnico de Aire / Refrigeración">Técnico de Aire / Refrigeración</option>
+                <option value="Pintor / Decorador">Pintor / Decorador</option>
+                <option value="Mecánica & Auxilio">Mecánica & Auxilio</option>
+                <option value="Gastronomía & Catering">Gastronomía & Catering</option>
+                <option value="Cuidado de Personas">Cuidado de Personas</option>
+                <option value="Otros Servicios Profesional">Otros Servicios Profesionales</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-1">Número de WhatsApp (con código de área)</label>
+              <input
+                type="tel"
+                required
+                value={regWhatsapp}
+                onChange={(e) => setRegWhatsapp(e.target.value)}
+                placeholder="Ej: 3786401122"
+                className="w-full px-4 py-3 rounded-xl bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-1">Barrio / Zona de Atención</label>
+              <input
+                type="text"
+                value={regCity}
+                onChange={(e) => setRegCity(e.target.value)}
+                placeholder="Ej: Ituzaingó Centro / Zona Puerto"
+                className="w-full px-4 py-3 rounded-xl bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full py-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/30 transition-all text-base mt-2"
+            >
+              {isSubmitting ? 'Procesando...' : '🚀 Inscribirme & Activar Mi Panel Privado'}
+            </button>
+          </form>
+
+          {allProfiles.length > 0 && (
+            <div className="mt-6 pt-4 border-t border-gray-800 text-center">
+              <button
+                onClick={() => setShowSelectModal(true)}
+                className="text-xs text-emerald-400 hover:underline font-semibold"
+              >
+                ¿Ya estabas inscripto previamente? Seleccionar Mi Perfil →
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0B0F19] text-gray-100 p-4 sm:p-6 font-sans flex flex-col justify-between">
