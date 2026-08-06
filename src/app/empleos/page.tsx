@@ -80,7 +80,8 @@ export default function EmpleosPage() {
 
   // Formulario de Registro
   const [regName, setRegName] = useState('');
-  const [regCategory, setRegCategory] = useState('Plomero/a');
+  const [regCategory, setRegCategory] = useState('Informática, Servicio Técnico & Sistemas');
+  const [isCustomCategory, setIsCustomCategory] = useState(false);
   const [regCity, setRegCity] = useState('Ituzaingó');
   const [regWhatsapp, setRegWhatsapp] = useState('');
   const [regBio, setRegBio] = useState('');
@@ -343,6 +344,20 @@ export default function EmpleosPage() {
           const updated = [newProf, ...prev];
           try {
             localStorage.setItem('nexativa_job_profiles_v1', JSON.stringify(updated));
+            localStorage.setItem('nexativa_active_prestador', JSON.stringify({
+              id: newProf.id,
+              name: newProf.full_name,
+              trade: newProf.trade_category,
+              noraScore: 5.0,
+              totalJobs: 1,
+              badge: 'BRONCE',
+              whatsapp: newProf.whatsapp,
+              status: 'ACTIVE',
+              city: newProf.city,
+              cv_url: newProf.cv_url,
+              cv_filename: newProf.cv_filename
+            }));
+            localStorage.setItem('nexativa_device_registered_id', newProf.id);
           } catch (e) {}
           return updated;
         });
@@ -835,18 +850,47 @@ export default function EmpleosPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">Rubro / Oficio</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ej: Plomero, Electricista"
-                    value={regCategory}
-                    onChange={(e) => setRegCategory(e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500"
-                  />
+                  <label className="block text-xs font-semibold text-gray-300 mb-1">Rubro / Oficio / Especialidad</label>
+                  <select
+                    value={isCustomCategory ? "CUSTOM" : regCategory}
+                    onChange={(e) => {
+                      if (e.target.value === "CUSTOM") {
+                        setIsCustomCategory(true);
+                        setRegCategory("");
+                      } else {
+                        setIsCustomCategory(false);
+                        setRegCategory(e.target.value);
+                      }
+                    }}
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500 mb-2"
+                  >
+                    <option value="Informática, Servicio Técnico & Sistemas">💻 Informática, Servicio Técnico & Sistemas</option>
+                    <option value="Programación, Diseño & Tecnología">🚀 Programación, Diseño & Tecnología</option>
+                    <option value="Plomero / Gasista">🔧 Plomero / Gasista</option>
+                    <option value="Electricista Matriculado">⚡ Electricista Matriculado</option>
+                    <option value="Albañilería & Construcción">🏗️ Albañilería & Construcción</option>
+                    <option value="Jardinería & Parquización">🌿 Jardinería & Parquización</option>
+                    <option value="Técnico de Aire / Refrigeración">❄️ Técnico de Aire / Refrigeración</option>
+                    <option value="Pintor / Decorador">🎨 Pintor / Decorador</option>
+                    <option value="Mecánica & Auxilio">🚗 Mecánica & Auxilio</option>
+                    <option value="Gastronomía & Catering">🍽️ Gastronomía & Catering</option>
+                    <option value="Cuidado de Personas">🤝 Cuidado de Personas</option>
+                    <option value="CUSTOM">✍️ Si tu oficio no está en la lista, escríbelo aquí...</option>
+                  </select>
+                  {(isCustomCategory || !regCategory) && (
+                    <input
+                      type="text"
+                      required
+                      placeholder="Escribí tu especialidad u oficio (Ej: Informático, Técnico IT...)"
+                      value={regCategory}
+                      onChange={(e) => setRegCategory(e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  )}
                 </div>
+
                 <div>
                   <label className="block text-xs font-semibold text-gray-300 mb-1">Ciudad / Localidad</label>
                   <input

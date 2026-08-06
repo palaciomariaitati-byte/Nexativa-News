@@ -30,7 +30,8 @@ function PrestadoresContent() {
 
   const [hasActiveProfile, setHasActiveProfile] = useState<boolean | null>(null);
   const [regName, setRegName] = useState('');
-  const [regTrade, setRegTrade] = useState('Plomero / Gasista');
+  const [regTrade, setRegTrade] = useState('Informática, Servicio Técnico & Sistemas');
+  const [isCustomTrade, setIsCustomTrade] = useState(false);
   const [regCity, setRegCity] = useState('Ituzaingó Centro');
   const [regWhatsapp, setRegWhatsapp] = useState('');
   const [regBio, setRegBio] = useState('');
@@ -92,14 +93,29 @@ function PrestadoresContent() {
         }
       }
 
-      // 2. Si este dispositivo ya se inscribió EXPLICITAMENTE y tiene su propio ID de sesión guardado
+      // 2. Si este dispositivo ya se inscribió y tiene su propio perfil guardado
       try {
-        const registeredId = localStorage.getItem('nexativa_device_registered_id');
         const saved = localStorage.getItem('nexativa_active_prestador');
+        const registeredId = localStorage.getItem('nexativa_device_registered_id');
 
-        if (registeredId && saved) {
+        if (saved) {
           const parsed = JSON.parse(saved);
-          if (parsed && parsed.id === registeredId && parsed.name) {
+          if (parsed && parsed.name) {
+            // Verificar si la base de datos tiene datos más recientes
+            const fresh = profiles.find(p => p.id === (registeredId || parsed.id) || p.whatsapp === parsed.whatsapp);
+            if (fresh) {
+              parsed.id = fresh.id;
+              parsed.name = fresh.full_name;
+              parsed.trade = fresh.trade_category;
+              parsed.noraScore = Number(fresh.nora_score || parsed.noraScore || 5.0);
+              parsed.totalJobs = Number(fresh.total_reviews || parsed.totalJobs || 1);
+              parsed.badge = fresh.badge_level || parsed.badge;
+              parsed.status = fresh.status || parsed.status;
+              parsed.city = fresh.city || parsed.city;
+              parsed.cv_url = fresh.cv_url || parsed.cv_url;
+              parsed.cv_filename = fresh.cv_filename || parsed.cv_filename;
+            }
+
             setIsOnline(parsed.status !== 'BUSY');
             setProviderData(parsed);
             setHasActiveProfile(true);
@@ -108,12 +124,7 @@ function PrestadoresContent() {
         }
       } catch (e) {}
 
-      // 3. POLITICA INQUEBRANTABLE: NINGÚN FALLBACK A OTRO USUARIO REGISTRADO
-      // Si el celular no se ha inscripto en este dispositivo, dirigir directamente a INSCRIPCIÓN
-      try {
-        localStorage.removeItem('nexativa_active_prestador');
-        localStorage.removeItem('nexativa_device_registered_id');
-      } catch (e) {}
+      // 3. Si el dispositivo no se ha inscripto aún, mostrar pantalla de inscripción
       setHasActiveProfile(false);
     }
 
@@ -307,21 +318,42 @@ function PrestadoresContent() {
             <div>
               <label className="block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-1">Rubro / Especialidad</label>
               <select
-                value={regTrade}
-                onChange={(e) => setRegTrade(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-emerald-500"
+                value={isCustomTrade ? "CUSTOM" : regTrade}
+                onChange={(e) => {
+                  if (e.target.value === "CUSTOM") {
+                    setIsCustomTrade(true);
+                    setRegTrade("");
+                  } else {
+                    setIsCustomTrade(false);
+                    setRegTrade(e.target.value);
+                  }
+                }}
+                className="w-full px-4 py-3 rounded-xl bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-emerald-500 mb-2"
               >
-                <option value="Plomero / Gasista">Plomero / Gasista</option>
-                <option value="Electricista Matriculado">Electricista Matriculado</option>
-                <option value="Albañilería & Construcción">Albañilería & Construcción</option>
-                <option value="Jardinería & Parquización">Jardinería & Parquización</option>
-                <option value="Técnico de Aire / Refrigeración">Técnico de Aire / Refrigeración</option>
-                <option value="Pintor / Decorador">Pintor / Decorador</option>
-                <option value="Mecánica & Auxilio">Mecánica & Auxilio</option>
-                <option value="Gastronomía & Catering">Gastronomía & Catering</option>
-                <option value="Cuidado de Personas">Cuidado de Personas</option>
-                <option value="Otros Servicios Profesional">Otros Servicios Profesionales</option>
+                <option value="Informática, Servicio Técnico & Sistemas">💻 Informática, Servicio Técnico & Sistemas</option>
+                <option value="Programación, Diseño & Tecnología">🚀 Programación, Diseño & Tecnología</option>
+                <option value="Plomero / Gasista">🔧 Plomero / Gasista</option>
+                <option value="Electricista Matriculado">⚡ Electricista Matriculado</option>
+                <option value="Albañilería & Construcción">🏗️ Albañilería & Construcción</option>
+                <option value="Jardinería & Parquización">🌿 Jardinería & Parquización</option>
+                <option value="Técnico de Aire / Refrigeración">❄️ Técnico de Aire / Refrigeración</option>
+                <option value="Pintor / Decorador">🎨 Pintor / Decorador</option>
+                <option value="Mecánica & Auxilio">🚗 Mecánica & Auxilio</option>
+                <option value="Gastronomía & Catering">🍽️ Gastronomía & Catering</option>
+                <option value="Cuidado de Personas">🤝 Cuidado de Personas</option>
+                <option value="CUSTOM">✍️ Si tu oficio no está en la lista, escríbelo aquí...</option>
               </select>
+
+              {(isCustomTrade || !regTrade) && (
+                <input
+                  type="text"
+                  required
+                  placeholder="Escribí tu especialidad u oficio (Ej: Informático, Técnico IT...)"
+                  value={regTrade}
+                  onChange={(e) => setRegTrade(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-emerald-500"
+                />
+              )}
             </div>
 
             <div>
