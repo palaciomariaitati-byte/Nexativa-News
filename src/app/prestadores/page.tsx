@@ -68,17 +68,20 @@ function PrestadoresContent() {
           setHasActiveProfile(true);
           try {
             localStorage.setItem('nexativa_active_prestador', JSON.stringify(profileData));
+            localStorage.setItem('nexativa_device_registered_id', profileData.id);
           } catch (e) {}
           return;
         }
       }
 
-      // 2. Si este dispositivo ya se inscribió y tiene perfil guardado localmente
+      // 2. Si este dispositivo ya se inscribió EXPLICITAMENTE y tiene su propio ID de sesión guardado
       try {
+        const registeredId = localStorage.getItem('nexativa_device_registered_id');
         const saved = localStorage.getItem('nexativa_active_prestador');
-        if (saved) {
+
+        if (registeredId && saved) {
           const parsed = JSON.parse(saved);
-          if (parsed && parsed.name && parsed.id) {
+          if (parsed && parsed.id === registeredId && parsed.name) {
             setIsOnline(parsed.status !== 'BUSY');
             setProviderData(parsed);
             setHasActiveProfile(true);
@@ -87,13 +90,25 @@ function PrestadoresContent() {
         }
       } catch (e) {}
 
-      // 3. NINGÚN FALLBACK A OTRO USUARIO REGISTRADO EN EL SISTEMA
-      // Si el celular no tiene perfil propio, mostrar pantalla de inscripción
+      // 3. POLITICA INQUEBRANTABLE: NINGÚN FALLBACK A OTRO USUARIO REGISTRADO
+      // Si el celular no se ha inscripto en este dispositivo, dirigir directamente a INSCRIPCIÓN
+      try {
+        localStorage.removeItem('nexativa_active_prestador');
+        localStorage.removeItem('nexativa_device_registered_id');
+      } catch (e) {}
       setHasActiveProfile(false);
     }
 
     loadActiveProvider();
   }, [queryId, queryName]);
+
+  const handleLogout = () => {
+    try {
+      localStorage.removeItem('nexativa_active_prestador');
+      localStorage.removeItem('nexativa_device_registered_id');
+    } catch (e) {}
+    setHasActiveProfile(false);
+  };
 
   const handleRegisterNewPrestador = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -131,7 +146,10 @@ function PrestadoresContent() {
         setProviderData(newProf);
         setIsOnline(true);
         setHasActiveProfile(true);
-        localStorage.setItem('nexativa_active_prestador', JSON.stringify(newProf));
+        try {
+          localStorage.setItem('nexativa_active_prestador', JSON.stringify(newProf));
+          localStorage.setItem('nexativa_device_registered_id', newProf.id);
+        } catch (e) {}
       }
     } catch (err) {
       alert("Error al completar la inscripción.");
@@ -353,9 +371,18 @@ function PrestadoresContent() {
               <p className="text-xs text-emerald-400 font-semibold">{providerData.trade}</p>
             </div>
           </div>
-          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-yellow-500/20 text-yellow-400 border border-yellow-500/40">
-            🥇 {providerData.badge}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-yellow-500/20 text-yellow-400 border border-yellow-500/40">
+              🥇 {providerData.badge}
+            </span>
+            <button
+              onClick={handleLogout}
+              className="px-2.5 py-1 rounded-lg text-xs font-bold bg-red-950/80 text-red-400 hover:bg-red-900 border border-red-800 transition-colors"
+              title="Cerrar sesión de este dispositivo e ir a inscripción"
+            >
+              🚪 Salir
+            </button>
+          </div>
         </div>
 
         {/* Switch de Disponibilidad Estilo Uber Driver */}
