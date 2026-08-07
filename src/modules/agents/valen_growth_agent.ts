@@ -302,6 +302,28 @@ export async function chatWithValen(
       }
     }
 
+    if (!text) {
+      const hfWorkerUrl = process.env.HUGGINGFACE_NORA_WORKER_URL || "https://noranexora-nora-ia-worker.hf.space";
+      try {
+        console.log("[VALEN FALLBACK] Intentando conexión con Hugging Face Space Worker:", hfWorkerUrl);
+        const hfRes = await fetch(`${hfWorkerUrl.replace(/\/$/, '')}/generate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: userMessage,
+            system_prompt: systemPromptWithContext,
+          }),
+        });
+
+        if (hfRes.ok) {
+          const hfData = await hfRes.json();
+          text = hfData.text || hfData.response || hfData.generated_text || hfData.result || "";
+        }
+      } catch (hfErr) {
+        console.warn("[VALEN FALLBACK WARNING] Hugging Face worker not available:", hfErr);
+      }
+    }
+
     if (!text && lastError) {
       throw lastError;
     }
