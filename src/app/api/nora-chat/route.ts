@@ -101,36 +101,23 @@ export async function POST(req: Request) {
   try {
     const { message, history, contextData, image } = await req.json();
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: "Nora está desconectada (API Key faltante)." }, { status: 500 });
-    }
+    const keysPool = [
+      process.env.GEMINI_API_KEY,
+      process.env.GEMINI_API_KEY_FALLBACK,
+      process.env.GEMINI_API_KEY_FALLBACK_2,
+      process.env.GEMINI_API_KEY_TERTIARY,
+    ].filter(Boolean) as string[];
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const modelId = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-    const model = genAI.getGenerativeModel({ model: modelId });
+    const modelsPool = Array.from(new Set([
+      process.env.GEMINI_MODEL,
+      "gemini-1.5-flash",
+      "gemini-2.0-flash",
+      "gemini-1.5-pro"
+    ].filter(Boolean))) as string[];
 
-    // Build the chat history for Gemini
-    let normalizedHistory: any[] = [
-      { role: "user", parts: [{ text: `INSTRUCCIONES DEL SISTEMA: ${getSystemPrompt(contextData)}` }] },
-      { role: "model", parts: [{ text: "Entendido. Soy Nora, vendedora humana. Seré muy natural." }] }
-    ];
+    const systemPromptText = getSystemPrompt(contextData);
 
-    for (const msg of history || []) {
-      const mappedRole = msg.role === "nora" ? "model" : "user";
-      const lastItem = normalizedHistory[normalizedHistory.length - 1];
-      if (lastItem.role === mappedRole) {
-        lastItem.parts[0].text += `\n\n${msg.content}`;
-      } else {
-        normalizedHistory.push({ role: mappedRole, parts: [{ text: msg.content }] });
-      }
-    }
-
-    const chat = model.startChat({ history: normalizedHistory });
-
-    // If there's a specific context (like "El usuario está mirando X producto"), we inject it invisibly
     let finalMessageParts: any[] = [];
-    
     if (contextData && (!history || history.length === 0)) {
       const isB2B = contextData.type === 'b2b';
       const promptText = isB2B 
@@ -138,126 +125,114 @@ export async function POST(req: Request) {
         : `[CONTEXTO OCULTO: El cliente acaba de dudar/mirar el producto "${contextData.title}" de la tienda "${contextData.store || 'Nexativa'}". Inicia la conversación ofreciendo ayuda sobre ese producto, de forma casual y humana, como vendedora de la tienda.]\n\nHola.`;
       
       finalMessageParts.push({ text: promptText });
-    } else if (message.trim().length > 0) {
-      finalMessageParts.push({ text: message });
-    } else if (image) {
-      finalMessageParts.push({ text: "Analiza el producto de esta imagen por favor." });
+    } else {
+      finalMessageParts.push({ text: message || "Hola Nora" });
     }
 
-    // Inject image data if provided (Multimodal Vision)
-    if (image && image.data && image.mimeType) {
+    if (image && image.base64 && image.mimeType) {
       finalMessageParts.push({
         inlineData: {
-          data: image.data,
-          mimeType: image.mimeType,
-        },
+          data: image.base64,
+          mimeType: image.mimeType
+        }
       });
     }
 
     let text = "";
     let freezeState = false;
-    let audioBase64 = null;
-    try {
-      const result = await chat.sendMessage(finalMessageParts);
-      text = result.response.text();
+    let lastError: any = null;
 
-      // Interceptar y procesar el bloque <REPORT>
-      const reportMatch = text.match(/<REPORT>([\s\S]*?)<\/REPORT>/i);
-      if (reportMatch) {
-        const reportJsonStr = reportMatch[1].trim();
+    // Multi-key & Multi-model Fallback Loop
+    outerLoop: for (const currentKey of keysPool) {
+      for (const currentModel of modelsPool) {
         try {
-          const reportData = JSON.parse(reportJsonStr);
-          
-          if (reportData.flag_legal_claim) {
-            freezeState = true;
-            await saveNoraComplaint(history, JSON.stringify(finalMessageParts), text);
-            console.log("[ALERTA NORA] Reclamo guardado");
-          } else {
-            await saveNoraLead({
-              rubro_cliente: reportData.rubro_cliente || "Desconocido",
-              whatsapp_comercial: reportData.whatsapp_comercial || "Desconocido",
-              producto_estrella: reportData.producto_estrella || "Desconocido",
-              perfil_copywriting: reportData.perfil_copywriting || {},
-              perfil_tecnico: reportData.perfil_tecnico || {},
-              guion_video: reportData.guion_video || "",
-              mensaje_whatsapp: reportData.mensaje_whatsapp || "",
-              legal_disclaimer_accepted: reportData.legal_disclaimer_accepted || false
-            });
-            console.log("Nora lead guardado correctamente en Supabase!");
-          }
-        } catch(e) {
-          console.error("Error parseando o guardando reporte de Nora:", e);
-        }
-        // Remover el reporte para que el usuario no lo vea
-        text = text.replace(/<REPORT>([\s\S]*?)<\/REPORT>/ig, "").trim();
-      }
-    } catch (apiError: any) {
-      console.warn("Primary API error:", apiError.message);
-      
-      // Si es un error de cuota (429) y tenemos llave de relevo, intentamos con la de relevo
-      if (apiError.message?.includes("429") && process.env.GEMINI_API_KEY_FALLBACK) {
-        try {
-          console.log("Intentando con GEMINI_API_KEY_FALLBACK...");
-          const fallbackGenAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY_FALLBACK);
-          const fallbackModel = fallbackGenAI.getGenerativeModel({ model: modelId });
-          let fallbackHistory: any[] = [
-            { role: "user", parts: [{ text: `INSTRUCCIONES DEL SISTEMA: ${getSystemPrompt(contextData)}` }] },
+          const genAI = new GoogleGenerativeAI(currentKey);
+          const model = genAI.getGenerativeModel({ model: currentModel });
+
+          let normalizedHistory: any[] = [
+            { role: "user", parts: [{ text: `INSTRUCCIONES DEL SISTEMA: ${systemPromptText}` }] },
             { role: "model", parts: [{ text: "Entendido. Soy Nora, vendedora humana. Seré muy natural." }] }
           ];
 
           for (const msg of history || []) {
             const mappedRole = msg.role === "nora" ? "model" : "user";
-            const lastItem = fallbackHistory[fallbackHistory.length - 1];
+            const lastItem = normalizedHistory[normalizedHistory.length - 1];
             if (lastItem.role === mappedRole) {
               lastItem.parts[0].text += `\n\n${msg.content}`;
             } else {
-              fallbackHistory.push({ role: mappedRole, parts: [{ text: msg.content }] });
+              normalizedHistory.push({ role: mappedRole, parts: [{ text: msg.content }] });
             }
           }
 
-          const fallbackChat = fallbackModel.startChat({ history: fallbackHistory });
-          const fallbackResult = await fallbackChat.sendMessage(finalMessageParts);
-          text = fallbackResult.response.text();
-          
-          const reportMatch = text.match(/<REPORT>([\s\S]*?)<\/REPORT>/i);
-          if (reportMatch) {
-            const reportJsonStr = reportMatch[1].trim();
-            try {
-              const reportData = JSON.parse(reportJsonStr);
-              if (reportData.flag_legal_claim) {
-                freezeState = true;
-                await saveNoraComplaint(history, JSON.stringify(finalMessageParts), text);
-              } else {
-                await saveNoraLead({
-                  rubro_cliente: reportData.rubro_cliente || "Desconocido",
-                  whatsapp_comercial: reportData.whatsapp_comercial || "Desconocido",
-                  producto_estrella: reportData.producto_estrella || "Desconocido",
-                  perfil_copywriting: reportData.perfil_copywriting || {},
-                  perfil_tecnico: reportData.perfil_tecnico || {},
-                  guion_video: reportData.guion_video || "",
-                  mensaje_whatsapp: reportData.mensaje_whatsapp || "",
-                  legal_disclaimer_accepted: reportData.legal_disclaimer_accepted || false
-                });
-              }
-            } catch(e) {}
-            text = text.replace(/<REPORT>([\s\S]*?)<\/REPORT>/ig, "").trim();
+          const chat = model.startChat({ history: normalizedHistory });
+          const result = await chat.sendMessage(finalMessageParts);
+          const responseText = result.response.text();
+
+          if (responseText) {
+            text = responseText;
+            lastError = null;
+            break outerLoop;
           }
-        } catch (fallbackError) {
-          console.error("Fallback API también falló:", fallbackError);
-          text = "¡Uy! Perdoná la demora, se nos llenó el local de gente de golpe y estoy atendiendo a varios a la vez 😅. Si tenés prisa, ¿me escribís por WhatsApp usando el globito verde de la barra superior? Así te ayudo más rápido por ahí.";
-        }
-      } else {
-        // Si no hay llave de relevo o es otro error, damos una respuesta "humana" de saturación
-        if (apiError.message?.includes("429")) {
-          text = "¡Uy! Perdoná la demora, se me llenó el local de gente de golpe y se me tildó el sistema 😅. Si tenés prisa, ¿me escribís por WhatsApp usando el globito verde?";
-        } else if (apiError.message?.includes("400")) {
-          text = "¡Uy! Me pasaste un archivo o texto que mi sistema no pudo leer bien. ¿Podrías intentar de nuevo o mandarme una foto más ligera?";
-        } else {
-          text = "Perdoná la demora, se nos llenó el local de gente de golpe y estoy atendiendo a varios a la vez 😅. Si tenés prisa, ¿me escribís por WhatsApp usando el globito verde de la barra superior? Así te ayudo más rápido por ahí.";
+        } catch (err: any) {
+          console.warn(`[NORA FALLBACK WARNING] Key/Model failure (${currentModel}):`, err?.message || err);
+          lastError = err;
         }
       }
     }
-    // TTS integration (Voice Generation)
+
+    // Hugging Face Space Worker Fallback if Gemini fails
+    if (!text) {
+      const hfWorkerUrl = process.env.HUGGINGFACE_NORA_WORKER_URL || "https://noranexora-nora-ia-worker.hf.space";
+      try {
+        console.log("[NORA FALLBACK] Intentando conexión con Hugging Face Space Worker:", hfWorkerUrl);
+        const hfRes = await fetch(`${hfWorkerUrl.replace(/\/$/, '')}/generate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: message || "Hola Nora",
+            system_prompt: systemPromptText,
+          }),
+        });
+
+        if (hfRes.ok) {
+          const hfData = await hfRes.json();
+          text = hfData.text || hfData.response || hfData.generated_text || hfData.result || "";
+        }
+      } catch (hfErr) {
+        console.warn("[NORA FALLBACK WARNING] Hugging Face worker not available:", hfErr);
+      }
+    }
+
+    if (!text) {
+      text = "¡Uy! Perdoná la demora, se nos llenó el local de gente de golpe y estoy atendiendo a varios a la vez 😅. Si tenés prisa, ¿me escribís por WhatsApp usando el globito verde de la barra superior? Así te ayudo más rápido por ahí.";
+    }
+
+    // Parse <REPORT> block if present
+    const reportMatch = text.match(/<REPORT>([\s\S]*?)<\/REPORT>/i);
+    if (reportMatch) {
+      const reportJsonStr = reportMatch[1].trim();
+      try {
+        const reportData = JSON.parse(reportJsonStr);
+        if (reportData.flag_legal_claim) {
+          freezeState = true;
+          await saveNoraComplaint(history, JSON.stringify(finalMessageParts), text);
+        } else {
+          await saveNoraLead({
+            rubro_cliente: reportData.rubro_cliente || "Desconocido",
+            whatsapp_comercial: reportData.whatsapp_comercial || "Desconocido",
+            producto_estrella: reportData.producto_estrella || "Desconocido",
+            perfil_copywriting: reportData.perfil_copywriting || {},
+            perfil_tecnico: reportData.perfil_tecnico || {},
+            guion_video: reportData.guion_video || "",
+            mensaje_whatsapp: reportData.mensaje_whatsapp || "",
+            legal_disclaimer_accepted: reportData.legal_disclaimer_accepted || false
+          });
+        }
+      } catch(e) {}
+      text = text.replace(/<REPORT>([\s\S]*?)<\/REPORT>/ig, "").trim();
+    }
+
+    let audioBase64 = null;
     if (process.env.ENABLE_NORA_VOICE === "true" && text.trim().length > 0) {
       audioBase64 = await generateNoraAudio(text);
     }
