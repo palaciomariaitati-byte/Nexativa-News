@@ -186,6 +186,42 @@ export default function GuiaRegistroDirectoPage() {
             </button>
           </form>
         )}
+        {/* QR Flyer Section */}
+        <div className="mt-8 pt-6 border-t border-slate-800 text-center space-y-3">
+          <p className="text-xs font-bold text-cyan-400 uppercase tracking-wider">
+            📱 Código QR de Alta Comercial para Flyers & Redes
+          </p>
+          <div className="bg-white p-3 rounded-2xl inline-block shadow-lg">
+            <img
+              src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=https://www.nexativanews.com.ar/guia/registro"
+              alt="QR Alta Comercio Nexativa Guía"
+              className="w-36 h-36 mx-auto"
+            />
+          </div>
+          <p className="text-[11px] text-slate-400 font-mono select-all">
+            https://www.nexativanews.com.ar/guia/registro
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2 justify-center pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText("https://www.nexativanews.com.ar/guia/registro");
+                alert("¡Enlace de inscripción comercial copiado al portapapeles!");
+              }}
+              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold text-xs border border-cyan-500/30 transition-colors"
+            >
+              📲 Copiar Link para Redes
+            </button>
+            <a
+              href="https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=https://www.nexativanews.com.ar/guia/registro"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs border border-slate-700 transition-colors"
+            >
+              ⬇️ Abrir QR HD (600x600)
+            </a>
+          </div>
+        </div>
       </div>
     </div>
   );

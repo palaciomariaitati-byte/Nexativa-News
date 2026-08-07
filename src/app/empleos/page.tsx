@@ -108,6 +108,8 @@ export default function EmpleosPage() {
 
   // Formulario de Búsqueda Laboral
   const [showJobOfferModal, setShowJobOfferModal] = useState(false);
+  const [showQRFlyerModal, setShowQRFlyerModal] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [offerTitle, setOfferTitle] = useState('');
   const [offerCategory, setOfferCategory] = useState('Gastronomía');
   const [offerDesc, setOfferDesc] = useState('');
@@ -508,6 +510,12 @@ export default function EmpleosPage() {
             className="px-6 py-3 rounded-xl font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/25 transition-all transform hover:-translate-y-0.5"
           >
             💼 Publicar Búsqueda Laboral
+          </button>
+          <button
+            onClick={() => setShowQRFlyerModal(true)}
+            className="px-6 py-3 rounded-xl font-bold bg-gray-800 hover:bg-gray-700 text-emerald-300 border border-emerald-500/40 shadow-lg transition-all transform hover:-translate-y-0.5 flex items-center gap-2"
+          >
+            📱 QR & Enlace para Flyers
           </button>
         </div>
       </div>
@@ -1167,6 +1175,59 @@ export default function EmpleosPage() {
                   Cerrar
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Código QR & Enlace para Flyers */}
+      {showQRFlyerModal && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-900 border border-emerald-500/40 rounded-3xl max-w-sm w-full p-6 text-center text-gray-100 shadow-2xl space-y-4">
+            <h3 className="text-xl font-extrabold text-white">📱 Código QR para Flyers</h3>
+            <p className="text-xs text-gray-400">
+              Escaneá o descargá este código QR para incluirlo en tus afiches, folletos o publicaciones en redes sociales.
+            </p>
+
+            <div className="bg-white p-4 rounded-2xl inline-block shadow-xl mx-auto">
+              <img
+                src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://www.nexativanews.com.ar/empleos"
+                alt="QR Nexativa Empleos & Oficios"
+                className="w-48 h-48 mx-auto"
+              />
+            </div>
+
+            <p className="text-[11px] text-emerald-400 font-mono font-bold break-all">
+              https://www.nexativanews.com.ar/empleos
+            </p>
+
+            <div className="space-y-2 pt-2">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText("https://www.nexativanews.com.ar/empleos");
+                  setCopiedLink(true);
+                  setTimeout(() => setCopiedLink(false), 3000);
+                }}
+                className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg transition-all"
+              >
+                {copiedLink ? '✅ ¡Enlace Copiado al Portapapeles!' : '📲 Copiar Enlace Directo'}
+              </button>
+
+              <a
+                href="https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=https://www.nexativanews.com.ar/empleos"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-emerald-300 font-bold text-xs border border-emerald-500/40 block text-center transition-colors"
+              >
+                ⬇️ Abrir QR HD (600x600 px) para Descargar
+              </a>
+
+              <button
+                onClick={() => setShowQRFlyerModal(false)}
+                className="w-full py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-400 font-semibold text-xs mt-2"
+              >
+                Cerrar
+              </button>
             </div>
           </div>
         </div>
