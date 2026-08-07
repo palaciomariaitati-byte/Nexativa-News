@@ -662,13 +662,6 @@ export default function EmpleosPage() {
                           📜 Certificado
                         </Link>
                       )}
-                      <button
-                        onClick={() => handleDeleteProfile(profile.id)}
-                        className="py-2 px-2.5 rounded-lg bg-red-950/60 hover:bg-red-900 text-red-400 font-semibold text-xs text-center border border-red-800/60 transition-colors"
-                        title="Borrar usuario de la búsqueda"
-                      >
-                        🗑️ Borrar
-                      </button>
                     </div>
                   </div>
                 </div>
