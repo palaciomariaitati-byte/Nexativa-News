@@ -173,45 +173,6 @@ export default function EmpleosPage() {
 
   // Cargar datos de muestra / reales desde la API
   useEffect(() => {
-    const demoProfiles: JobProfile[] = [
-      {
-        id: '1',
-        full_name: 'Pedro González',
-        trade_category: 'Plomero / Gasista Matriculado',
-        bio: 'Instalaciones de agua, cloacas, calefones y termotanques. Más de 12 años en Ituzaingó y zona.',
-        city: 'Ituzaingó',
-        province: 'Corrientes',
-        whatsapp: '5493786401122',
-        nora_score: 4.95,
-        total_reviews: 28,
-        badge_level: 'ORO',
-      },
-      {
-        id: '2',
-        full_name: 'María Luisa Fernández',
-        trade_category: 'Costura & Confección',
-        bio: 'Arreglos de ropa, uniformes escolares y vestidos a medida. Trabajo prolijo y a tiempo.',
-        city: 'Ituzaingó',
-        province: 'Corrientes',
-        whatsapp: '5493786403344',
-        nora_score: 4.85,
-        total_reviews: 14,
-        badge_level: 'PLATA',
-      },
-      {
-        id: '3',
-        full_name: 'Carlos "Charly" Benítez',
-        trade_category: 'Electricista Domiciliario',
-        bio: 'Tableros, cortocircuitos, luces LED y cableado general. Atención de urgencias 24/7.',
-        city: 'Ituzaingó',
-        province: 'Corrientes',
-        whatsapp: '5493786405566',
-        nora_score: 5.00,
-        total_reviews: 32,
-        badge_level: 'ORGULLO_REGIONAL',
-      },
-    ];
-
     const demoOffers: JobOffer[] = [
       {
         id: '101',
@@ -262,7 +223,7 @@ export default function EmpleosPage() {
           data.deleted_ids.forEach((id: string) => deletedIds.add(id));
         }
 
-        if (data.success && Array.isArray(data.profiles) && data.profiles.length > 0) {
+        if (data.success && Array.isArray(data.profiles)) {
           const apiProfiles: JobProfile[] = data.profiles
             .filter((p: any) => !deletedIds.has(p.id))
             .map((p: any) => ({
@@ -280,20 +241,13 @@ export default function EmpleosPage() {
               cv_filename: p.cv_filename || undefined,
             }));
           
-          setProfiles((prev) => {
+          setProfiles(() => {
             const apiIds = new Set(apiProfiles.map((p) => p.id));
             const filteredLocal = localBuffer.filter((l) => !apiIds.has(l.id) && !deletedIds.has(l.id));
-            const combined = [...apiProfiles, ...filteredLocal];
-            const combinedIds = new Set(combined.map((c) => c.id));
-            const filteredDemo = demoProfiles.filter((d) => !combinedIds.has(d.id) && !deletedIds.has(d.id));
-            return [...combined, ...filteredDemo];
+            return [...apiProfiles, ...filteredLocal];
           });
         } else {
-          setProfiles((prev) => {
-            const bufferIds = new Set(localBuffer.map((l) => l.id));
-            const filteredDemo = demoProfiles.filter((d) => !bufferIds.has(d.id) && !deletedIds.has(d.id));
-            return [...localBuffer.filter(l => !deletedIds.has(l.id)), ...filteredDemo];
-          });
+          setProfiles(localBuffer.filter(l => !deletedIds.has(l.id)));
         }
       } catch (err) {
         console.warn('Error cargando perfiles reales:', err);

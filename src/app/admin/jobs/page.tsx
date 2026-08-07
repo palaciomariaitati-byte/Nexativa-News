@@ -21,43 +21,7 @@ interface Profile {
 export default function AdminJobsPage() {
   const [activeTab, setActiveTab] = useState<'oficios' | 'busquedas' | 'reseñas'>('oficios');
 
-  const defaultProfiles: Profile[] = [
-    {
-      id: '1',
-      full_name: 'Pedro González',
-      trade_category: 'Plomero / Gasista Matriculado',
-      city: 'Ituzaingó',
-      whatsapp: '5493786401122',
-      nora_score: 4.95,
-      total_reviews: 28,
-      badge_level: 'ORO',
-      status: 'ACTIVE',
-    },
-    {
-      id: '2',
-      full_name: 'María Luisa Fernández',
-      trade_category: 'Costura & Confección',
-      city: 'Ituzaingó',
-      whatsapp: '5493786403344',
-      nora_score: 4.85,
-      total_reviews: 14,
-      badge_level: 'PLATA',
-      status: 'ACTIVE',
-    },
-    {
-      id: '3',
-      full_name: 'Carlos "Charly" Benítez',
-      trade_category: 'Electricista Domiciliario',
-      city: 'Ituzaingó',
-      whatsapp: '5493786405566',
-      nora_score: 5.00,
-      total_reviews: 32,
-      badge_level: 'ORGULLO_REGIONAL',
-      status: 'ACTIVE',
-    },
-  ];
-
-  const [profiles, setProfiles] = useState<Profile[]>(defaultProfiles);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [offers] = useState([
@@ -106,7 +70,7 @@ export default function AdminJobsPage() {
         data.deleted_ids.forEach((id: string) => deletedIds.add(id));
       }
 
-      if (data.success && Array.isArray(data.profiles) && data.profiles.length > 0) {
+      if (data.success && Array.isArray(data.profiles)) {
         const apiMapped: Profile[] = data.profiles
           .filter((p: any) => !deletedIds.has(p.id))
           .map((p: any) => ({
@@ -123,22 +87,13 @@ export default function AdminJobsPage() {
             cv_filename: p.cv_filename || undefined,
           }));
 
-        setProfiles((prev) => {
+        setProfiles(() => {
           const apiIds = new Set(apiMapped.map((p) => p.id));
           const filteredLocal = localBuffer.filter((l) => !apiIds.has(l.id) && !deletedIds.has(l.id));
-          const combined = [...apiMapped, ...filteredLocal];
-          const combinedIds = new Set(combined.map((c) => c.id));
-          const filteredDefault = defaultProfiles.filter((d) => !combinedIds.has(d.id) && !deletedIds.has(d.id));
-          return [...combined, ...filteredDefault];
-        });
-      } else if (localBuffer.length > 0) {
-        setProfiles((prev) => {
-          const bufferIds = new Set(localBuffer.map((l) => l.id));
-          const filteredDefault = defaultProfiles.filter((d) => !bufferIds.has(d.id) && !deletedIds.has(d.id));
-          return [...localBuffer.filter(l => !deletedIds.has(l.id)), ...filteredDefault];
+          return [...apiMapped, ...filteredLocal];
         });
       } else {
-        setProfiles(defaultProfiles.filter(d => !deletedIds.has(d.id)));
+        setProfiles(localBuffer.filter(l => !deletedIds.has(l.id)));
       }
     } catch (err) {
       setProfiles(localBuffer.filter(l => !deletedIds.has(l.id)));
