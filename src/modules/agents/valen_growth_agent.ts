@@ -238,43 +238,72 @@ export async function chatWithValen(
 
     const systemPromptWithContext = `${VALEN_CORE_PROMPT}\nOperador actual: ${operatorName}\n${memoryBlock}${metricsBlock}${kpiBlock}`;
 
-    const executeModelCall = async (key: string) => {
-      const genAI = new GoogleGenerativeAI(key);
-      const modelId = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-      const model = genAI.getGenerativeModel({ model: modelId });
+    const keysPool = [
+      process.env.GEMINI_API_KEY,
+      process.env.GEMINI_API_KEY_FALLBACK,
+      process.env.GEMINI_API_KEY_FALLBACK_2,
+      process.env.GEMINI_API_KEY_TERTIARY,
+    ].filter(Boolean) as string[];
 
-      let normalizedHistory: any[] = [
-        { role: "user", parts: [{ text: `INSTRUCCIONES DE VALEN: ${systemPromptWithContext}` }] },
-        { role: "model", parts: [{ text: `Entendido. Soy VALEN, Chief Growth & Global Expansion Officer. Hola ${operatorName}, estoy listo para trabajar.` }] }
-      ];
+    if (keysPool.length === 0) {
+      return {
+        text: "VALEN está desconectado temporalmente. Por favor verifica las variables de entorno (GEMINI_API_KEY).",
+        kpis: await fetchValenKPIs(),
+        error: "Missing API Key"
+      };
+    }
 
-      if (history && history.length > 0) {
-        for (const msg of history) {
-          const mappedRole = msg.role === "valen" || msg.role === "model" ? "model" : "user";
-          const lastItem = normalizedHistory[normalizedHistory.length - 1];
-          if (lastItem.role === mappedRole) {
-            lastItem.parts[0].text += `\n\n${msg.content}`;
-          } else {
-            normalizedHistory.push({ role: mappedRole, parts: [{ text: msg.content }] });
-          }
-        }
-      }
-
-      const chat = model.startChat({ history: normalizedHistory });
-      const result = await chat.sendMessage(userMessage);
-      return result.response.text();
-    };
+    const modelsPool = Array.from(new Set([
+      process.env.GEMINI_MODEL,
+      "gemini-1.5-flash",
+      "gemini-2.0-flash",
+      "gemini-1.5-pro"
+    ].filter(Boolean))) as string[];
 
     let text = "";
-    try {
-      text = await executeModelCall(apiKey);
-    } catch (primaryErr: any) {
-      if ((primaryErr.message?.includes("429") || primaryErr.message?.includes("503") || primaryErr.message?.includes("500")) && process.env.GEMINI_API_KEY_FALLBACK) {
-        console.log("[VALEN FALLBACK] Intentando con GEMINI_API_KEY_FALLBACK...");
-        text = await executeModelCall(process.env.GEMINI_API_KEY_FALLBACK);
-      } else {
-        throw primaryErr;
+    let lastError: any = null;
+
+    outerLoop: for (const currentKey of keysPool) {
+      for (const currentModel of modelsPool) {
+        try {
+          const genAI = new GoogleGenerativeAI(currentKey);
+          const model = genAI.getGenerativeModel({ model: currentModel });
+
+          let normalizedHistory: any[] = [
+            { role: "user", parts: [{ text: `INSTRUCCIONES DE VALEN: ${systemPromptWithContext}` }] },
+            { role: "model", parts: [{ text: `Entendido. Soy VALEN, Chief Growth & Global Expansion Officer. Hola ${operatorName}, estoy listo para trabajar.` }] }
+          ];
+
+          if (history && history.length > 0) {
+            for (const msg of history) {
+              const mappedRole = msg.role === "valen" || msg.role === "model" ? "model" : "user";
+              const lastItem = normalizedHistory[normalizedHistory.length - 1];
+              if (lastItem.role === mappedRole) {
+                lastItem.parts[0].text += `\n\n${msg.content}`;
+              } else {
+                normalizedHistory.push({ role: mappedRole, parts: [{ text: msg.content }] });
+              }
+            }
+          }
+
+          const chat = model.startChat({ history: normalizedHistory });
+          const result = await chat.sendMessage(userMessage);
+          const responseText = result.response.text();
+
+          if (responseText) {
+            text = responseText;
+            lastError = null;
+            break outerLoop;
+          }
+        } catch (err: any) {
+          console.warn(`[VALEN FALLBACK WARNING] Key/Model failure (model: ${currentModel}):`, err?.message || err);
+          lastError = err;
+        }
       }
+    }
+
+    if (!text && lastError) {
+      throw lastError;
     }
 
     await logValenTask("CHAT", `Interacción conversacional con ${operatorName}`, { prompt: userMessage, response: text.substring(0, 100) }, 100);
