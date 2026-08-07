@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { X, Send, User, Sparkles, Scale, Paperclip, PlayCircle, PauseCircle } from "lucide-react";
+import { formatMarkdownToCleanHtml, downloadAsWord, exportToPdf } from "@/lib/exportUtils";
 
 interface Message {
   role: "user" | "nora";
@@ -242,7 +243,26 @@ export default function NoraChatWindow({ isOpen, onClose, contextData }: NoraCha
                   <img src={msg.attachedImageUrl} alt="Adjunto" className="max-w-full h-auto max-h-32 object-contain bg-black/50" />
                 </div>
               )}
-              {msg.content}
+              <div 
+                className="prose prose-invert max-w-none text-sm font-sans"
+                dangerouslySetInnerHTML={{ __html: formatMarkdownToCleanHtml(msg.content) }}
+              />
+              {msg.role === "nora" && msg.content.length > 150 && (
+                <div className="mt-2.5 pt-2 border-t border-white/10 flex items-center gap-2">
+                  <button
+                    onClick={() => downloadAsWord(`informe_nora_${idx}`, "INFORME NORA — NEXATIVA NEWS", msg.content)}
+                    className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-white rounded text-[11px] font-semibold transition"
+                  >
+                    📄 Word (.doc)
+                  </button>
+                  <button
+                    onClick={() => exportToPdf("INFORME NORA — NEXATIVA NEWS", msg.content)}
+                    className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-white rounded text-[11px] font-semibold transition"
+                  >
+                    🖨️ PDF
+                  </button>
+                </div>
+              )}
               {msg.isLegalResponse && (
                 <div className="mt-3 pt-3 border-t border-slate-700">
                   <a href="/libro-de-quejas" target="_blank" rel="noopener noreferrer" className="block w-full text-center py-2 px-3 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-lg transition-colors border border-white/20">

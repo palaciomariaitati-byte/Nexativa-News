@@ -17,6 +17,12 @@ import {
   Globe
 } from "lucide-react";
 
+import { 
+  downloadAsWord, 
+  exportToPdf, 
+  formatMarkdownToCleanHtml 
+} from "@/lib/exportUtils";
+
 interface Message {
   role: "user" | "valen";
   content: string;
@@ -51,13 +57,7 @@ interface LeadItem {
 
 export default function ValenExecutiveClient() {
   const [activeTab, setActiveTab] = useState<"chat" | "metrics" | "memory" | "leads">("chat");
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "valen",
-      content: "Hola. Soy **VALEN**, Chief Growth & Global Expansion Officer de Nexativa. He cargado el contexto estratégico de la compañía, las métricas actuales del ecosistema y mi memoria de negocio. ¿Qué estrategia o gestión comercial amplia abordamos hoy?",
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [kpis, setKpis] = useState<KPIState>({
@@ -92,13 +92,52 @@ export default function ValenExecutiveClient() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  // Cargar historial de chat persistido en localStorage
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, loading]);
+    try {
+      const savedChat = localStorage.getItem("valen_chat_history_v2");
+      if (savedChat) {
+        const parsed = JSON.parse(savedChat);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMessages(parsed);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Error cargando historial de chat de localStorage:", e);
+    }
 
-  useEffect(() => {
-    fetchInitialData();
+    setMessages([
+      {
+        role: "valen",
+        content: "Hola. Soy **VALEN**, Chief Growth & Global Expansion Officer de Nexativa. He cargado el contexto estratégico de la compañía, las métricas actuales del ecosistema y mi memoria de negocio. ¿Qué estrategia o gestión comercial amplia abordamos hoy?",
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }
+    ]);
   }, []);
+
+  // Guardar historial en localStorage cada vez que cambie messages
+  useEffect(() => {
+    if (messages.length > 0) {
+      try {
+        localStorage.setItem("valen_chat_history_v2", JSON.stringify(messages));
+      } catch (e) {
+        console.warn("Error guardando historial de chat en localStorage:", e);
+      }
+    }
+  }, [messages]);
+
+  const handleClearHistory = () => {
+    if (confirm("¿Deseas reiniciar el historial del chat con VALEN?")) {
+      const initialMsg: Message[] = [{
+        role: "valen",
+        content: "Historial reiniciado. Soy **VALEN**, tu Chief Growth Officer. ¿En qué frente comercial trabajamos hoy?",
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }];
+      setMessages(initialMsg);
+      localStorage.setItem("valen_chat_history_v2", JSON.stringify(initialMsg));
+    }
+  };
 
   const fetchInitialData = async () => {
     try {
@@ -272,6 +311,13 @@ export default function ValenExecutiveClient() {
 
           <div className="flex items-center gap-3">
             <button
+              onClick={handleClearHistory}
+              className="px-3 py-2 bg-slate-800 hover:bg-red-900/40 hover:text-red-300 text-slate-400 rounded-xl text-xs font-medium border border-slate-700 transition"
+              title="Reiniciar conversación"
+            >
+              🗑️ Reiniciar Chat
+            </button>
+            <button
               onClick={handleRefreshMetricsCron}
               disabled={refreshingMetrics}
               className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-medium text-sm border border-slate-700 transition flex items-center gap-2"
@@ -427,19 +473,42 @@ export default function ValenExecutiveClient() {
                   className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={`max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed ${
+                    className={`max-w-[88%] rounded-2xl p-4 text-sm leading-relaxed ${
                       m.role === "user"
                         ? "bg-indigo-600 text-white rounded-br-none"
                         : "bg-slate-800/90 text-slate-200 border border-slate-700/60 rounded-bl-none shadow-md"
                     }`}
                   >
-                    <div className="flex justify-between items-center gap-4 mb-1 text-xs opacity-75 border-b border-white/10 pb-1">
-                      <span className="font-semibold">
+                    <div className="flex justify-between items-center gap-4 mb-2 text-xs opacity-75 border-b border-white/10 pb-1.5">
+                      <span className="font-semibold flex items-center gap-1.5">
                         {m.role === "user" ? "Socio Fundador" : "VALEN (Chief Growth Officer)"}
                       </span>
                       <span>{m.timestamp}</span>
                     </div>
-                    <div className="whitespace-pre-wrap font-sans">{m.content}</div>
+
+                    {/* RENDERIZADO TIPOGRÁFICO LIMPIO SIN SÍMBOLOS MARKDOWN CRUDOS */}
+                    <div 
+                      className="prose prose-invert max-w-none text-slate-200 text-sm font-sans"
+                      dangerouslySetInnerHTML={{ __html: formatMarkdownToCleanHtml(m.content) }}
+                    />
+
+                    {/* BOTONES DE EXPORTACIÓN INSTITUCIONAL A WORD Y PDF */}
+                    {m.role === "valen" && (
+                      <div className="mt-3 pt-3 border-t border-slate-700/60 flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={() => downloadAsWord(`informe_valen_${idx}`, "INFORME EJECUTIVO VALEN — NEXATIVA NEWS", m.content)}
+                          className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/30 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow-sm"
+                        >
+                          📄 Descargar en Word (.doc)
+                        </button>
+                        <button
+                          onClick={() => exportToPdf("INFORME EJECUTIVO VALEN — NEXATIVA NEWS", m.content)}
+                          className="px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow-sm"
+                        >
+                          🖨️ Descargar en PDF
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
