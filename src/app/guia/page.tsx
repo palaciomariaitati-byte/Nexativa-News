@@ -185,7 +185,7 @@ export default async function GuiaComercialPage() {
           </Link>
 
           <Link
-            href="/checkout"
+            href="/guia/registro"
             className="inline-flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-slate-950 font-bold px-4 py-2 rounded-xl text-sm transition-transform active:scale-95 shadow-lg shadow-cyan-500/20"
           >
             <Building2 className="w-4 h-4" />
@@ -229,7 +229,7 @@ export default async function GuiaComercialPage() {
           </div>
 
           <Link
-            href="/checkout"
+            href="/guia/registro"
             className="w-full md:w-auto whitespace-nowrap inline-flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-400 to-indigo-500 hover:from-cyan-300 hover:to-indigo-400 text-slate-950 font-black px-6 py-3.5 rounded-2xl text-sm transition-transform active:scale-95 shadow-xl shadow-cyan-500/20"
           >
             <span>Publicar mi Negocio</span>
