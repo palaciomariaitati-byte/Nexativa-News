@@ -108,13 +108,11 @@ export async function POST(req: Request) {
       process.env.GEMINI_API_KEY_TERTIARY,
     ].filter(Boolean) as string[];
 
-    const modelsPool = Array.from(new Set([
-      process.env.GEMINI_MODEL,
-      "gemini-1.5-flash",
-      "gemini-1.5-flash-latest",
-      "gemini-2.0-flash-exp",
-      "gemini-flash-latest"
-    ].filter(Boolean))) as string[];
+    const validModels = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-2.0-flash-exp", "gemini-flash-latest"];
+    const envModel = process.env.GEMINI_MODEL;
+    const modelsPool = (envModel && validModels.includes(envModel))
+      ? [envModel, ...validModels.filter(m => m !== envModel)]
+      : validModels;
 
     const systemPromptText = getSystemPrompt(contextData);
 
