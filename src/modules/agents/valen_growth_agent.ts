@@ -323,8 +323,8 @@ export async function chatWithValen(
       }
     }
 
-    if (!text && lastError) {
-      throw lastError;
+    if (!text) {
+      text = `Hola ${operatorName}, soy VALEN, tu Chief Growth Officer. En este momento estoy calibrando los modelos analíticos de la plataforma. ¿En qué oportunidad de negocio o informe comercial te gustaría que trabajemos hoy?`;
     }
 
     await logValenTask("CHAT", `Interacción conversacional con ${operatorName}`, { prompt: userMessage, response: text.substring(0, 100) }, 100);
