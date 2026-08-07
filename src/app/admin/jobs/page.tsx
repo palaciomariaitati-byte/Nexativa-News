@@ -101,6 +101,11 @@ export default function AdminJobsPage() {
     try {
       const res = await fetch('/api/jobs/profiles');
       const data = await res.json();
+
+      if (data.deleted_ids && Array.isArray(data.deleted_ids)) {
+        data.deleted_ids.forEach((id: string) => deletedIds.add(id));
+      }
+
       if (data.success && Array.isArray(data.profiles) && data.profiles.length > 0) {
         const apiMapped: Profile[] = data.profiles
           .filter((p: any) => !deletedIds.has(p.id))

@@ -8,6 +8,7 @@ import path from 'path';
 export const dynamic = 'force-dynamic';
 
 const FALLBACK_FILE = path.join(process.cwd(), 'data', 'job_profiles_local.json');
+const DELETED_FILE = path.join(process.cwd(), 'data', 'deleted_job_profiles.json');
 
 function ensureDirectoryExists(filePath: string) {
   const dir = path.dirname(filePath);
@@ -27,6 +28,28 @@ function readLocalProfiles(): any[] {
     console.warn('[Jobs Profiles API] Error leyendo fallback local:', err);
   }
   return [];
+}
+
+function readDeletedProfileIds(): string[] {
+  try {
+    ensureDirectoryExists(DELETED_FILE);
+    if (fs.existsSync(DELETED_FILE)) {
+      const content = fs.readFileSync(DELETED_FILE, 'utf-8');
+      return JSON.parse(content) || [];
+    }
+  } catch (err) {}
+  return [];
+}
+
+function saveDeletedProfileId(id: string) {
+  try {
+    ensureDirectoryExists(DELETED_FILE);
+    const existing = readDeletedProfileIds();
+    if (!existing.includes(id)) {
+      existing.push(id);
+      fs.writeFileSync(DELETED_FILE, JSON.stringify(existing, null, 2), 'utf-8');
+    }
+  } catch (err) {}
 }
 
 function saveLocalProfile(profile: any) {
@@ -56,11 +79,13 @@ function deleteLocalProfile(id: string) {
 export async function GET() {
   try {
     let dbProfiles: any[] = [];
+    const deletedIds = readDeletedProfileIds();
     
     try {
       const { data, error } = await supabaseAdmin
         .from('job_profiles')
         .select('*')
+        .neq('status', 'DELETED')
         .order('created_at', { ascending: false });
 
       if (!error && Array.isArray(data)) {
@@ -75,14 +100,21 @@ export async function GET() {
     const localProfiles = readLocalProfiles();
     const dbIds = new Set(dbProfiles.map((p) => p.id));
     const uniqueLocal = localProfiles.filter((lp) => !dbIds.has(lp.id));
-    const combined = [...dbProfiles, ...uniqueLocal];
+    const combined = [...dbProfiles, ...uniqueLocal].filter(
+      (p) => !deletedIds.includes(p.id) && p.status !== 'DELETED'
+    );
 
     return NextResponse.json({
       success: true,
       profiles: combined,
+      deleted_ids: deletedIds,
     });
   } catch (err: any) {
-    return NextResponse.json({ success: true, profiles: readLocalProfiles() });
+    return NextResponse.json({
+      success: true,
+      profiles: readLocalProfiles().filter(p => p.status !== 'DELETED'),
+      deleted_ids: readDeletedProfileIds(),
+    });
   }
 }
 
@@ -197,18 +229,30 @@ export async function DELETE(req: Request) {
     const { id } = await req.json();
     if (!id) return NextResponse.json({ success: false, error: 'ID es requerido' }, { status: 400 });
 
+    saveDeletedProfileId(id);
     deleteLocalProfile(id);
 
     try {
-      const { error } = await supabaseAdmin.from('job_profiles').delete().eq('id', id);
-      if (error) {
-        console.error('[Jobs Profiles DELETE] Error borrando de Supabase:', error);
-      }
+      // 1. Marcar como DELETED en Supabase (Soft Delete)
+      await supabaseAdmin
+        .from('job_profiles')
+        .update({ status: 'DELETED' })
+        .eq('id', id);
+
+      // 2. Intentar borrado físico si el ID es un UUID válido
+      await supabaseAdmin
+        .from('job_profiles')
+        .delete()
+        .eq('id', id);
     } catch (e) {
       console.error('[Jobs Profiles DELETE] Catch error:', e);
     }
 
-    return NextResponse.json({ success: true, message: 'Perfil eliminado correctamente' });
+    return NextResponse.json({
+      success: true,
+      message: 'Perfil eliminado permanentemente.',
+      deleted_id: id
+    });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
