@@ -66,21 +66,39 @@ export async function GET(request: Request) {
       
       const nora = new NewsGenerator();
       // Pedir 2 noticias nuevas
-      const newArticles = await nora.generateNewArticles(2);
+      const candidateArticles = await nora.generateNewArticles(2);
       
-      if (newArticles.length > 0) {
+      const { verifyNewsVeracity } = await import('@/modules/nora-pro/fact_checker');
+
+      const approvedArticles: any[] = [];
+      for (const article of candidateArticles) {
+        const factCheck = await verifyNewsVeracity(article.title || "", article.content || "", article.source_url);
+        console.log(`[Virtual Content Analyst] Fact-Check "${article.title?.substring(0, 30)}...": Score ${factCheck.veracityScore}/100, Level: ${factCheck.credibilityLevel}`);
+
+        if (factCheck.veracityScore >= 50 && factCheck.status !== 'BLOCKED') {
+          approvedArticles.push({
+            ...article,
+            fact_check_score: factCheck.veracityScore,
+            fact_check_status: factCheck.credibilityLevel
+          });
+        } else {
+          console.warn(`[ANTI-FAKE NEWS] Noticia bloqueda por baja veracidad (${factCheck.veracityScore}/100): ${article.title}`);
+        }
+      }
+
+      if (approvedArticles.length > 0) {
         const { error: insertError } = await supabase
           .from('articles')
-          .insert(newArticles);
+          .insert(approvedArticles);
           
         if (insertError) {
           console.error("[News Rotation] Error insertando noticias generadas por Nora:", insertError);
         } else {
-          generatedCount = newArticles.length;
-          console.log(`[News Rotation] Nora generó e insertó exitosamente ${generatedCount} noticias nuevas.`);
+          generatedCount = approvedArticles.length;
+          console.log(`[News Rotation] Nora y el Analista de Contenidos verificaron e insertaron exitosamente ${generatedCount} noticias auténticas.`);
         }
       } else {
-        console.log("[News Rotation] Nora no pudo generar nuevas noticias (quizás no hay nuevas en el RSS).");
+        console.log("[News Rotation] El Analista de Contenidos filtró o no se encontraron noticias verídicas suficientes.");
       }
     }
 
