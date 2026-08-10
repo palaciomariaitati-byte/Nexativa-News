@@ -66,6 +66,13 @@ export default async function AdminOverviewPage() {
                 <h3 className="font-bold mb-2 text-emerald-400">💼 Empleos & Oficios (NoraScore)</h3>
                 <p className="text-sm text-white/70">Gestión de postulantes, búsquedas laborales, calificaciones y emisión de certificados. (Operador, Admin)</p>
               </Link>
+              <Link href="/admin/inmuebles" className="bg-rose-950/30 hover:bg-rose-900/50 border border-rose-500/40 hover:border-rose-400 p-4 rounded-lg transition-all block shadow-lg">
+                <h3 className="font-bold mb-2 text-rose-400 flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
+                  🏠 Inmuebles Anti-Estafas
+                </h3>
+                <p className="text-sm text-white/70">Control de calendarios de disponibilidad, auditoría de DNI del propietario, multas y baneos. (Operador, Admin)</p>
+              </Link>
               <Link href="/admin/settings" className="bg-black/20 hover:bg-black/40 border border-transparent hover:border-white/10 p-4 rounded-lg transition-all block">
                 <h3 className="font-bold mb-2">Redes Sociales</h3>
                 <p className="text-sm text-white/70">Configura links de redes, número de WhatsApp e integraciones. (Operador, Admin)</p>

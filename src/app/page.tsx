@@ -129,6 +129,37 @@ export default async function HomePage() {
         {/* ⚽ Central de Resultados & Fútbol Mundial */}
         <AlientoPatrio />
 
+        {/* 🏡 BANNER DESTACADO: PORTAL INMOBILIARIO ANTI-ESTAFAS */}
+        <section className="w-full bg-gradient-to-r from-slate-900 via-rose-950/40 to-slate-900 border border-rose-500/30 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="space-y-3 max-w-2xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-black">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>SISTEMA DE SEGURIDAD & BLINDAJE JURÍDICO</span>
+            </div>
+            <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+              Alquileres Temporarios & Inmuebles <span className="text-rose-400 underline">Anti-Estafas</span>
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+              Propiedades en Ituzaingó con **Calendario de Disponibilidad 100% Declarado**. Garantizamos veracidad y aplicamos el régimen de sanciones y multas a propietarios en caso de inconsistencia o negligencia.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 shrink-0 w-full md:w-auto">
+            <Link
+              href="/guia/inmuebles"
+              className="px-6 py-3.5 rounded-2xl font-black bg-rose-500 hover:bg-rose-400 text-slate-950 text-xs sm:text-sm transition-all shadow-lg shadow-rose-500/20 text-center"
+            >
+              🔍 Buscar Alquiler Verificado
+            </Link>
+            <Link
+              href="/guia/inmuebles/registro"
+              className="px-6 py-3.5 rounded-2xl font-black bg-slate-900 border border-rose-500/40 hover:bg-slate-800 text-rose-200 text-xs sm:text-sm transition-all text-center"
+            >
+              ➕ Publicar Mi Inmueble
+            </Link>
+          </div>
+        </section>
+
         {/* 🔴 Flash Noticioso Widget (Solo visible si hay noticieros publicados) */}
         {newsFlashes && newsFlashes.length > 0 && (
           <NewsFlashHomeWidget flashes={newsFlashes} />

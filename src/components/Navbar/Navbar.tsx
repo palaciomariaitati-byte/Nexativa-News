@@ -46,6 +46,10 @@ export default function Navbar() {
               <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
               Guía Comercial
             </Link>
+            <Link href="/guia/inmuebles" className="text-xs font-bold text-rose-400 hover:text-rose-300 transition-colors uppercase tracking-widest flex items-center gap-1.5 bg-rose-950/40 px-3 py-1.5 rounded-full border border-rose-500/30">
+              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+              Inmuebles Anti-Estafas
+            </Link>
             <Link href="/empleos" className="text-xs font-bold text-emerald-400 hover:text-emerald-300 transition-colors uppercase tracking-widest flex items-center gap-1.5 bg-emerald-950/40 px-3 py-1.5 rounded-full border border-emerald-500/30">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
               Empleos & Oficios
@@ -95,6 +99,14 @@ export default function Navbar() {
                 className="p-3.5 bg-cyan-950/50 border border-cyan-500/40 rounded-xl text-cyan-300 font-bold flex items-center gap-2 text-xs"
               >
                 <StoreIcon className="w-4 h-4 text-cyan-400" /> Guía Comercial
+              </Link>
+
+              <Link
+                href="/guia/inmuebles"
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-3.5 bg-rose-950/50 border border-rose-500/40 rounded-xl text-rose-300 font-bold flex items-center gap-2 text-xs"
+              >
+                <StoreIcon className="w-4 h-4 text-rose-400" /> Inmuebles Verificados
               </Link>
 
               <Link
