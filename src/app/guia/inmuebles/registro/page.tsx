@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
+import PropertyImageUploader from "@/components/Inmuebles/PropertyImageUploader";
 import {
   ShieldAlert,
   ShieldCheck,
@@ -354,18 +355,12 @@ export default function RegistroInmueblePage() {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                  Link de Foto Principal (Opcional)
-                </label>
-                <input
-                  type="url"
-                  placeholder="https://..."
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-400 text-xs focus:outline-none focus:border-cyan-500"
-                />
-              </div>
+              {/* Subida de Foto Optimizada */}
+              <PropertyImageUploader
+                currentImageUrl={imageUrl}
+                onImageUploaded={(url) => setImageUrl(url)}
+                label="📷 Foto del Inmueble (Subida Directa & Compresión HD)"
+              />
             </div>
 
             {/* SECCIÓN 3: CALENDARIO DE DISPONIBILIDAD OBLIGATORIO */}

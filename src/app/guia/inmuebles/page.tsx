@@ -71,13 +71,25 @@ export default function PortalInmueblesPage() {
             Propiedades en Ituzaingó con **Calendario de Disponibilidad 100% Declarado**. Propietarios sujetos a normas estrictas de veracidad y sanciones por imprecisión.
           </p>
 
-          <div className="pt-2">
+          <div className="pt-2 flex flex-wrap justify-center gap-3">
             <Link
               href="/guia/inmuebles/registro"
-              className="inline-flex items-center gap-2 bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-400 hover:to-amber-400 text-slate-950 font-black px-6 py-3 rounded-xl text-sm transition-all shadow-lg shadow-rose-500/20"
+              className="inline-flex items-center gap-2 bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-400 hover:to-amber-400 text-slate-950 font-black px-5 py-3 rounded-xl text-sm transition-all shadow-lg shadow-rose-500/20"
             >
               <PlusCircle className="w-5 h-5 text-slate-950" />
-              <span>Publicar Mi Inmueble con Calendario Verificado</span>
+              <span>Publicar Mi Inmueble</span>
+            </Link>
+            <Link
+              href="/guia/inmuebles/propietario"
+              className="inline-flex items-center gap-2 bg-slate-900 border border-rose-500/40 hover:bg-slate-800 text-rose-200 font-bold px-5 py-3 rounded-xl text-sm transition-all"
+            >
+              <span>🔑 App Propietario</span>
+            </Link>
+            <Link
+              href="/guia/inmuebles/inquilino"
+              className="inline-flex items-center gap-2 bg-slate-900 border border-emerald-500/40 hover:bg-slate-800 text-emerald-300 font-bold px-5 py-3 rounded-xl text-sm transition-all"
+            >
+              <span>🧳 App Inquilino (Check-In)</span>
             </Link>
           </div>
         </div>
