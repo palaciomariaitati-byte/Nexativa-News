@@ -10,89 +10,138 @@ export default async function AdminOverviewPage() {
     redirect("/admin/login");
   }
 
-  // Ahora podemos quitar useState y useEffect porque esto ya es un componente de servidor
-  // Y en lugar de buscar el perfil completo en Supabase (que era del login viejo),
-  // simplemente usamos el rol de la cookie.
-
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-serif text-[var(--color-brand-accent)] tracking-widest uppercase">Bienvenido al Panel</h1>
-      <div className="bg-white/5 p-6 rounded-xl border border-white/10">
-        <p className="text-lg">Hola.</p>
-        <p className="text-sm text-white/50 mt-2">Tu rol actual es: <span className="uppercase text-[var(--color-brand-accent)]">{role}</span></p>
-        
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <Link href="/admin/news" className="bg-black/20 hover:bg-black/40 border border-transparent hover:border-white/10 p-4 rounded-lg transition-all block">
-            <h3 className="font-bold mb-2">Prensa & Noticias</h3>
-            <p className="text-sm text-white/70">Redacta y publica nuevos artículos para el portal. (Todos los roles)</p>
+    <div className="space-y-8 font-sans">
+      <div className="border-b border-white/10 pb-4">
+        <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+          Centro de Control General • Nexativa Admin
+        </h1>
+        <p className="text-xs text-white/50 mt-1 uppercase">
+          Rol asignado: <span className="text-[var(--color-brand-accent)] font-bold">{role}</span>
+        </p>
+      </div>
+
+      {/* SECTOR 1: SERVICIOS Y COMUNIDAD */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 border-b border-rose-500/30 pb-2">
+          <span className="text-base font-black text-rose-400 uppercase tracking-wider">
+            🛠️ SERVICIOS & COMUNIDAD
+          </span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Link href="/admin/inmuebles" className="bg-rose-950/30 hover:bg-rose-900/50 border border-rose-500/40 hover:border-rose-400 p-4 rounded-xl transition-all block shadow-lg">
+            <h3 className="font-extrabold mb-1 text-rose-300 text-sm flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+              🏠 Inmuebles Verificados
+            </h3>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Supervisión de alquileres, marcas de estado (Disponible/Ocupado/En Mantenimiento) y sanciones.
+            </p>
           </Link>
-          <Link href="/admin/news/live" className="bg-red-900/10 hover:bg-red-900/30 border border-red-500/30 hover:border-red-500 p-4 rounded-lg transition-all block">
-            <h3 className="font-bold mb-2 flex items-center gap-2 text-red-500">
+
+          <Link href="/admin/jobs" className="bg-emerald-950/20 hover:bg-emerald-900/40 border border-emerald-500/30 hover:border-emerald-500 p-4 rounded-xl transition-all block">
+            <h3 className="font-extrabold mb-1 text-emerald-400 text-sm">💼 Empleos & Oficios (NoraScore)</h3>
+            <p className="text-xs text-slate-300 leading-relaxed">Gestión de postulantes, búsquedas laborales, calificaciones y certificados.</p>
+          </Link>
+
+          <Link href="/admin/press" className="bg-cyan-950/20 hover:bg-cyan-900/40 border border-cyan-500/30 hover:border-cyan-400 p-4 rounded-xl transition-all block">
+            <h3 className="font-extrabold mb-1 text-cyan-300 text-sm">📖 Guía Comercial & Páginas Amarillas</h3>
+            <p className="text-xs text-slate-300 leading-relaxed">Directorio geolocalizado, comercios adheridos y comunicados de prensa.</p>
+          </Link>
+        </div>
+      </div>
+
+      {/* SECTOR 2: PERIODISMO Y NOTICIAS */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 border-b border-red-500/30 pb-2">
+          <span className="text-base font-black text-red-400 uppercase tracking-wider">
+            📰 PERIODISMO & COBERTURAS
+          </span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Link href="/admin/news" className="bg-black/40 hover:bg-black/60 border border-white/10 hover:border-white/30 p-4 rounded-xl transition-all block">
+            <h3 className="font-extrabold mb-1 text-white text-sm">Redacción de Noticias</h3>
+            <p className="text-xs text-slate-400">Redactá y publicá artículos periodísticos en el portal principal.</p>
+          </Link>
+
+          <Link href="/admin/news/live" className="bg-red-950/30 hover:bg-red-900/50 border border-red-500/40 p-4 rounded-xl transition-all block">
+            <h3 className="font-extrabold mb-1 text-red-400 text-sm flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
               Nora Live Editor
             </h3>
-            <p className="text-sm text-white/70">Redactora Jefa en vivo para coberturas móviles desde tu celular.</p>
+            <p className="text-xs text-slate-300">Editor móvil de asistencia periodística en vivo para corresponsales.</p>
           </Link>
-          <Link href="/admin/news/flashes" className="bg-gradient-to-br from-red-950/40 to-slate-900 hover:from-red-900/50 border border-red-500/40 hover:border-red-500 p-4 rounded-lg transition-all block shadow-lg">
-            <h3 className="font-bold mb-2 flex items-center gap-2 text-red-400 uppercase tracking-wider">
-              <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
-              Flash de Noticias (1-5 min)
+
+          <Link href="/admin/news/flashes" className="bg-gradient-to-br from-red-950/40 to-slate-900 border border-red-500/40 p-4 rounded-xl transition-all block">
+            <h3 className="font-extrabold mb-1 text-red-300 text-sm flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+              Flash Noticioso (1-5 min)
             </h3>
-            <p className="text-sm text-white/70">Emite y reproduce los noticieros rápidos ensamblados con Nora Clipper para la portada y socios.</p>
+            <p className="text-xs text-slate-300">Emisión de noticieros en síntesis generados por Nora Clipper.</p>
           </Link>
-          <Link href="/admin/culture" className="bg-black/20 hover:bg-black/40 border border-transparent hover:border-white/10 p-4 rounded-lg transition-all block">
-            <h3 className="font-bold mb-2">Espacio Cultural</h3>
-            <p className="text-sm text-white/70">Gestiona los artículos de arte, cultura e historia local. (Todos los roles)</p>
-          </Link>
-          {(role === 'admin' || role === 'operator') && (
-            <>
-              <Link href="/admin/store" className="bg-black/20 hover:bg-black/40 border border-transparent hover:border-white/10 p-4 rounded-lg transition-all block">
-                <h3 className="font-bold mb-2">Tienda / Productos</h3>
-                <p className="text-sm text-white/70">Gestiona los productos del e-commerce y el stock. (Operador, Admin)</p>
-              </Link>
-              <Link href="/admin/streaming" className="bg-black/20 hover:bg-black/40 border border-transparent hover:border-white/10 p-4 rounded-lg transition-all block">
-                <h3 className="font-bold mb-2">Streaming</h3>
-                <p className="text-sm text-white/70">Configura la cola de videos de reproducción continua. (Operador, Admin)</p>
-              </Link>
-              <Link href="/admin/sponsors" className="bg-black/20 hover:bg-black/40 border border-transparent hover:border-white/10 p-4 rounded-lg transition-all block">
-                <h3 className="font-bold mb-2">Auspiciantes & Stats</h3>
-                <p className="text-sm text-white/70">Gestiona clientes, comercios y visualiza estadísticas. (Operador, Admin)</p>
-              </Link>
-              <Link href="/admin/marketing" className="bg-black/20 hover:bg-black/40 border border-transparent hover:border-[var(--color-brand-accent)]/50 p-4 rounded-lg transition-all block">
-                <h3 className="font-bold mb-2 text-[var(--color-brand-accent)]">Marketing & Ads</h3>
-                <p className="text-sm text-white/70">Usa la IA de Nexativa para generar copys, campañas y avisos virales. (Operador, Admin)</p>
-              </Link>
-              <Link href="/admin/jobs" className="bg-emerald-950/20 hover:bg-emerald-900/40 border border-emerald-500/30 hover:border-emerald-500 p-4 rounded-lg transition-all block">
-                <h3 className="font-bold mb-2 text-emerald-400">💼 Empleos & Oficios (NoraScore)</h3>
-                <p className="text-sm text-white/70">Gestión de postulantes, búsquedas laborales, calificaciones y emisión de certificados. (Operador, Admin)</p>
-              </Link>
-              <Link href="/admin/inmuebles" className="bg-rose-950/30 hover:bg-rose-900/50 border border-rose-500/40 hover:border-rose-400 p-4 rounded-lg transition-all block shadow-lg">
-                <h3 className="font-bold mb-2 text-rose-400 flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
-                  🏠 Inmuebles Verificados
-                </h3>
-                <p className="text-sm text-white/70">Control de calendarios de disponibilidad, auditoría de DNI del propietario y régimen de veracidad. (Operador, Admin)</p>
-              </Link>
-              <Link href="/admin/settings" className="bg-black/20 hover:bg-black/40 border border-transparent hover:border-white/10 p-4 rounded-lg transition-all block">
-                <h3 className="font-bold mb-2">Redes Sociales</h3>
-                <p className="text-sm text-white/70">Configura links de redes, número de WhatsApp e integraciones. (Operador, Admin)</p>
-              </Link>
-            </>
-          )}
-          {role === 'admin' && (
-            <>
-              <Link href="/admin/accounting" className="bg-black/20 hover:bg-black/40 border border-[var(--color-brand-accent)]/30 hover:border-[var(--color-brand-accent)] p-4 rounded-lg transition-all block">
-                <h3 className="font-bold mb-2 text-[var(--color-brand-accent)]">Contabilidad</h3>
-                <p className="text-sm text-white/70">Libro contable de ingresos, egresos y flujos de caja. (Solo Admin)</p>
-              </Link>
-              <Link href="/admin/staff" className="bg-black/20 hover:bg-black/40 border border-[var(--color-brand-accent)]/30 hover:border-[var(--color-brand-accent)] p-4 rounded-lg transition-all block">
-                <h3 className="font-bold mb-2 text-[var(--color-brand-accent)]">Gestión de Personal</h3>
-                <p className="text-sm text-white/70">Crea, edita o elimina cuentas de usuarios operadores o administradores. (Solo Admin)</p>
-              </Link>
-            </>
-          )}
         </div>
       </div>
+
+      {/* SECTOR 3: CRECIMIENTO & MARKETING */}
+      {(role === 'admin' || role === 'operator') && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 border-b border-indigo-500/30 pb-2">
+            <span className="text-base font-black text-indigo-400 uppercase tracking-wider">
+              📈 CRECIMIENTO & MARKETING (GROWTH)
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Link href="/admin/valen" className="bg-indigo-950/30 hover:bg-indigo-900/50 border border-indigo-500/40 p-4 rounded-xl transition-all block shadow-lg">
+              <h3 className="font-extrabold mb-1 text-indigo-300 text-sm flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+                🌐 VALEN — Growth Executive CEO
+              </h3>
+              <p className="text-xs text-slate-300">Motor de escaneo en redes, prospectación B2B y captación de clientes.</p>
+            </Link>
+
+            <Link href="/admin/marketing" className="bg-black/40 hover:bg-black/60 border border-white/10 p-4 rounded-xl transition-all block">
+              <h3 className="font-extrabold mb-1 text-[var(--color-brand-accent)] text-sm">Marketing & Ads AI</h3>
+              <p className="text-xs text-slate-400">Generación de campañas publicitarias y avisos virales con IA.</p>
+            </Link>
+
+            <Link href="/admin/sponsors" className="bg-black/40 hover:bg-black/60 border border-white/10 p-4 rounded-xl transition-all block">
+              <h3 className="font-extrabold mb-1 text-white text-sm">Auspiciantes & Stats</h3>
+              <p className="text-xs text-slate-400">Métricas de sponsors, impresiones de anuncios y anunciantes.</p>
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* SECTOR 4: COMERCIO & FINANZAS */}
+      {(role === 'admin' || role === 'operator') && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 border-b border-slate-700 pb-2">
+            <span className="text-base font-black text-cyan-400 uppercase tracking-wider">
+              ⚙️ COMERCIO & FINANZAS
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Link href="/admin/store" className="bg-black/40 hover:bg-black/60 border border-white/10 p-4 rounded-xl transition-all block">
+              <h3 className="font-extrabold mb-1 text-white text-sm">🛍️ Tienda / Productos</h3>
+              <p className="text-xs text-slate-400">Administración de e-commerce, stock y catálogo.</p>
+            </Link>
+
+            {role === 'admin' && (
+              <>
+                <Link href="/admin/accounting" className="bg-black/40 hover:bg-black/60 border border-white/10 p-4 rounded-xl transition-all block">
+                  <h3 className="font-extrabold mb-1 text-amber-400 text-sm">📊 Contabilidad & Finanzas</h3>
+                  <p className="text-xs text-slate-400">Libro contable, registro de ingresos/egresos y flujo de caja.</p>
+                </Link>
+
+                <Link href="/admin/staff" className="bg-black/40 hover:bg-black/60 border border-white/10 p-4 rounded-xl transition-all block">
+                  <h3 className="font-extrabold mb-1 text-rose-400 text-sm">👥 Gestión de Personal</h3>
+                  <p className="text-xs text-slate-400">Alta y administración de cuentas de equipo y roles.</p>
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

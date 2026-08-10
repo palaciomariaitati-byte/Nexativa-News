@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS properties_for_rent (
     
     -- Blindaje Jurídico y Estado del Inmueble
     anti_fraud_accepted BOOLEAN NOT NULL DEFAULT true,
-    status VARCHAR(50) DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'PAUSED', 'SUSPENDED_NEGLIGENT', 'BAN_PERMANENT')),
+    status VARCHAR(50) DEFAULT 'DISPONIBLE' CHECK (status IN ('DISPONIBLE', 'ACTIVE', 'OCUPADO', 'EN_REPARACION', 'EN_PREPARACION', 'PAUSED', 'SUSPENDED_NEGLIGENT', 'BAN_PERMANENT')),
     penalty_count INT DEFAULT 0,
     fine_amount_ars NUMERIC(12, 2) DEFAULT 0.00,
     

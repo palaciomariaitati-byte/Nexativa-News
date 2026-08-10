@@ -30,7 +30,7 @@ export async function runValenRealEstateHunter(targetRegion: string = "Ituzaing�
       property_title: "Cabaña frente al Río con bajada de lanchas",
       contact_name: "Propietario / Administrador en Marketplace",
       contact_info: "WhatsApp / Messenger Directo",
-      custom_pitch: `Hola! Vimos tu inmueble publicado en Marketplace. En Nexativa News estamos invitando a los mejores complejos de ${targetRegion} a publicar su propiedad GRATIS en nuestro nuevo Portal de Alquileres Verificados. Posicioná tu alquiler con Calendario Garantizado ante más de 50.000 lectores mensuales de Corrientes y Misiones. Sumá tu inmueble en 2 minutos acá: https://www.nexativanews.com.ar/guia/inmuebles/registro`,
+      custom_pitch: `Hola! Vimos tu inmueble publicado en Marketplace. En Nexativa News estamos seleccionando los mejores complejos de ${targetRegion} para sumarlos a nuestro nuevo Portal de Inmuebles Verificados. Posicioná tu alquiler con Calendario Garantizado y comisión transparente ante más de 50.000 lectores mensuales de Corrientes y Misiones. Podés registrar tu propiedad directamente acá: https://www.nexativanews.com.ar/guia/inmuebles/registro`,
       registration_link: "https://www.nexativanews.com.ar/guia/inmuebles/registro",
     },
     {
@@ -38,7 +38,7 @@ export async function runValenRealEstateHunter(targetRegion: string = "Ituzaing�
       property_title: "Departamento monoambiente céntrico amoblado",
       contact_name: "Titular de Alquiler Temporario",
       contact_info: "DM de Instagram / WhatsApp Bio",
-      custom_pitch: `Hola! Excelente propiedad. Te escribimos de parte de VALEN (Chief Growth Officer de Nexativa News). Te ofrecemos publicar la ficha de tu departamento sin costo en las Páginas Amarillas 2.0. Contamos con sistema de calendario verificado que brinda confianza total a los inquilinos y evita consultas repetidas. Alta directa gratis aquí: https://www.nexativanews.com.ar/guia/inmuebles/registro`,
+      custom_pitch: `Hola! Excelente propiedad. Te escribimos de parte de VALEN (Chief Growth Officer de Nexativa News). Te invitamos a sumar la ficha de tu departamento en las Páginas Amarillas 2.0 de Nexativa News. Contamos con sistema de calendario verificado que brinda confianza total a los inquilinos y optimiza tus reservas. Podés iniciar la registración aquí: https://www.nexativanews.com.ar/guia/inmuebles/registro`,
       registration_link: "https://www.nexativanews.com.ar/guia/inmuebles/registro",
     },
   ];

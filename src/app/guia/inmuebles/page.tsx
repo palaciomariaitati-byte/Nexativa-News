@@ -181,7 +181,15 @@ export default function PortalInmueblesPage() {
                   />
                   <div className="absolute top-3 left-3 bg-slate-950/90 border border-emerald-500/40 text-emerald-400 font-extrabold text-[10px] uppercase px-2.5 py-1 rounded-full flex items-center gap-1 shadow-md">
                     <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                    <span>Calendario Verificado</span>
+                    <span>
+                      {prop.status === "OCUPADO"
+                        ? "🔴 Ocupado"
+                        : prop.status === "EN_REPARACION"
+                        ? "🔧 En Reparación"
+                        : prop.status === "EN_PREPARACION"
+                        ? "🧹 En Preparación"
+                        : "🟢 Disponible • Verificado"}
+                    </span>
                   </div>
                   <div className="absolute bottom-3 right-3 bg-rose-500 text-slate-950 font-black text-xs px-3 py-1 rounded-lg shadow-lg">
                     ${Number(prop.price_per_night).toLocaleString("es-AR")} <span className="text-[10px] font-normal">/ noche</span>

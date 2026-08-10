@@ -259,9 +259,24 @@ export default function AdminInmueblesPage() {
 
                     {/* Estado */}
                     <td className="p-4">
-                      {p.status === "ACTIVE" && (
+                      {(p.status === "DISPONIBLE" || p.status === "ACTIVE" || !p.status) && (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-extrabold">
-                          <CheckCircle2 className="w-3 h-3" /> ACTIVO
+                          <CheckCircle2 className="w-3 h-3" /> DISPONIBLE
+                        </span>
+                      )}
+                      {p.status === "OCUPADO" && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-[10px] font-extrabold">
+                          🔴 OCUPADO
+                        </span>
+                      )}
+                      {p.status === "EN_REPARACION" && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-[10px] font-extrabold">
+                          🔧 EN REPARACIÓN
+                        </span>
+                      )}
+                      {p.status === "EN_PREPARACION" && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[10px] font-extrabold">
+                          🧹 EN PREPARACIÓN
                         </span>
                       )}
                       {p.status === "SUSPENDED_NEGLIGENT" && (
@@ -278,36 +293,20 @@ export default function AdminInmueblesPage() {
 
                     {/* Acciones */}
                     <td className="p-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {p.status !== "ACTIVE" && (
-                          <button
-                            disabled={processingId === p.id}
-                            onClick={() => handleAction(p.id, "ACTIVE")}
-                            className="px-2.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-bold text-[11px] border border-emerald-500/30 transition-colors"
-                          >
-                            🟢 Restablecer
-                          </button>
-                        )}
-
-                        {p.status !== "SUSPENDED_NEGLIGENT" && (
-                          <button
-                            disabled={processingId === p.id}
-                            onClick={() => handleAction(p.id, "SUSPENDED_NEGLIGENT")}
-                            className="px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-[11px] border border-amber-500/30 transition-colors"
-                          >
-                            ⚠️ Aplicar Multa
-                          </button>
-                        )}
-
-                        {p.status !== "BAN_PERMANENT" && (
-                          <button
-                            disabled={processingId === p.id}
-                            onClick={() => handleAction(p.id, "BAN_PERMANENT")}
-                            className="px-2.5 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-bold text-[11px] border border-rose-500/30 transition-colors"
-                          >
-                            🚫 Banear Propietario
-                          </button>
-                        )}
+                      <div className="flex flex-wrap items-center justify-end gap-1.5">
+                        <select
+                          disabled={processingId === p.id}
+                          value={p.status || "DISPONIBLE"}
+                          onChange={(e) => handleAction(p.id, e.target.value)}
+                          className="px-2 py-1 rounded-lg bg-slate-950 border border-slate-700 text-[11px] font-bold text-white focus:outline-none focus:border-cyan-500"
+                        >
+                          <option value="DISPONIBLE">🟢 Disponible</option>
+                          <option value="OCUPADO">🔴 Ocupado</option>
+                          <option value="EN_REPARACION">🔧 En Reparación</option>
+                          <option value="EN_PREPARACION">🧹 En Preparación</option>
+                          <option value="SUSPENDED_NEGLIGENT">⚠️ Aplicar Multa</option>
+                          <option value="BAN_PERMANENT">🚫 Banear Propietario</option>
+                        </select>
                       </div>
                     </td>
                   </tr>

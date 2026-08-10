@@ -9,7 +9,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "ID de propiedad y nuevo estado requeridos." }, { status: 400 });
     }
 
-    const validStatuses = ["ACTIVE", "PAUSED", "SUSPENDED_NEGLIGENT", "BAN_PERMANENT"];
+    const validStatuses = [
+      "DISPONIBLE",
+      "ACTIVE",
+      "OCUPADO",
+      "EN_REPARACION",
+      "EN_PREPARACION",
+      "PAUSED",
+      "SUSPENDED_NEGLIGENT",
+      "BAN_PERMANENT",
+    ];
     if (!validStatuses.includes(new_status)) {
       return NextResponse.json({ success: false, error: "Estado inválido." }, { status: 400 });
     }

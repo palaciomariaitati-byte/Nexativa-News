@@ -11,7 +11,7 @@ export async function GET(req: Request) {
     let query = supabaseAdmin
       .from("properties_for_rent")
       .select("*")
-      .eq("status", "ACTIVE")
+      .not("status", "in", '("BAN_PERMANENT","SUSPENDED_NEGLIGENT")')
       .order("created_at", { ascending: false });
 
     if (property_type && property_type !== "TODOS") {
