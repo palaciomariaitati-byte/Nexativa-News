@@ -71,7 +71,7 @@ export default function AppPropietarioPage() {
       }
     } catch (err) {
       console.error("Error al cargar propiedades del propietario:", err);
-    } fontally {
+    } finally {
       setLoading(false);
     }
   };
