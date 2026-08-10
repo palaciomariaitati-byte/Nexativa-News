@@ -97,7 +97,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               </Link>
               <Link href="/admin/inmuebles" className={`px-4 py-2 rounded-lg text-sm transition-colors text-rose-400 font-bold hover:bg-white/10 flex items-center gap-2 border border-rose-500/30 bg-rose-950/20`}>
                 <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-                🏠 Inmuebles Anti-Estafas
+                🏠 Inmuebles Verificados
               </Link>
               <Link href="/admin/settings" className={`px-4 py-2 rounded-lg text-sm transition-colors hover:bg-white/10`}>
                 Redes Sociales

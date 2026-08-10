@@ -76,7 +76,7 @@ export default function TopBusBar() {
             className="flex items-center gap-2 bg-rose-950/80 hover:bg-rose-600 text-rose-200 hover:text-white transition-colors px-3 py-2 rounded-xl text-xs sm:text-sm font-extrabold border border-rose-500/40 flex-shrink-0 snap-center shadow-md shadow-rose-500/10"
           >
             <Building2 className="w-4 h-4 text-rose-400" />
-            <span>Inmuebles Anti-Estafas</span>
+            <span>Inmuebles Verificados</span>
           </Link>
           <button
             onClick={() => scrollToSection("cat-hoteleria")}

@@ -129,18 +129,18 @@ export default async function HomePage() {
         {/* ⚽ Central de Resultados & Fútbol Mundial */}
         <AlientoPatrio />
 
-        {/* 🏡 BANNER DESTACADO: PORTAL INMOBILIARIO ANTI-ESTAFAS */}
+        {/* 🏡 BANNER DESTACADO: PORTAL INMOBILIARIO & ALQUILERES VERIFICADOS */}
         <section className="w-full bg-gradient-to-r from-slate-900 via-rose-950/40 to-slate-900 border border-rose-500/30 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="space-y-3 max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-black">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>SISTEMA DE SEGURIDAD & BLINDAJE JURÍDICO</span>
+              <span>SISTEMA DE SEGURIDAD & CALENDARIO GARANTIZADO</span>
             </div>
             <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              Alquileres Temporarios & Inmuebles <span className="text-rose-400 underline">Anti-Estafas</span>
+              Alquileres Temporarios & Inmuebles <span className="text-rose-400 underline">Verificados</span>
             </h3>
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              Propiedades en Ituzaingó con **Calendario de Disponibilidad 100% Declarado**. Garantizamos veracidad y aplicamos el régimen de sanciones y multas a propietarios en caso de inconsistencia o negligencia.
+              Propiedades en Ituzaingó con **Calendario de Disponibilidad 100% Declarado**. Garantizamos veracidad y aplicamos el régimen de protección al inquilino y sanciones a propietarios en caso de inconsistencia.
             </p>
           </div>
 

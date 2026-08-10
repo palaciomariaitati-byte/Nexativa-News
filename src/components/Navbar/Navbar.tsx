@@ -48,7 +48,7 @@ export default function Navbar() {
             </Link>
             <Link href="/guia/inmuebles" className="text-xs font-bold text-rose-400 hover:text-rose-300 transition-colors uppercase tracking-widest flex items-center gap-1.5 bg-rose-950/40 px-3 py-1.5 rounded-full border border-rose-500/30">
               <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
-              Inmuebles Anti-Estafas
+              Inmuebles Verificados
             </Link>
             <Link href="/empleos" className="text-xs font-bold text-emerald-400 hover:text-emerald-300 transition-colors uppercase tracking-widest flex items-center gap-1.5 bg-emerald-950/40 px-3 py-1.5 rounded-full border border-emerald-500/30">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>

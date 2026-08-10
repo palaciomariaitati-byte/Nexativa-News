@@ -208,6 +208,37 @@ export default function ValenExecutiveClient() {
     handleSendMessage("Genera tu informe de estatus ejecutivo A-B-C actualizado para hoy por favor.");
   };
 
+  const handleRunRealEstateHunter = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/valen/realestate-hunter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ region: "Ituzaingó, Corrientes" })
+      });
+      const data = await res.json();
+      if (data.success && data.pitches) {
+        const pitchSummary = data.pitches
+          .map((p: any) => `📍 **Plataforma:** ${p.source_platform}\n🏠 **Inmueble Prospectado:** ${p.property_title}\n💬 **Pitch Personalizado de VALEN:**\n"${p.custom_pitch}"`)
+          .join("\n\n---\n\n");
+
+        setMessages(prev => [
+          ...prev,
+          {
+            role: "valen",
+            content: `🔍 **[VALEN Real Estate Growth Hunter]**\n\nHe ejecutado el escaneo autónomo de Marketplace y Redes Sociales. Identifiqué propietarios clave y generé los siguientes mensajes de alta directa con enlace de inscripción al Portal de Inmuebles Verificados:\n\n${pitchSummary}`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }
+        ]);
+        await fetchInitialData();
+      }
+    } catch (err) {
+      console.error("Error al ejecutar VALEN Hunter:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleRefreshMetricsCron = async () => {
     setRefreshingMetrics(true);
     try {
@@ -324,6 +355,15 @@ export default function ValenExecutiveClient() {
             >
               <RefreshCw className={`w-4 h-4 ${refreshingMetrics ? "animate-spin text-indigo-400" : ""}`} />
               Actualizar Métricas
+            </button>
+            <button
+              onClick={handleRunRealEstateHunter}
+              disabled={loading}
+              className="px-4 py-2.5 bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-bold text-sm rounded-xl shadow-lg transition flex items-center gap-2"
+              title="Escanea Marketplace y Redes para captar propietarios de inmuebles"
+            >
+              <Sparkles className="w-4 h-4 text-amber-300" />
+              <span>🏠 Escanear Redes & Captar Propietarios</span>
             </button>
             <button
               onClick={handleRequestStatusReport}
