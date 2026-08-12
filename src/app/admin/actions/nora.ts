@@ -387,68 +387,74 @@ export async function askNoraCreativeDirector(
   operatorName: string = "Compañero",
   conversationHistory?: { role: string; content: string }[]
 ): Promise<{ success: true; data: CreativeDirectorResult } | { error: string }> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return { error: "Nora está desconectada (API Key faltante)." };
+  const keysPool = [
+    process.env.GEMINI_API_KEY,
+    process.env.GEMINI_API_KEY_FALLBACK,
+    process.env.GEMINI_API_KEY_FALLBACK_2,
+    process.env.GEMINI_API_KEY_TERTIARY,
+  ].filter(k => k && !k.startsWith("AQ.")) as string[];
 
-  const callGemini = async (key: string) => {
-    const genAI = new GoogleGenerativeAI(key);
-    const modelId = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-    const model = genAI.getGenerativeModel({
-      model: modelId,
-      generationConfig: { responseMimeType: "application/json" },
-    });
-
-    const guidelines = await getBrandGuidelines();
-    let systemPrompt = PROMPT_CREATIVE_DIRECTOR.replace(/\[OPERATOR_NAME\]/g, operatorName);
-    if (guidelines) {
-      systemPrompt += `\n\n<MEMORIA_AGENCIA>\nDirectrices de marca y entrenamiento del equipo de Nexativa Agencia_Bunker:\n${guidelines}\n</MEMORIA_AGENCIA>\n`;
-    }
-
-    // Build chat history for context
-    const history: any[] = [
-      { role: "user", parts: [{ text: `SISTEMA: ${systemPrompt}` }] },
-      { role: "model", parts: [{ text: '{"understanding":"Entendido. Soy Nora, Directora Creativa de Agencia_Bunker. Estoy lista para interpretar tu brief.","missing_critical":null,"brief":{"brand":"","product":"","scene":"","mood":"","format":"16:9","style":"surreal_urban"},"surrealismPrompt":"","htmlForPanel":"<p>Lista para crear.</p>","copy_aida":""}' }] },
-    ];
-
-    // Inject conversation history for context awareness
-    if (conversationHistory && conversationHistory.length > 0) {
-      for (const msg of conversationHistory) {
-        history.push({
-          role: msg.role === "nora" ? "model" : "user",
-          parts: [{ text: msg.content }],
-        });
-      }
-    }
-
-    const chat = model.startChat({ history });
-    const result = await chat.sendMessage(userBrief);
-    let raw = result.response.text();
-    raw = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
-    const parsed: CreativeDirectorResult = JSON.parse(raw);
-    return parsed;
-  };
-
-  try {
-    const data = await callGemini(apiKey);
-    return { success: true, data };
-  } catch (error: any) {
-    const isQuotaError = error.message?.includes("429") || error.message?.includes("503") || error.message?.includes("500");
-    if (isQuotaError && process.env.GEMINI_API_KEY_FALLBACK) {
-      try {
-        const data = await callGemini(process.env.GEMINI_API_KEY_FALLBACK);
-        return { success: true, data };
-      } catch (fallbackError: any) {
-        return { error: "Nora no pudo procesar el brief: " + fallbackError.message };
-      }
-    }
-    console.error("Error en Nora Creative Director:", error);
-    return { error: "Error en Nora Creative Director: " + error.message };
+  if (keysPool.length === 0) {
+    return { error: "Nora está desconectada (API Keys no válidas)." };
   }
+
+  const validModels = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash", "gemini-flash-latest"];
+  const guidelines = await getBrandGuidelines();
+  let systemPrompt = PROMPT_CREATIVE_DIRECTOR.replace(/\[OPERATOR_NAME\]/g, operatorName);
+  if (guidelines) {
+    systemPrompt += `\n\n<MEMORIA_AGENCIA>\nDirectrices de marca y entrenamiento del equipo de Nexativa Agencia_Bunker:\n${guidelines}\n</MEMORIA_AGENCIA>\n`;
+  }
+
+  let lastErrorMsg = "";
+
+  for (const currentKey of keysPool) {
+    for (const currentModel of validModels) {
+      try {
+        const genAI = new GoogleGenerativeAI(currentKey);
+        const model = genAI.getGenerativeModel({
+          model: currentModel,
+          generationConfig: { responseMimeType: "application/json" },
+        });
+
+        const history: any[] = [
+          { role: "user", parts: [{ text: `SISTEMA: ${systemPrompt}` }] },
+          { role: "model", parts: [{ text: '{"understanding":"Entendido. Soy Nora, Directora Creativa de Agencia_Bunker. Estoy lista para interpretar tu brief.","missing_critical":null,"brief":{"brand":"","product":"","scene":"","mood":"","format":"16:9","style":"surreal_urban"},"surrealismPrompt":"","htmlForPanel":"<p>Lista para crear.</p>","copy_aida":""}' }] },
+        ];
+
+        if (conversationHistory && conversationHistory.length > 0) {
+          for (const msg of conversationHistory) {
+            history.push({
+              role: msg.role === "nora" ? "model" : "user",
+              parts: [{ text: msg.content }],
+            });
+          }
+        }
+
+        const chat = model.startChat({ history });
+        const result = await chat.sendMessage(userBrief);
+        let raw = result.response.text();
+        raw = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
+        const parsed: CreativeDirectorResult = JSON.parse(raw);
+        return { success: true, data: parsed };
+      } catch (error: any) {
+        lastErrorMsg = error.message || String(error);
+        console.warn(`[NORA CREATIVE DIRECTOR WARNING] Key/Model failure (${currentModel}):`, lastErrorMsg);
+      }
+    }
+  }
+
+  return { error: `Nora Creative Director en resguardo: ${lastErrorMsg}` };
 }
 
 export async function optimizeImagePrompt(userPrompt: string, style?: string): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return userPrompt;
+  const keysPool = [
+    process.env.GEMINI_API_KEY,
+    process.env.GEMINI_API_KEY_FALLBACK,
+    process.env.GEMINI_API_KEY_FALLBACK_2,
+    process.env.GEMINI_API_KEY_TERTIARY,
+  ].filter(k => k && !k.startsWith("AQ.")) as string[];
+
+  if (keysPool.length === 0) return userPrompt;
   
   const styleInstructions: Record<string, string> = {
     surreal_urban: "Style: surrealist hyperrealistic urban scene. Giant monumental object towering in a city avenue. Bright morning light, wide-angle cinematic shot.",
@@ -459,12 +465,15 @@ export async function optimizeImagePrompt(userPrompt: string, style?: string): P
   };
   const styleHint = style && styleInstructions[style] ? styleInstructions[style] : styleInstructions.surreal_urban;
 
-  try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const modelId = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-    const model = genAI.getGenerativeModel({ model: modelId });
-    
-    const systemPrompt = `You are Nora, Creative Director at Agencia_Bunker — an elite international advertising agency.
+  const validModels = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash", "gemini-flash-latest"];
+
+  for (const currentKey of keysPool) {
+    for (const currentModel of validModels) {
+      try {
+        const genAI = new GoogleGenerativeAI(currentKey);
+        const model = genAI.getGenerativeModel({ model: currentModel });
+        
+        const systemPrompt = `You are Nora, Creative Director at Agencia_Bunker — an elite international advertising agency.
 Your task: translate and refine the input into a perfect English prompt for professional surrealist advertising image generation (FLUX / Gemini Vision models).
 
 ${styleHint}
@@ -485,11 +494,14 @@ ULTRA PRO VISUAL RULES (non-negotiable):
 4. COLOSSAL SCALE — always specify the monumental object as approximately 25-30 meters tall.
 5. Return ONLY the refined English prompt string. No quotes, no preamble.`;
 
-    const result = await model.generateContent(`Input description: ${userPrompt}\n\n${systemPrompt}`);
-    const text = result.response.text().trim();
-    return text || userPrompt;
-  } catch (error) {
-    console.error("Error optimizing prompt:", error);
-    return userPrompt;
+        const result = await model.generateContent(`Input description: ${userPrompt}\n\n${systemPrompt}`);
+        const text = result.response.text().trim();
+        if (text) return text;
+      } catch (error: any) {
+        console.warn(`[OPTIMIZE PROMPT WARNING] Key/Model failure (${currentModel}):`, error.message);
+      }
+    }
   }
+
+  return userPrompt;
 }
