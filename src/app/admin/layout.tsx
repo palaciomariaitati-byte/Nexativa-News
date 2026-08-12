@@ -21,6 +21,8 @@ export const metadata: Metadata = {
   },
 };
 
+import NoraAdminCopilot from "@/components/Nora/NoraAdminCopilot";
+
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const userRole = await getStaffRole();
 
@@ -29,12 +31,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <>
         <RealtimeAlertListener />
         {children}
+        <NoraAdminCopilot />
       </>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-[var(--color-brand-bg)] text-[var(--color-brand-text)]">
+    <div className="flex min-h-screen bg-[var(--color-brand-bg)] text-[var(--color-brand-text)] relative">
       <RealtimeAlertListener />
       {/* Sidebar Colapsable en Acordeón */}
       <aside className="w-64 glass-panel m-4 flex flex-col hidden md:flex border border-white/10 shrink-0">
@@ -76,6 +79,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           {children}
         </div>
       </main>
+
+      {/* Copiloto & Asistente Instructor Master del Dashboard */}
+      <NoraAdminCopilot />
     </div>
   );
 }
