@@ -180,7 +180,7 @@ export default function NoraChatWindow({ isOpen, onClose, contextData }: NoraCha
   if (!isOpen) return null;
 
   return (
-    <div className={`fixed bottom-4 sm:bottom-8 left-4 sm:left-8 z-50 w-[320px] sm:w-[380px] backdrop-blur-xl border border-white/20 rounded-2xl shadow-[0_0_40px_rgba(var(--color-brand-accent-rgb),0.2)] overflow-hidden flex flex-col h-[500px] max-h-[80vh] animate-in slide-in-from-bottom-10 fade-in duration-300 ${isFrozen ? "bg-slate-900/95" : "bg-black/90"}`}>
+    <div className={`fixed bottom-16 sm:bottom-8 left-3 right-3 sm:right-auto sm:left-8 z-40 w-auto sm:w-[380px] max-w-[calc(100vw-24px)] backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl shadow-black/80 overflow-hidden flex flex-col h-[430px] sm:h-[500px] max-h-[60vh] sm:max-h-[80vh] animate-in slide-in-from-bottom-6 fade-in duration-300 ${isFrozen ? "bg-slate-900/95" : "bg-black/95"}`}>
       
       {/* Header */}
       <div className="bg-gradient-to-r from-[var(--color-brand-accent)] to-[var(--color-brand-accent-hover)] p-4 flex items-center justify-between shadow-lg relative z-10">

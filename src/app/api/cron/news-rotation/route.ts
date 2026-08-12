@@ -87,15 +87,23 @@ export async function GET(request: Request) {
       }
 
       if (approvedArticles.length > 0) {
-        const { error: insertError } = await supabase
+        const { data: insertedData, error: insertError } = await supabase
           .from('articles')
-          .insert(approvedArticles);
+          .insert(approvedArticles)
+          .select('id, title, content, category');
           
         if (insertError) {
           console.error("[News Rotation] Error insertando noticias generadas por Nora:", insertError);
         } else {
           generatedCount = approvedArticles.length;
           console.log(`[News Rotation] Nora y el Analista de Contenidos verificaron e insertaron exitosamente ${generatedCount} noticias auténticas.`);
+          
+          // Auto-indexación vectorial incremental en segundo plano (No bloqueante)
+          if (insertedData && insertedData.length > 0) {
+            import('@/lib/nora/embeddings').then(({ autoIndexArticlesAsync }) => {
+              autoIndexArticlesAsync(insertedData);
+            }).catch(e => console.warn("[Auto-Indexing Async Load Error]:", e));
+          }
         }
       } else {
         console.log("[News Rotation] El Analista de Contenidos filtró o no se encontraron noticias verídicas suficientes.");

@@ -97,9 +97,30 @@ De lo contrario, omite completamente el bloque <REPORT> en tus respuestas para a
 `;
 };
 
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { NoraUnifiedResponseSchema } from "@/lib/nora/schemas";
+
 export async function POST(req: Request) {
   try {
-    const { message, history, contextData, image } = await req.json();
+    const { message, history, contextData, image, message_id } = await req.json();
+
+    // 1. Interceptor de Duplicados Concurrentes (Blindaje Atomic Supabase)
+    const incomingMsgId = message_id || req.headers.get("x-message-id");
+    if (incomingMsgId) {
+      try {
+        const supabase = createServerSupabaseClient();
+        const { error: webhookError } = await supabase
+          .from('processed_webhooks')
+          .insert([{ message_id: incomingMsgId }]);
+
+        if (webhookError && webhookError.code === '23505') {
+          console.warn(`🛑 Duplicación de Webhook frenada para ID: ${incomingMsgId}`);
+          return NextResponse.json({ status: 'already_processed' }, { status: 200 });
+        }
+      } catch (dbErr) {
+        console.warn("[NORA Webhook Shield Warning] No se pudo verificar la deduplicación:", dbErr);
+      }
+    }
 
     const keysPool = [
       process.env.GEMINI_API_KEY,
@@ -108,11 +129,31 @@ export async function POST(req: Request) {
       process.env.GEMINI_API_KEY_TERTIARY,
     ].filter(Boolean) as string[];
 
-    const validModels = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-2.0-flash-exp", "gemini-flash-latest"];
-    const envModel = process.env.GEMINI_MODEL;
-    const modelsPool = (envModel && validModels.includes(envModel))
-      ? [envModel, ...validModels.filter(m => m !== envModel)]
-      : validModels;
+    // Detección de Intención de Razonamiento Avanzado (Reclamos legales / Fact-checking complejo)
+    const userMsgLower = (message || "").toLowerCase();
+    const isComplaintOrReasoning = 
+      contextData?.intent === 'COMPLAINT' ||
+      contextData?.reasoning === true ||
+      ["demanda", "abogados", "denuncia", "estafa", "juicio", "defensa del consumidor", "reclamo legal"].some(k => userMsgLower.includes(k));
+
+    const ollamaReasoningModel = process.env.OLLAMA_REASONING_MODEL || "deepseek-r1:1.5b";
+    const geminiReasoningModel = process.env.GEMINI_REASONING_MODEL || "gemini-1.5-pro";
+
+    const standardModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"];
+    const envModel = process.env.GEMINI_MODEL_NAME || process.env.GEMINI_MODEL;
+    
+    // Si es una tarea de razonamiento complejo, priorizar modelos de alta capacidad (DeepSeek / Gemini 1.5 Pro)
+    const validModels = isComplaintOrReasoning
+      ? [geminiReasoningModel, "gemini-2.0-flash", ...standardModels.filter(m => m !== geminiReasoningModel)]
+      : (envModel && standardModels.includes(envModel))
+        ? [envModel, ...standardModels.filter(m => m !== envModel)]
+        : standardModels;
+
+    const modelsPool = validModels;
+
+    if (isComplaintOrReasoning) {
+      console.log(`[Core Swarm Router] 🧠 Invocando enjambre de razonamiento (${geminiReasoningModel} / ${ollamaReasoningModel}) para consulta compleja/legal.`);
+    }
 
     const systemPromptText = getSystemPrompt(contextData);
 
@@ -146,11 +187,18 @@ export async function POST(req: Request) {
       for (const currentModel of modelsPool) {
         try {
           const genAI = new GoogleGenerativeAI(currentKey);
-          const model = genAI.getGenerativeModel({ model: currentModel });
+          const model = genAI.getGenerativeModel({
+            model: currentModel,
+            generationConfig: {
+              responseMimeType: "application/json",
+              responseSchema: NoraUnifiedResponseSchema as any,
+              temperature: isComplaintOrReasoning ? 0.2 : 0.4
+            }
+          });
 
           let normalizedHistory: any[] = [
             { role: "user", parts: [{ text: `INSTRUCCIONES DEL SISTEMA: ${systemPromptText}` }] },
-            { role: "model", parts: [{ text: "Entendido. Soy Nora, vendedora humana. Seré muy natural." }] }
+            { role: "model", parts: [{ text: '{"reply":"Entendido. Soy Nora, vendedora humana. Seré muy natural.","freeze":false}' }] }
           ];
 
           for (const msg of history || []) {
@@ -168,9 +216,45 @@ export async function POST(req: Request) {
           const responseText = result.response.text();
 
           if (responseText) {
-            text = responseText;
-            lastError = null;
-            break outerLoop;
+            try {
+              const parsed = JSON.parse(responseText);
+              text = parsed.reply || "";
+              freezeState = Boolean(parsed.freeze);
+
+              if (parsed.report) {
+                if (parsed.report.flag_legal_claim || freezeState) {
+                  freezeState = true;
+                  await saveNoraComplaint(history, JSON.stringify(finalMessageParts), text);
+                } else {
+                  await saveNoraLead({
+                    rubro_cliente: parsed.report.rubro_cliente || "Desconocido",
+                    whatsapp_comercial: parsed.report.whatsapp_comercial || "Desconocido",
+                    producto_estrella: parsed.report.producto_interes || "Desconocido",
+                    perfil_copywriting: {},
+                    perfil_tecnico: {},
+                    guion_video: "",
+                    mensaje_whatsapp: "",
+                    legal_disclaimer_accepted: false
+                  });
+                }
+              }
+
+              // Disparo asíncrono en segundo plano si viene directiva de video Faux-CGI
+              if (parsed.video_campaign_directive) {
+                import('@/lib/services/videoGenerator').then(({ dispatchSurrealVideoJob }) => {
+                  dispatchSurrealVideoJob(parsed.video_campaign_directive).catch(err => 
+                    console.error('[Background Video Job Error]:', err)
+                  );
+                }).catch(err => console.warn('[Video Service Import Error]:', err));
+              }
+            } catch (pErr) {
+              text = responseText;
+            }
+
+            if (text) {
+              lastError = null;
+              break outerLoop;
+            }
           }
         } catch (err: any) {
           console.warn(`[NORA FALLBACK WARNING] Key/Model failure (${currentModel}):`, err?.message || err);
@@ -190,6 +274,8 @@ export async function POST(req: Request) {
           body: JSON.stringify({
             prompt: message || "Hola Nora",
             system_prompt: systemPromptText,
+            use_reasoning: isComplaintOrReasoning,
+            reasoning_model: ollamaReasoningModel
           }),
         });
 
@@ -206,29 +292,31 @@ export async function POST(req: Request) {
       text = "¡Uy! Perdoná la demora, se nos llenó el local de gente de golpe y estoy atendiendo a varios a la vez 😅. Si tenés prisa, ¿me escribís por WhatsApp usando el globito verde de la barra superior? Así te ayudo más rápido por ahí.";
     }
 
-    // Parse <REPORT> block if present
-    const reportMatch = text.match(/<REPORT>([\s\S]*?)<\/REPORT>/i);
-    if (reportMatch) {
-      const reportJsonStr = reportMatch[1].trim();
-      try {
-        const reportData = JSON.parse(reportJsonStr);
-        if (reportData.flag_legal_claim) {
-          freezeState = true;
-          await saveNoraComplaint(history, JSON.stringify(finalMessageParts), text);
-        } else {
-          await saveNoraLead({
-            rubro_cliente: reportData.rubro_cliente || "Desconocido",
-            whatsapp_comercial: reportData.whatsapp_comercial || "Desconocido",
-            producto_estrella: reportData.producto_estrella || "Desconocido",
-            perfil_copywriting: reportData.perfil_copywriting || {},
-            perfil_tecnico: reportData.perfil_tecnico || {},
-            guion_video: reportData.guion_video || "",
-            mensaje_whatsapp: reportData.mensaje_whatsapp || "",
-            legal_disclaimer_accepted: reportData.legal_disclaimer_accepted || false
-          });
-        }
-      } catch(e) {}
-      text = text.replace(/<REPORT>([\s\S]*?)<\/REPORT>/ig, "").trim();
+    // Secondary Regex fallback for legacy responses
+    if (!text.trim().startsWith("{")) {
+      const reportMatch = text.match(/<REPORT>([\s\S]*?)<\/REPORT>/i);
+      if (reportMatch) {
+        const reportJsonStr = reportMatch[1].trim();
+        try {
+          const reportData = JSON.parse(reportJsonStr);
+          if (reportData.flag_legal_claim) {
+            freezeState = true;
+            await saveNoraComplaint(history, JSON.stringify(finalMessageParts), text);
+          } else {
+            await saveNoraLead({
+              rubro_cliente: reportData.rubro_cliente || "Desconocido",
+              whatsapp_comercial: reportData.whatsapp_comercial || "Desconocido",
+              producto_estrella: reportData.producto_estrella || "Desconocido",
+              perfil_copywriting: reportData.perfil_copywriting || {},
+              perfil_tecnico: reportData.perfil_tecnico || {},
+              guion_video: reportData.guion_video || "",
+              mensaje_whatsapp: reportData.mensaje_whatsapp || "",
+              legal_disclaimer_accepted: reportData.legal_disclaimer_accepted || false
+            });
+          }
+        } catch(e) {}
+        text = text.replace(/<REPORT>([\s\S]*?)<\/REPORT>/ig, "").trim();
+      }
     }
 
     let audioBase64 = null;
@@ -239,7 +327,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ text, freeze: freezeState, audioBase64 });
   } catch (error: any) {
     console.error("Error crítico en Nora API:", error);
-    // Respuesta de emergencia si todo el bloque falla
     return NextResponse.json({ text: "¡Uy! Perdoná, estoy teniendo problemas con mi sistema. ¿Me escribís por WhatsApp?", freeze: false });
   }
 }
+

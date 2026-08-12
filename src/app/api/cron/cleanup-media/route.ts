@@ -1,83 +1,130 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { r2Client, R2_BUCKET_NAME, DeleteObjectCommand, ListObjectsV2Command } from "@/lib/storage/cloudflareR2";
 
-export async function GET(req: Request) {
+export const maxDuration = 60; // 60s max execution time
+
+const MAX_STORAGE_BYTES = 350 * 1024 * 1024; // 350 MB Límite Preventivo de Seguridad (Capacidad Max)
+const SAFE_TARGET_BYTES = 200 * 1024 * 1024; // 200 MB Umbral de Retorno Seguro
+
+export async function GET(request: Request) {
   try {
-    // Verificación de seguridad de Vercel Cron (opcional pero recomendada)
-    const authHeader = req.headers.get("authorization");
+    // 1. Verificación de seguridad mediante CRON_SECRET
+    const authHeader = request.headers.get("authorization");
     if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      // Permitimos acceso sin secret en desarrollo local
       if (process.env.NODE_ENV === "production") {
         return new NextResponse("Unauthorized", { status: 401 });
       }
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseServiceKey = process.env.NEXT_SUPABASE_SERVICE_ROLE_KEY;
+    console.log("[Cleanup Media Cron] 🧹 Iniciando depuración inteligente con política dual (7 días + FIFO por Capacidad)...");
 
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return NextResponse.json({ error: "Missing Supabase credentials" }, { status: 500 });
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    let purgedR2Count = 0;
+    let purgedSupabaseCount = 0;
+    let capacityPurgedCount = 0;
+
+    // 2. Depuración en Cloudflare R2 (si está configurado)
+    if (process.env.CLOUDFLARE_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID) {
+      try {
+        const listCmd = new ListObjectsV2Command({
+          Bucket: R2_BUCKET_NAME,
+          Prefix: "surreal_videos/",
+        });
+        const r2Objects = await r2Client.send(listCmd);
+
+        if (r2Objects.Contents && r2Objects.Contents.length > 0) {
+          for (const item of r2Objects.Contents) {
+            if (item.Key && item.LastModified && item.LastModified < sevenDaysAgo) {
+              await r2Client.send(new DeleteObjectCommand({
+                Bucket: R2_BUCKET_NAME,
+                Key: item.Key,
+              }));
+              purgedR2Count++;
+            }
+          }
+        }
+      } catch (r2Err: any) {
+        console.warn("[Cleanup Media Cron] Aviso en R2 cleanup:", r2Err.message);
+      }
     }
 
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-    const BUCKET_NAME = "media";
+    // 3. Depuración en Supabase Storage (Política Dual: 7 días + Purga FIFO por Capacidad)
+    try {
+      const supabase = createServerSupabaseClient();
+      const { data: files, error: listErr } = await supabase.storage
+        .from("media")
+        .list("surreal_videos", { limit: 500, sortBy: { column: "created_at", order: "asc" } });
 
-    // 1. Listar todos los archivos en el bucket "media"
-    const { data: files, error: listError } = await supabaseAdmin.storage
-      .from(BUCKET_NAME)
-      .list("uploads", {
-        limit: 1000,
-        offset: 0,
-        sortBy: { column: "created_at", order: "asc" },
-      });
+      if (!listErr && files && files.length > 0) {
+        const oldFilePaths: string[] = [];
+        const remainingFiles: Array<{ name: string; size: number; date: Date }> = [];
 
-    if (listError) {
-      console.error("Error al listar archivos:", listError);
-      return NextResponse.json({ error: "Failed to list files" }, { status: 500 });
+        // FASE A: Filtrar archivos mayores a 7 días
+        for (const file of files) {
+          const dateStr = file.created_at || file.updated_at || new Date().toISOString();
+          const fileDate = new Date(dateStr);
+          const fileSize = file.metadata?.size || 10 * 1024 * 1024; // 10MB est. por defecto
+
+          if (fileDate < sevenDaysAgo) {
+            oldFilePaths.push(`surreal_videos/${file.name}`);
+          } else {
+            remainingFiles.push({ name: file.name, size: fileSize, date: fileDate });
+          }
+        }
+
+        // FASE B: Purga FIFO por Capacidad si el peso total supera el umbral de 350 MB
+        let currentTotalBytes = remainingFiles.reduce((sum, f) => sum + f.size, 0);
+
+        if (currentTotalBytes > MAX_STORAGE_BYTES) {
+          console.warn(`[Cleanup Media Cron] ⚠️ Capacidad excedida (${(currentTotalBytes / 1024 / 1024).toFixed(1)} MB > 350 MB). Iniciando purga FIFO del más antiguo al más reciente...`);
+
+          // Ordenar del más antiguo al más reciente (FIFO)
+          remainingFiles.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+          for (const file of remainingFiles) {
+            if (currentTotalBytes <= SAFE_TARGET_BYTES) break;
+            oldFilePaths.push(`surreal_videos/${file.name}`);
+            currentTotalBytes -= file.size;
+            capacityPurgedCount++;
+          }
+        }
+
+        // Ejecutar eliminación en batch
+        if (oldFilePaths.length > 0) {
+          const { error: deleteErr } = await supabase.storage
+            .from("media")
+            .remove(oldFilePaths);
+
+          if (!deleteErr) {
+            purgedSupabaseCount = oldFilePaths.length;
+            console.log(`[Cleanup Media Cron] 🗑️ Eliminados ${purgedSupabaseCount} archivos en total (${capacityPurgedCount} purgados preventivamente por capacidad).`);
+          }
+        }
+      }
+    } catch (sbErr: any) {
+      console.warn("[Cleanup Media Cron] Aviso en Supabase Storage cleanup:", sbErr.message);
     }
 
-    if (!files || files.length === 0) {
-      return NextResponse.json({ message: "No hay archivos en la carpeta uploads." }, { status: 200 });
-    }
+    console.log(`[Cleanup Media Cron] ✅ Depuración inteligente completada. Supabase borrados: ${purgedSupabaseCount}`);
 
-    // 2. Calcular la fecha límite (hace 15 días)
-    const limitDate = new Date();
-    limitDate.setDate(limitDate.getDate() - 15);
-
-    // 3. Filtrar archivos viejos (asegurándonos de no borrar carpetas vacías/placeholders)
-    const oldFiles = files.filter(file => {
-      // Ignorar el objeto "emptyFolderPlaceholder" que suele estar en la raíz o carpetas si no son archivos reales
-      if (!file.id || !file.created_at) return false;
-      const fileDate = new Date(file.created_at);
-      return fileDate < limitDate;
+    return NextResponse.json({
+      success: true,
+      message: `Depuración inteligente completada con política dual.`,
+      purged: {
+        r2: purgedR2Count,
+        supabase: purgedSupabaseCount,
+        capacityTriggered: capacityPurgedCount
+      },
+      thresholds: {
+        maxStorageMb: 350,
+        safeTargetMb: 200
+      }
     });
-
-    if (oldFiles.length === 0) {
-      return NextResponse.json({ message: "No hay archivos con más de 15 días de antigüedad." }, { status: 200 });
-    }
-
-    // 4. Preparar la lista de rutas a eliminar
-    const filesToRemove = oldFiles.map(file => `uploads/${file.name}`);
-
-    // 5. Eliminar los archivos físicos de Supabase Storage
-    const { data: deletedData, error: deleteError } = await supabaseAdmin.storage
-      .from(BUCKET_NAME)
-      .remove(filesToRemove);
-
-    if (deleteError) {
-      console.error("Error al eliminar archivos:", deleteError);
-      return NextResponse.json({ error: "Failed to delete old files" }, { status: 500 });
-    }
-
-    return NextResponse.json({ 
-      success: true, 
-      message: `La purga automática se ejecutó exitosamente.`,
-      deleted_count: filesToRemove.length,
-      deleted_files: filesToRemove
-    }, { status: 200 });
-
-  } catch (error: any) {
-    console.error("Critical error in cron cleanup-media:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (err: any) {
+    console.error("[Cleanup Media Cron Critical Error]:", err);
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }

@@ -12,15 +12,10 @@ export default function NoraAgent() {
   const currentHoveredContext = useRef<string | null>(null);
   const hasTriggeredBottom = useRef<boolean>(false);
 
-  // Nora Vendedora debe estar únicamente en páginas de ventas (Tienda, Productos, Checkout, Brochure)
-  const isSalesPage = 
-    pathname === "/store" || 
-    pathname?.startsWith("/product/") || 
-    pathname === "/checkout" || 
-    pathname === "/brochure" || 
-    pathname?.startsWith("/prensa");
+  // Excluir únicamente páginas administrativas internas (Admin / Dashboard)
+  const isAdminPage = pathname?.startsWith("/admin") || pathname?.startsWith("/dashboard");
 
-  if (!isSalesPage) {
+  if (isAdminPage) {
     return null;
   }
 
@@ -104,9 +99,20 @@ export default function NoraAgent() {
       {!isChatOpen && (
         <button
           onClick={() => setIsChatOpen(true)}
-          className="fixed bottom-32 left-6 sm:bottom-6 sm:left-6 w-14 h-14 bg-gradient-to-r from-purple-600 to-pink-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-purple-500/30 hover:scale-105 transition-transform z-50 overflow-hidden border-2 border-white/20"
+          className="fixed bottom-20 left-4 sm:bottom-6 sm:left-6 w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-r from-purple-600 to-pink-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-purple-500/30 hover:scale-110 active:scale-95 transition-all z-40 overflow-hidden border-2 border-white/30 group"
+          title="Nora — Recepcionista Virtual"
         >
-          <img src="/nora-avatar.jpg?v=2" alt="Nora" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display='none'; }} />
+          <img 
+            src="/nora-avatar.jpg?v=2" 
+            alt="Nora" 
+            className="w-full h-full object-cover relative z-10" 
+            onError={(e) => { e.currentTarget.style.opacity = '0'; }} 
+          />
+          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-tr from-purple-700 to-indigo-500">
+            <svg className="w-6 h-6 sm:w-7 sm:h-7 text-white animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-4l-4 4z" />
+            </svg>
+          </div>
           <span className="sr-only">Abrir Chat con Nora</span>
         </button>
       )}
