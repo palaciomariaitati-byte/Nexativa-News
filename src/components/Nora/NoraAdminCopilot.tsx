@@ -17,9 +17,42 @@ export default function NoraAdminCopilot() {
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Cargar memoria persistente del localStorage al iniciar
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("nora_admin_copilot_history_v1");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMessages(parsed);
+        }
+      }
+    } catch (e) {
+      console.warn("[NORA MEMORY] Error cargando memoria local:", e);
+    }
+  }, []);
+
+  // Guardar cada interacción automáticamente en el disco
+  useEffect(() => {
+    if (messages.length > 0) {
+      try {
+        localStorage.setItem("nora_admin_copilot_history_v1", JSON.stringify(messages));
+      } catch (e) {
+        console.warn("[NORA MEMORY] Error guardando memoria local:", e);
+      }
+    }
+  }, [messages]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
+
+  const clearMemory = () => {
+    if (confirm("¿Deseas reiniciar la memoria de la conversación con Nora Instructora?")) {
+      setMessages([]);
+      localStorage.removeItem("nora_admin_copilot_history_v1");
+    }
+  };
 
   const handleSendMessage = async (customPrompt?: string) => {
     const textToSend = customPrompt || input.trim();
@@ -41,7 +74,8 @@ export default function NoraAdminCopilot() {
       });
       const data = await res.json();
       if (data.reply) {
-        setMessages([...updatedMessages, { role: "nora", content: data.reply }]);
+        const finalMsgs: AdminMessage[] = [...updatedMessages, { role: "nora", content: data.reply }];
+        setMessages(finalMsgs);
       }
     } catch (err) {
       setMessages([...updatedMessages, { role: "nora", content: "Ocurrió un error al conectar con Nora Instructora. Por favor intenta nuevamente." }]);

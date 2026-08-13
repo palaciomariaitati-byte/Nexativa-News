@@ -33,12 +33,40 @@ export default function NoraChatWindow({ isOpen, onClose, contextData }: NoraCha
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // 1. Cargar memoria guardada de localStorage al abrir
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("nora_chat_history_v2");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMessages(parsed);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("[NORA CHAT WINDOW] Error leyendo memoria local:", e);
+    }
+  }, []);
+
+  // 2. Guardar memoria automáticamente ante cualquier cambio
+  useEffect(() => {
+    if (messages.length > 0) {
+      try {
+        localStorage.setItem("nora_chat_history_v2", JSON.stringify(messages));
+      } catch (e) {
+        console.warn("[NORA CHAT WINDOW] Error guardando memoria local:", e);
+      }
+    }
+  }, [messages]);
+
   // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
   const triggerInitialNoraMessage = async (dataContext: any) => {
+    if (messages.length > 0) return; // Si ya hay memoria persistida, no reiniciar
     setIsTyping(true);
     
     try {
