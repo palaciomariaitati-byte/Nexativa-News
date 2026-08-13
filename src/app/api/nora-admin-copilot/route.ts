@@ -2,13 +2,40 @@ import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NORA_SYSTEM_MAP } from "@/lib/nora/systemMap";
 
+// Mapeo Inteligente de Alias de Operadores
+function normalizeOperatorName(rawName: string): { canonicalName: string; storageKey: string } {
+  const lower = (rawName || "Javi").toLowerCase().trim();
+  
+  if (lower === "mary" || lower === "maría" || lower === "maria") {
+    return { canonicalName: "María", storageKey: "maria" };
+  }
+  if (lower === "javi" || lower === "javier") {
+    return { canonicalName: "Javi", storageKey: "javi" };
+  }
+  
+  const clean = rawName.trim();
+  const canonical = clean.charAt(0).toUpperCase() + clean.slice(1);
+  return { canonicalName: canonical, storageKey: clean.toLowerCase() };
+}
+
 export async function POST(req: Request) {
   try {
-    const { message, history, operatorName = "Javi" } = await req.json();
+    const { message, history, operatorName: rawOperatorName = "Javi" } = await req.json();
     const userPrompt = message || "Hola Nora, ¿cómo puedes guiarme en el uso del sistema?";
     const promptLower = userPrompt.toLowerCase();
 
-    // 1. Piscina de Claves de Resguardo (Sin filtros restrictivos)
+    // 1. Detección Inteligente de Presentación de Nuevos Operadores ("soy Lucas", "me llamo Sofía", etc.)
+    let currentOperator = normalizeOperatorName(rawOperatorName);
+    const presentationMatch = userPrompt.match(/(?:soy|me llamo|mi nombre es)\s+([a-záéíóúñA-ZÁÉÍÓÚÑ]+)/i);
+
+    if (presentationMatch && presentationMatch[1]) {
+      const extractedName = presentationMatch[1];
+      currentOperator = normalizeOperatorName(extractedName);
+    }
+
+    const { canonicalName, storageKey } = currentOperator;
+
+    // 2. Piscina de Claves de Resguardo
     const keysPool = [
       process.env.GEMINI_API_KEY,
       process.env.GEMINI_API_KEY_FALLBACK,
@@ -20,10 +47,11 @@ export async function POST(req: Request) {
     const systemPromptText = `
 ${NORA_SYSTEM_MAP}
 
-[INSTRUCCIÓN DE IDENTIDAD Y MULTI-OPERADOR]
-- Estás trabajando directamente con el operador: "${operatorName}".
-- Dirígete a él/ella amigablemente por su nombre ("${operatorName}") y reconoce su perfil de trabajo individual.
-- Mantén el hilo de contexto de sus tareas y proyectos específicos.
+[INSTRUCCIÓN DE IDENTIDAD Y PERFIL MULTI-OPERADOR]
+- Estás trabajando directamente con el operador: "${canonicalName}".
+- REGLA DE ALIAS: Reconoce que "María" y "Mary" son exactamente la misma persona, así como "Javi" y "Javier".
+- Si se presenta un NUEVO operador (ej. "Hola soy Lucas"), dales la bienvenida formalmente, reconoce su nuevo nombre ("${canonicalName}") y confirma que has creado su perfil de memoria independiente.
+- Dirígete al operador amigablemente por su nombre ("${canonicalName}") y mantén el hilo de contexto de sus tareas y proyectos específicos.
 
 [INSTRUCCIÓN DE INTERACCIÓN COMO COPILOTO Y TUTORA MASTER]
 - Tu función es ser la INSTRUCTORA Y COPILOTO TÉCNICO de los operadores del dashboard.
@@ -37,7 +65,7 @@ ${NORA_SYSTEM_MAP}
 
     let replyText = "";
 
-    // 2. Intento de Generación con IA (Multi-Key & Multi-Model Loop)
+    // 3. Intento de Generación con IA (Multi-Key & Multi-Model Loop)
     if (keysPool.length > 0) {
       outerLoop: for (const currentKey of keysPool) {
         for (const currentModel of validModels) {
@@ -47,7 +75,7 @@ ${NORA_SYSTEM_MAP}
 
             let normalizedHistory: any[] = [
               { role: "user", parts: [{ text: `INSTRUCCIONES DE INSTRUCTORA MASTER: ${systemPromptText}` }] },
-              { role: "model", parts: [{ text: "Entendido. Soy Nora Instructora Master y Copiloto del Dashboard. Estoy lista para guiarte paso a paso en cualquier tarea o resolver cualquier duda técnica del ecosistema." }] }
+              { role: "model", parts: [{ text: `Entendido. Soy Nora Instructora Master y Copiloto del Dashboard. Hola ${canonicalName}, estoy lista para guiarte paso a paso.` }] }
             ];
 
             for (const msg of history || []) {
@@ -74,47 +102,40 @@ ${NORA_SYSTEM_MAP}
       }
     }
 
-    // 3. Fallback Inteligente Local (Búsqueda determinística en NORA_SYSTEM_MAP) si las API keys fallan
+    // 4. Fallback Inteligente Local si las API keys están inactivas
     if (!replyText) {
-      if (promptLower.includes("faux-cgi") || promptLower.includes("surreal") || promptLower.includes("video") || promptLower.includes("campaña")) {
-        replyText = `**🎨 Guía para crear una Campaña Faux-CGI (Estudio Surrealista):**
+      if (presentationMatch) {
+        replyText = `**¡Un gusto conocerte, ${canonicalName}! 👤**
+
+Ya he registrado tu perfil de operador individual en mi memoria. A partir de este momento, todo nuestro historial de trabajo y tus preferencias de proyectos quedarán asociadas exclusivamente a tu usuario.
+
+¿En qué tarea del ecosistema te gustaría que te guíe hoy, ${canonicalName}?`;
+      } else if (promptLower.includes("faux-cgi") || promptLower.includes("surreal") || promptLower.includes("video") || promptLower.includes("campaña")) {
+        replyText = `**🎨 Guía para ${canonicalName} - Campaña Faux-CGI (Estudio Surrealista):**
 
 1. Ingresa a la ruta **/admin/marketing/editor** (Pestaña "Estudio Surrealista").
-2. Escribe la idea de tu anuncio en la caja de texto (ej: *"Para una casa de comidas, quiero empanadas bailando y una hamburguesa gigante"*).
+2. Escribe la idea de tu anuncio en la caja de texto.
 3. Nora generará automáticamente el prompt optimizado en inglés, el guion publicitario AIDA y la vista previa del concepto.
-4. El video .mp4 se procesa asíncronamente en segundo plano a costo $0 y se guarda en Supabase Storage.`;
+4. Presiona *"Generar Spot de Video Faux-CGI (.mp4)"* para renderizar el video animado a costo $0.`;
       } else if (promptLower.includes("valen") || promptLower.includes("cazar") || promptLower.includes("inmueble") || promptLower.includes("lead")) {
-        replyText = `**🕵️ Guía de Operación del Agente VALEN (Growth Officer):**
+        replyText = `**🕵️ Guía para ${canonicalName} - Agente VALEN (Growth Officer):**
 
-1. Ingresa a la ruta **/admin/growth** para ver la consola de prospección.
-2. VALEN escanea automáticamente Facebook Marketplace, Instagram y clasificados en busca de alquileres temporarios y comercios locales.
-3. Envía mensajes de invitación personalizados e inserta los prospectos en la tabla *valen_leads*.
-4. Cuando el cliente hace clic en la invitación, NORA lo recibe en el portal y le diseña su paquete publicitario.`;
-      } else if (promptLower.includes("fact-check") || promptLower.includes("noticia") || promptLower.includes("veracidad")) {
-        replyText = `**📰 Guía del Fact-Checker & Rotador de Noticias:**
-
-1. Accede a **/admin/news** o la cola del corresponsal.
-2. Nora escanea fuentes regionales y el motor *verifyNewsVeracity* asigna un puntaje (0 a 100).
-3. Si el puntaje es >= 50, se aprueba e inserta automáticamente la noticia en el portal y se dispara su memoria vectorial semántica.`;
-      } else if (promptLower.includes("error") || promptLower.includes("401") || promptLower.includes("unauthorized") || promptLower.includes("429")) {
-        replyText = `**🛠️ Solución a Errores de API (401 Unauthorized / 429 Quota):**
-
-- **Causa:** Una de las claves temporales de Google API expiró o alcanzó el límite por minuto.
-- **Solución:** El sistema ya cuenta con conmutación automática multi-llave. Simplemente presiona **"Empezar de nuevo"** o recarga la página. Nora utilizará las claves secundarias sin interrumpir tu trabajo.`;
+1. Ingresa a **/admin/growth** para ver la consola de prospección.
+2. VALEN escanea automáticamente Facebook Marketplace, Instagram y clasificados en busca de alquileres y comercios locales.
+3. Registra las oportunidades en la tabla *valen_leads* para su seguimiento.`;
       } else {
-        replyText = `**¡Hola! Soy Nora Instructora Master y Copiloto Técnico.**
+        replyText = `**¡Hola ${canonicalName}! Soy Nora Instructora Master y Copiloto Técnico.**
 
-Estoy lista para acompañarte paso a paso en el panel:
+Estoy lista para acompañarte paso a paso:
 - **🎨 Estudio Surrealista Faux-CGI:** /admin/marketing/editor
 - **🕵️ Agente VALEN Hunter:** /admin/growth
 - **📰 Fact-Checker de Noticias:** /admin/news
-- **💾 Memoria RAG:** Ejecuta *npm run sync-memory* en la terminal.
 
-¿Qué tarea te gustaría realizar ahora mismo?`;
+¿Qué tarea te gustaría realizar ahora mismo, ${canonicalName}?`;
       }
     }
 
-    return NextResponse.json({ reply: replyText });
+    return NextResponse.json({ reply: replyText, canonicalName, storageKey });
   } catch (err: any) {
     console.error("[NORA ADMIN COPILOT ERROR]:", err);
     return NextResponse.json({

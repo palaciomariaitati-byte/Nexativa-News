@@ -94,6 +94,12 @@ export default function NoraAdminCopilot() {
         })
       });
       const data = await res.json();
+      
+      if (data.canonicalName && data.canonicalName !== operatorName) {
+        setOperatorName(data.canonicalName);
+        localStorage.setItem("nora_active_operator_name", data.canonicalName);
+      }
+
       if (data.reply) {
         setMessages([...updatedMessages, { role: "nora", content: data.reply }]);
       }
