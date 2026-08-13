@@ -395,7 +395,7 @@ export default function CreativeStudio({ brandName, clientLogoUrl, onImageGenera
           <div className="space-y-4">
             <div className="relative rounded-2xl overflow-hidden border border-pink-500/40 bg-black shadow-2xl">
               {isActualVideo ? (
-                <video src={generatedMediaUrl} controls autoPlay loop className="w-full max-h-[450px] object-cover" />
+                <video src={generatedMediaUrl} controls autoPlay loop muted playsInline className="w-full max-h-[450px] object-cover" />
               ) : (
                 <img src={generatedMediaUrl} alt="Material audiovisual generado" className="w-full max-h-[450px] object-cover" />
               )}
