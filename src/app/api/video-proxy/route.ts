@@ -12,24 +12,26 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, error: "La URL del video es requerida (?url=...)." }, { status: 400 });
     }
 
-    const response = await fetch(videoUrl);
+    const response = await fetch(videoUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      }
+    });
+
     if (!response.ok) {
-      return NextResponse.json({ success: false, error: "No se pudo descargar el video original." }, { status: response.status });
+      return NextResponse.json({ success: false, error: `No se pudo descargar el video original (${response.status}).` }, { status: response.status });
     }
 
+    const arrayBuffer = await response.arrayBuffer();
     const headers = new Headers();
     headers.set("Content-Type", response.headers.get("Content-Type") || "video/mp4");
     headers.set("Access-Control-Allow-Origin", "*");
     headers.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+    headers.set("Cache-Control", "public, max-age=3600");
+    headers.set("Content-Length", arrayBuffer.byteLength.toString());
 
-    const contentLength = response.headers.get("Content-Length");
-    if (contentLength) {
-      headers.set("Content-Length", contentLength);
-    }
-
-    return new Response(response.body, {
-      status: response.status,
-      statusText: response.statusText,
+    return new Response(arrayBuffer, {
+      status: 200,
       headers
     });
   } catch (err: any) {
