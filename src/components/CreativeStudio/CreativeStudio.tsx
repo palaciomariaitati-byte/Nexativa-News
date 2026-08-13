@@ -388,50 +388,54 @@ export default function CreativeStudio({ brandName, clientLogoUrl, onImageGenera
       )}
 
       {/* Done State — Video / Image Preview */}
-      {phase === "done" && generatedMediaUrl && (
-        <div className="space-y-4">
-          <div className="relative rounded-2xl overflow-hidden border border-pink-500/40 bg-black shadow-2xl">
-            {outputType === "video" || generatedMediaUrl.match(/\.(mp4|webm|ogg)$/i) ? (
-              <video src={generatedMediaUrl} controls autoPlay loop className="w-full max-h-[450px] object-cover" />
-            ) : (
-              <img src={generatedMediaUrl} alt="Material audiovisual generado" className="w-full object-cover" />
-            )}
+      {phase === "done" && generatedMediaUrl && (() => {
+        const isActualVideo = Boolean(generatedMediaUrl.match(/\.(mp4|webm|ogg)$/i));
 
-            {mediaSource && (
-              <div className="absolute top-3 right-3 bg-black/80 backdrop-blur-md text-[9px] uppercase font-black text-pink-300 px-3 py-1 rounded-full border border-pink-500/40 shadow-md">
-                {mediaSource.includes("wan") ? "🎬 Wan 2.1 GPU Video" : mediaSource.includes("pollinations") ? "⚡ Pollinations Video Engine" : "✨ Gemini / Flux IA"}
-              </div>
-            )}
-          </div>
+        return (
+          <div className="space-y-4">
+            <div className="relative rounded-2xl overflow-hidden border border-pink-500/40 bg-black shadow-2xl">
+              {isActualVideo ? (
+                <video src={generatedMediaUrl} controls autoPlay loop className="w-full max-h-[450px] object-cover" />
+              ) : (
+                <img src={generatedMediaUrl} alt="Material audiovisual generado" className="w-full max-h-[450px] object-cover" />
+              )}
 
-          <div className="flex gap-2">
+              {mediaSource && (
+                <div className="absolute top-3 right-3 bg-black/80 backdrop-blur-md text-[9px] uppercase font-black text-pink-300 px-3 py-1 rounded-full border border-pink-500/40 shadow-md">
+                  {isActualVideo ? "🎬 Spot Video .MP4 Active" : "🖼️ Concepto Visual 3D"}
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleRegenerate}
+                className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-bold px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Regenerar variación
+              </button>
+              <button
+                type="button"
+                onClick={handleUseMedia}
+                className="flex-1 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-400 hover:to-purple-500 text-white font-extrabold text-xs px-4 py-3 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-lg"
+              >
+                <CheckCircle className="w-3.5 h-3.5" />
+                Usar este spot publicitario ✓
+              </button>
+            </div>
+
             <button
               type="button"
-              onClick={handleRegenerate}
-              className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-bold px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              onClick={resetSession}
+              className="w-full text-[10px] uppercase font-bold text-white/40 hover:text-white/80 transition-colors cursor-pointer"
             >
-              <RefreshCw className="w-3.5 h-3.5" />
-              Regenerar variación
-            </button>
-            <button
-              type="button"
-              onClick={handleUseMedia}
-              className="flex-1 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-400 hover:to-purple-500 text-white font-extrabold text-xs px-4 py-3 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-lg"
-            >
-              <CheckCircle className="w-3.5 h-3.5" />
-              Usar este spot publicitario ✓
+              Crear nueva campaña audiovisual
             </button>
           </div>
-
-          <button
-            type="button"
-            onClick={resetSession}
-            className="w-full text-[10px] uppercase font-bold text-white/40 hover:text-white/80 transition-colors cursor-pointer"
-          >
-            Crear nueva campaña audiovisual
-          </button>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
