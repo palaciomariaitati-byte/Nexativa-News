@@ -79,10 +79,11 @@ export async function POST(req: Request) {
       source = "nora-local-surreal-video-engine";
       console.log("[CREATIVE VIDEO API] Activando motor autónomo de video publicitario de resguardo...");
       
-      // Retornar video spot de muestra publicitaria surrealista de alta resolución
+      // Retornar video spot de muestra publicitaria de alta resolución
       const sampleSurrealVideos = [
-        "https://xeheuscrttrbfnojwwqt.supabase.co/storage/v1/object/public/media/surreal_sample_1.mp4",
-        "https://xeheuscrttrbfnojwwqt.supabase.co/storage/v1/object/public/media/surreal_sample_2.mp4"
+        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4"
       ];
       const videoUrl = sampleSurrealVideos[seed % sampleSurrealVideos.length];
 
@@ -109,9 +110,8 @@ export async function POST(req: Request) {
 
   } catch (error: any) {
     console.error("[CREATIVE VIDEO API EXCEPTION]:", error);
-    // Retornar fallback seguro para no romper el panel
     return NextResponse.json({
-      videoUrl: "https://xeheuscrttrbfnojwwqt.supabase.co/storage/v1/object/public/media/surreal_sample_1.mp4",
+      videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
       source: "nora-fallback-video-engine",
       promptUsed: "Surreal 3D Commercial Video",
       seed: 1234

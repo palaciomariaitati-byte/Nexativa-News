@@ -12,45 +12,65 @@ interface AdminMessage {
 
 export default function NoraAdminCopilot() {
   const [isOpen, setIsOpen] = useState(false);
+  const [operatorName, setOperatorName] = useState<string>("Javi");
+  const [isEditingOperator, setIsEditingOperator] = useState(false);
   const [messages, setMessages] = useState<AdminMessage[]>([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Cargar memoria persistente del localStorage al iniciar
+  // 1. Cargar nombre de operador guardado
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("nora_admin_copilot_history_v1");
+      const savedOp = localStorage.getItem("nora_active_operator_name");
+      if (savedOp) setOperatorName(savedOp);
+    } catch (e) {}
+  }, []);
+
+  // 2. Cargar memoria específica del operador activo
+  useEffect(() => {
+    try {
+      const storageKey = `nora_copilot_history_${operatorName.toLowerCase().trim()}`;
+      const saved = localStorage.getItem(storageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setMessages(parsed);
-        }
+        setMessages(Array.isArray(parsed) ? parsed : []);
+      } else {
+        setMessages([]);
       }
     } catch (e) {
       console.warn("[NORA MEMORY] Error cargando memoria local:", e);
     }
-  }, []);
+  }, [operatorName]);
 
-  // Guardar cada interacción automáticamente en el disco
+  // 3. Guardar automáticamente el historial en el perfil del operador activo
   useEffect(() => {
     if (messages.length > 0) {
       try {
-        localStorage.setItem("nora_admin_copilot_history_v1", JSON.stringify(messages));
+        const storageKey = `nora_copilot_history_${operatorName.toLowerCase().trim()}`;
+        localStorage.setItem(storageKey, JSON.stringify(messages));
       } catch (e) {
         console.warn("[NORA MEMORY] Error guardando memoria local:", e);
       }
     }
-  }, [messages]);
+  }, [messages, operatorName]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
+  const changeOperator = (newName: string) => {
+    const trimmed = newName.trim() || "Operador";
+    setOperatorName(trimmed);
+    localStorage.setItem("nora_active_operator_name", trimmed);
+    setIsEditingOperator(false);
+  };
+
   const clearMemory = () => {
-    if (confirm("¿Deseas reiniciar la memoria de la conversación con Nora Instructora?")) {
+    if (confirm(`¿Deseas reiniciar el historial de conversación de ${operatorName}?`)) {
       setMessages([]);
-      localStorage.removeItem("nora_admin_copilot_history_v1");
+      const storageKey = `nora_copilot_history_${operatorName.toLowerCase().trim()}`;
+      localStorage.removeItem(storageKey);
     }
   };
 
@@ -69,16 +89,16 @@ export default function NoraAdminCopilot() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: textToSend,
+          operatorName,
           history: updatedMessages.map(m => ({ role: m.role, content: m.content }))
         })
       });
       const data = await res.json();
       if (data.reply) {
-        const finalMsgs: AdminMessage[] = [...updatedMessages, { role: "nora", content: data.reply }];
-        setMessages(finalMsgs);
+        setMessages([...updatedMessages, { role: "nora", content: data.reply }]);
       }
     } catch (err) {
-      setMessages([...updatedMessages, { role: "nora", content: "Ocurrió un error al conectar con Nora Instructora. Por favor intenta nuevamente." }]);
+      setMessages([...updatedMessages, { role: "nora", content: `Hola ${operatorName}, ocurrió un inconveniente al conectar. Por favor reintenta.` }]);
     } finally {
       setIsTyping(false);
     }
@@ -124,15 +144,46 @@ export default function NoraAdminCopilot() {
                   Nora Instructora
                   <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-bold">24/7</span>
                 </h3>
-                <p className="text-[11px] text-amber-200/80 font-medium">Copiloto Técnico & Mapa del Sistema</p>
+                
+                {/* Selector de Perfil de Operador */}
+                {isEditingOperator ? (
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <input
+                      type="text"
+                      defaultValue={operatorName}
+                      onKeyDown={(e) => e.key === "Enter" && changeOperator((e.target as HTMLInputElement).value)}
+                      onBlur={(e) => changeOperator(e.target.value)}
+                      autoFocus
+                      className="bg-black/60 border border-amber-400/60 text-white text-[11px] px-2 py-0.5 rounded w-24 outline-none"
+                    />
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setIsEditingOperator(true)}
+                    className="text-[11px] text-amber-200/90 font-medium hover:text-white transition-colors flex items-center gap-1 group mt-0.5"
+                    title="Hacé clic para cambiar de operador"
+                  >
+                    <span>👤 Operador: <strong className="text-amber-300 group-hover:underline">{operatorName}</strong></span>
+                    <span className="text-[9px] bg-white/10 text-gray-300 px-1 rounded opacity-70">Cambiar</span>
+                  </button>
+                )}
               </div>
             </div>
-            <button 
-              onClick={() => setIsOpen(false)} 
-              className="text-white/60 hover:text-white transition-colors bg-white/10 hover:bg-white/20 rounded-full p-1.5"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={clearMemory}
+                className="text-[10px] text-amber-300/80 hover:text-amber-200 bg-white/5 hover:bg-white/10 px-2 py-1 rounded-lg border border-white/10 transition-colors"
+                title="Reiniciar chat de este operador"
+              >
+                Limpiar
+              </button>
+              <button 
+                onClick={() => setIsOpen(false)} 
+                className="text-white/60 hover:text-white transition-colors bg-white/10 hover:bg-white/20 rounded-full p-1.5"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
           {/* Enlaces Rápidos a Herramientas Principales */}

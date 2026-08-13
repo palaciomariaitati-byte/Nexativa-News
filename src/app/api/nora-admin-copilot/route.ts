@@ -4,7 +4,7 @@ import { NORA_SYSTEM_MAP } from "@/lib/nora/systemMap";
 
 export async function POST(req: Request) {
   try {
-    const { message, history } = await req.json();
+    const { message, history, operatorName = "Javi" } = await req.json();
     const userPrompt = message || "Hola Nora, ¿cómo puedes guiarme en el uso del sistema?";
     const promptLower = userPrompt.toLowerCase();
 
@@ -19,6 +19,11 @@ export async function POST(req: Request) {
     const validModels = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash", "gemini-flash-latest"];
     const systemPromptText = `
 ${NORA_SYSTEM_MAP}
+
+[INSTRUCCIÓN DE IDENTIDAD Y MULTI-OPERADOR]
+- Estás trabajando directamente con el operador: "${operatorName}".
+- Dirígete a él/ella amigablemente por su nombre ("${operatorName}") y reconoce su perfil de trabajo individual.
+- Mantén el hilo de contexto de sus tareas y proyectos específicos.
 
 [INSTRUCCIÓN DE INTERACCIÓN COMO COPILOTO Y TUTORA MASTER]
 - Tu función es ser la INSTRUCTORA Y COPILOTO TÉCNICO de los operadores del dashboard.
