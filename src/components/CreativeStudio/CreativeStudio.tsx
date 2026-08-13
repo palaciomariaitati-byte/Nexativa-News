@@ -389,13 +389,16 @@ export default function CreativeStudio({ brandName, clientLogoUrl, onImageGenera
 
       {/* Done State — Video / Image Preview */}
       {phase === "done" && generatedMediaUrl && (() => {
-        const isActualVideo = Boolean(generatedMediaUrl.match(/\.(mp4|webm|ogg)$/i));
+        const isActualVideo = Boolean(generatedMediaUrl.match(/\.(mp4|webm|ogg)$/i) || generatedMediaUrl.includes("video-proxy"));
+        const videoSrc = (isActualVideo && generatedMediaUrl.startsWith("http") && !generatedMediaUrl.includes("/api/video-proxy"))
+          ? `/api/video-proxy?url=${encodeURIComponent(generatedMediaUrl)}`
+          : generatedMediaUrl;
 
         return (
           <div className="space-y-4">
             <div className="relative rounded-2xl overflow-hidden border border-pink-500/40 bg-black shadow-2xl">
               {isActualVideo ? (
-                <video src={generatedMediaUrl} controls autoPlay loop muted playsInline className="w-full max-h-[450px] object-cover" />
+                <video src={videoSrc} controls autoPlay loop muted playsInline className="w-full max-h-[450px] object-cover" />
               ) : (
                 <img src={generatedMediaUrl} alt="Material audiovisual generado" className="w-full max-h-[450px] object-cover" />
               )}

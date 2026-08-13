@@ -562,11 +562,15 @@ Estructura la respuesta en texto plano en español:
 
             {formData.image_url && (() => {
               const firstUrl = formData.image_url.split(",")[0].trim();
-              const isVideo = firstUrl.match(/\.(mp4|webm|ogg)$/i);
+              const isVideo = Boolean(firstUrl.match(/\.(mp4|webm|ogg)$/i) || firstUrl.includes("video-proxy"));
+              const videoSrc = (isVideo && firstUrl.startsWith("http") && !firstUrl.includes("/api/video-proxy"))
+                ? `/api/video-proxy?url=${encodeURIComponent(firstUrl)}`
+                : firstUrl;
+
               return (
                 <div className="mt-4 aspect-video rounded-lg overflow-hidden border border-white/10 relative h-48 w-full max-w-sm bg-black/40">
                   {isVideo ? (
-                    <video src={firstUrl} controls className="object-cover w-full h-full" />
+                    <video src={videoSrc} controls autoPlay loop muted playsInline className="object-cover w-full h-full" />
                   ) : (
                     <img src={firstUrl} alt="Preview" className="object-cover w-full h-full" />
                   )}

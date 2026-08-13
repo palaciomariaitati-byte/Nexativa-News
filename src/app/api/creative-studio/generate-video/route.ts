@@ -79,13 +79,14 @@ export async function POST(req: Request) {
       source = "nora-local-surreal-video-engine";
       console.log("[CREATIVE VIDEO API] Activando motor autónomo de video publicitario de resguardo...");
       
-      // Retornar video spot de muestra publicitaria de alta resolución
+      // Retornar video spot de muestra publicitaria de alta resolución encapsulado vía proxy seguro
       const sampleSurrealVideos = [
         "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
         "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
         "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4"
       ];
-      const videoUrl = sampleSurrealVideos[seed % sampleSurrealVideos.length];
+      const rawSample = sampleSurrealVideos[seed % sampleSurrealVideos.length];
+      const videoUrl = `/api/video-proxy?url=${encodeURIComponent(rawSample)}`;
 
       return NextResponse.json({
         videoUrl,
@@ -97,12 +98,12 @@ export async function POST(req: Request) {
 
     // 4. Subir el video .mp4 a Supabase Storage
     const fileName = `campaigns/video_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.mp4`;
-    const videoUrl = await uploadBufferToSupabase(videoBuffer, fileName);
+    const uploadedUrl = await uploadBufferToSupabase(videoBuffer, fileName);
 
-    console.log(`[CREATIVE VIDEO API] ✅ Video generado y subido a Supabase: ${videoUrl}`);
+    console.log(`[CREATIVE VIDEO API] ✅ Video generado y subido a Supabase: ${uploadedUrl}`);
 
     return NextResponse.json({
-      videoUrl,
+      videoUrl: uploadedUrl,
       source,
       promptUsed: prompt,
       seed
@@ -110,8 +111,9 @@ export async function POST(req: Request) {
 
   } catch (error: any) {
     console.error("[CREATIVE VIDEO API EXCEPTION]:", error);
+    const fallbackRaw = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
     return NextResponse.json({
-      videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+      videoUrl: `/api/video-proxy?url=${encodeURIComponent(fallbackRaw)}`,
       source: "nora-fallback-video-engine",
       promptUsed: "Surreal 3D Commercial Video",
       seed: 1234
