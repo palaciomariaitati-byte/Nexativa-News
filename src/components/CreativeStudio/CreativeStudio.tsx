@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from "react";
 import { askNoraCreativeDirector, type CreativeDirectorResult } from "@/app/admin/actions/nora";
-import { Sparkles, RefreshCw, CheckCircle, AlertCircle, Loader2, MessageSquare, Image as ImageIcon } from "lucide-react";
+import { Sparkles, RefreshCw, CheckCircle, AlertCircle, Loader2, MessageSquare, Video, Image as ImageIcon, Film } from "lucide-react";
 
 // --- Types & Constants ---
 const STYLES = [
@@ -20,6 +20,7 @@ const FORMATS = [
   { id: "3:1", label: "🏙️ 3:1 Megabanner", sub: "Cabeceras / Gigantografías" },
 ] as const;
 
+type OutputType = "video" | "image";
 type GenerationPhase = "idle" | "consulting-nora" | "waiting-answer" | "generating" | "uploading" | "done" | "error";
 
 interface ConversationMessage {
@@ -34,12 +35,12 @@ interface CreativeStudioProps {
 }
 
 // --- Helper: Phase progress bar ---
-function PhaseIndicator({ phase }: { phase: GenerationPhase }) {
+function PhaseIndicator({ phase, outputType }: { phase: GenerationPhase; outputType: OutputType }) {
   const phases: { key: GenerationPhase; label: string }[] = [
     { key: "consulting-nora", label: "🧠 Nora interpreta el brief..." },
-    { key: "generating", label: "🎨 Motor de imagen IA activo..." },
-    { key: "uploading", label: "☁️ Guardando en tu servidor..." },
-    { key: "done", label: "✅ ¡Listo!" },
+    { key: "generating", label: outputType === "video" ? "🎬 Motor de Video Faux-CGI (Wan 2.1 GPU) procesando fotogramas..." : "🎨 Motor de Imagen IA activo..." },
+    { key: "uploading", label: "☁️ Guardando el MP4 en tu servidor..." },
+    { key: "done", label: "✅ ¡Spot de Video Listo!" },
   ];
 
   if (phase === "idle" || phase === "waiting-answer" || phase === "error") return null;
@@ -48,13 +49,13 @@ function PhaseIndicator({ phase }: { phase: GenerationPhase }) {
   const current = phases[Math.max(0, currentIndex)];
 
   return (
-    <div className="flex items-center gap-3 bg-black/50 border border-amber-500/30 rounded-xl px-4 py-3 mt-4">
-      <Loader2 className={`w-4 h-4 text-amber-400 shrink-0 ${phase !== "done" ? "animate-spin" : ""}`} />
+    <div className="flex items-center gap-3 bg-black/60 border border-pink-500/40 rounded-xl px-4 py-3.5 mt-4 shadow-lg animate-pulse">
+      <Loader2 className={`w-5 h-5 text-pink-400 shrink-0 ${phase !== "done" ? "animate-spin" : ""}`} />
       <div className="flex-1">
-        <p className="text-xs font-bold text-amber-300 uppercase tracking-wider">{current?.label}</p>
-        <div className="mt-1.5 h-1 bg-white/10 rounded-full overflow-hidden">
+        <p className="text-xs font-black text-pink-300 uppercase tracking-wider">{current?.label}</p>
+        <div className="mt-2 h-1.5 bg-white/10 rounded-full overflow-hidden">
           <div
-            className="h-full bg-gradient-to-r from-amber-500 to-yellow-400 rounded-full transition-all duration-700"
+            className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-amber-400 rounded-full transition-all duration-700"
             style={{ width: `${((currentIndex + 1) / phases.length) * 100}%` }}
           />
         </div>
@@ -66,15 +67,16 @@ function PhaseIndicator({ phase }: { phase: GenerationPhase }) {
 // --- Main Component ---
 export default function CreativeStudio({ brandName, clientLogoUrl, onImageGenerated }: CreativeStudioProps) {
   const [brief, setBrief] = useState("");
+  const [outputType, setOutputType] = useState<OutputType>("video"); // Default to Video for maximum impact
   const [style, setStyle] = useState<string>("surreal_urban");
-  const [format, setFormat] = useState<string>("16:9");
+  const [format, setFormat] = useState<string>("9:16"); // Default to Reels format
   const [phase, setPhase] = useState<GenerationPhase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [noraResult, setNoraResult] = useState<CreativeDirectorResult | null>(null);
   const [pendingAnswer, setPendingAnswer] = useState("");
   const [conversation, setConversation] = useState<ConversationMessage[]>([]);
-  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
-  const [imageSource, setImageSource] = useState<string>("");
+  const [generatedMediaUrl, setGeneratedMediaUrl] = useState<string | null>(null);
+  const [mediaSource, setMediaSource] = useState<string>("");
   const lastSeed = useRef<number | null>(null);
 
   const resetSession = () => {
@@ -84,8 +86,8 @@ export default function CreativeStudio({ brandName, clientLogoUrl, onImageGenera
     setNoraResult(null);
     setPendingAnswer("");
     setConversation([]);
-    setGeneratedImageUrl(null);
-    setImageSource("");
+    setGeneratedMediaUrl(null);
+    setMediaSource("");
     lastSeed.current = null;
   };
 
@@ -112,12 +114,8 @@ export default function CreativeStudio({ brandName, clientLogoUrl, onImageGenera
     const data = result.data;
     setNoraResult(data);
 
-    // Apply style/format from Nora's interpretation if detected
     if (data.brief.style && STYLES.find((s) => s.id === data.brief.style)) {
       setStyle(data.brief.style);
-    }
-    if (data.brief.format && FORMATS.find((f) => f.id === data.brief.format)) {
-      setFormat(data.brief.format);
     }
 
     const updatedHistory: ConversationMessage[] = [...newHistory, { role: "nora", content: data.htmlForPanel }];
@@ -126,32 +124,34 @@ export default function CreativeStudio({ brandName, clientLogoUrl, onImageGenera
     if (data.missing_critical) {
       setPhase("waiting-answer");
     } else {
-      // Nora has everything — proceed to generate
-      await handleGenerate(data.surrealismPrompt, data.brief.style || style, data.brief.format || format);
+      await handleGenerate(data.surrealismPrompt, data.brief.style || style, format, outputType);
     }
   };
 
-  const handleGenerate = async (prompt: string, imageStyle: string, imageFormat: string) => {
+  const handleGenerate = async (prompt: string, selectedStyle: string, selectedFormat: string, targetType: OutputType) => {
     setPhase("generating");
-    setGeneratedImageUrl(null);
+    setGeneratedMediaUrl(null);
 
     try {
       const seed = Math.floor(Math.random() * 1_000_000);
       lastSeed.current = seed;
 
-      const res = await fetch("/api/creative-studio/generate", {
+      const endpoint = targetType === "video" ? "/api/creative-studio/generate-video" : "/api/creative-studio/generate";
+
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, style: imageStyle, aspectRatio: imageFormat, seed }),
+        body: JSON.stringify({ prompt, style: selectedStyle, aspectRatio: selectedFormat, seed }),
       });
 
       setPhase("uploading");
       const data = await res.json();
 
-      if (!res.ok || data.error) throw new Error(data.error || "Error desconocido al generar imagen");
+      if (!res.ok || data.error) throw new Error(data.error || "Error al generar material creativo");
 
-      setGeneratedImageUrl(data.imageUrl);
-      setImageSource(data.source);
+      const url = data.videoUrl || data.imageUrl;
+      setGeneratedMediaUrl(url);
+      setMediaSource(data.source);
       setPhase("done");
     } catch (err: any) {
       setError(err.message);
@@ -161,12 +161,12 @@ export default function CreativeStudio({ brandName, clientLogoUrl, onImageGenera
 
   const handleRegenerate = async () => {
     if (!noraResult?.surrealismPrompt) return;
-    await handleGenerate(noraResult.surrealismPrompt, style, format);
+    await handleGenerate(noraResult.surrealismPrompt, style, format, outputType);
   };
 
-  const handleUseImage = () => {
-    if (!generatedImageUrl || !noraResult) return;
-    onImageGenerated(generatedImageUrl, noraResult.copy_aida || "");
+  const handleUseMedia = () => {
+    if (!generatedMediaUrl || !noraResult) return;
+    onImageGenerated(generatedMediaUrl, noraResult.copy_aida || "");
   };
 
   const handleAnswerQuestion = async () => {
@@ -177,19 +177,19 @@ export default function CreativeStudio({ brandName, clientLogoUrl, onImageGenera
   };
 
   return (
-    <div className="bg-gradient-to-br from-amber-950/30 via-purple-950/30 to-black/60 border border-amber-500/30 rounded-2xl p-5 space-y-5 shadow-2xl">
+    <div className="bg-gradient-to-br from-purple-950/40 via-pink-950/20 to-black/80 border border-purple-500/40 rounded-2xl p-5 space-y-5 shadow-2xl">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-4">
         <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
-          <span className="text-xs uppercase font-extrabold tracking-wider text-amber-400">
-            Nora Creative Director · Estudio Surrealista
+          <Film className="w-5 h-5 text-pink-400 animate-pulse" />
+          <span className="text-xs uppercase font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-pink-400 to-purple-300">
+            Estudio Faux-CGI 3D & Videos Surrealistas · Nora AI
           </span>
         </div>
         {brandName && (
-          <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-lg">
+          <div className="flex items-center gap-2 bg-purple-500/10 border border-purple-500/30 px-2.5 py-1 rounded-lg">
             {clientLogoUrl && <img src={clientLogoUrl} alt="Logo" className="w-4 h-4 object-contain rounded" />}
-            <span className="text-[10px] text-amber-300 font-bold uppercase">{brandName}</span>
+            <span className="text-[10px] text-purple-300 font-bold uppercase">{brandName}</span>
           </div>
         )}
       </div>
@@ -202,7 +202,7 @@ export default function CreativeStudio({ brandName, clientLogoUrl, onImageGenera
               <div
                 className={`w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0 font-bold ${
                   msg.role === "nora"
-                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                    ? "bg-pink-500/20 text-pink-300 border border-pink-500/40"
                     : "bg-purple-500/20 text-purple-300 border border-purple-500/40"
                 }`}
               >
@@ -225,22 +225,66 @@ export default function CreativeStudio({ brandName, clientLogoUrl, onImageGenera
 
       {/* Brief Input (initial state) */}
       {phase === "idle" && (
-        <div className="space-y-3">
-          <label className="text-[11px] font-bold text-gray-300 uppercase tracking-wide block">
-            <MessageSquare className="inline w-3 h-3 mr-1" />
-            Contale a Nora el brief de la campaña:
-          </label>
-          <textarea
-            value={brief}
-            onChange={(e) => setBrief(e.target.value)}
-            rows={3}
-            placeholder="Ej: &quot;Algo para la panadería San Martín, quiero una empanada gigante en la plaza del pueblo&quot; · Podés ser informal, Nora entiende"
-            className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-amber-500 resize-none placeholder:text-white/25 leading-relaxed"
-          />
+        <div className="space-y-4">
+          
+          {/* Selector de Formato de Salida: Video MP4 vs Imagen Fija */}
+          <div>
+            <label className="text-[11px] font-extrabold text-pink-300 uppercase tracking-wider block mb-2 flex items-center gap-1.5">
+              <Video className="w-4 h-4 text-pink-400" />
+              Tipo de Producción Publicitaria:
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setOutputType("video")}
+                className={`p-3 rounded-xl border flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  outputType === "video"
+                    ? "bg-gradient-to-r from-pink-600 to-purple-600 text-white font-black border-pink-400 shadow-lg shadow-pink-500/30 scale-[1.02]"
+                    : "bg-black/50 text-gray-300 border-white/10 hover:bg-white/5"
+                }`}
+              >
+                <Video className="w-4 h-4" />
+                <div className="text-left">
+                  <span className="text-xs font-black block">🎥 Video Spot Faux-CGI (.mp4)</span>
+                  <span className="text-[9px] opacity-80 block font-normal">Ideal para Reels, TikTok y YouTube Shorts</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setOutputType("image")}
+                className={`p-3 rounded-xl border flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  outputType === "image"
+                    ? "bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-black border-amber-400 shadow-lg shadow-amber-500/30 scale-[1.02]"
+                    : "bg-black/50 text-gray-300 border-white/10 hover:bg-white/5"
+                }`}
+              >
+                <ImageIcon className="w-4 h-4" />
+                <div className="text-left">
+                  <span className="text-xs font-black block">🖼️ Imagen Gigantografía Fija</span>
+                  <span className="text-[9px] opacity-80 block font-normal">Para banners estáticos e impresión</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[11px] font-bold text-gray-300 uppercase tracking-wide block">
+              <MessageSquare className="inline w-3 h-3 mr-1" />
+              Escribe el brief o idea creativa para el spot:
+            </label>
+            <textarea
+              value={brief}
+              onChange={(e) => setBrief(e.target.value)}
+              rows={3}
+              placeholder="Ej: &quot;Quiero un gato gigante caminando sobre los edificios de la avenida principal, luego salta y vuelve a su tamaño real frente a un plato de comida.&quot;"
+              className="w-full bg-black/60 border border-white/15 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-pink-500 resize-none placeholder:text-white/30 leading-relaxed"
+            />
+          </div>
 
           {/* Style Selector */}
           <div>
-            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wide block mb-2">Estilo Surrealista:</label>
+            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wide block mb-2">Estilo Visual Surrealista:</label>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
               {STYLES.map((s) => (
                 <button
@@ -249,7 +293,7 @@ export default function CreativeStudio({ brandName, clientLogoUrl, onImageGenera
                   onClick={() => setStyle(s.id)}
                   className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                     style === s.id
-                      ? "bg-amber-500 text-black border-amber-400 shadow-lg shadow-amber-500/20"
+                      ? "bg-pink-600 text-white font-bold border-pink-400 shadow-md shadow-pink-500/20"
                       : "bg-black/40 text-gray-300 border-white/10 hover:bg-white/5"
                   }`}
                 >
@@ -262,7 +306,7 @@ export default function CreativeStudio({ brandName, clientLogoUrl, onImageGenera
 
           {/* Format Selector */}
           <div>
-            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wide block mb-2">Formato de Salida:</label>
+            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wide block mb-2">Formato de Video / Pantalla:</label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {FORMATS.map((f) => (
                 <button
@@ -271,7 +315,7 @@ export default function CreativeStudio({ brandName, clientLogoUrl, onImageGenera
                   onClick={() => setFormat(f.id)}
                   className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
                     format === f.id
-                      ? "bg-amber-500 text-black border-amber-400 shadow-md"
+                      ? "bg-purple-600 text-white font-bold border-purple-400 shadow-md"
                       : "bg-black/40 text-gray-300 border-white/10 hover:bg-white/5"
                   }`}
                 >
@@ -286,10 +330,10 @@ export default function CreativeStudio({ brandName, clientLogoUrl, onImageGenera
             type="button"
             disabled={!brief.trim()}
             onClick={() => handleConsultNora(brief, [])}
-            className="w-full bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 disabled:opacity-40 disabled:cursor-not-allowed text-black font-extrabold text-sm px-6 py-3 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-600 hover:from-pink-400 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-sm px-6 py-3.5 rounded-xl transition-all shadow-xl flex items-center justify-center gap-2 cursor-pointer"
           >
-            <Sparkles className="w-4 h-4" />
-            Crear con Nora IA ✨
+            {outputType === "video" ? <Video className="w-5 h-5 animate-bounce" /> : <Sparkles className="w-5 h-5" />}
+            {outputType === "video" ? "Generar Spot de Video Faux-CGI (.mp4) 🎬" : "Crear Gigantografía Fija ✨"}
           </button>
         </div>
       )}
@@ -297,8 +341,8 @@ export default function CreativeStudio({ brandName, clientLogoUrl, onImageGenera
       {/* Nora is waiting for an answer */}
       {phase === "waiting-answer" && noraResult?.missing_critical && (
         <div className="space-y-3">
-          <div className="bg-amber-500/10 border border-amber-500/40 rounded-xl px-4 py-3">
-            <p className="text-xs font-bold text-amber-300 mb-1 uppercase tracking-wider">Nora necesita saber:</p>
+          <div className="bg-pink-500/10 border border-pink-500/40 rounded-xl px-4 py-3">
+            <p className="text-xs font-bold text-pink-300 mb-1 uppercase tracking-wider">Nora necesita saber:</p>
             <p className="text-sm text-white/90">{noraResult.missing_critical}</p>
           </div>
           <div className="flex gap-2">
@@ -308,13 +352,13 @@ export default function CreativeStudio({ brandName, clientLogoUrl, onImageGenera
               onChange={(e) => setPendingAnswer(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleAnswerQuestion()}
               placeholder="Tu respuesta..."
-              className="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 py-2 text-sm text-white outline-none focus:border-amber-500"
+              className="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 py-2 text-sm text-white outline-none focus:border-pink-500"
             />
             <button
               type="button"
               onClick={handleAnswerQuestion}
               disabled={!pendingAnswer.trim()}
-              className="bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-black font-bold text-xs px-4 py-2 rounded-xl transition-colors cursor-pointer"
+              className="bg-pink-600 hover:bg-pink-500 disabled:opacity-40 text-white font-bold text-xs px-4 py-2 rounded-xl transition-colors cursor-pointer"
             >
               Responder
             </button>
@@ -323,7 +367,7 @@ export default function CreativeStudio({ brandName, clientLogoUrl, onImageGenera
       )}
 
       {/* Phase Indicator */}
-      <PhaseIndicator phase={phase} />
+      <PhaseIndicator phase={phase} outputType={outputType} />
 
       {/* Error State */}
       {phase === "error" && error && (
@@ -343,14 +387,19 @@ export default function CreativeStudio({ brandName, clientLogoUrl, onImageGenera
         </div>
       )}
 
-      {/* Done State — Image Preview */}
-      {phase === "done" && generatedImageUrl && (
+      {/* Done State — Video / Image Preview */}
+      {phase === "done" && generatedMediaUrl && (
         <div className="space-y-4">
-          <div className="relative rounded-2xl overflow-hidden border border-amber-500/30 bg-black shadow-2xl">
-            <img src={generatedImageUrl} alt="Gigantografía generada" className="w-full object-cover" />
-            {imageSource && (
-              <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm text-[9px] uppercase font-bold text-amber-300 px-2 py-1 rounded-full border border-amber-500/30">
-                {imageSource === "gemini" ? "✨ Gemini IA" : "⚡ Flux Pro"}
+          <div className="relative rounded-2xl overflow-hidden border border-pink-500/40 bg-black shadow-2xl">
+            {outputType === "video" || generatedMediaUrl.match(/\.(mp4|webm|ogg)$/i) ? (
+              <video src={generatedMediaUrl} controls autoPlay loop className="w-full max-h-[450px] object-cover" />
+            ) : (
+              <img src={generatedMediaUrl} alt="Material audiovisual generado" className="w-full object-cover" />
+            )}
+
+            {mediaSource && (
+              <div className="absolute top-3 right-3 bg-black/80 backdrop-blur-md text-[9px] uppercase font-black text-pink-300 px-3 py-1 rounded-full border border-pink-500/40 shadow-md">
+                {mediaSource.includes("wan") ? "🎬 Wan 2.1 GPU Video" : mediaSource.includes("pollinations") ? "⚡ Pollinations Video Engine" : "✨ Gemini / Flux IA"}
               </div>
             )}
           </div>
@@ -359,27 +408,27 @@ export default function CreativeStudio({ brandName, clientLogoUrl, onImageGenera
             <button
               type="button"
               onClick={handleRegenerate}
-              className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-bold px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               Regenerar variación
             </button>
             <button
               type="button"
-              onClick={handleUseImage}
-              className="flex-1 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-extrabold text-xs px-4 py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-lg"
+              onClick={handleUseMedia}
+              className="flex-1 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-400 hover:to-purple-500 text-white font-extrabold text-xs px-4 py-3 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-lg"
             >
               <CheckCircle className="w-3.5 h-3.5" />
-              Usar esta imagen ✓
+              Usar este spot publicitario ✓
             </button>
           </div>
 
           <button
             type="button"
             onClick={resetSession}
-            className="w-full text-[10px] uppercase font-bold text-white/30 hover:text-white/60 transition-colors cursor-pointer"
+            className="w-full text-[10px] uppercase font-bold text-white/40 hover:text-white/80 transition-colors cursor-pointer"
           >
-            Crear nueva campaña
+            Crear nueva campaña audiovisual
           </button>
         </div>
       )}
