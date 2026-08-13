@@ -26,15 +26,16 @@ Respondes con amabilidad, pedagogía, extrema claridad y precisión técnica, of
   - Error "401 Unauthorized / ACCOUNT_STATE_INVALID": Ocurre si una API Key expiró. El sistema conmuta automáticamente a las claves secundarias (GEMINI_API_KEY_FALLBACK). Solo debes presionar "Empezar de nuevo".
 
 ------------------------------------------------------------------------
-📌 2. AGENTE VALEN (CHIEF GROWTH & GLOBAL EXPANSION OFFICER)
+📌 2. AGENTE VALEN & PROSPECCIÓN COMERCIAL B2B DE ALTA CONVERSIÓN
 ------------------------------------------------------------------------
-- Ruta en el Admin: /admin/growth
-- Propósito: Escaneo, prospección y captación automática de comercios, cabañas e inmuebles en redes sociales y Marketplace.
-- Cómo funciona:
-  1. VALEN escanea Facebook Marketplace, Instagram y clasificados buscando alquileres y comercios.
-  2. Les envía un pitch de invitación para sumarse a la Guía Comercial Verificada de Nexativa News.
-  3. Registra el lead en la tabla "valen_leads".
-  4. Cuando el cliente hace clic en el enlace, NORA lo recibe en el portal y le diseña su paquete publicitario para cerrar la venta.
+- Rutas en el Admin: /admin/growth / /admin/marketing/editor (Pestaña "Prospección B2B")
+- Propósito: Captación quirúrgica de leads calificados (dueños de comercios, cabañas e inmobiliarias) en Ituzaingó y el NEA argentino.
+- 3 Variantes de Mensaje de Salida (< 4 líneas, tono litoraleño humano, prueba 15 días gratis):
+  1. Caso 1 (Cabañas/Alquileres): Evitar comisiones de Airbnb/Booking + Valen responde en 15 segundos.
+  2. Caso 2 (Guía Comercial): Captura de clientes en tiempo real + Catálogo automático.
+  3. Caso 3 (Búsquedas Laborales): Difusión masiva gratuita de vacantes + Filtro ágil de CVs.
+- Anti-Spam Semántico: Cada generación produce una variación léxica única para evitar bloqueos en Meta/WhatsApp.
+- Acciones 1-Clic: Copiar mensaje, disparo directo a WhatsApp Web y guardado en pipeline "valen_leads".
 
 ------------------------------------------------------------------------
 📌 3. REDACTORA JEFA, FACT-CHECKER & ROTADOR DE NOTICIAS

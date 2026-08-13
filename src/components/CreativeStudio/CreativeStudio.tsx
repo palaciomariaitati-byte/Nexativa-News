@@ -389,23 +389,69 @@ export default function CreativeStudio({ brandName, clientLogoUrl, onImageGenera
 
       {/* Done State — Video / Image Preview */}
       {phase === "done" && generatedMediaUrl && (() => {
-        const isActualVideo = Boolean(generatedMediaUrl.match(/\.(mp4|webm|ogg)$/i) || generatedMediaUrl.includes("video-proxy"));
+        const isActualVideo = Boolean(
+          (generatedMediaUrl.match(/\.(mp4|webm|ogg)$/i) || generatedMediaUrl.includes("video-proxy")) &&
+          !generatedMediaUrl.match(/\.(jpg|jpeg|png|webp)$/i)
+        );
         const videoSrc = (isActualVideo && generatedMediaUrl.startsWith("http") && !generatedMediaUrl.includes("/api/video-proxy"))
           ? `/api/video-proxy?url=${encodeURIComponent(generatedMediaUrl)}`
           : generatedMediaUrl;
 
         return (
-          <div className="space-y-4">
-            <div className="relative rounded-2xl overflow-hidden border border-pink-500/40 bg-black shadow-2xl">
+          <div className="space-y-4 animate-in fade-in duration-300">
+            <div className="relative rounded-2xl overflow-hidden border border-pink-500/40 bg-slate-950 shadow-2xl group">
               {isActualVideo ? (
-                <video src={videoSrc} controls autoPlay loop muted playsInline className="w-full max-h-[450px] object-cover" />
+                <video 
+                  src={videoSrc} 
+                  controls 
+                  autoPlay 
+                  loop 
+                  muted 
+                  playsInline 
+                  className="w-full max-h-[450px] object-cover"
+                  onError={(e) => {
+                    console.warn("[CREATIVE STUDIO] Video falló al reproducir, activando fallback visual...");
+                    // Si el video falla, renderizar fallback de imagen
+                    (e.target as HTMLElement).style.display = "none";
+                    const fallbackEl = document.getElementById("creative-studio-fallback-img");
+                    if (fallbackEl) fallbackEl.style.display = "block";
+                  }}
+                />
               ) : (
-                <img src={generatedMediaUrl} alt="Material audiovisual generado" className="w-full max-h-[450px] object-cover" />
+                <div className="relative overflow-hidden aspect-video max-h-[450px] w-full">
+                  <img 
+                    src={generatedMediaUrl} 
+                    alt="Material publicitario 3D Faux-CGI" 
+                    className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-1000 ease-out" 
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
+                </div>
               )}
 
-              {mediaSource && (
-                <div className="absolute top-3 right-3 bg-black/80 backdrop-blur-md text-[9px] uppercase font-black text-pink-300 px-3 py-1 rounded-full border border-pink-500/40 shadow-md">
-                  {isActualVideo ? "🎬 Spot Video .MP4 Active" : "🖼️ Concepto Visual 3D"}
+              {/* Fallback de imagen en caso de error de video */}
+              <div id="creative-studio-fallback-img" className="hidden relative overflow-hidden aspect-video max-h-[450px] w-full">
+                <img 
+                  src={generatedMediaUrl} 
+                  alt="Concepto Visual 3D" 
+                  className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-1000" 
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
+              </div>
+
+              {/* Badges de Estado */}
+              <div className="absolute top-3 right-3 flex items-center gap-2">
+                <div className="bg-black/80 backdrop-blur-md text-[9px] uppercase font-black text-pink-300 px-3 py-1 rounded-full border border-pink-500/40 shadow-md">
+                  {isActualVideo ? "🎬 Spot Video Faux-CGI" : "🖼️ Concepto Monumental 3D"}
+                </div>
+                <div className="bg-emerald-500/20 text-emerald-300 text-[9px] font-black px-2 py-1 rounded-full border border-emerald-500/30 uppercase">
+                  Listo
+                </div>
+              </div>
+
+              {brandName && (
+                <div className="absolute bottom-3 left-3 bg-black/80 backdrop-blur-md px-3 py-1 rounded-lg border border-white/20 text-[11px] font-bold text-white flex items-center gap-2">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <span>{brandName}</span>
                 </div>
               )}
             </div>

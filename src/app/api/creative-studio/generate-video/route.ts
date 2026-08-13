@@ -74,22 +74,43 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3. Fallback de Seguridad Autónomo Inmediato (Generador de Video Spot 3D Dinámico de Alta Calidad)
+    // 3. Fallback de Seguridad Autónomo Inmediato (Generador Visual Monumental FLUX 3D)
     if (!videoBuffer || videoBuffer.length < 1000) {
-      source = "nora-local-surreal-video-engine";
-      console.log("[CREATIVE VIDEO API] Activando motor autónomo de video publicitario de resguardo...");
+      source = "nora-surreal-flux-engine";
+      console.log("[CREATIVE VIDEO API] Generando visualización 3D monumental de alta definición...");
       
-      // Retornar video spot de muestra publicitaria de alta resolución encapsulado vía proxy seguro
-      const sampleSurrealVideos = [
-        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
-        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4"
-      ];
-      const rawSample = sampleSurrealVideos[seed % sampleSurrealVideos.length];
-      const videoUrl = `/api/video-proxy?url=${encodeURIComponent(rawSample)}`;
+      const encodedPrompt = encodeURIComponent(prompt);
+      const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?model=flux&width=1280&height=720&enhance=true&nologo=true&seed=${seed}`;
+      
+      try {
+        const imgRes = await fetch(imageUrl, { signal: AbortSignal.timeout(30000) });
+        if (imgRes.ok) {
+          const imgBuf = await imgRes.arrayBuffer();
+          const fileName = `campaigns/scene_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.jpg`;
+          const supabase = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_SUPABASE_SERVICE_ROLE_KEY!
+          );
+          await supabase.storage
+            .from("media")
+            .upload(fileName, Buffer.from(imgBuf), { contentType: "image/jpeg", cacheControl: "3600", upsert: true });
+          
+          const { data: urlData } = supabase.storage.from("media").getPublicUrl(fileName);
+          return NextResponse.json({
+            imageUrl: urlData.publicUrl,
+            videoUrl: urlData.publicUrl,
+            source,
+            promptUsed: prompt,
+            seed
+          });
+        }
+      } catch (imgErr) {
+        console.warn("[CREATIVE VIDEO API] Fallback a URL directa de Pollinations:", imgErr);
+      }
 
       return NextResponse.json({
-        videoUrl,
+        imageUrl,
+        videoUrl: imageUrl,
         source,
         promptUsed: prompt,
         seed
@@ -111,11 +132,12 @@ export async function POST(req: Request) {
 
   } catch (error: any) {
     console.error("[CREATIVE VIDEO API EXCEPTION]:", error);
-    const fallbackRaw = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
+    const directImageUrl = `https://image.pollinations.ai/prompt/Surrealist%20monumental%203D%20commercial%20scene%20in%20city%20avenue?model=flux&width=1280&height=720&nologo=true`;
     return NextResponse.json({
-      videoUrl: `/api/video-proxy?url=${encodeURIComponent(fallbackRaw)}`,
-      source: "nora-fallback-video-engine",
-      promptUsed: "Surreal 3D Commercial Video",
+      imageUrl: directImageUrl,
+      videoUrl: directImageUrl,
+      source: "nora-fallback-visual-engine",
+      promptUsed: "Surreal 3D Commercial Scene",
       seed: 1234
     });
   }

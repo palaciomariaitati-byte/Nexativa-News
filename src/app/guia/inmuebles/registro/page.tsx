@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
-import PropertyImageUploader from "@/components/Inmuebles/PropertyImageUploader";
+import PropertyMultiGalleryUploader, { GalleryPhoto } from "@/components/Inmuebles/PropertyMultiGalleryUploader";
 import {
   ShieldAlert,
   ShieldCheck,
@@ -16,6 +16,11 @@ import {
   DollarSign,
   Sparkles,
   Lock,
+  MapPin,
+  Navigation,
+  Compass,
+  Check,
+  Loader2,
 } from "lucide-react";
 
 export default function RegistroInmueblePage() {
@@ -33,6 +38,14 @@ export default function RegistroInmueblePage() {
   const [address, setAddress] = useState("");
   const [description, setDescription] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [galleryPhotos, setGalleryPhotos] = useState<GalleryPhoto[]>([]);
+
+  // Geolocalización GPS Exacta
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
+  const [mapsUrl, setMapsUrl] = useState<string>("");
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoMsg, setGeoMsg] = useState<string>("");
 
   // Calendario de Disponibilidad Anti-Estafas
   const todayStr = new Date().toISOString().split("T")[0];
@@ -72,6 +85,36 @@ export default function RegistroInmueblePage() {
     return { valid: true, error: "", days };
   }, [availableFrom, availableTo]);
 
+  // Detección automática por GPS del dispositivo
+  const handleGetCoordinates = () => {
+    if (!navigator.geolocation) {
+      alert("Tu navegador no soporta geolocalización GPS.");
+      return;
+    }
+
+    setGeoLoading(true);
+    setGeoMsg("Obteniendo coordenadas satelitales...");
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        setLatitude(lat);
+        setLongitude(lng);
+        const googleUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+        setMapsUrl(googleUrl);
+        setGeoLoading(false);
+        setGeoMsg(`📍 Coordenadas GPS fijadas con éxito: ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+      },
+      (error) => {
+        console.warn("Error obteniendo GPS:", error.message);
+        setGeoLoading(false);
+        setGeoMsg("No se pudo obtener la ubicación automáticamente. Podés pegar el enlace de Google Maps.");
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
@@ -84,6 +127,12 @@ export default function RegistroInmueblePage() {
     if (!antiFraudAgreed) {
       alert("Debes aceptar explícitamente la Cláusula Jurídica y Términos de Penalización Anti-Estafas para continuar.");
       return;
+    }
+
+    if (galleryPhotos.length < 5) {
+      if (!confirm(`Has subido ${galleryPhotos.length} fotos. Se recomienda un mínimo de 5 fotos para que el cliente pueda explorar todos los ambientes. ¿Deseas continuar de todos modos?`)) {
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -105,7 +154,11 @@ export default function RegistroInmueblePage() {
           available_from: availableFrom,
           available_to: availableTo,
           anti_fraud_accepted: antiFraudAgreed,
-          image_url: imageUrl,
+          image_url: galleryPhotos.length > 0 ? galleryPhotos[0].url : imageUrl,
+          gallery_images: galleryPhotos,
+          latitude,
+          longitude,
+          maps_url: mapsUrl || (latitude && longitude ? `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}` : null),
         }),
       });
 
@@ -355,11 +408,99 @@ export default function RegistroInmueblePage() {
                 />
               </div>
 
-              {/* Subida de Foto Optimizada */}
-              <PropertyImageUploader
-                currentImageUrl={imageUrl}
-                onImageUploaded={(url) => setImageUrl(url)}
-                label="📷 Foto del Inmueble (Subida Directa & Compresión HD)"
+              {/* Geolocalización GPS Exacta */}
+              <div className="bg-slate-900/90 border border-cyan-500/30 rounded-2xl p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <div>
+                    <label className="text-xs font-extrabold text-cyan-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <MapPin className="w-4 h-4 text-cyan-400" />
+                      Geolocalización GPS Exacta del Inmueble (Para el Turista)
+                    </label>
+                    <p className="text-[11px] text-slate-400">
+                      Permite que el inquilino abra el botón "Cómo Llegar" en Google Maps o Waze y llegue directo a la puerta.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleGetCoordinates}
+                    disabled={geoLoading}
+                    className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 shadow-md cursor-pointer shrink-0"
+                  >
+                    {geoLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Navigation className="w-3.5 h-3.5" />}
+                    <span>{latitude ? "Actualizar mi GPS 📍" : "📍 Obtener mi GPS Actual"}</span>
+                  </button>
+                </div>
+
+                {geoMsg && (
+                  <div className="text-xs text-cyan-300 bg-cyan-950/60 border border-cyan-500/30 px-3 py-1.5 rounded-lg flex items-center gap-1.5 font-mono">
+                    <Compass className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                    <span>{geoMsg}</span>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
+                      Coordenadas GPS (Latitud, Longitud)
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        step="any"
+                        placeholder="Latitud (ej: -27.481)"
+                        value={latitude ?? ""}
+                        onChange={(e) => setLatitude(parseFloat(e.target.value) || null)}
+                        className="w-1/2 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:border-cyan-400"
+                      />
+                      <input
+                        type="number"
+                        step="any"
+                        placeholder="Longitud (ej: -56.685)"
+                        value={longitude ?? ""}
+                        onChange={(e) => setLongitude(parseFloat(e.target.value) || null)}
+                        className="w-1/2 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:border-cyan-400"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
+                      Enlace de Google Maps / Compartir Ubicación
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="url"
+                        placeholder="https://maps.app.goo.gl/... o https://google.com/maps?q=..."
+                        value={mapsUrl}
+                        onChange={(e) => setMapsUrl(e.target.value)}
+                        className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:border-cyan-400"
+                      />
+                      {mapsUrl && (
+                        <a
+                          href={mapsUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-slate-800 hover:bg-slate-700 text-cyan-300 p-2 rounded-lg text-xs font-bold shrink-0 flex items-center justify-center"
+                          title="Probar en Google Maps"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Galería Múltiple de Fotos (5 a 10 fotos con pie descriptivo) */}
+              <PropertyMultiGalleryUploader
+                photos={galleryPhotos}
+                onChange={(updated) => {
+                  setGalleryPhotos(updated);
+                  if (updated.length > 0) setImageUrl(updated[0].url);
+                }}
+                minPhotos={5}
+                maxPhotos={10}
               />
             </div>
 

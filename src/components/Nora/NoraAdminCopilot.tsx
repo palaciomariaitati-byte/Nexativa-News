@@ -111,11 +111,11 @@ export default function NoraAdminCopilot() {
   };
 
   const quickQuestions = [
+    { label: "🎯 ¿Cómo prospectar con el generador B2B?", prompt: "¿Cómo uso el nuevo módulo de Prospección B2B para captar cabañas, comercios y empresas en Ituzaingó?" },
     { label: "🎨 ¿Cómo crear un video Faux-CGI?", prompt: "¿Cómo creo una campaña publicitaria Faux-CGI en el Estudio Surrealista?" },
     { label: "🕵️ ¿Cómo funciona VALEN?", prompt: "¿Cómo funciona el agente VALEN para prospección comercial y captación de inmuebles?" },
     { label: "📰 ¿Cómo funciona el Fact-Checker?", prompt: "¿Cómo verifica Nora la veracidad de las noticias antes de publicarlas?" },
-    { label: "💾 ¿Cómo sincronizar la memoria RAG?", prompt: "¿Cómo sincronizar manualmente la memoria semántica RAG con el comando npm run sync-memory?" },
-    { label: "🛠️ Solución de errores", prompt: "¿Qué hago si veo un error de API Key o 401 Unauthorized en el panel?" }
+    { label: "💾 ¿Cómo sincronizar la memoria RAG?", prompt: "¿Cómo sincronizar manualmente la memoria semántica RAG con el comando npm run sync-memory?" }
   ];
 
   return (
@@ -194,10 +194,13 @@ export default function NoraAdminCopilot() {
 
           {/* Enlaces Rápidos a Herramientas Principales */}
           <div className="bg-black/60 p-2 border-b border-white/10 flex items-center gap-1.5 overflow-x-auto text-[11px] font-semibold text-white/80 scrollbar-none shrink-0">
+            <Link href="/admin/marketing/editor" onClick={() => setIsOpen(false)} className="px-2.5 py-1 bg-amber-900/40 hover:bg-amber-800/60 border border-amber-500/30 rounded-lg flex items-center gap-1 text-amber-300 whitespace-nowrap transition-colors">
+              🎯 Prospección B2B
+            </Link>
             <Link href="/admin/marketing/editor" onClick={() => setIsOpen(false)} className="px-2.5 py-1 bg-purple-900/40 hover:bg-purple-800/60 border border-purple-500/30 rounded-lg flex items-center gap-1 text-purple-300 whitespace-nowrap transition-colors">
               🎨 Estudio Faux-CGI
             </Link>
-            <Link href="/admin/growth" onClick={() => setIsOpen(false)} className="px-2.5 py-1 bg-amber-900/40 hover:bg-amber-800/60 border border-amber-500/30 rounded-lg flex items-center gap-1 text-amber-300 whitespace-nowrap transition-colors">
+            <Link href="/admin/growth" onClick={() => setIsOpen(false)} className="px-2.5 py-1 bg-cyan-900/40 hover:bg-cyan-800/60 border border-cyan-500/30 rounded-lg flex items-center gap-1 text-cyan-300 whitespace-nowrap transition-colors">
               🕵️ Agente VALEN
             </Link>
             <Link href="/admin/news" onClick={() => setIsOpen(false)} className="px-2.5 py-1 bg-blue-900/40 hover:bg-blue-800/60 border border-blue-500/30 rounded-lg flex items-center gap-1 text-blue-300 whitespace-nowrap transition-colors">

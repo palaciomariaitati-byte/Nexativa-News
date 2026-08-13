@@ -364,3 +364,118 @@ export async function optimizeImagePrompt(userPrompt: string, style?: string): P
 
   return `Surrealist hyperrealistic urban scene. Giant monumental 25m ${userPrompt} towering in a city avenue, amazed human pedestrians looking up, bright morning light, Hasselblad 35mm, f/8, 8K resolution, award winning commercial photography`;
 }
+
+export interface B2BProspectorParams {
+  targetCase: "inmuebles" | "comercios" | "empleos";
+  prospectName?: string;
+  businessName?: string;
+  postContext?: string;
+  customNotes?: string;
+}
+
+export interface B2BProspectorResult {
+  message: string;
+  headline: string;
+  caseType: string;
+  targetPainPoint: string;
+  suggestedAction: string;
+}
+
+export async function askNoraB2BProspector(
+  params: B2BProspectorParams
+): Promise<{ success: true; data: B2BProspectorResult } | { error: string }> {
+  const caseMap: Record<string, { name: string; trigger: string; focus: string; defaultTemplate: string }> = {
+    inmuebles: {
+      name: "Alquileres Temporales / Cabañas / Inmuebles",
+      trigger: "Publicaciones en Marketplace o grupos de alquiler temporal o cabañas en Ituzaingó.",
+      focus: "Evitar comisiones altas de plataformas extranjeras (Airbnb/Booking) y automatizar respuestas en 15s con Valen.",
+      defaultTemplate: `Hola [Nombre]. Vi tu publicación de la cabaña/propiedad en Ituzaingó. Estamos lanzando Nexativa en la zona, una plataforma local donde podés publicar directo y sin comisiones. Además, te incluimos a Valen, un asistente inteligente que le responde a tus huéspedes en 15 segundos por vos para que no pierdas reservas. Te habilité un acceso gratis por 15 días para que pruebes el panel. ¿Te interesa ver cómo funciona?`
+    },
+    comercios: {
+      name: "Guía Comercial / Comercios Locales (Gastronomía, tiendas, servicios)",
+      trigger: "Posteos de comercios promocionando sus productos, combos o buscando repuntar ventas.",
+      focus: "Capturar clientes en tiempo real en redes y derivarlos automáticamente a su catálogo/local.",
+      defaultTemplate: `Hola [Nombre/Comercio]. Vi tus publicaciones. En la economía actual está difícil captar clientes en redes, por eso armamos Nexativa acá en Corrientes. Monitoreamos en tiempo real lo que busca la gente en Ituzaingó y les enviamos tu catálogo automáticamente cuando preguntan por tu rubro. Podés sumar tu comercio gratis por 15 días a la guía para probar el flujo. ¿Te paso el link del panel principal?`
+    },
+    empleos: {
+      name: "Búsquedas Laborales / Empresas contratando",
+      trigger: "Comercios o empresas posteando búsqueda de personal o empleados.",
+      focus: "Difusión masiva gratuita en la región y centralización ágil de CVs.",
+      defaultTemplate: `Hola [Nombre]. Vi que están buscando personal. En Nexativa tenemos un módulo exclusivo de búsqueda laboral con muchísimo tráfico en Ituzaingó y la región. Publicar la vacante con nosotros es 100% gratuito para las empresas de la zona y les ayuda a filtrar CVs más rápido. Si querés, te paso el acceso directo al panel para que la dejes cargada hoy mismo.`
+    }
+  };
+
+  const selectedCase = caseMap[params.targetCase] || caseMap.comercios;
+  const name = params.prospectName?.trim() || params.businessName?.trim() || "allí";
+  const business = params.businessName?.trim() || "tu emprendimiento";
+  const context = params.postContext?.trim() || "tu reciente publicación en la zona";
+
+  const systemPrompt = `
+Sos un agente inteligente de prospección comercial B2B de alta conversión para la plataforma NEXATIVA (nexativanews.com.ar), Ituzaingó, Corrientes y NEA argentino.
+
+# OBJETIVO DE IMPACTO DIRECTO
+Tu única meta NO es vender, sino lograr que el prospecto acepte una PRUEBA GRATUITA de 15 días o una demo de 3 minutos de nuestro panel autogestionable atacando su dolor principal.
+
+# CASO ACTIVO: ${selectedCase.name}
+- Enfoque: ${selectedCase.focus}
+
+# REGLAS ESTRICTAS DE INTERACCIÓN:
+1. BREVEDAD: Exactamente entre 3 y 4 líneas de texto (no párrafos extensos).
+2. TONO: 100% humano, litoraleño/correntino pero profesional ("podés", "acá en Corrientes", "Ituzaingó"). Sin modismos exagerados ni lenguaje robótico neutro.
+3. ANTI-SPAM SEMÁNTICO (MUY IMPORTANTE): Genera una variación fresca y única cada vez para evitar coincidencias exactas en filtros de redes, manteniendo intacta la propuesta de valor y el llamado a la acción.
+4. FORMATO DE SALIDA: Responde EXCLUSIVAMENTE en formato JSON con la siguiente estructura:
+{
+  "message": "Texto final del mensaje listo para enviar con saludo personalizado",
+  "headline": "Título corto del gancho comercial",
+  "targetPainPoint": "Dolor principal abordado",
+  "suggestedAction": "Acción sugerida al prospecto"
+}
+`;
+
+  const userQuery = `
+Genera un mensaje de prospección B2B único para:
+- Nombre / Contacto: ${name}
+- Comercio / Cabaña / Negocio: ${business}
+- Contexto de la publicación detectada: ${context}
+- Notas adicionales: ${params.customNotes || "Ninguna"}
+`;
+
+  try {
+    const rawRes = await dispatchToNoraAI(userQuery, systemPrompt, true);
+    const cleaned = rawRes.replace(/```json/gi, "").replace(/```/g, "").trim();
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        success: true,
+        data: {
+          message: parsed.message || selectedCase.defaultTemplate.replace("[Nombre]", name).replace("[Nombre/Nombre del Comercio]", name),
+          headline: parsed.headline || `Oportunidad para ${business}`,
+          caseType: selectedCase.name,
+          targetPainPoint: parsed.targetPainPoint || selectedCase.focus,
+          suggestedAction: parsed.suggestedAction || "Prueba gratis de 15 días"
+        }
+      };
+    }
+  } catch (err: any) {
+    console.warn("[NORA B2B PROSPECTOR] Usando generador dinámico de contingencia:", err?.message || err);
+  }
+
+  // Fallback estructurado dinámico garantizado
+  const fallbackMessage = selectedCase.defaultTemplate
+    .replace("[Nombre]", name)
+    .replace("[Nombre/Nombre del Comercio]", name)
+    .replace("[Nombre/Comercio]", name);
+
+  return {
+    success: true,
+    data: {
+      message: fallbackMessage,
+      headline: `Captación B2B — ${business}`,
+      caseType: selectedCase.name,
+      targetPainPoint: selectedCase.focus,
+      suggestedAction: "Prueba gratuita de 15 días en Nexativa"
+    }
+  };
+}
+

@@ -22,7 +22,14 @@ export async function POST(req: Request) {
       available_to,
       anti_fraud_accepted,
       image_url = "",
+      gallery_images = [],
+      latitude = null,
+      longitude = null,
+      maps_url = "",
     } = body;
+
+    // Si viene galería de imágenes y no image_url, tomar la portada
+    const primaryImage = image_url.trim() || (Array.isArray(gallery_images) && gallery_images.length > 0 ? gallery_images[0].url : "");
 
     // 1. Validaciones de presencia de campos obligatorios
     if (!title || !property_type || !address || !price_per_night) {
@@ -103,7 +110,11 @@ export async function POST(req: Request) {
       available_to,
       anti_fraud_accepted: true,
       status: "ACTIVE",
-      image_url: image_url.trim() || null,
+      image_url: primaryImage || null,
+      gallery_images: Array.isArray(gallery_images) ? gallery_images : [],
+      latitude: latitude ? Number(latitude) : null,
+      longitude: longitude ? Number(longitude) : null,
+      maps_url: maps_url ? maps_url.trim() : null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };

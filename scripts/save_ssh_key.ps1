@@ -1,0 +1,37 @@
+$KeyPath = "D:\Proyectos\claves-nora\ssh-key-nora.key"
+if (!(Test-Path "D:\Proyectos\claves-nora")) {
+    New-Item -ItemType Directory -Path "D:\Proyectos\claves-nora" -Force | Out-Null
+}
+
+$KeyContent = @"
+-----BEGIN RSA PRIVATE KEY-----
+MIIEowIBAAKCAQEAz0quyqVC9NNUC24EB8/kZ7cSc6z5vwzBSLOfkZzjt8LsNVmW
+v3F4NO82kTvBywwiETKLbCN0bhmguL6tM+8ZvXNs4JGcc9XqVCZ0v5oAI6LtQwyH
+rNmw2FHv402yCnjFmF2aPEO4emnrNs5DEheOXIIqRDTHSCfLuNntFJBRx+Mdha0K
+zoA+btHuCCOgyIx7PZHdhCW3VjAAAJVa8FVCoYtgMMBRE1ZIWQ0YQhCzqyUI77B1
+p2bw6jVBRUbJGovXD0JeMMHrD9Wa6bSaiL8P83aKGkEB7+sB1IIgcO+DWH59VJlM
+7Ptbi6xyQxvXnuLVOKM00xgMVj+FeeHWDGzhMQIDAQABAoIBAANhL9Vc+Wj9cw7W
+pdkswggQ24uoQ9AiGJqjVxQsLyhFVM2P3t3TL0cJqWWXyFKTqZCHNu+16kWLRGwO
+q8s/eDd3BMzqgtb+o1no4JlpHNx34Q9pSmL+j5wPRe56S09RZcNUr1mRLxZL2Mpl
+dYF7gdYvRxoilCcwgulKIEvoCHVOTpew1Q0QemrDg4IFRkjI+mblSUHBjL1A4q/i
+n8NgTKLqJjZJaLpL8+zCvdWgqPiOciN3xfjY3Bx5fzZvKmD/0p5xQUBsG8jkviJw
+eb5lMChXhCG5gblcAluTf/wnsyDkaFTFJRanGIVofj7+kUo6sue2c0FKBfJOvjar
+4/5N2DkCgYEA+/pEYLTzRdBz/2GK30ABLMlHhIi/2DOEbOsRzdEnWmG/mubQEDyA
+hocgOQHTEwpTlJ2xLr7six4Qzvtn/ViS3bbVrpVDUal8rhk+Iy+Ez8R+pK71jrgz
+A2I/KHgB1U33hpsP50FpCjk2MsoqxvHm9cNulB+mf2QnO/QyRIy8y2UCgYEA0pnN
+WnYk/ozkwVxBtmDUVggSP1YCNDyEDobiZILz7IKxRAvbKoIY6JUHruKuzy0d9MKf
+7234ElcyiYuL8XQO3jVa6PJCSw3QHQw2sR7IywSFBRtb38h+cNRJiuwvnlN5IkmI
+86y5sDK2iljC/v6vptEApRNzpoCavOeIWy92790CgYAnDUF9r22om0bvBIIOWZAV
+DdjcrIj3C/zxGHl46Xps4otciXsjmQzeTKDs1OCOqeIMPWhRc1ubr/ww5/vU4t5Y
+KFbzqMR3KopdPSJJN7sgrDZodYkvJlMZqidZsUevdFbxcKTFVXjfEcDZnEWG8cS2
+wCQqJsGaKr595znHL/yulQKBgHXizBWAHrMykPY/uzTovNMvj29OqMsuuMkc7etP
+dlUEz0+Ex3ji/ChtC7D0iN/FpIgWzcoLp5o0n0BpEbvluFDgUvQkb8FtiPpJlO/O
+iJ1D+WXja6k3pLdpzYTrMriQhzUPLo8gN40OxilpCDYOwKpDQfYljk48nOFzRVut
+lQktAoGBAKoWfnjUP8kg50AhRd2oMat6Ltn+2nD2W8q79LRuqN/z32vG3w/4ha++
+w3El3AtdxbxfJPc3vvQ9Bjarntu3mnX2uJ7duj10CrFRurG0OCp/NRF5kGkF303L
+mhfeuXo3/O+aLv4PBUexHExDYmH06qPLRmelS9l2OewamIgqLIgI
+-----END RSA PRIVATE KEY-----
+"@
+
+[System.IO.File]::WriteAllText($KeyPath, $KeyContent)
+Write-Host "Clave SSH guardada exitosamente en $KeyPath"

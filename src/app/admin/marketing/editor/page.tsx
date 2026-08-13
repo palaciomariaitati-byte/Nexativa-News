@@ -5,9 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import NoraAssistant from "@/components/NoraAssistant";
 import MediaUploader from "@/components/MediaUploader";
-import { Sparkles, Film, Share2 } from "lucide-react";
+import { Sparkles, Film, Share2, Target } from "lucide-react";
 import VideoSpotCreator from "@/components/VideoSpotCreator";
 import CreativeStudio from "@/components/CreativeStudio/CreativeStudio";
+import B2BProspectorStudio from "@/components/Marketing/B2BProspectorStudio";
 import { optimizeImagePrompt } from "@/app/admin/actions/nora";
 
 export const maxDuration = 60; // Allow long LLM calls
@@ -17,6 +18,7 @@ export default function MarketingEditorPage() {
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
 
+  const [activeTab, setActiveTab] = useState<"campaign" | "prospector">("campaign");
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(!!id);
   const [operatorRole, setOperatorRole] = useState("Staff");
@@ -363,24 +365,71 @@ Estructura la respuesta en texto plano en español:
   if (fetching) return <div className="p-8 text-white/50">Cargando datos de la campaña...</div>;
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6">
-      <div className="flex-1 space-y-6">
-        <div className="flex justify-between items-center mb-4">
-          <h1 className="text-3xl font-serif text-[var(--color-brand-accent)] tracking-widest uppercase">
-            {id ? "Editar Campaña" : "Nueva Campaña"}
+    <div className="space-y-6">
+      {/* Header Principal con Tabs de Navegación de Estudio */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-950/80 border border-white/10 p-4 rounded-2xl backdrop-blur-xl">
+        <div>
+          <h1 className="text-2xl font-serif text-[var(--color-brand-accent)] tracking-widest uppercase flex items-center gap-2.5">
+            <span>Marketing Studio & Prospección</span>
+            <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/40 px-2 py-0.5 rounded-full font-sans font-black tracking-normal">
+              Nora Hub
+            </span>
           </h1>
+          <p className="text-white/50 text-xs mt-0.5">
+            Crea anuncios publicitarios surrealistas y genera mensajes de prospección B2B de alta conversión
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="bg-black/60 p-1 rounded-xl border border-white/10 flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab("campaign")}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === "campaign"
+                  ? "bg-purple-600 text-white shadow-md shadow-purple-600/40"
+                  : "text-gray-400 hover:text-white"
+              }`}
+            >
+              <Film className="w-3.5 h-3.5" />
+              <span>Campaña & Spot</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("prospector")}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === "prospector"
+                  ? "bg-gradient-to-r from-amber-500 to-orange-500 text-black shadow-md shadow-amber-500/30"
+                  : "text-gray-400 hover:text-white"
+              }`}
+            >
+              <Target className="w-3.5 h-3.5" />
+              <span>Prospección B2B</span>
+              <span className="text-[9px] bg-black/40 text-amber-300 px-1.5 py-0.2 rounded font-black">Nuevo</span>
+            </button>
+          </div>
+
           <button 
             onClick={() => router.push("/admin/marketing")}
-            className="text-white/50 hover:text-white transition-colors uppercase tracking-widest text-xs font-bold"
+            className="text-white/50 hover:text-white transition-colors uppercase tracking-widest text-xs font-bold px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10"
           >
             Volver
           </button>
         </div>
+      </div>
 
-        <form id="marketing-form" onSubmit={(e) => handleSave(e, false)} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase">Cliente / Marca</label>
+      {activeTab === "prospector" ? (
+        <div className="space-y-6 animate-in fade-in duration-300">
+          <B2BProspectorStudio />
+        </div>
+      ) : (
+        <div className="flex flex-col lg:flex-row gap-6 animate-in fade-in duration-300">
+          <div className="flex-1 space-y-6">
+            <form id="marketing-form" onSubmit={(e) => handleSave(e, false)} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-bold text-[var(--color-brand-accent)] mb-2 uppercase">Cliente / Marca</label>
               
               <select
                 value={selectedSponsorId}
@@ -713,6 +762,8 @@ Estructura la respuesta en texto plano en español:
           </p>
         </div>
       </div>
+    </div>
+    )}
 
       {showVideoSpotCreator && (
         <VideoSpotCreator
