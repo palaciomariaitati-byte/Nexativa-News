@@ -82,6 +82,8 @@ export default function CreativeStudio({
   const [pendingAnswer, setPendingAnswer] = useState("");
   const [conversation, setConversation] = useState<ConversationMessage[]>([]);
   const [generatedMediaUrl, setGeneratedMediaUrl] = useState<string | null>(null);
+  const [proVideoUrl, setProVideoUrl] = useState<string | null>(null);
+  const [isRenderingPro, setIsRenderingPro] = useState(false);
   const [mediaSource, setMediaSource] = useState<string>("");
   const lastSeed = useRef<number | null>(null);
 
@@ -93,8 +95,46 @@ export default function CreativeStudio({
     setPendingAnswer("");
     setConversation([]);
     setGeneratedMediaUrl(null);
+    setProVideoUrl(null);
+    setIsRenderingPro(false);
     setMediaSource("");
     lastSeed.current = null;
+  };
+
+  const handleRenderProVideo = async () => {
+    if (!generatedMediaUrl) return;
+    setIsRenderingPro(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/creative-studio/render-pro-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageUrl: generatedMediaUrl,
+          title: brandName ? `${brandName.toUpperCase()}` : "EXPERIENCIA EXCLUSIVA",
+          subtitle: noraResult?.copy_aida || "Calidad y excelencia garantizada",
+          brandName: brandName || "Nexativa Spot",
+          clientLogoUrl: clientLogoUrl || "",
+          format: format === "16:9" ? "horizontal" : "vertical",
+          ctaText: "¡Contactanos por WhatsApp!",
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "No se pudo renderizar el video MP4.");
+      }
+
+      setProVideoUrl(data.videoUrl);
+      onImageGenerated(data.videoUrl, noraResult?.copy_aida || "");
+      alert("🎉 ¡Video MP4 1080p renderizado con éxito por Nexora Studio!");
+    } catch (err: any) {
+      console.error("Error al renderizar video pro:", err);
+      alert(`Aviso: ${err.message}. Puedes usar el editor interactivo.`);
+    } finally {
+      setIsRenderingPro(false);
+    }
   };
 
   const handleConsultNora = async (userMessage: string, history: ConversationMessage[]) => {
@@ -477,7 +517,26 @@ export default function CreativeStudio({
                 className="bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-bold px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
-                Regenerar variación
+                Regenerar
+              </button>
+
+              <button
+                type="button"
+                disabled={isRenderingPro}
+                onClick={handleRenderProVideo}
+                className="flex-1 bg-gradient-to-r from-amber-500 via-pink-600 to-purple-600 hover:from-amber-400 hover:to-purple-500 text-white font-black text-xs px-4 py-3 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xl disabled:opacity-50"
+              >
+                {isRenderingPro ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Renderizando MP4 1080p...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 text-amber-300" />
+                    <span>Exportar MP4 1080p (Nexora Studio) 🚀</span>
+                  </>
+                )}
               </button>
               
               {onOpenVideoCreator && (
@@ -485,12 +544,12 @@ export default function CreativeStudio({
                   type="button"
                   onClick={() => {
                     handleUseMedia();
-                    onOpenVideoCreator(generatedMediaUrl, noraResult?.copy_aida || "");
+                    onOpenVideoCreator(proVideoUrl || generatedMediaUrl, noraResult?.copy_aida || "");
                   }}
-                  className="flex-1 bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 hover:from-purple-500 hover:to-amber-400 text-white font-black text-xs px-4 py-3 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xl animate-pulse"
+                  className="bg-purple-600/80 hover:bg-purple-500 border border-purple-400/30 text-white font-bold text-xs px-4 py-3 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <Film className="w-4 h-4" />
-                  <span>Editar Spot con Música & Efectos 🎥</span>
+                  <Film className="w-3.5 h-3.5" />
+                  <span>Editor Web 🎥</span>
                 </button>
               )}
 
