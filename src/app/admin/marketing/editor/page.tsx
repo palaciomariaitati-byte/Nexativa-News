@@ -607,6 +607,14 @@ Estructura la respuesta en texto plano en español:
                   return { ...prev, image_url: updatedImage, content: updatedContent };
                 });
               }}
+              onOpenVideoCreator={(url, copyAida) => {
+                setFormData(prev => ({
+                  ...prev,
+                  image_url: url,
+                  content: copyAida && !prev.content ? copyAida : prev.content
+                }));
+                setShowVideoSpotCreator(true);
+              }}
             />
 
             {formData.image_url && (() => {

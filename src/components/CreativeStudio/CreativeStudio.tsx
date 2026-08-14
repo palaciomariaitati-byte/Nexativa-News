@@ -32,6 +32,7 @@ interface CreativeStudioProps {
   brandName?: string;
   clientLogoUrl?: string;
   onImageGenerated: (url: string, copyAida: string) => void;
+  onOpenVideoCreator?: (url: string, copyAida: string) => void;
 }
 
 // --- Helper: Phase progress bar ---
@@ -65,7 +66,12 @@ function PhaseIndicator({ phase, outputType }: { phase: GenerationPhase; outputT
 }
 
 // --- Main Component ---
-export default function CreativeStudio({ brandName, clientLogoUrl, onImageGenerated }: CreativeStudioProps) {
+export default function CreativeStudio({ 
+  brandName, 
+  clientLogoUrl, 
+  onImageGenerated,
+  onOpenVideoCreator
+}: CreativeStudioProps) {
   const [brief, setBrief] = useState("");
   const [outputType, setOutputType] = useState<OutputType>("video"); // Default to Video for maximum impact
   const [style, setStyle] = useState<string>("surreal_urban");
@@ -456,22 +462,37 @@ export default function CreativeStudio({ brandName, clientLogoUrl, onImageGenera
               )}
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <button
                 type="button"
                 onClick={handleRegenerate}
-                className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-bold px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                className="bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-bold px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 Regenerar variación
               </button>
+              
+              {onOpenVideoCreator && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleUseMedia();
+                    onOpenVideoCreator(generatedMediaUrl, noraResult?.copy_aida || "");
+                  }}
+                  className="flex-1 bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 hover:from-purple-500 hover:to-amber-400 text-white font-black text-xs px-4 py-3 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xl animate-pulse"
+                >
+                  <Film className="w-4 h-4" />
+                  <span>Editar Spot con Música & Efectos 🎥</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={handleUseMedia}
-                className="flex-1 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-400 hover:to-purple-500 text-white font-extrabold text-xs px-4 py-3 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-lg"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs px-4 py-3 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-lg"
               >
                 <CheckCircle className="w-3.5 h-3.5" />
-                Usar este spot publicitario ✓
+                Usar en Campaña ✓
               </button>
             </div>
 
