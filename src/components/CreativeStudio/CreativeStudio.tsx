@@ -405,57 +405,65 @@ export default function CreativeStudio({
 
         return (
           <div className="space-y-4 animate-in fade-in duration-300">
-            <div className="relative rounded-2xl overflow-hidden border border-pink-500/40 bg-slate-950 shadow-2xl group">
-              {isActualVideo ? (
-                <video 
-                  src={videoSrc} 
-                  controls 
-                  autoPlay 
-                  loop 
-                  muted 
-                  playsInline 
-                  className="w-full max-h-[450px] object-cover"
-                  onError={(e) => {
-                    console.warn("[CREATIVE STUDIO] Video falló al reproducir, activando fallback visual...");
-                    // Si el video falla, renderizar fallback de imagen
-                    (e.target as HTMLElement).style.display = "none";
-                    const fallbackEl = document.getElementById("creative-studio-fallback-img");
-                    if (fallbackEl) fallbackEl.style.display = "block";
-                  }}
-                />
-              ) : (
-                <div className="relative overflow-hidden aspect-video max-h-[450px] w-full">
-                  <img 
-                    src={generatedMediaUrl} 
-                    alt="Material publicitario 3D Faux-CGI" 
-                    className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-1000 ease-out" 
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
-                </div>
-              )}
-
-              {/* Fallback de imagen en caso de error de video */}
-              <div id="creative-studio-fallback-img" className="hidden relative overflow-hidden aspect-video max-h-[450px] w-full">
+            <div className="relative rounded-2xl overflow-hidden border border-pink-500/50 bg-black shadow-2xl group">
+              {/* Contenedor Visual Cinemático con Animación de Cámara 3D Constante */}
+              <div className="relative overflow-hidden aspect-video max-h-[480px] w-full bg-slate-950 flex items-center justify-center">
                 <img 
                   src={generatedMediaUrl} 
-                  alt="Concepto Visual 3D" 
-                  className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-1000" 
+                  alt="Spot Faux-CGI 3D" 
+                  className="w-full h-full object-cover animate-pulse transition-all duration-1000 scale-105"
+                  style={{
+                    animation: "cinematicMotion 8s ease-in-out infinite alternate"
+                  }}
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
+
+                {/* Capa de atmósfera cinemática y resplandor */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-black/30 pointer-events-none" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(236,72,153,0.15),transparent_60%)] pointer-events-none animate-pulse" />
+
+                {/* Textos y Guión Comercial Sobreimpresos (Estilo Reel / Spot Publicitario) */}
+                {noraResult?.copy_aida && (
+                  <div className="absolute bottom-4 left-4 right-4 bg-black/80 backdrop-blur-md p-4 rounded-xl border border-white/15 space-y-1.5 shadow-2xl">
+                    <div className="flex items-center gap-2">
+                      <span className="bg-gradient-to-r from-pink-500 to-purple-600 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded tracking-wider">
+                        🎬 Guión Comercial AIDA
+                      </span>
+                      <span className="text-[10px] text-pink-300 font-bold">
+                        {brandName || "Nexativa Spot"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-white/90 font-medium line-clamp-2 leading-relaxed drop-shadow">
+                      {noraResult.copy_aida}
+                    </p>
+                  </div>
+                )}
               </div>
 
-              {/* Badges de Estado */}
+              {/* Estilos CSS para el movimiento de cámara Dron 3D constante */}
+              <style jsx>{`
+                @keyframes cinematicMotion {
+                  0% {
+                    transform: scale(1) translate(0%, 0%);
+                  }
+                  50% {
+                    transform: scale(1.1) translate(-1.5%, -1%);
+                  }
+                  100% {
+                    transform: scale(1.05) translate(1.5%, 1%);
+                  }
+                }
+              `}</style>
+
+              {/* Badges de Estado Superior */}
               <div className="absolute top-3 right-3 flex items-center gap-2">
-                <div className="bg-black/80 backdrop-blur-md text-[9px] uppercase font-black text-pink-300 px-3 py-1 rounded-full border border-pink-500/40 shadow-md">
-                  {isActualVideo ? "🎬 Spot Video Faux-CGI" : "🖼️ Concepto Monumental 3D"}
-                </div>
-                <div className="bg-emerald-500/20 text-emerald-300 text-[9px] font-black px-2 py-1 rounded-full border border-emerald-500/30 uppercase">
-                  Listo
+                <div className="bg-black/85 backdrop-blur-md text-[10px] uppercase font-black text-pink-300 px-3 py-1 rounded-full border border-pink-500/50 shadow-lg flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-pink-500 animate-ping" />
+                  <span>Spot Faux-CGI 3D Activo</span>
                 </div>
               </div>
 
               {brandName && (
-                <div className="absolute bottom-3 left-3 bg-black/80 backdrop-blur-md px-3 py-1 rounded-lg border border-white/20 text-[11px] font-bold text-white flex items-center gap-2">
+                <div className="absolute top-3 left-3 bg-black/85 backdrop-blur-md px-3 py-1 rounded-lg border border-white/20 text-[11px] font-bold text-white flex items-center gap-2">
                   <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                   <span>{brandName}</span>
                 </div>
