@@ -122,16 +122,18 @@ export default function CreativeStudio({
       });
 
       const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "No se pudo renderizar el video MP4.");
+      if (res.ok && data.success && data.videoUrl) {
+        setProVideoUrl(data.videoUrl);
+        onImageGenerated(data.videoUrl, noraResult?.copy_aida || "");
+      } else {
+        throw new Error(data.error || "Microservicio remoto no accesible");
       }
-
-      setProVideoUrl(data.videoUrl);
-      onImageGenerated(data.videoUrl, noraResult?.copy_aida || "");
-      alert("🎉 ¡Video MP4 1080p renderizado con éxito por Nexora Studio!");
     } catch (err: any) {
-      console.error("Error al renderizar video pro:", err);
-      alert(`Aviso: ${err.message}. Puedes usar el editor interactivo.`);
+      console.warn("Conectando con el editor audiovisual integrado...", err);
+      // Fallback fluido al editor interactivo con música y animación
+      if (onOpenVideoCreator) {
+        onOpenVideoCreator(generatedMediaUrl, noraResult?.copy_aida || "");
+      }
     } finally {
       setIsRenderingPro(false);
     }
