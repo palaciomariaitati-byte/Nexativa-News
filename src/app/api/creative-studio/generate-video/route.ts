@@ -79,8 +79,13 @@ export async function POST(req: Request) {
       source = "nora-surreal-flux-engine";
       console.log("[CREATIVE VIDEO API] Generando visualización 3D monumental de alta definición...");
       
-      const encodedPrompt = encodeURIComponent(prompt);
-      const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?model=flux&width=1280&height=720&enhance=true&nologo=true&seed=${seed}`;
+      // Enriquecer el prompt con blindaje estético y comercial
+      const enhancedPrompt = `${prompt}, commercial advertising photography, luxury modern aesthetic, cinematic lighting, 8k resolution, octane render, pristine sharp details, award winning commercial design. Negative prompt: extra limbs, deformed legs, mutated body, bad anatomy, distorted hands, blurry, low resolution, ugly, gloomy`;
+      
+      const width = aspectRatio === "16:9" ? 1920 : 1080;
+      const height = aspectRatio === "16:9" ? 1080 : 1920;
+      const encodedPrompt = encodeURIComponent(enhancedPrompt);
+      const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?model=flux&width=${width}&height=${height}&enhance=true&nologo=true&seed=${seed}`;
       
       try {
         const imgRes = await fetch(imageUrl, { signal: AbortSignal.timeout(30000) });
