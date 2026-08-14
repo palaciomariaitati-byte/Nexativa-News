@@ -71,17 +71,17 @@ Config.setCodec("h264");
 """,
 
     "src/engines/remotion/Root.tsx": """import React from "react";
-import { Composition } from "remotion";
+import { Composition, registerRoot } from "remotion";
 import { CommercialSpot, commercialSpotSchema } from "./compositions/CommercialSpot";
 
 export const RemotionRoot: React.FC = () => {
   return (
     <>
-      {/* Spot Publicitario Vertical para Reels / TikTok / Shorts (9:16) */}
+      {/* Spot Publicitario Vertical para Reels / TikTok / Shorts (9:16) - 30 Segundos */}
       <Composition
         id="CommercialSpotVertical"
         component={CommercialSpot}
-        durationInFrames={180} // 6 segundos a 30 FPS
+        durationInFrames={900} // 30 segundos a 30 FPS
         fps={30}
         width={1080}
         height={1920}
@@ -89,19 +89,19 @@ export const RemotionRoot: React.FC = () => {
         defaultProps={{
           imageUrl: "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1080&q=80",
           title: "EXPERIENCIA EXCLUSIVA",
-          subtitle: "Cabañas de Lujo frente al Río",
+          subtitle: "Cabañas de Lujo frente al Río en Ituzaingó",
           brandName: "Cabañas del Paraná",
           accentColor: "#ec4899",
           ctaText: "¡Reservá tu estadía por WhatsApp!",
-          musicTrack: "energetic"
+          durationInSeconds: 30,
         }}
       />
 
-      {/* Spot Publicitario Horizontal para TV / YouTube / Banners (16:9) */}
+      {/* Spot Publicitario Horizontal para TV / YouTube / Banners (16:9) - 30 Segundos */}
       <Composition
         id="CommercialSpotHorizontal"
         component={CommercialSpot}
-        durationInFrames={180}
+        durationInFrames={900}
         fps={30}
         width={1920}
         height={1080}
@@ -109,16 +109,18 @@ export const RemotionRoot: React.FC = () => {
         defaultProps={{
           imageUrl: "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1920&q=80",
           title: "EXPERIENCIA EXCLUSIVA",
-          subtitle: "Cabañas de Lujo frente al Río",
+          subtitle: "Cabañas de Lujo frente al Río en Ituzaingó",
           brandName: "Cabañas del Paraná",
           accentColor: "#ec4899",
           ctaText: "¡Reservá tu estadía por WhatsApp!",
-          musicTrack: "energetic"
+          durationInSeconds: 30,
         }}
       />
     </>
   );
 };
+
+registerRoot(RemotionRoot);
 """,
 
     "src/engines/remotion/compositions/CommercialSpot.tsx": """import React from "react";
@@ -141,7 +143,8 @@ export const commercialSpotSchema = z.object({
   clientLogoUrl: z.string().optional(),
   accentColor: z.string().default("#ec4899"),
   ctaText: z.string().optional(),
-  musicTrack: z.string().default("energetic"),
+  voiceoverUrl: z.string().optional(),
+  musicUrl: z.string().optional(),
 });
 
 export type CommercialSpotProps = z.infer<typeof commercialSpotSchema>;
@@ -154,6 +157,8 @@ export const CommercialSpot: React.FC<CommercialSpotProps> = ({
   clientLogoUrl,
   accentColor = "#ec4899",
   ctaText = "¡Contáctanos!",
+  voiceoverUrl,
+  musicUrl,
 }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames, width, height } = useVideoConfig();
@@ -184,8 +189,22 @@ export const CommercialSpot: React.FC<CommercialSpotProps> = ({
     config: { damping: 10, stiffness: 120 },
   });
 
+  // Audio Ducking: La música de fondo baja cuando suena la locución y sube al final
+  const musicVolume = interpolate(
+    frame,
+    [0, 15, durationInFrames - 45, durationInFrames],
+    [0.4, 0.18, 0.22, 0.5],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+
   return (
     <AbsoluteFill style={{ backgroundColor: "#020617", overflow: "hidden", fontFamily: "sans-serif" }}>
+      {/* Pista de Locución Comercial en Español */}
+      {voiceoverUrl && <Audio src={voiceoverUrl} volume={1.0} startFrom={10} />}
+
+      {/* Pista de Música Comercial de Fondo */}
+      {musicUrl && <Audio src={musicUrl} volume={musicVolume} />}
+
       {/* 1. Imagen de Fondo Faux-CGI con Animación de Cámara */}
       <AbsoluteFill style={{ transform: `scale(${scale}) translateY(${translateY}px)` }}>
         <Img
@@ -373,12 +392,14 @@ export async function renderCommercialVideo(options: RenderOptions): Promise<str
   const finalName = outputFileName || `spot_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.mp4`;
   const outputPath = path.join(outDir, finalName);
 
-  console.log(`🎬 Iniciando renderizado de ${compositionId} -> ${outputPath}...`);
+  console.log(`🎬 Iniciando renderizado de ${compositionId} con Audio AAC -> ${outputPath}...`);
 
   await renderMedia({
     composition,
     serveUrl: bundleLocation,
     codec: "h264",
+    audioCodec: "aac",
+    audioBitrate: "320k",
     outputLocation: outputPath,
     inputProps: props,
     onProgress: ({ progress }) => {
@@ -386,7 +407,7 @@ export async function renderCommercialVideo(options: RenderOptions): Promise<str
     },
   });
 
-  console.log(`✅ Video renderizado con éxito en: ${outputPath}`);
+  console.log(`✅ Video renderizado con éxito con audio en: ${outputPath}`);
   return outputPath;
 }
 """,
@@ -438,8 +459,29 @@ async function main() {
         format = "vertical", // "vertical" (9:16) o "horizontal" (16:9)
       } = body;
 
-      if (!imageUrl || !title) {
-        return reply.status(400).send({ error: "Se requieren 'imageUrl' y 'title' obligatorios." });
+      // Generar locución comercial automática en Base64 para carga instantánea
+      let voiceoverUrl = "";
+      const textToSpeak = subtitle || title;
+      if (textToSpeak) {
+        const audioDir = path.join(publicDir, "audio");
+        if (!fs.existsSync(audioDir)) fs.mkdirSync(audioDir, { recursive: true });
+        
+        const audioFileName = `voice_${Date.now()}_${Math.random().toString(36).substring(2, 6)}.mp3`;
+        const audioFilePath = path.join(audioDir, audioFileName);
+
+        try {
+          const { execSync } = require("child_process");
+          const safeText = textToSpeak.replace(/"/g, "'").substring(0, 150);
+          execSync(`edge-tts --text "${safeText}" --voice es-AR-TomasNeural --write-media "${audioFilePath}"`, { timeout: 15000 });
+          
+          if (fs.existsSync(audioFilePath)) {
+            const audioBase64 = fs.readFileSync(audioFilePath).toString("base64");
+            voiceoverUrl = `data:audio/mp3;base64,${audioBase64}`;
+            console.log("🎙️ Locución convertida a Data URL Base64 para Chromium...");
+          }
+        } catch (ttsErr) {
+          console.warn("[TTS] Aviso: No se pudo generar la pista de voz:", ttsErr);
+        }
       }
 
       const compositionId = format === "horizontal" ? "CommercialSpotHorizontal" : "CommercialSpotVertical";
@@ -454,7 +496,7 @@ async function main() {
           clientLogoUrl: clientLogoUrl || "",
           accentColor,
           ctaText,
-          musicTrack: "energetic",
+          voiceoverUrl: voiceoverUrl || undefined,
         },
       });
 
@@ -469,7 +511,8 @@ async function main() {
         fileName,
         format,
         compositionId,
-        message: "¡Spot publicitario renderizado con éxito en MP4 1080p!",
+        hasVoiceover: Boolean(voiceoverUrl),
+        message: "¡Spot publicitario renderizado con éxito en MP4 1080p con audio AAC!",
       };
     } catch (err: any) {
       fastify.log.error(err);

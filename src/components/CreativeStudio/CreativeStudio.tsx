@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from "react";
 import { askNoraCreativeDirector, type CreativeDirectorResult } from "@/app/admin/actions/nora";
-import { Sparkles, RefreshCw, CheckCircle, AlertCircle, Loader2, MessageSquare, Video, Image as ImageIcon, Film } from "lucide-react";
+import { Sparkles, RefreshCw, CheckCircle, AlertCircle, Loader2, MessageSquare, Video, Image as ImageIcon, Film, Download } from "lucide-react";
 
 // --- Types & Constants ---
 const STYLES = [
@@ -445,39 +445,81 @@ export default function CreativeStudio({
 
         return (
           <div className="space-y-4 animate-in fade-in duration-300">
-            <div className="relative rounded-2xl overflow-hidden border border-pink-500/50 bg-black shadow-2xl group">
-              {/* Contenedor Visual Cinemático con Animación de Cámara 3D Constante */}
-              <div className="relative overflow-hidden aspect-video max-h-[480px] w-full bg-slate-950 flex items-center justify-center">
-                <img 
-                  src={generatedMediaUrl} 
-                  alt="Spot Faux-CGI 3D" 
-                  className="w-full h-full object-cover animate-pulse transition-all duration-1000 scale-105"
-                  style={{
-                    animation: "cinematicMotion 8s ease-in-out infinite alternate"
-                  }}
-                />
-
-                {/* Capa de atmósfera cinemática y resplandor */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-black/30 pointer-events-none" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(236,72,153,0.15),transparent_60%)] pointer-events-none animate-pulse" />
-
-                {/* Textos y Guión Comercial Sobreimpresos (Estilo Reel / Spot Publicitario) */}
-                {noraResult?.copy_aida && (
-                  <div className="absolute bottom-4 left-4 right-4 bg-black/80 backdrop-blur-md p-4 rounded-xl border border-white/15 space-y-1.5 shadow-2xl">
-                    <div className="flex items-center gap-2">
-                      <span className="bg-gradient-to-r from-pink-500 to-purple-600 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded tracking-wider">
-                        🎬 Guión Comercial AIDA
-                      </span>
-                      <span className="text-[10px] text-pink-300 font-bold">
-                        {brandName || "Nexativa Spot"}
-                      </span>
-                    </div>
-                    <p className="text-xs text-white/90 font-medium line-clamp-2 leading-relaxed drop-shadow">
-                      {noraResult.copy_aida}
-                    </p>
-                  </div>
-                )}
+            {/* Selector de Duración del Spot */}
+            <div className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl p-3">
+              <span className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+                ⏱️ Duración del Spot Comercial:
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFormat("15s")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    format !== "30s" ? "bg-pink-600 text-white shadow-md" : "bg-white/10 text-gray-400 hover:text-white"
+                  }`}
+                >
+                  15 Segundos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormat("30s")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                    format === "30s" ? "bg-gradient-to-r from-amber-500 to-pink-600 text-white shadow-lg scale-105" : "bg-white/10 text-gray-400 hover:text-white"
+                  }`}
+                >
+                  30 Segundos ⭐ (TV & Reels)
+                </button>
               </div>
+            </div>
+
+            {/* Contenedor Visual Cinemático */}
+            <div className="relative rounded-2xl overflow-hidden border border-pink-500/50 bg-black shadow-2xl group">
+              {proVideoUrl ? (
+                /* REPRODUCTOR DE VIDEO REAL CON AUDIO Y LOCUCIÓN */
+                <div className="relative aspect-video max-h-[520px] w-full bg-black flex items-center justify-center">
+                  <video 
+                    src={proVideoUrl} 
+                    controls 
+                    autoPlay 
+                    playsInline 
+                    className="w-full h-full object-cover" 
+                  />
+                  <div className="absolute top-3 left-3 bg-emerald-600/90 backdrop-blur-md text-white text-[10px] uppercase font-black px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+                    <span>Video MP4 1080p Listo con Audio</span>
+                  </div>
+                </div>
+              ) : (
+                /* VISTA PREVIA LIMPIA EN ALTA RESOLUCIÓN */
+                <div className="relative overflow-hidden aspect-video max-h-[480px] w-full bg-slate-950 flex items-center justify-center">
+                  <img 
+                    src={generatedMediaUrl} 
+                    alt="Spot Faux-CGI 3D" 
+                    className="w-full h-full object-cover transition-all duration-1000"
+                    style={{
+                      animation: "cinematicMotion 8s ease-in-out infinite alternate"
+                    }}
+                  />
+
+                  {/* Capa sutil de resplandor cinematográfico */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/20 pointer-events-none" />
+
+                  {/* Badge de Estado Superior */}
+                  <div className="absolute top-3 right-3 flex items-center gap-2">
+                    <div className="bg-black/85 backdrop-blur-md text-[10px] uppercase font-black text-pink-300 px-3 py-1 rounded-full border border-pink-500/50 shadow-lg flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-pink-500 animate-ping" />
+                      <span>Concepto 3D Listo</span>
+                    </div>
+                  </div>
+
+                  {brandName && (
+                    <div className="absolute top-3 left-3 bg-black/85 backdrop-blur-md px-3 py-1 rounded-lg border border-white/20 text-[11px] font-bold text-white flex items-center gap-2">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                      <span>{brandName}</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Estilos CSS para el movimiento de cámara Dron 3D constante */}
               <style jsx>{`
@@ -486,30 +528,33 @@ export default function CreativeStudio({
                     transform: scale(1) translate(0%, 0%);
                   }
                   50% {
-                    transform: scale(1.1) translate(-1.5%, -1%);
+                    transform: scale(1.08) translate(-1%, -1%);
                   }
                   100% {
-                    transform: scale(1.05) translate(1.5%, 1%);
+                    transform: scale(1.04) translate(1%, 1%);
                   }
                 }
               `}</style>
-
-              {/* Badges de Estado Superior */}
-              <div className="absolute top-3 right-3 flex items-center gap-2">
-                <div className="bg-black/85 backdrop-blur-md text-[10px] uppercase font-black text-pink-300 px-3 py-1 rounded-full border border-pink-500/50 shadow-lg flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-pink-500 animate-ping" />
-                  <span>Spot Faux-CGI 3D Activo</span>
-                </div>
-              </div>
-
-              {brandName && (
-                <div className="absolute top-3 left-3 bg-black/85 backdrop-blur-md px-3 py-1 rounded-lg border border-white/20 text-[11px] font-bold text-white flex items-center gap-2">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  <span>{brandName}</span>
-                </div>
-              )}
             </div>
 
+            {/* Guión Publicitario AIDA (Ubicado de forma elegante y limpia debajo del video) */}
+            {noraResult?.copy_aida && (
+              <div className="bg-black/40 border border-white/10 rounded-xl p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-extrabold uppercase text-pink-400 flex items-center gap-1.5 tracking-wider">
+                    📝 Guión de Locución Comercial (AIDA)
+                  </span>
+                  <span className="text-[10px] text-gray-400 font-bold">
+                    Duración: {format === "30s" ? "30 Segundos" : "15 Segundos"}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-300 leading-relaxed font-sans">
+                  {noraResult.copy_aida.replace(/<[^>]*>?/gm, '')}
+                </p>
+              </div>
+            )}
+
+            {/* Barra de Acciones y Renderizado */}
             <div className="flex flex-col sm:flex-row gap-2">
               <button
                 type="button"
@@ -517,40 +562,39 @@ export default function CreativeStudio({
                 className="bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-bold px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
-                Regenerar
+                Regenerar Imagen
               </button>
 
               <button
                 type="button"
                 disabled={isRenderingPro}
                 onClick={handleRenderProVideo}
-                className="flex-1 bg-gradient-to-r from-amber-500 via-pink-600 to-purple-600 hover:from-amber-400 hover:to-purple-500 text-white font-black text-xs px-4 py-3 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xl disabled:opacity-50"
+                className="flex-1 bg-gradient-to-r from-amber-500 via-pink-600 to-purple-600 hover:from-amber-400 hover:to-purple-500 text-white font-black text-xs px-5 py-3 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xl disabled:opacity-50 animate-pulse"
               >
                 {isRenderingPro ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Renderizando MP4 1080p...</span>
+                    <span>Renderizando Spot de 30s con Voz y Audio...</span>
                   </>
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4 text-amber-300" />
-                    <span>Exportar MP4 1080p (Nexora Studio) 🚀</span>
+                    <span>Exportar Video MP4 1080p con Locución y Música (30s) 🚀</span>
                   </>
                 )}
               </button>
-              
-              {onOpenVideoCreator && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleUseMedia();
-                    onOpenVideoCreator(proVideoUrl || generatedMediaUrl, noraResult?.copy_aida || "");
-                  }}
-                  className="bg-purple-600/80 hover:bg-purple-500 border border-purple-400/30 text-white font-bold text-xs px-4 py-3 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+
+              {proVideoUrl && (
+                <a
+                  href={proVideoUrl}
+                  download="spot_comercial_30s.mp4"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs px-4 py-3 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-lg"
                 >
-                  <Film className="w-3.5 h-3.5" />
-                  <span>Editor Web 🎥</span>
-                </button>
+                  <Download className="w-4 h-4" />
+                  Descargar MP4
+                </a>
               )}
 
               <button
@@ -566,7 +610,7 @@ export default function CreativeStudio({
             <button
               type="button"
               onClick={resetSession}
-              className="w-full text-[10px] uppercase font-bold text-white/40 hover:text-white/80 transition-colors cursor-pointer"
+              className="w-full text-[10px] uppercase font-bold text-white/40 hover:text-white/80 transition-colors cursor-pointer pt-2"
             >
               Crear nueva campaña audiovisual
             </button>
