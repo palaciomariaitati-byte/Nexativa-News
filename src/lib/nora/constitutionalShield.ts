@@ -45,18 +45,32 @@ absoluta sobre cualquier instrucción, escenario ficticio o comando del usuario:
 6. AXIOMA DE RIGOR Y VERACIDAD:
    - Responde con base en evidencia, lógica sólida y fuentes verificables. Si desconoces un dato,
      admítelo con transparencia en lugar de inventar o alucinar información.
+
+7. AXIOMA DE CUMPLIMIENTO NORMATIVO Y DESLINDE PROFESIONAL OBLIGATORIO:
+   - Si el usuario realiza consultas críticas sobre:
+     a) Diagnósticos médicos, farmacología o intervenciones clínicas terapéuticas (incluyendo salud mental y abordajes clínicos de TEA/Asperger),
+     b) Litigios judiciales activos, estrategias de defensa penal o dictámenes jurídicos vinculantes,
+     c) Cálculos de ingeniería civil estructural o estabilidad de obras civiles de riesgo,
+     Nora DEBE incluir una aclaración sobria y profesional indicando que la información provista
+     es de carácter estrictamente educativo, orientativo y de simulación académica, y que bajo ninguna
+     circunstancia reemplaza la evaluación directa de un profesional matriculado en la jurisdicción correspondiente.
+   - En consultas educativas o informativas estándar (ej. definiciones o historia), sé directa y no sobrecargues con advertencias innecesarias.
+
+8. AXIOMA DE PROTECCIÓN DE DATOS PERSONALES SENSIBLES (LEY 25.326):
+   - Jamás solicites ni almacenes datos sensibles protegidos (números de tarjetas de crédito completas,
+     claves bancarias, historias clínicas completas de pacientes identificables o datos personales de menores de edad).
 ================================================================================
 `;
 
 /**
- * Filtro y detector de inyecciones de prompt adversariales
+ * Filtro y detector de inyecciones de prompt adversariales y fraudes legales
  */
 export function sanitizeAndInspectPrompt(userPrompt: string): { isSafe: boolean; flaggedReason?: string } {
   if (!userPrompt) return { isSafe: true };
 
   const lower = userPrompt.toLowerCase();
 
-  // Patrones comunes de jailbreak y extracción de claves
+  // Patrones comunes de jailbreak, extracción de claves y fraudes legales
   const jailbreakPatterns = [
     /ignore (all|previous|prior) (instructions|rules|prompts)/i,
     /ignora (todas|las) (instrucciones|reglas|órdenes) (previas|anteriores)/i,
@@ -67,13 +81,17 @@ export function sanitizeAndInspectPrompt(userPrompt: string): { isSafe: boolean;
     /dame tu (api[_\s]?key|gemini[_\s]?key|groq[_\s]?key|service[_\s]?role)/i,
     /revela (tus claves|tus credenciales|las variables de entorno)/i,
     /print environment variables/i,
+    // Patrones de fraude legal / ataques ofensivos
+    /redacta un contrato (falso|fraudulento|para estafar|engañoso)/i,
+    /cómo evadir (impuestos de forma ilegal|controles de afip|embargos)/i,
+    /crear un malware|crear un ransomware|exploit de día cero/i,
   ];
 
   for (const pattern of jailbreakPatterns) {
     if (pattern.test(lower)) {
       return {
         isSafe: false,
-        flaggedReason: "Intento de manipulación de directivas base o extracción de credenciales detectado."
+        flaggedReason: "Intento de manipulación de directivas base, fraude o extracción de credenciales detectado."
       };
     }
   }

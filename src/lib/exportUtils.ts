@@ -317,6 +317,9 @@ export function exportNoraCleanWord(title: string, markdownContent: string) {
         <span>${new Date().toLocaleDateString('es-AR')}</span>
       </div>
       <div>${cleanBodyHtml}</div>
+      <div class="doc-disclaimer" style="margin-top: 30px; border-top: 1px dashed #cbd5e1; padding-top: 8px; font-size: 7.5pt; color: #64748b; text-align: justify; line-height: 1.4;">
+        <strong>Nota de exención de responsabilidad:</strong> Este documento fue asistido y estructurado por el motor agéntico soberano NoraItu (MyJNexoraVisual). Su contenido tiene fines exclusivamente académicos, pedagógicos o de planificación organizativa interna. No constituye un dictamen profesional vinculante ni una certificación legal o médica oficial.
+      </div>
       <div class="doc-footer">
         Documento generado por NoraItu AI • Desarrollada por MyJNexoraVisual (Ituzaingó, Corrientes) • Copia Formal Verificada
       </div>
@@ -385,8 +388,17 @@ export function exportNoraCleanPdf(title: string, markdownContent: string) {
           table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 10pt; }
           th { border: 1px solid #475569; padding: 6px 8px; background-color: #f1f5f9; font-weight: bold; text-align: left; color: #0f172a; }
           td { border: 1px solid #94a3b8; padding: 6px 8px; text-align: justify; }
+          .doc-disclaimer {
+            margin-top: 30px;
+            border-top: 1px dashed #cbd5e1;
+            padding-top: 8px;
+            font-size: 7.5pt;
+            color: #64748b;
+            text-align: justify;
+            line-height: 1.4;
+          }
           .doc-footer {
-            margin-top: 40px;
+            margin-top: 16px;
             border-top: 1px solid #cbd5e1;
             padding-top: 10px;
             font-size: 8pt;
@@ -405,6 +417,9 @@ export function exportNoraCleanPdf(title: string, markdownContent: string) {
           <span>${new Date().toLocaleDateString('es-AR')}</span>
         </div>
         <div>${cleanBodyHtml}</div>
+        <div class="doc-disclaimer">
+          <strong>Nota de exención de responsabilidad:</strong> Este documento fue asistido y estructurado por el motor agéntico soberano NoraItu (MyJNexoraVisual). Su contenido tiene fines exclusivamente académicos, pedagógicos o de planificación organizativa interna. No constituye un dictamen profesional vinculante ni una certificación legal o médica oficial.
+        </div>
         <div class="doc-footer">
           Documento generado por NoraItu AI (MyJNexoraVisual) • Ituzaingó, Corrientes • Copia Formal para Evaluación / Impresión
         </div>
