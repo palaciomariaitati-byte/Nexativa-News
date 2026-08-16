@@ -170,11 +170,12 @@ async function tryGroqStream(historyList: any[], currentMsg: string, systemPromp
   const groqKey = process.env.GROQ_API_KEY;
   if (!groqKey) return null;
 
-  const isImageFile = fileObj && fileObj.mimeType && fileObj.mimeType.startsWith("image/") && fileObj.base64;
-
-  const candidateModels = isImageFile
-    ? ["llama-3.2-11b-vision-preview", "llama-3.2-90b-vision-preview"]
-    : ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768", "gemma2-9b-it"];
+  const candidateModels = [
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "mixtral-8x7b-32768",
+    "gemma2-9b-it"
+  ];
 
   const formattedMessages: any[] = [
     { role: "system", content: systemPrompt }
@@ -187,24 +188,17 @@ async function tryGroqStream(historyList: any[], currentMsg: string, systemPromp
     });
   }
 
-  if (isImageFile) {
-    const cleanB64 = fileObj.base64.includes(",") ? fileObj.base64.split(",")[1] : fileObj.base64;
-    const cleanMime = fileObj.mimeType.split(";")[0].trim() || "image/jpeg";
-    formattedMessages.push({
-      role: "user",
-      content: [
-        { type: "text", text: currentMsg || "Analiza detalladamente la imagen adjunta." },
-        {
-          type: "image_url",
-          image_url: {
-            url: `data:${cleanMime};base64,${cleanB64}`
-          }
-        }
-      ]
-    });
-  } else {
-    formattedMessages.push({ role: "user", content: currentMsg });
+  let finalUserText = currentMsg;
+  if (fileObj) {
+    const isImage = fileObj.mimeType?.startsWith("image/");
+    if (isImage) {
+      finalUserText = `[ARCHIVO DE IMAGEN ADJUNTO: "${fileObj.name || 'foto.jpg'}"]\n${currentMsg || "Por favor analiza esta foto, aplica las mejoras solicitadas y genera la versión profesional optimizada en 8k."}`;
+    } else if (fileObj.textContent) {
+      finalUserText = `[DOCUMENTO ADJUNTO: "${fileObj.name || 'documento'}"]:\n${fileObj.textContent.slice(0, 10000)}\n\n[CONSULTA]:\n${currentMsg || "Analiza el documento adjunto."}`;
+    }
   }
+
+  formattedMessages.push({ role: "user", content: finalUserText });
 
   for (const modelName of candidateModels) {
     try {
