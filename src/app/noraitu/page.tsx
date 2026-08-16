@@ -545,6 +545,7 @@ export default function NoraItuApp() {
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
       let accumulatedText = "";
+      let sseBuffer = "";
       let updatedSessionId: string | null = null;
 
       if (reader) {
@@ -552,12 +553,14 @@ export default function NoraItuApp() {
           const { done, value } = await reader.read();
           if (done) break;
 
-          const chunkStr = decoder.decode(value, { stream: true });
-          const lines = chunkStr.split("\n");
+          sseBuffer += decoder.decode(value, { stream: true });
+          const lines = sseBuffer.split("\n");
+          sseBuffer = lines.pop() || "";
 
           for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              const dataContent = line.slice(6).trim();
+            const trimmed = line.trim();
+            if (trimmed.startsWith("data: ")) {
+              const dataContent = trimmed.slice(6).trim();
               if (dataContent === "[DONE]") break;
               try {
                 const parsed = JSON.parse(dataContent);
@@ -727,6 +730,7 @@ export default function NoraItuApp() {
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
       let accumulatedText = "";
+      let sseBuffer = "";
       let updatedSessionId: string | null = null;
 
       if (reader) {
@@ -734,12 +738,14 @@ export default function NoraItuApp() {
           const { done, value } = await reader.read();
           if (done) break;
 
-          const chunkStr = decoder.decode(value, { stream: true });
-          const lines = chunkStr.split("\n");
+          sseBuffer += decoder.decode(value, { stream: true });
+          const lines = sseBuffer.split("\n");
+          sseBuffer = lines.pop() || "";
 
           for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              const dataContent = line.slice(6).trim();
+            const trimmed = line.trim();
+            if (trimmed.startsWith("data: ")) {
+              const dataContent = trimmed.slice(6).trim();
               if (dataContent === "[DONE]") break;
               try {
                 const parsed = JSON.parse(dataContent);
