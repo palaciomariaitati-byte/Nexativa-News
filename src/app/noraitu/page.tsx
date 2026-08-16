@@ -249,20 +249,29 @@ export default function NoraItuApp() {
 
     stopSpeaking();
 
-    // Limpiar Markdown y bloques de código para una lectura fluida
+    // Limpiar Markdown y corregir fonética para habla humana y natural
     const cleanText = text
       .replace(/```[\s\S]*?```/g, " Bloque de código. ")
       .replace(/`([^`]+)`/g, "$1")
       .replace(/###/g, "")
       .replace(/\*\*(.*?)\*\*/g, "$1")
       .replace(/[-*]\s+/g, "")
+      // Fonética y unidades en español / argentino natural
+      .replace(/(\d+)\s*°\s*C/gi, "$1 grados centígrados")
+      .replace(/(\d+)\s*°/g, "$1 grados")
+      .replace(/km\/h/gi, " kilómetros por hora")
+      .replace(/%/g, " por ciento")
+      .replace(/mm\b/gi, " milímetros")
+      .replace(/\$\s*(\d+)/g, "$1 pesos")
+      .replace(/\bCUIT\b/gi, " cuit ")
+      .replace(/\bIVA\b/gi, " iva ")
       .trim();
 
     if (!cleanText) return;
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = "es-MX"; // Español neutro latinoamericano
-    utterance.rate = 1.0;     // Velocidad natural
+    utterance.rate = 1.0;     // Velocidad fluida y natural
     utterance.pitch = 1.08;   // Tono femenino cálido y elegante
 
     // Buscar la mejor voz femenina neutra disponible en el sistema
@@ -420,7 +429,7 @@ export default function NoraItuApp() {
     }
   };
 
-  // 11. Enviar Mensaje de Audio Directo
+  // 11. Enviar Mensaje de Audio Directo con Streaming
   const handleSendAudioMessage = async (audioFile: AttachedFile) => {
     stopSpeaking();
     const tempUserMsg: Message = {
@@ -449,6 +458,7 @@ export default function NoraItuApp() {
           session_id: currentSessionId,
           user_id: userId,
           message_id: msgId,
+          stream: true,
           file: {
             name: audioFile.name,
             mimeType: audioFile.type,
@@ -457,44 +467,84 @@ export default function NoraItuApp() {
         })
       });
 
-      const data = await res.json();
-
-      if (res.ok && data.reply) {
-        const newMsgIndex = messages.length + 1;
-        const assistantMsg: Message = {
+      if (!res.ok) {
+        const errData = await res.json();
+        setMessages((prev) => [...prev, {
           role: "assistant",
-          content: data.reply,
+          content: `⚠️ ${errData.error || "No se pudo procesar el audio."}`,
           created_at: new Date().toISOString()
-        };
-        setMessages((prev) => [...prev, assistantMsg]);
-
-        if (data.session_id && data.session_id !== currentSessionId) {
-          setCurrentSessionId(data.session_id);
-          fetchSessions(userId);
-        }
-
-        // Si la voz automática está activa, hablar
-        if (autoVoice) {
-          speakText(data.reply, newMsgIndex);
-        }
-
-        // Notificación si la ventana está oculta
-        if (document.hidden && Notification.permission === "granted") {
-          new Notification("NoraItu AI", {
-            body: data.reply.slice(0, 100) + "...",
-            icon: "/icons/main-icon.png"
-          });
-        }
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: `⚠️ ${data.error || "No se pudo procesar el audio."}`,
-            created_at: new Date().toISOString()
-          }
-        ]);
+        }]);
+        setIsLoading(false);
+        return;
       }
+
+      // Preparar burbuja de respuesta para streaming
+      setMessages((prev) => [...prev, {
+        role: "assistant",
+        content: "",
+        created_at: new Date().toISOString()
+      }]);
+      setIsLoading(false);
+
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedText = "";
+      let updatedSessionId: string | null = null;
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunkStr = decoder.decode(value, { stream: true });
+          const lines = chunkStr.split("\n");
+
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              const dataContent = line.slice(6).trim();
+              if (dataContent === "[DONE]") break;
+              try {
+                const parsed = JSON.parse(dataContent);
+                if (parsed.text) {
+                  accumulatedText += parsed.text;
+                  setMessages((prev) => {
+                    const newArr = [...prev];
+                    if (newArr.length > 0) {
+                      newArr[newArr.length - 1] = {
+                        ...newArr[newArr.length - 1],
+                        content: accumulatedText
+                      };
+                    }
+                    return newArr;
+                  });
+                }
+                if (parsed.session_id) {
+                  updatedSessionId = parsed.session_id;
+                }
+              } catch (e) {}
+            }
+          }
+        }
+      }
+
+      if (updatedSessionId && updatedSessionId !== currentSessionId) {
+        setCurrentSessionId(updatedSessionId);
+        fetchSessions(userId);
+      }
+
+      // Reproducir voz al terminar el stream si autoVoice está activo
+      if (autoVoice && accumulatedText) {
+        speakText(accumulatedText, messages.length + 1);
+      }
+
+      // Notificación si la ventana está oculta
+      if (document.hidden && Notification.permission === "granted" && accumulatedText) {
+        new Notification("NoraItu AI", {
+          body: accumulatedText.slice(0, 100) + "...",
+          icon: "/icons/main-icon.png"
+        });
+      }
+
     } catch (err) {
       setMessages((prev) => [
         ...prev,
@@ -504,7 +554,6 @@ export default function NoraItuApp() {
           created_at: new Date().toISOString()
         }
       ]);
-    } finally {
       setIsLoading(false);
     }
   };
@@ -549,7 +598,7 @@ export default function NoraItuApp() {
     e.target.value = "";
   };
 
-  // 13. Enviar Mensaje a NoraItu (Texto o Archivos)
+  // 13. Enviar Mensaje a NoraItu con Streaming en Tiempo Real
   const handleSendMessage = async (customPrompt?: string) => {
     stopSpeaking();
     const textToSend = customPrompt || inputMessage;
@@ -589,6 +638,7 @@ export default function NoraItuApp() {
           session_id: currentSessionId,
           user_id: userId,
           message_id: msgId,
+          stream: true,
           file: currentFile ? {
             name: currentFile.name,
             mimeType: currentFile.type,
@@ -598,42 +648,84 @@ export default function NoraItuApp() {
         })
       });
 
-      const data = await res.json();
-
-      if (res.ok && data.reply) {
-        const newMsgIndex = messages.length + 1;
-        const assistantMsg: Message = {
+      if (!res.ok) {
+        const errData = await res.json();
+        setMessages((prev) => [...prev, {
           role: "assistant",
-          content: data.reply,
+          content: `⚠️ ${errData.error || "Ocurrió un error temporal al procesar la respuesta."}`,
           created_at: new Date().toISOString()
-        };
-        setMessages((prev) => [...prev, assistantMsg]);
-
-        if (data.session_id && data.session_id !== currentSessionId) {
-          setCurrentSessionId(data.session_id);
-          fetchSessions(userId);
-        }
-
-        // Si la voz automática está activa, hablar en voz femenina
-        if (autoVoice) {
-          speakText(data.reply, newMsgIndex);
-        }
-
-        // Notificación en segundo plano
-        if (document.hidden && Notification.permission === "granted") {
-          new Notification("NoraItu AI", {
-            body: data.reply.slice(0, 100) + "...",
-            icon: "/icons/main-icon.png"
-          });
-        }
-      } else {
-        const errorMsg: Message = {
-          role: "assistant",
-          content: `⚠️ ${data.error || "Ocurrió un error temporal al procesar la respuesta."}`,
-          created_at: new Date().toISOString()
-        };
-        setMessages((prev) => [...prev, errorMsg]);
+        }]);
+        setIsLoading(false);
+        return;
       }
+
+      // Preparar burbuja para streaming en vivo
+      setMessages((prev) => [...prev, {
+        role: "assistant",
+        content: "",
+        created_at: new Date().toISOString()
+      }]);
+      setIsLoading(false);
+
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedText = "";
+      let updatedSessionId: string | null = null;
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunkStr = decoder.decode(value, { stream: true });
+          const lines = chunkStr.split("\n");
+
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              const dataContent = line.slice(6).trim();
+              if (dataContent === "[DONE]") break;
+              try {
+                const parsed = JSON.parse(dataContent);
+                if (parsed.text) {
+                  accumulatedText += parsed.text;
+                  setMessages((prev) => {
+                    const newArr = [...prev];
+                    if (newArr.length > 0) {
+                      newArr[newArr.length - 1] = {
+                        ...newArr[newArr.length - 1],
+                        content: accumulatedText
+                      };
+                    }
+                    return newArr;
+                  });
+                }
+                if (parsed.session_id) {
+                  updatedSessionId = parsed.session_id;
+                }
+              } catch (e) {}
+            }
+          }
+        }
+      }
+
+      if (updatedSessionId && updatedSessionId !== currentSessionId) {
+        setCurrentSessionId(updatedSessionId);
+        fetchSessions(userId);
+      }
+
+      // Si la voz automática está activa, hablar
+      if (autoVoice && accumulatedText) {
+        speakText(accumulatedText, messages.length + 1);
+      }
+
+      // Notificación en segundo plano
+      if (document.hidden && Notification.permission === "granted" && accumulatedText) {
+        new Notification("NoraItu AI", {
+          body: accumulatedText.slice(0, 100) + "...",
+          icon: "/icons/main-icon.png"
+        });
+      }
+
     } catch (err: any) {
       setMessages((prev) => [
         ...prev,
@@ -643,7 +735,6 @@ export default function NoraItuApp() {
           created_at: new Date().toISOString()
         }
       ]);
-    } finally {
       setIsLoading(false);
     }
   };
