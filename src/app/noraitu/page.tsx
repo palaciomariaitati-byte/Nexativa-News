@@ -119,10 +119,15 @@ export default function NoraItuApp() {
       setNotificationsEnabled(Notification.permission === "granted");
     }
 
-    // Detectar iOS
+    // Detectar iOS y modo Standalone
     const userAgent = typeof window !== "undefined" ? window.navigator.userAgent.toLowerCase() : "";
     const isAppleMobile = /iphone|ipad|ipod/.test(userAgent);
     setIsIOS(isAppleMobile);
+
+    const isStandalone = typeof window !== "undefined" && (
+      window.matchMedia('(display-mode: standalone)').matches || 
+      (window.navigator as any).standalone === true
+    );
 
     // Capturar evento de instalación nativa PWA (Android / Chrome / Edge)
     const handleBeforeInstallPrompt = (e: Event) => {
@@ -136,8 +141,18 @@ export default function NoraItuApp() {
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
 
+    // Mostrar banner de instalación directo en móviles si no está instalada aún
+    const dismissed = typeof window !== "undefined" ? sessionStorage.getItem("noraitu_install_dismissed") : null;
+    let installTimer: any = null;
+    if (!isStandalone && !dismissed) {
+      installTimer = setTimeout(() => {
+        setShowInstallBanner(true);
+      }, 1200);
+    }
+
     return () => {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      if (installTimer) clearTimeout(installTimer);
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
       }
