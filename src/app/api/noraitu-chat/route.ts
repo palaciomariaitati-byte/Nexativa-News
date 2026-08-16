@@ -107,6 +107,62 @@ async function trySovereignOllama(promptText: string, systemPrompt: string): Pro
   }
 }
 
+// Helper para streaming de ultra-velocidad con Groq (Llama 3.3 70B / DeepSeek-R1)
+async function tryGroqStream(historyList: any[], currentMsg: string, systemPrompt: string): Promise<ReadableStream | null> {
+  const groqKey = process.env.GROQ_API_KEY;
+  if (!groqKey) return null;
+
+  try {
+    const formattedMessages: any[] = [
+      { role: "system", content: systemPrompt }
+    ];
+
+    for (const msg of historyList) {
+      formattedMessages.push({
+        role: msg.role === "assistant" || msg.role === "model" ? "assistant" : "user",
+        content: msg.content
+      });
+    }
+
+    formattedMessages.push({ role: "user", content: currentMsg });
+
+    const modelsToTry = [
+      "llama-3.3-70b-versatile",
+      "deepseek-r1-distill-llama-70b",
+      "llama-3.1-8b-instant"
+    ];
+
+    for (const model of modelsToTry) {
+      try {
+        const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${groqKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: formattedMessages,
+            temperature: 0.3,
+            max_tokens: 2500,
+            stream: true
+          }),
+          signal: AbortSignal.timeout(4000)
+        });
+
+        if (res.ok && res.body) {
+          return res.body;
+        }
+      } catch {
+        continue;
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const { 
@@ -234,9 +290,7 @@ export async function POST(req: Request) {
 
     // Modo Streaming Real-Time (Server-Sent Events)
     if (stream) {
-      let activeChatStream: any = null;
-
-      // Intentar primero el nodo Soberano Propio (si no hay archivos pesados)
+      // 1. PRIORIDAD 1: Nodo Soberano Propio en Oracle OCI (si no hay archivos adjuntos)
       if (!file) {
         const sovereignStream = await trySovereignOllama(message, fullSystemPrompt);
         if (sovereignStream) {
@@ -291,7 +345,67 @@ export async function POST(req: Request) {
         }
       }
 
-      // Failover al Pool Redundante
+      // 2. PRIORIDAD 2: Motor Ultra-Rápido Groq (Llama 3.3 70B / DeepSeek-R1 70B - 800 t/s)
+      if (!file && process.env.GROQ_API_KEY) {
+        const groqStream = await tryGroqStream(historyList, message, fullSystemPrompt);
+        if (groqStream) {
+          const encoder = new TextEncoder();
+          let fullAssistantText = "";
+
+          const customStream = new ReadableStream({
+            async start(controller) {
+              const reader = groqStream.getReader();
+              const decoder = new TextDecoder();
+              try {
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  const chunkStr = decoder.decode(value, { stream: true });
+                  const lines = chunkStr.split("\n");
+
+                  for (const line of lines) {
+                    if (line.startsWith("data: ")) {
+                      const dataContent = line.slice(6).trim();
+                      if (dataContent === "[DONE]") break;
+                      try {
+                        const parsed = JSON.parse(dataContent);
+                        const deltaText = parsed.choices?.[0]?.delta?.content;
+                        if (deltaText) {
+                          fullAssistantText += deltaText;
+                          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: deltaText, session_id: activeSessionId })}\n\n`));
+                        }
+                      } catch {}
+                    }
+                  }
+                }
+
+                if (activeSessionId) {
+                  supabase.from("noraitu_messages").insert([
+                    { session_id: activeSessionId, role: "user", content: message, metadata: { ...(contextData || {}) } },
+                    { session_id: activeSessionId, role: "assistant", content: fullAssistantText, metadata: { generated_by: "NoraItu-Groq-70B" } }
+                  ]).then(() => {});
+                }
+
+                controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+                controller.close();
+              } catch (err) {
+                controller.error(err);
+              }
+            }
+          });
+
+          return new Response(customStream, {
+            headers: {
+              "Content-Type": "text/event-stream; charset=utf-8",
+              "Cache-Control": "no-cache, no-transform",
+              "Connection": "keep-alive"
+            }
+          });
+        }
+      }
+
+      // 3. PRIORIDAD 3 / MULTIMODAL: Pool Redundante Gemini Flash + Pro
+      let activeChatStream: any = null;
       for (const key of keysPool) {
         for (const currentModel of modelsPool) {
           try {
