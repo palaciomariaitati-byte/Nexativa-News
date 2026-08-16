@@ -164,8 +164,17 @@ export default function NoraItuApp() {
       const syncUser = urlParams.get("sync_user");
 
       if (syncToken && syncToken.trim()) {
-        setPendingAuthToken(syncToken.trim());
-        setShowAuthorizeMobileModal(true);
+        const currentUid = localStorage.getItem("noraitu_user_id") || storedUserId || ("user_" + Math.random().toString(36).substring(2, 12));
+        fetch("/api/noraitu-sync", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token_id: syncToken.trim(), user_id: currentUid })
+        }).then(async (res) => {
+          if (res.ok) {
+            setSyncSuccessMsg("🎉 ¡Computadora Vinculada con Éxito! Ya puedes ver todos tus chats en tu PC.");
+            setTimeout(() => setSyncSuccessMsg(""), 6000);
+          }
+        }).catch(() => {});
         window.history.replaceState({}, document.title, window.location.pathname);
       } else if (syncUser && syncUser.trim()) {
         storedUserId = syncUser.trim();
