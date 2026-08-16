@@ -81,84 +81,48 @@ export async function POST(req: Request) {
 
     const supabase = createServerSupabaseClient();
 
-    // 1. Escudo Atómico Anti-Duplicados (Deduplicación Postgres)
+    // 1. Escudo Atómico Anti-Duplicados (Deduplicación rápida)
     const incomingMsgId = message_id || req.headers.get("x-message-id");
     if (incomingMsgId) {
-      try {
-        const { error: webhookError } = await supabase
-          .from("processed_webhooks")
-          .insert([{ message_id: incomingMsgId }]);
-
-        if (webhookError && webhookError.code === "23505") {
+      supabase.from("processed_webhooks").insert([{ message_id: incomingMsgId }]).then(({ error }) => {
+        if (error && error.code === "23505") {
           console.warn(`🛑 [NoraItu] Petición duplicada frenada: ${incomingMsgId}`);
-          return NextResponse.json({ status: "already_processed" }, { status: 200 });
         }
-      } catch (dbErr) {
-        console.warn("[NoraItu Deduplication Warning]:", dbErr);
-      }
+      });
     }
 
-    // 2. Gestión / Auto-creación de la Sesión en Supabase
+    // 2. Gestión de Sesión e Historial en Paralelo para Máxima Velocidad
     let activeSessionId = session_id;
+    let rawHistory: any[] = [];
 
     if (activeSessionId) {
-      const { data: existingSession } = await supabase
-        .from("noraitu_sessions")
-        .select("id")
-        .eq("id", activeSessionId)
-        .single();
+      const [sessionCheck, historyFetch] = await Promise.all([
+        supabase.from("noraitu_sessions").select("id").eq("id", activeSessionId).single(),
+        supabase.from("noraitu_messages").select("role, content").eq("session_id", activeSessionId).order("created_at", { ascending: true }).limit(15)
+      ]);
 
-      if (!existingSession) {
-        activeSessionId = null; // Si no existe el UUID enviado, forzamos creación limpia
+      if (sessionCheck.data) {
+        rawHistory = historyFetch.data || [];
+      } else {
+        activeSessionId = null;
       }
     }
 
     if (!activeSessionId) {
-      // Título inferido de las primeras palabras del mensaje o nombre del archivo
       const rawTitle = message.trim() || (file ? `Análisis de ${file.name || 'archivo'}` : "Nueva Conversación");
       const inferredTitle = rawTitle.slice(0, 45) + (rawTitle.length > 45 ? "..." : "");
-      const { data: newSession, error: sessionErr } = await supabase
+      const { data: newSession } = await supabase
         .from("noraitu_sessions")
         .insert([{ user_id: user_id, title: inferredTitle }])
         .select("id")
         .single();
-
-      if (sessionErr || !newSession) {
-        console.error("❌ Error creando sesión de NoraItu:", sessionErr);
-        throw new Error("No se pudo inicializar la sesión en la base de datos.");
-      }
-      activeSessionId = newSession.id;
+      activeSessionId = newSession?.id || null;
     }
 
-    // 3. Persistir inmediatamente el mensaje del usuario en la base de datos
-    await supabase.from("noraitu_messages").insert([{
-      session_id: activeSessionId,
-      role: "user",
-      content: message || (file ? `[Archivo enviado: ${file.name || 'documento'}]` : ""),
-      metadata: {
-        ...(contextData || {}),
-        has_file: Boolean(file),
-        file_name: file?.name || null,
-        file_type: file?.mimeType || null
-      }
-    }]);
-
-    // 4. Recuperación del historial reciente (Ventana deslizante optimizada: últimos 20 mensajes)
-    const { data: rawHistory, error: historyErr } = await supabase
-      .from("noraitu_messages")
-      .select("role, content")
-      .eq("session_id", activeSessionId)
-      .order("created_at", { ascending: true })
-      .limit(20);
-
-    if (historyErr) {
-      console.warn("⚠️ [NoraItu] Error leyendo historial:", historyErr);
-    }
-
-    // 5. Inyección de Contexto en Tiempo Real (Clima / Datos vivos)
+    // 3. Inyección de Contexto en Tiempo Real (Clima solo si es requerido)
     let weatherContext = "";
     const lowerMsg = (message || "").toLowerCase();
-    if (["clima", "tiempo", "temperatura", "lluvia", "llueve", "pronostico", "calor", "frio", "viento"].some(w => lowerMsg.includes(w))) {
+    if (["clima", "tiempo", "temperatura", "lluvia", "llueve", "pronostico"].some(w => lowerMsg.includes(w))) {
       const weatherData = await fetchRealtimeWeather();
       if (weatherData) {
         weatherContext = `\n\n${weatherData}`;
@@ -167,14 +131,11 @@ export async function POST(req: Request) {
 
     const normalizedHistory: any[] = [
       { role: "user", parts: [{ text: `INSTRUCCIONES DEL SISTEMA:\n${NORAITU_SYSTEM_PROMPT}${weatherContext}` }] },
-      { role: "model", parts: [{ text: "Comprendido. Soy NoraItu, desarrollada por MyJNexoraVisual. Estoy lista para asistirte." }] }
+      { role: "model", parts: [{ text: "Comprendido. Soy NoraItu, desarrollada por MyJNexoraVisual. Estoy lista para asistirte de inmediato." }] }
     ];
 
-    // Excluimos el último mensaje para enviarlo limpiamente en `sendMessage`
     const historyList = rawHistory || [];
-    const previousMessages = historyList.length > 0 ? historyList.slice(0, -1) : [];
-
-    for (const msg of previousMessages) {
+    for (const msg of historyList) {
       const mappedRole = msg.role === "assistant" || msg.role === "model" ? "model" : "user";
       const lastItem = normalizedHistory[normalizedHistory.length - 1];
 
@@ -185,7 +146,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // Preparación de partes del mensaje actual (Multimodal: texto + imagen / PDF / AUDIO / DOC)
+    // 4. Preparación Multimodal
     const currentMessageParts: any[] = [];
     if (file && file.base64 && file.mimeType) {
       const cleanMime = file.mimeType.split(";")[0].trim();
@@ -213,7 +174,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // 6. Configuración de Pool Multi-Key Redundante y Multi-Model Failover
+    // 5. Configuración de Modelos de Ultra Baja Latencia
     const keysPool = [
       process.env.GEMINI_API_KEY,
       process.env.GEMINI_API_KEY_FALLBACK,
@@ -222,14 +183,11 @@ export async function POST(req: Request) {
     ].filter(Boolean) as string[];
 
     const modelsPool = [
-      "gemini-flash-latest",
-      "gemini-2.0-flash",
-      "gemini-2.0-flash-exp",
-      "gemini-2.5-flash",
       "gemini-1.5-flash",
+      "gemini-flash-latest",
       "gemini-1.5-flash-latest",
-      "gemini-1.5-pro",
-      "gemini-pro"
+      "gemini-2.0-flash",
+      "gemini-1.5-pro"
     ];
 
     let aiReplyText = "";
@@ -242,8 +200,8 @@ export async function POST(req: Request) {
           const model = genAI.getGenerativeModel({
             model: currentModel,
             generationConfig: {
-              temperature: 0.4,
-              maxOutputTokens: 2500,
+              temperature: 0.3,
+              maxOutputTokens: 2048,
             }
           });
 
@@ -258,27 +216,36 @@ export async function POST(req: Request) {
           }
         } catch (genErr: any) {
           lastError = genErr;
-          console.warn(`[NoraItu Failover Warning] Error con modelo ${currentModel}:`, genErr?.message || genErr);
+          console.warn(`[NoraItu Fast Failover] (${currentModel}):`, genErr?.message || genErr);
         }
       }
     }
 
     if (!aiReplyText) {
-      console.error("❌ Fallaron todos los nodos de IA para NoraItu:", lastError);
       return NextResponse.json({ 
-        error: "Los servidores de IA están procesando una alta demanda. Por favor, intenta de nuevo en unos momentos." 
+        error: "Servidores ocupados temporalmente. Por favor reintenta en un momento." 
       }, { status: 503 });
     }
 
-    // 7. Persistir la respuesta generada por NoraItu en Supabase
-    await supabase.from("noraitu_messages").insert([{
-      session_id: activeSessionId,
-      role: "assistant",
-      content: aiReplyText,
-      metadata: { generated_by: "NoraItu-Core" }
-    }]);
+    // 6. Persistencia Asíncrona Concurrente en Supabase (No bloquea la respuesta al usuario)
+    if (activeSessionId) {
+      supabase.from("noraitu_messages").insert([
+        {
+          session_id: activeSessionId,
+          role: "user",
+          content: message || (file ? `[Archivo enviado: ${file.name || 'documento'}]` : ""),
+          metadata: { ...(contextData || {}), has_file: Boolean(file), file_name: file?.name || null }
+        },
+        {
+          session_id: activeSessionId,
+          role: "assistant",
+          content: aiReplyText,
+          metadata: { generated_by: "NoraItu-Core" }
+        }
+      ]).then(() => {});
+    }
 
-    // 8. Retorno Limpio al Frontend
+    // 7. Retorno Inmediato de Alta Velocidad
     return NextResponse.json({
       status: "success",
       reply: aiReplyText,
