@@ -80,6 +80,33 @@ async function fetchRealtimeWeather(): Promise<string | null> {
   }
 }
 
+// Helper para intentar consulta a Ollama / DeepSeek Soberano (Oracle Cloud OCI)
+async function trySovereignOllama(promptText: string, systemPrompt: string): Promise<ReadableStream | null> {
+  const ollamaUrl = process.env.OLLAMA_SERVER_URL || process.env.OLLAMA_BASE_URL || process.env.DEEPSEEK_BASE_URL;
+  if (!ollamaUrl) return null;
+
+  try {
+    const cleanUrl = ollamaUrl.replace(/\/$/, "");
+    const res = await fetch(`${cleanUrl}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: process.env.OLLAMA_MODEL || "llama3.2:latest",
+        prompt: promptText,
+        system: systemPrompt,
+        stream: true,
+        options: { temperature: 0.3 }
+      }),
+      signal: AbortSignal.timeout(2500)
+    });
+
+    if (!res.ok || !res.body) return null;
+    return res.body;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const { 
@@ -142,8 +169,10 @@ export async function POST(req: Request) {
       }
     }
 
+    const fullSystemPrompt = `${NORAITU_SYSTEM_PROMPT}${weatherContext}`;
+
     const normalizedHistory: any[] = [
-      { role: "user", parts: [{ text: `INSTRUCCIONES DEL SISTEMA:\n${NORAITU_SYSTEM_PROMPT}${weatherContext}` }] },
+      { role: "user", parts: [{ text: `INSTRUCCIONES DEL SISTEMA:\n${fullSystemPrompt}` }] },
       { role: "model", parts: [{ text: "Comprendido. Soy NoraItu, desarrollada por MyJNexoraVisual. Estoy lista para responder, generar imágenes o analizar compras." }] }
     ];
 
@@ -207,6 +236,62 @@ export async function POST(req: Request) {
     if (stream) {
       let activeChatStream: any = null;
 
+      // Intentar primero el nodo Soberano Propio (si no hay archivos pesados)
+      if (!file) {
+        const sovereignStream = await trySovereignOllama(message, fullSystemPrompt);
+        if (sovereignStream) {
+          const encoder = new TextEncoder();
+          let fullAssistantText = "";
+
+          const customStream = new ReadableStream({
+            async start(controller) {
+              const reader = sovereignStream.getReader();
+              const decoder = new TextDecoder();
+              try {
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  const chunkStr = decoder.decode(value, { stream: true });
+                  const lines = chunkStr.split("\n");
+                  for (const line of lines) {
+                    if (line.trim()) {
+                      try {
+                        const parsed = JSON.parse(line);
+                        if (parsed.response) {
+                          fullAssistantText += parsed.response;
+                          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: parsed.response, session_id: activeSessionId })}\n\n`));
+                        }
+                      } catch {}
+                    }
+                  }
+                }
+
+                if (activeSessionId) {
+                  supabase.from("noraitu_messages").insert([
+                    { session_id: activeSessionId, role: "user", content: message, metadata: { ...(contextData || {}) } },
+                    { session_id: activeSessionId, role: "assistant", content: fullAssistantText, metadata: { generated_by: "NoraItu-Sovereign-OCI" } }
+                  ]).then(() => {});
+                }
+
+                controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+                controller.close();
+              } catch (err) {
+                controller.error(err);
+              }
+            }
+          });
+
+          return new Response(customStream, {
+            headers: {
+              "Content-Type": "text/event-stream; charset=utf-8",
+              "Cache-Control": "no-cache, no-transform",
+              "Connection": "keep-alive"
+            }
+          });
+        }
+      }
+
+      // Failover al Pool Redundante
       for (const key of keysPool) {
         for (const currentModel of modelsPool) {
           try {
