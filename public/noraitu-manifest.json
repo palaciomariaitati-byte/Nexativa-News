@@ -1,0 +1,31 @@
+{
+  "name": "NoraItu AI",
+  "short_name": "NoraItu",
+  "description": "Inteligencia Artificial Multimodal Soberana de MyJNexoraVisual",
+  "start_url": "/noraitu",
+  "scope": "/noraitu",
+  "display": "standalone",
+  "background_color": "#090D16",
+  "theme_color": "#0284C7",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/main-icon.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/main-icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/main-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'NoraItu AI - Asistente Inteligente Universal de MyJNexoraVisual',
   description: 'NoraItu es una Inteligencia Artificial multimodal soberana desarrollada en Ituzaingó, Corrientes, por MyJNexoraVisual. Análisis de documentos, facturas, fotos, voz femenina y consultas en tiempo real.',
+  manifest: '/noraitu-manifest.json',
   keywords: [
     'NoraItu',
     'NoraItu AI',
@@ -18,9 +19,17 @@ export const metadata: Metadata = {
   creator: 'MyJNexoraVisual',
   publisher: 'MyJNexoraVisual',
   metadataBase: new URL('https://www.nexativanews.com.ar'),
-  manifest: '/manifest.webmanifest',
   alternates: {
     canonical: '/noraitu',
+  },
+  icons: {
+    icon: '/icons/main-icon.png',
+    apple: '/icons/main-icon.png',
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'NoraItu AI',
   },
   openGraph: {
     title: 'NoraItu AI - Inteligencia Artificial Multimodal Soberana',
@@ -62,5 +71,17 @@ export default function NoraItuLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <>{children}</>;
+  return (
+    <>
+      <head>
+        <link rel="manifest" href="/noraitu-manifest.json" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="NoraItu AI" />
+        <link rel="apple-touch-icon" href="/icons/main-icon.png" />
+      </head>
+      {children}
+    </>
+  );
 }
