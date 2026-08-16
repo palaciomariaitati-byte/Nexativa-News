@@ -24,7 +24,11 @@ import {
   Image as ImageIcon,
   FileSpreadsheet,
   XCircle,
-  FileCheck2
+  FileCheck2,
+  Bell,
+  BellRing,
+  Volume2,
+  Square
 } from "lucide-react";
 
 interface AttachedFile {
@@ -65,7 +69,16 @@ export default function NoraItuApp() {
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [isListening, setIsListening] = useState(false);
+  
+  // Estados de Grabación de Audio Directa (MediaRecorder)
+  const [isRecordingAudio, setIsRecordingAudio] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const timerIntervalRef = useRef<any>(null);
+
+  // Estados de Notificaciones Push
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -73,7 +86,7 @@ export default function NoraItuApp() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  // 1. Inicializar UUID de usuario único en localStorage
+  // 1. Inicializar UUID de usuario único y verificar notificaciones
   useEffect(() => {
     let storedUserId = localStorage.getItem("noraitu_user_id");
     if (!storedUserId) {
@@ -82,6 +95,10 @@ export default function NoraItuApp() {
     }
     setUserId(storedUserId);
     fetchSessions(storedUserId);
+
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setNotificationsEnabled(Notification.permission === "granted");
+    }
   }, []);
 
   // 2. Cargar sesiones del usuario
@@ -154,12 +171,195 @@ export default function NoraItuApp() {
     scrollToBottom();
   }, [messages, isLoading]);
 
-  // 7. Procesar archivos y fotos seleccionados
+  // 7. Solicitar Permisos de Notificaciones Push
+  const handleRequestNotifications = async () => {
+    if (!("Notification" in window)) {
+      alert("Este navegador no soporta notificaciones web.");
+      return;
+    }
+
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission === "granted") {
+        setNotificationsEnabled(true);
+        new Notification("NoraItu AI", {
+          body: "¡Notificaciones activadas con éxito! Te avisaremos cuando NoraItu termine de responder.",
+          icon: "/icons/main-icon.png"
+        });
+      } else {
+        setNotificationsEnabled(false);
+      }
+    } catch (err) {
+      console.error("Error pidiendo notificaciones:", err);
+    }
+  };
+
+  // 8. Iniciar Grabación de Audio por Micrófono (MediaRecorder Nativo)
+  const startRecordingAudio = async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      alert("Tu dispositivo o navegador no tiene acceso al micrófono.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunksRef.current = [];
+      
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
+      const recorder = new MediaRecorder(stream, { mimeType });
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((track) => track.stop());
+        clearInterval(timerIntervalRef.current);
+        setRecordingSeconds(0);
+        setIsRecordingAudio(false);
+
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        if (audioBlob.size < 500) return; // Muy corto
+
+        // Convertir blob a base64
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          const base64Data = result.split(",")[1];
+
+          // Enviar inmediatamente la nota de voz a NoraItu
+          handleSendAudioMessage({
+            name: `Nota de Voz (${recordingSeconds}s).webm`,
+            type: mimeType,
+            size: audioBlob.size,
+            base64: base64Data
+          });
+        };
+        reader.readAsDataURL(audioBlob);
+      };
+
+      mediaRecorderRef.current = recorder;
+      recorder.start(250);
+      setIsRecordingAudio(true);
+      setRecordingSeconds(0);
+
+      timerIntervalRef.current = setInterval(() => {
+        setRecordingSeconds((prev) => prev + 1);
+      }, 1000);
+
+    } catch (err: any) {
+      console.error("Error accediendo al micrófono:", err);
+      alert("No se pudo acceder al micrófono. Por favor permite el acceso en los ajustes de tu navegador.");
+      setIsRecordingAudio(false);
+    }
+  };
+
+  const stopRecordingAudio = () => {
+    if (mediaRecorderRef.current && isRecordingAudio) {
+      mediaRecorderRef.current.stop();
+    }
+  };
+
+  const cancelRecordingAudio = () => {
+    if (mediaRecorderRef.current && isRecordingAudio) {
+      mediaRecorderRef.current.onstop = () => {
+        clearInterval(timerIntervalRef.current);
+        setRecordingSeconds(0);
+        setIsRecordingAudio(false);
+      };
+      mediaRecorderRef.current.stop();
+    }
+  };
+
+  // 9. Enviar Mensaje de Audio Directo
+  const handleSendAudioMessage = async (audioFile: AttachedFile) => {
+    const tempUserMsg: Message = {
+      role: "user",
+      content: `🎙️ [Mensaje de voz enviado]`,
+      file: {
+        name: audioFile.name,
+        type: audioFile.type
+      },
+      created_at: new Date().toISOString()
+    };
+
+    setMessages((prev) => [...prev, tempUserMsg]);
+    setIsLoading(true);
+
+    try {
+      const msgId = "msg_audio_" + Date.now();
+      const res = await fetch("/api/noraitu-chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-message-id": msgId
+        },
+        body: JSON.stringify({
+          message: "He enviado una nota de voz. Por favor escúchala y responde detalladamente.",
+          session_id: currentSessionId,
+          user_id: userId,
+          message_id: msgId,
+          file: {
+            name: audioFile.name,
+            mimeType: audioFile.type,
+            base64: audioFile.base64
+          }
+        })
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.reply) {
+        const assistantMsg: Message = {
+          role: "assistant",
+          content: data.reply,
+          created_at: new Date().toISOString()
+        };
+        setMessages((prev) => [...prev, assistantMsg]);
+
+        if (data.session_id && data.session_id !== currentSessionId) {
+          setCurrentSessionId(data.session_id);
+          fetchSessions(userId);
+        }
+
+        // Notificación si la ventana está en segundo plano
+        if (document.hidden && Notification.permission === "granted") {
+          new Notification("NoraItu AI", {
+            body: data.reply.slice(0, 100) + "...",
+            icon: "/icons/main-icon.png"
+          });
+        }
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: `⚠️ ${data.error || "No se pudo procesar el audio."}`,
+            created_at: new Date().toISOString()
+          }
+        ]);
+      }
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "⚠️ Error de conexión al enviar el audio.",
+          created_at: new Date().toISOString()
+        }
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 10. Procesar archivos y fotos seleccionados
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validación de tamaño (Máx 15MB)
     if (file.size > 15 * 1024 * 1024) {
       alert("El archivo supera el límite de 15MB.");
       return;
@@ -181,7 +381,6 @@ export default function NoraItuApp() {
       };
       reader.readAsDataURL(file);
     } else {
-      // Para archivos de texto, CSV, código
       reader.onload = () => {
         setAttachedFile({
           name: file.name,
@@ -193,11 +392,10 @@ export default function NoraItuApp() {
       reader.readAsText(file);
     }
 
-    // Resetear input para permitir seleccionar el mismo archivo de nuevo
     e.target.value = "";
   };
 
-  // 8. Enviar Mensaje a NoraItu (con soporte multimodal)
+  // 11. Enviar Mensaje a NoraItu (Texto o Archivos)
   const handleSendMessage = async (customPrompt?: string) => {
     const textToSend = customPrompt || inputMessage;
     if ((!textToSend.trim() && !attachedFile) || isLoading) return;
@@ -259,6 +457,14 @@ export default function NoraItuApp() {
           setCurrentSessionId(data.session_id);
           fetchSessions(userId);
         }
+
+        // Notificación en segundo plano
+        if (document.hidden && Notification.permission === "granted") {
+          new Notification("NoraItu AI", {
+            body: data.reply.slice(0, 100) + "...",
+            icon: "/icons/main-icon.png"
+          });
+        }
       } else {
         const errorMsg: Message = {
           role: "assistant",
@@ -281,14 +487,14 @@ export default function NoraItuApp() {
     }
   };
 
-  // 9. Auto-resize textarea
+  // 12. Auto-resize textarea
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputMessage(e.target.value);
     e.target.style.height = "auto";
     e.target.style.height = `${Math.min(e.target.scrollHeight, 180)}px`;
   };
 
-  // 10. Manejo de tecla Enter
+  // 13. Manejo de tecla Enter
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -296,55 +502,14 @@ export default function NoraItuApp() {
     }
   };
 
-  // 11. Copiar texto al portapapeles
+  // 14. Copiar texto al portapapeles
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // 12. Speech to Text (Web Speech API)
-  const toggleSpeechRecognition = async () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      alert("Para dictar en móviles, puedes utilizar el icono de micrófono que viene integrado en el teclado de tu teléfono.");
-      return;
-    }
-
-    try {
-      if (!isListening) {
-        const recognition = new SpeechRecognition();
-        recognition.lang = "es-AR";
-        recognition.continuous = false;
-        recognition.interimResults = true;
-
-        recognition.onstart = () => setIsListening(true);
-        recognition.onresult = (event: any) => {
-          let currentTranscript = "";
-          for (let i = 0; i < event.results.length; i++) {
-            currentTranscript += event.results[i][0].transcript;
-          }
-          if (currentTranscript) {
-            setInputMessage((prev) => {
-              const base = prev.trim();
-              return base ? `${base} ${currentTranscript}` : currentTranscript;
-            });
-          }
-        };
-        recognition.onerror = () => setIsListening(false);
-        recognition.onend = () => setIsListening(false);
-
-        recognition.start();
-      } else {
-        setIsListening(false);
-      }
-    } catch (e) {
-      setIsListening(false);
-    }
-  };
-
-  // Renderizador de Markdown con soporte de código y tablas
+  // Renderizador de Markdown con soporte de código y listas
   const renderMessageContent = (content: string, msgIndex: number) => {
     const parts = content.split(/(```[\s\S]*?```)/g);
 
@@ -471,6 +636,24 @@ export default function NoraItuApp() {
           </button>
         </div>
 
+        {/* Botón Notificaciones Push */}
+        <div className="px-3 pb-2">
+          <button
+            onClick={handleRequestNotifications}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs border transition-colors ${
+              notificationsEnabled 
+                ? "bg-emerald-950/40 border-emerald-800/50 text-emerald-300" 
+                : "bg-slate-900/60 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800/60"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {notificationsEnabled ? <BellRing size={14} className="text-emerald-400" /> : <Bell size={14} />}
+              <span>{notificationsEnabled ? "Notificaciones Activas" : "Activar Notificaciones"}</span>
+            </div>
+            {notificationsEnabled && <Check size={12} className="text-emerald-400" />}
+          </button>
+        </div>
+
         {/* Lista de Sesiones */}
         <div className="flex-1 overflow-y-auto p-3 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-800">
           <div className="px-2 py-1 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
@@ -544,7 +727,7 @@ export default function NoraItuApp() {
               <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400/50" />
               <span className="font-semibold text-sm text-slate-200">NoraItu Universal</span>
               <span className="hidden sm:inline-block px-2 py-0.5 rounded-full text-[10px] font-mono bg-sky-950/80 text-sky-400 border border-sky-800/40">
-                Multimodal • Visión & Docs
+                Multimodal • Visión, Voz & Docs
               </span>
             </div>
           </div>
@@ -573,16 +756,16 @@ export default function NoraItuApp() {
                 NoraItu Inteligencia Multimodal
               </h2>
               <p className="text-sm text-slate-400 max-w-md mb-8">
-                Sube fotos de productos, facturas, remitos, PDFs o documentos Word. NoraItu extraerá datos y analizará costos en tiempo real.
+                Graba audios de voz, sube fotos de productos o documentos contables. NoraItu resolverá tus consultas con alta precisión.
               </p>
 
               {/* Grid de Sugerencias */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl text-left">
                 {[
+                  { icon: Volume2, title: "Hablarle por Voz", desc: "Toca el micrófono para dictar una consulta", prompt: "Hola NoraItu, ¿qué temas de ingeniería y negocios dominas?" },
                   { icon: Camera, title: "Identificar Producto / Foto", desc: "Toma una foto y cotiza precios de mercado", prompt: "Identifica este producto en la foto, sus especificaciones y precio promedio de venta." },
                   { icon: FileCheck2, title: "Auditar Factura o Recibo", desc: "Extrae CUIT, totales, ítems e IVA", prompt: "Extrae todos los ítems, CUIT, subtotal e impuestos de este comprobante adjunto." },
-                  { icon: FileText, title: "Sintetizar PDF o Word", desc: "Resumen de contratos o informes", prompt: "Haz un resumen ejecutivo de los puntos críticos del documento adjunto." },
-                  { icon: Zap, title: "Clima & Consultoría", desc: "Datos en tiempo real y estrategia", prompt: "¿Cuál es el clima actual en Ituzaingó y el pronóstico para hoy?" },
+                  { icon: Zap, title: "Clima en Tiempo Real", desc: "Temperatura y pronóstico satelital", prompt: "¿Cuál es el clima actual en Ituzaingó y el pronóstico para hoy?" },
                 ].map((card, i) => (
                   <button
                     key={i}
@@ -621,7 +804,7 @@ export default function NoraItuApp() {
                         : "bg-slate-900/90 border border-slate-800/90 text-slate-100 rounded-tl-xs backdrop-blur-xs"}
                     `}>
                       
-                      {/* Vista previa de archivo adjunto en el mensaje del usuario */}
+                      {/* Vista previa de archivo o audio en mensaje */}
                       {msg.file && (
                         <div className="mb-3 rounded-xl overflow-hidden border border-white/20 bg-black/30 p-2">
                           {msg.file.previewUrl ? (
@@ -632,7 +815,7 @@ export default function NoraItuApp() {
                             />
                           ) : (
                             <div className="flex items-center gap-2 text-xs font-mono text-sky-200 p-1">
-                              <FileText size={16} />
+                              {msg.file.type.startsWith("audio/") ? <Volume2 size={16} className="text-sky-400" /> : <FileText size={16} />}
                               <span className="truncate">{msg.file.name}</span>
                             </div>
                           )}
@@ -687,82 +870,108 @@ export default function NoraItuApp() {
         {/* Input Dock Fijo al Fondo */}
         <div className="p-3 md:p-4 bg-[#090d16]/90 backdrop-blur-md border-t border-slate-800/80">
           
-          {/* Chip de archivo adjunto previo a enviar */}
-          {attachedFile && (
-            <div className="max-w-3xl mx-auto mb-2 flex items-center gap-2 px-3 py-1.5 bg-slate-800/90 border border-sky-500/40 rounded-xl text-xs text-sky-200">
-              {attachedFile.previewUrl ? (
-                <img src={attachedFile.previewUrl} alt="Thumb" className="w-6 h-6 rounded object-cover" />
-              ) : (
-                <FileText size={16} className="text-sky-400" />
-              )}
-              <span className="truncate flex-1">{attachedFile.name} ({(attachedFile.size / 1024).toFixed(0)} KB)</span>
-              <button 
-                onClick={() => setAttachedFile(null)} 
-                className="text-slate-400 hover:text-rose-400"
-              >
-                <XCircle size={16} />
-              </button>
+          {/* Barra de Grabación de Audio Activa */}
+          {isRecordingAudio ? (
+            <div className="max-w-3xl mx-auto flex items-center justify-between gap-3 bg-rose-950/80 border border-rose-600/70 rounded-2xl p-3 shadow-2xl animate-pulse">
+              <div className="flex items-center gap-3 text-rose-200 text-sm">
+                <div className="w-3 h-3 rounded-full bg-rose-500 animate-ping" />
+                <span className="font-semibold font-mono">
+                  Grabando Audio... 00:{recordingSeconds < 10 ? `0${recordingSeconds}` : recordingSeconds}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={cancelRecordingAudio}
+                  className="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white text-xs flex items-center gap-1"
+                >
+                  <X size={16} />
+                  <span>Cancelar</span>
+                </button>
+                <button
+                  onClick={stopRecordingAudio}
+                  className="p-2 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold flex items-center gap-1 shadow-lg shadow-rose-600/30"
+                >
+                  <Send size={14} />
+                  <span>Enviar Audio</span>
+                </button>
+              </div>
             </div>
+          ) : (
+            <>
+              {/* Chip de archivo adjunto previo a enviar */}
+              {attachedFile && (
+                <div className="max-w-3xl mx-auto mb-2 flex items-center gap-2 px-3 py-1.5 bg-slate-800/90 border border-sky-500/40 rounded-xl text-xs text-sky-200">
+                  {attachedFile.previewUrl ? (
+                    <img src={attachedFile.previewUrl} alt="Thumb" className="w-6 h-6 rounded object-cover" />
+                  ) : (
+                    <FileText size={16} className="text-sky-400" />
+                  )}
+                  <span className="truncate flex-1">{attachedFile.name} ({(attachedFile.size / 1024).toFixed(0)} KB)</span>
+                  <button 
+                    onClick={() => setAttachedFile(null)} 
+                    className="text-slate-400 hover:text-rose-400"
+                  >
+                    <XCircle size={16} />
+                  </button>
+                </div>
+              )}
+
+              <div className="max-w-3xl mx-auto relative flex items-end gap-1.5 bg-slate-900/90 border border-slate-700/70 focus-within:border-sky-500/80 rounded-2xl p-2 shadow-2xl transition-all">
+                
+                {/* Botón Adjuntar Archivo */}
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-2.5 rounded-xl text-slate-400 hover:text-sky-400 hover:bg-slate-800/60 transition-colors"
+                  title="Adjuntar PDF, Word, Excel o imagen"
+                >
+                  <Paperclip size={18} />
+                </button>
+
+                {/* Botón Cámara */}
+                <button
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="p-2.5 rounded-xl text-slate-400 hover:text-sky-400 hover:bg-slate-800/60 transition-colors"
+                  title="Tomar foto con la cámara"
+                >
+                  <Camera size={18} />
+                </button>
+
+                {/* Botón Micrófono para Grabar Nota de Voz */}
+                <button
+                  onClick={startRecordingAudio}
+                  className="p-2.5 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800/60 transition-colors"
+                  title="Grabar nota de voz"
+                >
+                  <Mic size={18} />
+                </button>
+
+                {/* Textarea Auto-expandible */}
+                <textarea
+                  ref={textareaRef}
+                  rows={1}
+                  value={inputMessage}
+                  onChange={handleTextareaChange}
+                  onKeyDown={handleKeyDown}
+                  placeholder={attachedFile ? "Escribe qué deseas analizar de este archivo..." : "Escribe o graba un audio para NoraItu..."}
+                  disabled={isLoading}
+                  className="flex-1 max-h-40 bg-transparent text-slate-100 placeholder-slate-500 text-sm md:text-[15px] resize-none focus:outline-hidden py-2 px-1 leading-relaxed"
+                />
+
+                {/* Botón Enviar */}
+                <button
+                  onClick={() => handleSendMessage()}
+                  disabled={(!inputMessage.trim() && !attachedFile) || isLoading}
+                  className={`p-2.5 rounded-xl flex items-center justify-center transition-all duration-200 ${
+                    (inputMessage.trim() || attachedFile) && !isLoading
+                      ? "bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-md shadow-sky-500/30 hover:scale-105 active:scale-95 cursor-pointer"
+                      : "bg-slate-800 text-slate-600 cursor-not-allowed"
+                  }`}
+                >
+                  <Send size={18} />
+                </button>
+              </div>
+            </>
           )}
-
-          <div className="max-w-3xl mx-auto relative flex items-end gap-1.5 bg-slate-900/90 border border-slate-700/70 focus-within:border-sky-500/80 rounded-2xl p-2 shadow-2xl transition-all">
-            
-            {/* Botón Adjuntar Archivo */}
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="p-2.5 rounded-xl text-slate-400 hover:text-sky-400 hover:bg-slate-800/60 transition-colors"
-              title="Adjuntar PDF, Word, Excel o imagen"
-            >
-              <Paperclip size={18} />
-            </button>
-
-            {/* Botón Cámara */}
-            <button
-              onClick={() => cameraInputRef.current?.click()}
-              className="p-2.5 rounded-xl text-slate-400 hover:text-sky-400 hover:bg-slate-800/60 transition-colors"
-              title="Tomar foto con la cámara"
-            >
-              <Camera size={18} />
-            </button>
-
-            {/* Botón Micrófono */}
-            <button
-              onClick={toggleSpeechRecognition}
-              className={`p-2.5 rounded-xl transition-colors ${
-                isListening 
-                  ? "bg-rose-500/20 text-rose-400 animate-pulse border border-rose-500/50" 
-                  : "text-slate-400 hover:text-sky-400 hover:bg-slate-800/60"
-              }`}
-              title={isListening ? "Detener micrófono" : "Dictar por voz"}
-            >
-              {isListening ? <MicOff size={18} /> : <Mic size={18} />}
-            </button>
-
-            {/* Textarea Auto-expandible */}
-            <textarea
-              ref={textareaRef}
-              rows={1}
-              value={inputMessage}
-              onChange={handleTextareaChange}
-              onKeyDown={handleKeyDown}
-              placeholder={attachedFile ? "Escribe qué deseas analizar de este archivo..." : "Escribe a NoraItu o adjunta un archivo..."}
-              disabled={isLoading}
-              className="flex-1 max-h-40 bg-transparent text-slate-100 placeholder-slate-500 text-sm md:text-[15px] resize-none focus:outline-hidden py-2 px-1 leading-relaxed"
-            />
-
-            {/* Botón Enviar */}
-            <button
-              onClick={() => handleSendMessage()}
-              disabled={(!inputMessage.trim() && !attachedFile) || isLoading}
-              className={`p-2.5 rounded-xl flex items-center justify-center transition-all duration-200 ${
-                (inputMessage.trim() || attachedFile) && !isLoading
-                  ? "bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-md shadow-sky-500/30 hover:scale-105 active:scale-95 cursor-pointer"
-                  : "bg-slate-800 text-slate-600 cursor-not-allowed"
-              }`}
-            >
-              <Send size={18} />
-            </button>
-          </div>
 
           <div className="text-center mt-2 text-[10px] text-slate-500 flex flex-wrap items-center justify-center gap-1.5">
             <span>NoraItu AI</span>

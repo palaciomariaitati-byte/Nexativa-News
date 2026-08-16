@@ -182,14 +182,15 @@ export async function POST(req: Request) {
       }
     }
 
-    // Preparación de partes del mensaje actual (Multimodal: texto + imagen / PDF / DOC)
+    // Preparación de partes del mensaje actual (Multimodal: texto + imagen / PDF / AUDIO / DOC)
     const currentMessageParts: any[] = [];
     if (file && file.base64 && file.mimeType) {
-      if (file.mimeType.startsWith("image/") || file.mimeType === "application/pdf") {
+      const cleanMime = file.mimeType.split(";")[0].trim();
+      if (cleanMime.startsWith("image/") || cleanMime === "application/pdf" || cleanMime.startsWith("audio/")) {
         currentMessageParts.push({
           inlineData: {
             data: file.base64,
-            mimeType: file.mimeType
+            mimeType: cleanMime
           }
         });
       } else if (file.textContent) {
@@ -200,7 +201,7 @@ export async function POST(req: Request) {
     }
 
     currentMessageParts.push({
-      text: message || "Por favor analiza detalladamente la imagen / archivo adjunto y entrega tus conclusiones de forma estructurada."
+      text: message || (file?.mimeType?.startsWith("audio/") ? "Escucha atentamente este mensaje de voz dictado por el usuario y respóndele de forma completa y precisa." : "Por favor analiza detalladamente la imagen / archivo adjunto y entrega tus conclusiones de forma estructurada.")
     });
 
     // 6. Configuración de Pool Multi-Key Redundante y Multi-Model Failover
