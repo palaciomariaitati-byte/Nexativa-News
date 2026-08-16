@@ -20,16 +20,19 @@ Tu objetivo principal es resolver tareas complejas de forma inmediata, elegante 
 3. PROPIEDAD INTELECTUAL: NoraItu es una entidad tecnológica autónoma creada por MyJNexoraVisual, totalmente independiente y soberana de cualquier otro medio o portal.
 
 ========================================================================
-👁️ CAPACIDADES MULTIMODALES Y ANÁLISIS DE ARCHIVOS (VISIÓN & DOCUMENTOS)
+👁️ CAPACIDADES MULTIMODALES Y ANÁLISIS DE ARCHIVOS (AUDIO, VISIÓN & DOCUMENTOS)
 ========================================================================
-1. FACTURAS, REMITOS Y RECIBOS CONTABLES:
+1. AUDIO Y NOTAS DE VOZ NATIVAS:
+   - Posees la capacidad nativa multimodal de escuchar, transcribir y comprender perfectamente archivos de audio y notas de voz (.webm, .wav, .mp3, .m4a, .ogg) enviados por el usuario.
+   - NUNCA digas "no puedo escuchar audios" o "no puedo procesar notas de voz". Escucha el audio adjunto, comprende el mensaje y responde con precisión a lo solicitado.
+2. FACTURAS, REMITOS Y RECIBOS CONTABLES:
    - Extrae de forma estructurada: Emisor, CUIT/Identificador fiscal, Receptor, Fecha, Número de comprobante, Detalle de ítems/cantidades, Subtotales, Alícuotas de IVA/Impuestos y Monto Total.
    - Ofrece resúmenes contables claros y detecta posibles inconsistencias en los importes.
-2. ANÁLISIS DE PRODUCTOS Y COMPARATIVA DE MERCADO:
+3. ANÁLISIS DE PRODUCTOS Y COMPARATIVA DE MERCADO:
    - Al recibir una foto o captura de un producto: Identifica marca, modelo exacto, especificaciones técnicas clave, rango de precios estimado en el mercado actual y los mejores canales/plataformas de venta.
-3. RECONOCIMIENTO GEOGRÁFICO, INMUEBLES Y PAISAJES:
+4. RECONOCIMIENTO GEOGRÁFICO, INMUEBLES Y PAISAJES:
    - Analiza imágenes de zonas geográficas, terrenos, propiedades o monumentos respetando la privacidad de personas, identificando bioma, tipo de construcción, arquitectura o contexto territorial.
-4. DOCUMENTOS EXTENSOS (PDF, WORD, EXCEL, TXT, CSV):
+5. DOCUMENTOS EXTENSOS (PDF, WORD, EXCEL, TXT, CSV):
    - Sintetiza, audita cláusulas contractuales, traduce párrafos técnicos, extrae tablas numéricas y responde preguntas puntuales sobre el documento adjunto.
 
 ========================================================================
@@ -200,9 +203,15 @@ export async function POST(req: Request) {
       }
     }
 
-    currentMessageParts.push({
-      text: message || (file?.mimeType?.startsWith("audio/") ? "Escucha atentamente este mensaje de voz dictado por el usuario y respóndele de forma completa y precisa." : "Por favor analiza detalladamente la imagen / archivo adjunto y entrega tus conclusiones de forma estructurada.")
-    });
+    if (file && file.mimeType && file.mimeType.startsWith("audio/")) {
+      currentMessageParts.push({
+        text: "Escucha con extrema atención el archivo de audio adjunto (nota de voz grabada por el usuario). Transcribe mentalmente lo que dice y responde a su consulta o instrucción de forma completa, precisa y detallada en español. Nunca digas que no puedes escuchar audios, ya que posees visión y escucha multimodal nativa."
+      });
+    } else {
+      currentMessageParts.push({
+        text: message || "Por favor analiza detalladamente la imagen / archivo adjunto y entrega tus conclusiones de forma estructurada."
+      });
+    }
 
     // 6. Configuración de Pool Multi-Key Redundante y Multi-Model Failover
     const keysPool = [

@@ -73,6 +73,7 @@ export default function NoraItuApp() {
   // Estados de Grabación de Audio Directa (MediaRecorder)
   const [isRecordingAudio, setIsRecordingAudio] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const secondsRef = useRef(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerIntervalRef = useRef<any>(null);
@@ -205,11 +206,19 @@ export default function NoraItuApp() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioChunksRef.current = [];
       
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
+      let mimeType = "audio/webm";
+      if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
+        mimeType = "audio/webm";
+      } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
+        mimeType = "audio/mp4";
+      } else if (MediaRecorder.isTypeSupported("audio/aac")) {
+        mimeType = "audio/aac";
+      }
+
       const recorder = new MediaRecorder(stream, { mimeType });
 
       recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
+        if (e.data && e.data.size > 0) {
           audioChunksRef.current.push(e.data);
         }
       };
@@ -217,11 +226,16 @@ export default function NoraItuApp() {
       recorder.onstop = async () => {
         stream.getTracks().forEach((track) => track.stop());
         clearInterval(timerIntervalRef.current);
+        const finalSecs = secondsRef.current;
+        secondsRef.current = 0;
         setRecordingSeconds(0);
         setIsRecordingAudio(false);
 
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
-        if (audioBlob.size < 500) return; // Muy corto
+        if (audioBlob.size < 500) {
+          alert("El audio fue demasiado breve. Por favor mantén presionado y habla con claridad.");
+          return;
+        }
 
         // Convertir blob a base64
         const reader = new FileReader();
@@ -231,7 +245,7 @@ export default function NoraItuApp() {
 
           // Enviar inmediatamente la nota de voz a NoraItu
           handleSendAudioMessage({
-            name: `Nota de Voz (${recordingSeconds}s).webm`,
+            name: `Nota de Voz (${finalSecs}s).${mimeType.includes("mp4") ? "mp4" : "webm"}`,
             type: mimeType,
             size: audioBlob.size,
             base64: base64Data
@@ -241,12 +255,14 @@ export default function NoraItuApp() {
       };
 
       mediaRecorderRef.current = recorder;
-      recorder.start(250);
+      recorder.start(200);
       setIsRecordingAudio(true);
       setRecordingSeconds(0);
+      secondsRef.current = 0;
 
       timerIntervalRef.current = setInterval(() => {
-        setRecordingSeconds((prev) => prev + 1);
+        secondsRef.current += 1;
+        setRecordingSeconds(secondsRef.current);
       }, 1000);
 
     } catch (err: any) {
