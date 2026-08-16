@@ -47,6 +47,7 @@ import {
   FlipHorizontal,
   Radio
 } from "lucide-react";
+import jsQR from "jsqr";
 import { exportNoraCleanWord, exportNoraCleanPdf } from "@/lib/exportUtils";
 
 interface AttachedFile {
@@ -118,6 +119,7 @@ export default function NoraItuApp() {
   const [syncInputId, setSyncInputId] = useState("");
   const [syncSuccessMsg, setSyncSuccessMsg] = useState("");
   const [syncTokenId, setSyncTokenId] = useState<string | null>(null);
+  const [syncPinCode, setSyncPinCode] = useState<string>("");
   const [syncQrUrl, setSyncQrUrl] = useState<string>("");
   const [isGeneratingSyncQr, setIsGeneratingSyncQr] = useState(false);
   const [showAuthorizeMobileModal, setShowAuthorizeMobileModal] = useState(false);
@@ -604,7 +606,68 @@ export default function NoraItuApp() {
       setLiveSubtitles("👁️ Nora Titán está observando en vivo. Apunta a lo que deseas analizar...");
 
       if (liveIntervalRef.current) clearInterval(liveIntervalRef.current);
-      // Primer análisis tras 1.5s de enfocar la cámara
+
+      // Escáner continuo de códigos QR y emparejamiento con PC sin salir de la app
+      const qrScannerInterval = setInterval(() => {
+        try {
+          if (!liveVideoRef.current || liveVideoRef.current.videoWidth === 0) return;
+          const video = liveVideoRef.current;
+          const canvas = liveCanvasRef.current || document.createElement("canvas");
+          canvas.width = Math.min(video.videoWidth, 640);
+          canvas.height = Math.min(video.videoHeight, 480);
+          const ctx = canvas.getContext("2d", { willReadFrequently: true });
+          if (!ctx) return;
+
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imgData.data, imgData.width, imgData.height);
+
+          if (code && code.data) {
+            const raw = code.data.trim();
+            let targetToken: string | null = null;
+            let targetPin: string | null = null;
+
+            if (raw.includes("sync_token=")) {
+              const match = raw.match(/sync_token=([^&]+)/);
+              if (match) targetToken = match[1];
+            } else if (raw.startsWith("sync_") || raw.length === 36) {
+              targetToken = raw;
+            } else if (/^\d{6}$/.test(raw)) {
+              targetPin = raw;
+            }
+
+            if (targetToken || targetPin) {
+              clearInterval(qrScannerInterval);
+              setLiveSubtitles("⚡ ¡Código QR de PC detectado! Vinculando tus conversaciones...");
+              
+              const currentUid = localStorage.getItem("noraitu_user_id") || userId;
+              fetch("/api/noraitu-sync", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  token_id: targetToken,
+                  pin_code: targetPin,
+                  user_id: currentUid,
+                  session_id: currentSessionId
+                })
+              }).then(async (res) => {
+                if (res.ok) {
+                  setLiveSubtitles("🎉 ¡Computadora Vinculada con Éxito! Ya puedes ver tus chats en la PC.");
+                  speakText("Listo. Tu computadora ha sido vinculada con éxito.", -99);
+                  setTimeout(() => {
+                    stopLiveVision();
+                    alert("🎉 ¡Computadora Vinculada con Éxito!\n\nTodas tus conversaciones ya están abiertas en tu PC para trabajar más cómodo.");
+                  }, 1500);
+                }
+              }).catch(() => {});
+            }
+          }
+        } catch (e) {}
+      }, 400);
+
+      liveIntervalRef.current = qrScannerInterval;
+
+      // Primer análisis visual tras 1.5s de enfocar la cámara
       setTimeout(() => {
         captureAndAnalyzeFrame("Describe qué estás observando en esta toma en vivo y qué detalles útiles o educativos detectas.");
       }, 1500);
@@ -650,7 +713,10 @@ export default function NoraItuApp() {
   };
 
   const stopLiveVision = () => {
-    if (liveIntervalRef.current) clearInterval(liveIntervalRef.current);
+    if (liveIntervalRef.current) {
+      clearInterval(liveIntervalRef.current);
+      liveIntervalRef.current = null;
+    }
     if (liveMediaStreamRef.current) {
       liveMediaStreamRef.current.getTracks().forEach(t => t.stop());
       liveMediaStreamRef.current = null;

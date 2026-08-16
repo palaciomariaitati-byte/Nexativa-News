@@ -5,13 +5,14 @@ export const runtime = "nodejs";
 
 /**
  * POST /api/noraitu-sync
- * Genera un token efímero de 5 minutos para emparejamiento QR desde la PC.
+ * Genera un token efímero y un PIN de 6 dígitos con 5 minutos de TTL.
  */
 export async function POST(req: Request) {
   try {
     const supabase = createServerSupabaseClient();
     const body = await req.json().catch(() => ({}));
-    const desktopSocketId = body.desktop_socket_id || `desktop_${Math.random().toString(36).substring(2, 10)}`;
+    const pinCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const desktopSocketId = body.desktop_socket_id ? `${body.desktop_socket_id}_PIN_${pinCode}` : `PIN_${pinCode}`;
 
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
@@ -28,11 +29,11 @@ export async function POST(req: Request) {
       .single();
 
     if (error || !data) {
-      console.warn("[NoraItu Sync POST Error]:", error);
-      // Fallback en memoria si la tabla aún no se ha migrado en Supabase
+      console.warn("[NoraItu Sync POST Fallback]:", error);
       const fallbackTokenId = `sync_${Math.random().toString(36).substring(2, 12)}_${Date.now()}`;
       return NextResponse.json({
         token_id: fallbackTokenId,
+        pin_code: pinCode,
         expires_at: expiresAt,
         sync_url: `https://nexativanews.com.ar/noraitu?sync_token=${fallbackTokenId}`
       });
@@ -40,6 +41,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       token_id: data.token_id,
+      pin_code: pinCode,
       expires_at: data.expires_at,
       sync_url: `https://nexativanews.com.ar/noraitu?sync_token=${data.token_id}`
     });
@@ -50,24 +52,29 @@ export async function POST(req: Request) {
 }
 
 /**
- * GET /api/noraitu-sync?token_id=...
- * Consulta el estado del token efímero (Sondeo / Long-polling desde la PC).
+ * GET /api/noraitu-sync?token_id=... o ?pin_code=...
+ * Consulta el estado del token efímero (Sondeo / Long-polling).
  */
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const tokenId = searchParams.get("token_id");
+    const pinCode = searchParams.get("pin_code");
 
-    if (!tokenId) {
-      return NextResponse.json({ error: "token_id es requerido" }, { status: 400 });
+    if (!tokenId && !pinCode) {
+      return NextResponse.json({ error: "token_id o pin_code requerido" }, { status: 400 });
     }
 
     const supabase = createServerSupabaseClient();
-    const { data, error } = await supabase
-      .from("noraitu_sync_tokens")
-      .select("token_id, user_id, session_id, status, expires_at")
-      .eq("token_id", tokenId)
-      .single();
+    let query = supabase.from("noraitu_sync_tokens").select("token_id, user_id, session_id, status, expires_at, desktop_socket_id");
+
+    if (tokenId) {
+      query = query.eq("token_id", tokenId);
+    } else if (pinCode) {
+      query = query.ilike("desktop_socket_id", `%PIN_${pinCode}%`);
+    }
+
+    const { data, error } = await query.order("created_at", { ascending: false }).limit(1).maybeSingle();
 
     if (error || !data) {
       return NextResponse.json({ status: "PENDING" });
@@ -79,20 +86,20 @@ export async function GET(req: Request) {
     }
 
     if (data.status === "AUTHORIZED") {
-      // Marcar como consumido para evitar reutilización
       await supabase
         .from("noraitu_sync_tokens")
         .update({ status: "CONSUMED" })
-        .eq("token_id", tokenId);
+        .eq("token_id", data.token_id);
 
       return NextResponse.json({
         status: "AUTHORIZED",
+        token_id: data.token_id,
         user_id: data.user_id,
         session_id: data.session_id
       });
     }
 
-    return NextResponse.json({ status: data.status });
+    return NextResponse.json({ status: data.status, token_id: data.token_id });
   } catch (err: any) {
     console.error("[NoraItu Sync GET Exception]:", err);
     return NextResponse.json({ error: "Error consultando estado" }, { status: 500 });
@@ -101,34 +108,35 @@ export async function GET(req: Request) {
 
 /**
  * PUT /api/noraitu-sync
- * Invocado por el teléfono celular tras escanear el QR para autorizar la sincronización.
+ * Invocado para autorizar sincronización (por QR token_id o por PIN de 6 dígitos).
  */
 export async function PUT(req: Request) {
   try {
-    const { token_id, user_id, session_id } = await req.json();
+    const { token_id, pin_code, user_id, session_id } = await req.json();
 
-    if (!token_id || !user_id) {
-      return NextResponse.json({ error: "token_id y user_id son obligatorios" }, { status: 400 });
+    if ((!token_id && !pin_code) || !user_id) {
+      return NextResponse.json({ error: "Identificador (token o pin) y user_id son obligatorios" }, { status: 400 });
     }
 
     const supabase = createServerSupabaseClient();
+    let query = supabase.from("noraitu_sync_tokens").select("token_id, expires_at, status, desktop_socket_id");
 
-    // Validar token y expiración
-    const { data: tokenRecord, error: checkError } = await supabase
-      .from("noraitu_sync_tokens")
-      .select("token_id, expires_at, status")
-      .eq("token_id", token_id)
-      .single();
+    if (token_id) {
+      query = query.eq("token_id", token_id);
+    } else if (pin_code) {
+      query = query.ilike("desktop_socket_id", `%PIN_${pin_code.trim()}%`);
+    }
+
+    const { data: tokenRecord, error: checkError } = await query.order("created_at", { ascending: false }).limit(1).maybeSingle();
 
     if (checkError || !tokenRecord) {
-      return NextResponse.json({ error: "Token no encontrado o inválido" }, { status: 404 });
+      return NextResponse.json({ error: "Código PIN o Token no encontrado o expirado" }, { status: 404 });
     }
 
     if (new Date(tokenRecord.expires_at).getTime() < Date.now() || tokenRecord.status !== "PENDING") {
-      return NextResponse.json({ error: "El código QR ha expirado. Por favor genera uno nuevo en tu PC." }, { status: 410 });
+      return NextResponse.json({ error: "El código QR o PIN ha expirado. Genera uno nuevo en tu PC." }, { status: 410 });
     }
 
-    // Autorizar transferencia de identidad y sesión
     const { error: updateError } = await supabase
       .from("noraitu_sync_tokens")
       .update({
@@ -136,7 +144,7 @@ export async function PUT(req: Request) {
         session_id: session_id || null,
         status: "AUTHORIZED"
       })
-      .eq("token_id", token_id);
+      .eq("token_id", tokenRecord.token_id);
 
     if (updateError) {
       return NextResponse.json({ error: "No se pudo autorizar la sincronización" }, { status: 500 });
@@ -144,6 +152,7 @@ export async function PUT(req: Request) {
 
     return NextResponse.json({
       success: true,
+      token_id: tokenRecord.token_id,
       message: "¡Sincronización autorizada con éxito! Tu computadora ya está conectada."
     });
   } catch (err: any) {
