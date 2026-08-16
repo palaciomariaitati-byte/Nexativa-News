@@ -283,9 +283,45 @@ export async function POST(req: Request) {
 
     const fullSystemPrompt = `${NORAITU_SYSTEM_PROMPT}${weatherData}${ragArticlesContext}${directoryContext}${educationalContext}`;
 
+    let effectiveUserMessage = message || "";
+
+    // Si el usuario envió un archivo de audio, transcribirlo con Groq Whisper en ~200ms
+    if (file && file.mimeType && file.mimeType.startsWith("audio/") && file.base64 && process.env.GROQ_API_KEY) {
+      try {
+        const audioBuffer = Buffer.from(file.base64, "base64");
+        const fileExt = file.mimeType.includes("mp4") ? "m4a" : (file.mimeType.includes("wav") ? "wav" : "webm");
+        const blob = new Blob([audioBuffer], { type: file.mimeType });
+        const formData = new FormData();
+        formData.append("file", blob, `audio.${fileExt}`);
+        formData.append("model", "whisper-large-v3-turbo");
+        formData.append("language", "es");
+
+        const whisperRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}` },
+          body: formData,
+          signal: AbortSignal.timeout(9000)
+        });
+
+        if (whisperRes.ok) {
+          const wData = await whisperRes.json();
+          if (wData.text && wData.text.trim()) {
+            effectiveUserMessage = effectiveUserMessage && effectiveUserMessage.trim()
+              ? `${effectiveUserMessage}\n\n[Transcripción del audio grabado por el usuario]: "${wData.text.trim()}"`
+              : `[Audio grabado por el usuario]: "${wData.text.trim()}"`;
+          }
+        }
+      } catch (whisperErr) {
+        console.warn("[Groq Whisper Fallback Warning]:", whisperErr);
+      }
+    }
+
     if (stream) {
-      if (!file && process.env.GROQ_API_KEY) {
-        const groqStream = await tryGroqStream(rawHistory, message, fullSystemPrompt);
+      // Si tenemos Groq API Key y no hay archivo de imagen pesado (o el audio ya fue transcrito)
+      const isPureTextOrTranscribedAudio = !file || (file.mimeType && file.mimeType.startsWith("audio/") && effectiveUserMessage);
+      
+      if (isPureTextOrTranscribedAudio && process.env.GROQ_API_KEY) {
+        const groqStream = await tryGroqStream(rawHistory, effectiveUserMessage, fullSystemPrompt);
         if (groqStream) {
           const encoder = new TextEncoder();
           let fullAssistantText = "";
@@ -323,7 +359,7 @@ export async function POST(req: Request) {
 
                 if (activeSessionId) {
                   supabase.from("noraitu_messages").insert([
-                    { session_id: activeSessionId, role: "user", content: message, metadata: { ...(contextData || {}) } },
+                    { session_id: activeSessionId, role: "user", content: effectiveUserMessage, metadata: { ...(contextData || {}) } },
                     { session_id: activeSessionId, role: "assistant", content: fullAssistantText, metadata: { generated_by: "NoraItu-Groq" } }
                   ]).then(() => {});
                 }
@@ -346,16 +382,7 @@ export async function POST(req: Request) {
         }
       }
 
-      const normalizedHistory: any[] = [
-        { role: "user", parts: [{ text: `INSTRUCCIONES DEL SISTEMA:\n${fullSystemPrompt}` }] },
-        { role: "model", parts: [{ text: "Comprendido. Soy NoraItu, desarrollada por MyJNexoraVisual. Estoy lista para responder con precisión, RAG y elegancia." }] }
-      ];
-
-      for (const msg of (rawHistory || [])) {
-        const mappedRole = msg.role === "assistant" || msg.role === "model" ? "model" : "user";
-        normalizedHistory.push({ role: mappedRole, parts: [{ text: msg.content }] });
-      }
-
+      // Fallback Multimodal a Gemini (para imágenes, documentos o si Groq no estuviera disponible)
       const currentMessageParts: any[] = [];
 
       if (file) {
@@ -382,16 +409,9 @@ export async function POST(req: Request) {
         }
       }
 
-      if (file && file.mimeType && file.mimeType.startsWith("audio/")) {
-        const audioPrompt = message && message.trim().length > 0 
-          ? message 
-          : "Escucha el audio adjunto con atención y responde detalladamente a lo expresado.";
-        currentMessageParts.push({ text: audioPrompt });
-      } else {
-        currentMessageParts.push({
-          text: message || "Analiza el archivo adjunto detalladamente."
-        });
-      }
+      currentMessageParts.push({
+        text: `${fullSystemPrompt}\n\nMENSAJE DEL USUARIO:\n${effectiveUserMessage || "Analiza el archivo adjunto y responde detalladamente."}`
+      });
 
       const keysPool = [
         process.env.GEMINI_API_KEY,
@@ -418,8 +438,7 @@ export async function POST(req: Request) {
               model: currentModel,
               generationConfig: { temperature: 0.3, maxOutputTokens: 3500 }
             });
-            const chat = model.startChat({ history: normalizedHistory });
-            activeChatStream = await chat.sendMessageStream(currentMessageParts);
+            activeChatStream = await model.generateContentStream(currentMessageParts);
             if (activeChatStream) {
               usedModelTag = currentModel;
               break outerPoolLoop;

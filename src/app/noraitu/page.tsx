@@ -117,6 +117,9 @@ export default function NoraItuApp() {
   // Voces Disponibles y Selección de Voz Neuronal
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoiceUri, setSelectedVoiceUri] = useState<string>("");
+  const [voicePitch, setVoicePitch] = useState<number>(0.92);
+  const [voiceRate, setVoiceRate] = useState<number>(0.94);
+  const [showVoiceModal, setShowVoiceModal] = useState(false);
   
   // Estado de Modo Adaptativo (General, Inclusión TEA, Docente, Cátedra)
   const [activeMode, setActiveMode] = useState<string>("general");
@@ -157,7 +160,21 @@ export default function NoraItuApp() {
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         const vList = window.speechSynthesis.getVoices();
         const spanishVoices = vList.filter(v => v.lang.startsWith("es") || v.lang.includes("es-"));
-        setAvailableVoices(spanishVoices.length > 0 ? spanishVoices : vList);
+        const finalVoices = spanishVoices.length > 0 ? spanishVoices : vList;
+        setAvailableVoices(finalVoices);
+
+        const savedVoiceUri = localStorage.getItem("noraitu_voice_uri");
+        if (savedVoiceUri) {
+          setSelectedVoiceUri(savedVoiceUri);
+        } else {
+          const defaultNeural = finalVoices.find(v => 
+            v.name.toLowerCase().includes("sabina") || 
+            v.name.toLowerCase().includes("dalia") || 
+            v.name.toLowerCase().includes("natural") ||
+            v.name.toLowerCase().includes("google español")
+          );
+          if (defaultNeural) setSelectedVoiceUri(defaultNeural.voiceURI);
+        }
       }
     };
 
@@ -166,9 +183,15 @@ export default function NoraItuApp() {
       window.speechSynthesis.onvoiceschanged = loadSystemVoices;
     }
 
-    // Recuperar preferencia de voz automática
+    // Recuperar preferencias de voz
     const savedVoice = localStorage.getItem("noraitu_auto_voice");
     if (savedVoice === "true") setAutoVoice(true);
+
+    const savedPitch = localStorage.getItem("noraitu_voice_pitch");
+    if (savedPitch) setVoicePitch(parseFloat(savedPitch));
+
+    const savedRate = localStorage.getItem("noraitu_voice_rate");
+    if (savedRate) setVoiceRate(parseFloat(savedRate));
 
     // Verificar permisos de notificaciones
     if (typeof window !== "undefined" && "Notification" in window) {
@@ -356,43 +379,57 @@ export default function NoraItuApp() {
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = "es-MX"; // Español neutro latinoamericano
-    utterance.rate = 0.98;    // Velocidad pausada, humana y comprensible
-    utterance.pitch = 1.02;   // Tono cálido, femenino y profesional
+    utterance.rate = voiceRate; // Velocidad calibrada por el usuario (def: 0.94)
+    utterance.pitch = voicePitch; // Tono maduro, femenino y cálido (def: 0.92, NO niña robot)
 
-    // Buscar y priorizar la mejor voz neuronal de alta fidelidad disponible
+    // Buscar y priorizar la voz seleccionada por el usuario o la mejor voz neuronal
     const voices = window.speechSynthesis.getVoices();
-    const neuralVoices = [
-      "Microsoft Sabina Online (Natural)",
-      "Microsoft Dalia Online (Natural)",
-      "Microsoft Paulina Online (Natural)",
-      "Google español",
-      "Microsoft Sabina",
-      "Microsoft Dalia",
-      "Microsoft Paulina",
-      "Microsoft Elena",
-      "Monica",
-      "Zira"
-    ];
+    let voiceToUse: SpeechSynthesisVoice | undefined = undefined;
 
-    let selectedVoice = voices.find(v => 
-      neuralVoices.some(nv => v.name.toLowerCase().includes(nv.toLowerCase()))
-    );
+    if (selectedVoiceUri) {
+      voiceToUse = voices.find(v => v.voiceURI === selectedVoiceUri);
+    }
 
-    if (!selectedVoice) {
-      selectedVoice = voices.find(v => 
+    if (!voiceToUse) {
+      const neuralKeywords = [
+        "sabina", "dalia", "paulina", "natural", "google español", "elena", "monica", "hilda", "zira", "mexico", "argentina"
+      ];
+      voiceToUse = voices.find(v => 
+        (v.lang.startsWith("es") || v.lang.includes("es-")) && 
+        neuralKeywords.some(k => v.name.toLowerCase().includes(k))
+      ) || voices.find(v => 
         (v.lang.startsWith("es") || v.lang.includes("es-")) && 
         (v.name.toLowerCase().includes("female") || v.name.toLowerCase().includes("mujer"))
       ) || voices.find(v => v.lang.startsWith("es"));
     }
 
-    if (selectedVoice) {
-      utterance.voice = selectedVoice;
+    if (voiceToUse) {
+      utterance.voice = voiceToUse;
     }
 
     utterance.onend = () => setPlayingMsgIndex(null);
     utterance.onerror = () => setPlayingMsgIndex(null);
 
     setPlayingMsgIndex(msgIndex);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const handleTestVoice = () => {
+    stopSpeaking();
+    if (!("speechSynthesis" in window)) return;
+    const testText = "Hola, soy NoraItu, tu asistente de inteligencia artificial desarrollada por MyJ Nexora Visual. He calibrado mi dicción para brindarte un trato cercano, humano y profesional.";
+    const utterance = new SpeechSynthesisUtterance(testText);
+    utterance.lang = "es-MX";
+    utterance.rate = voiceRate;
+    utterance.pitch = voicePitch;
+
+    const voices = window.speechSynthesis.getVoices();
+    let voiceToUse = selectedVoiceUri ? voices.find(v => v.voiceURI === selectedVoiceUri) : null;
+    if (!voiceToUse) {
+      voiceToUse = voices.find(v => (v.lang.startsWith("es") || v.lang.includes("es-")) && (v.name.toLowerCase().includes("sabina") || v.name.toLowerCase().includes("dalia") || v.name.toLowerCase().includes("natural"))) || voices.find(v => v.lang.startsWith("es"));
+    }
+    if (voiceToUse) utterance.voice = voiceToUse;
+
     window.speechSynthesis.speak(utterance);
   };
 
@@ -1335,7 +1372,17 @@ export default function NoraItuApp() {
               title={autoVoice ? "Desactivar voz automática" : "Activar voz femenina automática"}
             >
               {autoVoice ? <Volume2 size={14} className="text-sky-400" /> : <VolumeX size={14} />}
-              <span className="hidden sm:inline">{autoVoice ? "Voz: Activa" : "Voz: Manual"}</span>
+              <span className="hidden sm:inline">{autoVoice ? "Voz: Activa" : "Voz"}</span>
+            </button>
+
+            {/* Botón Calibrar y Afinar Voz de Nora */}
+            <button
+              onClick={() => setShowVoiceModal(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-900/80 hover:bg-slate-800 border border-slate-700/60 text-slate-300 hover:text-white transition-colors"
+              title="Afinar tono, velocidad y elegir voz de Nora"
+            >
+              <Sliders size={13} className="text-sky-400" />
+              <span className="hidden lg:inline">Afinar Voz</span>
             </button>
 
             <button
@@ -1912,6 +1959,122 @@ export default function NoraItuApp() {
             >
               Entendido
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================= */}
+      {/* 🎛️ MODAL: CALIBRADOR Y AFINADOR DE VOZ DE NORAITU               */}
+      {/* ================================================================= */}
+      {showVoiceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-slate-900 border border-sky-700/60 rounded-3xl p-6 max-w-md w-full shadow-2xl relative text-left">
+            <button
+              onClick={() => setShowVoiceModal(false)}
+              className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20">
+                <Sliders size={20} className="text-white" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Calibrador de Voz de Nora</h3>
+                <p className="text-xs text-slate-400">Personaliza la voz neuronal, el tono y la velocidad</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {/* Selector de Voz */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Voz del Navegador / Sistema</label>
+                <select
+                  value={selectedVoiceUri}
+                  onChange={(e) => {
+                    setSelectedVoiceUri(e.target.value);
+                    localStorage.setItem("noraitu_voice_uri", e.target.value);
+                  }}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-slate-200 focus:outline-hidden focus:border-sky-500"
+                >
+                  {availableVoices.map((v) => (
+                    <option key={v.voiceURI} value={v.voiceURI}>
+                      {v.name} ({v.lang})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Control de Tono */}
+              <div>
+                <div className="flex justify-between text-xs text-slate-300 mb-1">
+                  <span>Tono (Grave y Maduro ↔ Agudo):</span>
+                  <span className="font-mono text-sky-400">{voicePitch.toFixed(2)}</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.75"
+                  max="1.10"
+                  step="0.02"
+                  value={voicePitch}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    setVoicePitch(val);
+                    localStorage.setItem("noraitu_voice_pitch", String(val));
+                  }}
+                  className="w-full accent-sky-500"
+                />
+                <div className="flex justify-between text-[10px] text-slate-500 mt-0.5">
+                  <span>Más grave y cálido</span>
+                  <span>Estándar (0.92)</span>
+                  <span>Más agudo</span>
+                </div>
+              </div>
+
+              {/* Control de Velocidad */}
+              <div>
+                <div className="flex justify-between text-xs text-slate-300 mb-1">
+                  <span>Velocidad de Lectura:</span>
+                  <span className="font-mono text-sky-400">{voiceRate.toFixed(2)}x</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.80"
+                  max="1.15"
+                  step="0.02"
+                  value={voiceRate}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    setVoiceRate(val);
+                    localStorage.setItem("noraitu_voice_rate", String(val));
+                  }}
+                  className="w-full accent-sky-500"
+                />
+                <div className="flex justify-between text-[10px] text-slate-500 mt-0.5">
+                  <span>Pausada y clara</span>
+                  <span>Normal (0.94x)</span>
+                  <span>Rápida</span>
+                </div>
+              </div>
+
+              {/* Botón Probar Voz */}
+              <div className="pt-2 flex gap-2">
+                <button
+                  onClick={handleTestVoice}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white text-xs font-semibold flex items-center justify-center gap-2 shadow-md shadow-sky-500/20 transition-all cursor-pointer"
+                >
+                  <Volume2 size={15} />
+                  <span>▶️ Probar Esta Voz</span>
+                </button>
+                <button
+                  onClick={() => setShowVoiceModal(false)}
+                  className="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-colors cursor-pointer"
+                >
+                  Guardar
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
