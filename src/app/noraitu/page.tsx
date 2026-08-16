@@ -1481,88 +1481,91 @@ export default function NoraItuApp() {
       {/* ================================================================= */}
       <main className="flex-1 flex flex-col h-full relative overflow-hidden bg-radial from-[#101827] via-[#090d16] to-[#06080e]">
         
-        {/* Top Navbar */}
-        <header className="h-14 border-b border-slate-800/80 px-3 sm:px-4 flex items-center justify-between bg-[#090d16]/80 backdrop-blur-md z-30">
-          <div className="flex items-center gap-2.5">
+        {/* Top Navbar Ultra-Limpia y Adaptable */}
+        <header className="h-14 border-b border-slate-800/80 px-3 sm:px-4 flex items-center justify-between bg-[#090d16]/90 backdrop-blur-md z-30 shrink-0">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="md:hidden p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800/80"
+              className="md:hidden p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800/80 transition-colors"
+              aria-label="Abrir menú"
             >
-              <Menu size={20} />
+              <Menu size={19} />
             </button>
             <div className="flex items-center gap-2">
-              <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400/50" />
-              <span className="font-semibold text-sm text-slate-200">NoraItu</span>
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400/50 shrink-0" />
+              <span className="font-bold text-sm text-slate-100 tracking-tight">NoraItu</span>
               <span className="hidden sm:inline-block px-2 py-0.5 rounded-full text-[10px] font-mono bg-sky-950/80 text-sky-400 border border-sky-800/40">
-                Educación • Inclusión DUA • Docs
+                Educación • Inclusión DUA
               </span>
             </div>
           </div>
           
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             {/* Botón Nora Titán Live Vision */}
             <button
               onClick={() => {
                 setShowLiveVisionModal(true);
                 startLiveVision();
               }}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-rose-600 via-purple-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white transition-all shadow-md shadow-rose-500/20 animate-pulse cursor-pointer"
+              className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold bg-gradient-to-r from-rose-600 via-purple-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white transition-all shadow-md shadow-rose-500/20 active:scale-95 cursor-pointer shrink-0"
               title="Abrir Nora Titán Live (Cámara y Visión en Vivo)"
             >
-              <Eye size={14} className="text-white" />
-              <span className="inline font-extrabold tracking-wide">👁️ Titán Live</span>
+              <Eye size={13} className="text-white shrink-0" />
+              <span className="font-extrabold tracking-wide">Titán Live</span>
             </button>
 
-            {/* Botón Sincronizar PC */}
+            {/* Botón Sincronizar PC (Visible en tablet/desktop) */}
             <button
               onClick={() => setShowSyncModal(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-700/60 text-indigo-300 transition-colors shadow-xs"
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-700/60 text-indigo-300 transition-colors shrink-0"
               title="Sincronizar tus conversaciones en PC o Celular"
             >
-              <Laptop size={14} className="text-indigo-400" />
-              <span className="hidden md:inline">Sincronizar PC</span>
+              <Laptop size={13} className="text-indigo-400" />
+              <span className="hidden md:inline">Sincronizar</span>
             </button>
 
-            {/* Botón Compartir / QR en Navbar */}
+            {/* Botón Compartir / QR (Visible en tablet/desktop) */}
             <button
               onClick={() => setShowShareModal(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 transition-colors shadow-sm shadow-emerald-500/10"
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 transition-colors shrink-0"
               title="Compartir NoraItu por WhatsApp o Código QR"
             >
-              <QrCode size={14} className="text-emerald-400" />
-              <span className="inline font-medium">Compartir / QR</span>
+              <QrCode size={13} className="text-emerald-400" />
+              <span className="hidden md:inline">Compartir</span>
             </button>
 
-            {/* Toggle de Voz Femenina Automática */}
+            {/* Toggle de Voz Femenina Automática (Solo desktop o tablet grande) */}
             <button
               onClick={toggleAutoVoice}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+              className={`hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors shrink-0 ${
                 autoVoice 
-                  ? "bg-sky-950/80 border-sky-700 text-sky-300 shadow-sm shadow-sky-500/20" 
-                  : "bg-slate-900/60 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800/60"
+                  ? "bg-sky-950/80 border-sky-700 text-sky-300" 
+                  : "bg-slate-900/60 border-slate-800 text-slate-400 hover:text-white"
               }`}
               title={autoVoice ? "Desactivar voz automática" : "Activar voz femenina automática"}
             >
-              {autoVoice ? <Volume2 size={14} className="text-sky-400" /> : <VolumeX size={14} />}
-              <span className="hidden sm:inline">{autoVoice ? "Voz: Activa" : "Voz"}</span>
+              {autoVoice ? <Volume2 size={13} className="text-sky-400" /> : <VolumeX size={13} />}
+              <span className="hidden lg:inline">{autoVoice ? "Voz: On" : "Voz: Off"}</span>
             </button>
 
-            {/* Botón Calibrar y Afinar Voz de Nora */}
+            {/* Botón Calibrar y Afinar Voz de Nora (Dropdown/Modal) */}
             <button
               onClick={() => setShowVoiceModal(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-900/80 hover:bg-slate-800 border border-slate-700/60 text-slate-300 hover:text-white transition-colors"
+              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-medium bg-slate-900/80 hover:bg-slate-800 border border-slate-700/60 text-slate-300 hover:text-white transition-colors shrink-0"
               title="Afinar tono, velocidad y elegir voz de Nora"
             >
               <Sliders size={13} className="text-sky-400" />
-              <span className="hidden lg:inline">Afinar Voz</span>
+              <span className="hidden lg:inline ml-1">Afinar Voz</span>
             </button>
 
+            {/* Botón Nuevo Chat */}
             <button
               onClick={handleNewChat}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/80 border border-slate-700/60 transition-colors"
+              className="p-1.5 sm:px-3 sm:py-1.5 rounded-lg text-xs font-medium text-slate-200 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 transition-colors shrink-0 flex items-center gap-1"
+              title="Iniciar nuevo chat"
             >
               <Plus size={14} />
-              <span className="hidden sm:inline">Nuevo Chat</span>
+              <span className="hidden md:inline">Nuevo Chat</span>
             </button>
           </div>
         </header>
@@ -1570,59 +1573,63 @@ export default function NoraItuApp() {
         {/* Contenedor de Mensajes */}
         <div 
           ref={chatContainerRef}
-          className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-6 scrollbar-thin scrollbar-thumb-slate-800"
+          className="flex-1 overflow-y-auto px-3 sm:px-6 md:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 scrollbar-thin scrollbar-thumb-slate-800"
         >
           {messages.length === 0 ? (
-            /* Vista de Bienvenida con Modos Adaptativos */
-            <div className="max-w-2xl mx-auto h-full flex flex-col items-center justify-center text-center px-4 my-auto">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-sky-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-xl shadow-sky-500/20 mb-4">
-                <Sparkles size={32} className="text-white" />
+            /* Vista de Bienvenida Optimizada para Móvil y Desktop */
+            <div className="max-w-xl mx-auto h-full flex flex-col items-center justify-center text-center px-2 sm:px-4 my-auto space-y-3 sm:space-y-4">
+              
+              {/* Logo e Identidad */}
+              <div className="flex flex-col items-center">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-sky-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-sky-500/20 mb-2.5">
+                  <Sparkles size={24} className="text-white" />
+                </div>
+                <h2 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r from-white via-slate-100 to-sky-400 bg-clip-text text-transparent">
+                  Nora Titán Universal
+                </h2>
+                <p className="text-[11px] sm:text-xs text-slate-400 max-w-sm mt-1">
+                  Inteligencia Soberana de MyJNexoraVisual al servicio de la educación nacional.
+                </p>
               </div>
-              <h2 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-white via-slate-100 to-sky-400 bg-clip-text text-transparent mb-2">
-                Nora Titán Universal
-              </h2>
-              <p className="text-xs md:text-sm text-slate-400 max-w-md mb-4">
-                Desarrollada por MyJNexoraVisual. Inteligencia Artificial Soberana al servicio de la educación, la ciencia y la comunidad nacional.
-              </p>
 
-              {/* Banner Titán Live Destacado */}
+              {/* Banner Titán Live Compacto */}
               <button
                 onClick={() => {
                   setShowLiveVisionModal(true);
                   startLiveVision();
                 }}
-                className="w-full max-w-xl p-3.5 mb-4 rounded-2xl bg-gradient-to-r from-rose-950/80 via-purple-950/80 to-indigo-950/80 hover:from-rose-900 hover:to-indigo-900 border border-rose-500/50 flex items-center justify-between text-left transition-all shadow-lg shadow-rose-950/40 group cursor-pointer"
+                className="w-full p-3 rounded-2xl bg-gradient-to-r from-rose-950/70 via-purple-950/70 to-indigo-950/70 hover:from-rose-900/80 hover:to-indigo-900/80 border border-rose-500/40 flex items-center justify-between text-left transition-all shadow-md shadow-rose-950/30 group active:scale-[0.99] cursor-pointer"
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-500 to-purple-600 flex items-center justify-center shrink-0 shadow-md shadow-rose-500/30 group-hover:scale-105 transition-transform">
-                    <Eye size={20} className="text-white animate-pulse" />
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-500 to-purple-600 flex items-center justify-center shrink-0 shadow-sm shadow-rose-500/30">
+                    <Eye size={16} className="text-white animate-pulse" />
                   </div>
                   <div>
-                    <span className="text-sm font-bold text-white flex items-center gap-2">
-                      👁️ Nora Titán Live (Cámara y Voz en Vivo)
-                      <span className="px-2 py-0.5 rounded-full text-[9px] bg-rose-500 text-white font-mono uppercase">Full-Duplex</span>
+                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                      👁️ Nora Titán Live Vision
+                      <span className="px-1.5 py-0.2 rounded-full text-[8px] bg-rose-500 text-white font-mono uppercase">En Vivo</span>
                     </span>
-                    <span className="text-xs text-rose-200/80">Apunta tu cámara a libros, pizarrones o planos y habla en tiempo real</span>
+                    <span className="text-[10px] text-rose-200/80 line-clamp-1">Apunta tu cámara a libros, pizarrones o planos</span>
                   </div>
                 </div>
-                <Radio size={18} className="text-rose-400 animate-pulse shrink-0" />
+                <Radio size={15} className="text-rose-400 animate-pulse shrink-0 ml-1" />
               </button>
 
-              {/* Selector de Modos de Adaptación Rápida */}
-              <div className="flex flex-wrap items-center justify-center gap-2 mb-4 max-w-xl">
+              {/* Selector de Modos de Adaptación (Scroll Horizontal Limpio en Móvil) */}
+              <div className="w-full flex items-center justify-start sm:justify-center gap-1.5 overflow-x-auto pb-1 max-w-full scrollbar-none">
                 {[
-                  { id: "general", label: "🌟 General", desc: "Equilibrado" },
-                  { id: "inclusion", label: "🧩 Inclusión TEA", desc: "100% Literal y Secuencial" },
-                  { id: "docente", label: "🎓 Docente / Curricular", desc: "Planificaciones y Rúbricas" },
-                  { id: "catedra", label: "🏛️ Cátedra Universitaria", desc: "Rigor y Doctrina" },
+                  { id: "general", label: "🌟 General" },
+                  { id: "inclusion", label: "🧩 Inclusión TEA" },
+                  { id: "docente", label: "🎓 Docente" },
+                  { id: "catedra", label: "🏛️ Cátedra" },
                 ].map((mode) => (
                   <button
                     key={mode.id}
                     onClick={() => setActiveMode(mode.id)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                    className={`px-3 py-1.5 rounded-full text-[11px] font-medium border whitespace-nowrap transition-all shrink-0 ${
                       activeMode === mode.id
-                        ? "bg-sky-500 text-white border-sky-400 shadow-md shadow-sky-500/30 scale-105"
-                        : "bg-slate-900/80 text-slate-400 border-slate-800 hover:text-slate-200 hover:border-slate-700"
+                        ? "bg-sky-500 text-white border-sky-400 shadow-sm shadow-sky-500/30"
+                        : "bg-slate-900/80 text-slate-400 border-slate-800 hover:text-slate-200"
                     }`}
                   >
                     {mode.label}
@@ -1630,79 +1637,73 @@ export default function NoraItuApp() {
                 ))}
               </div>
 
-              {/* Banners Destacados de Compartir y Sincronizar */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full max-w-xl mb-4">
+              {/* Banners Compartir y Sincronizar (1 fila compacta) */}
+              <div className="grid grid-cols-2 gap-2 w-full">
                 <button
                   onClick={() => setShowShareModal(true)}
-                  className="p-3 rounded-2xl bg-emerald-950/60 hover:bg-emerald-900/70 border border-emerald-700/60 flex items-center justify-between text-left transition-all group shadow-sm shadow-emerald-500/10"
+                  className="p-2.5 rounded-xl bg-emerald-950/50 hover:bg-emerald-900/60 border border-emerald-700/40 flex items-center gap-2 text-left transition-all group"
                 >
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-emerald-500/20 flex items-center justify-center shrink-0">
-                      <QrCode size={16} className="text-emerald-400 group-hover:scale-110 transition-transform" />
-                    </div>
-                    <div>
-                      <span className="text-xs font-bold text-emerald-300 block">📲 Recomendar por WhatsApp & QR</span>
-                      <span className="text-[10px] text-slate-400">Comparte con docentes o amigos</span>
-                    </div>
+                  <QrCode size={15} className="text-emerald-400 shrink-0" />
+                  <div className="truncate">
+                    <span className="text-[11px] font-bold text-emerald-300 block truncate">Recomendar / QR</span>
+                    <span className="text-[9px] text-slate-400 hidden sm:block">Vía WhatsApp</span>
                   </div>
-                  <Share2 size={14} className="text-emerald-400" />
                 </button>
 
                 <button
                   onClick={() => setShowSyncModal(true)}
-                  className="p-3 rounded-2xl bg-indigo-950/60 hover:bg-indigo-900/70 border border-indigo-700/60 flex items-center justify-between text-left transition-all group shadow-sm shadow-indigo-500/10"
+                  className="p-2.5 rounded-xl bg-indigo-950/50 hover:bg-indigo-900/60 border border-indigo-700/40 flex items-center gap-2 text-left transition-all group"
                 >
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-indigo-500/20 flex items-center justify-center shrink-0">
-                      <Laptop size={16} className="text-indigo-400 group-hover:scale-110 transition-transform" />
-                    </div>
-                    <div>
-                      <span className="text-xs font-bold text-indigo-300 block">💻 Sincronizar con tu PC</span>
-                      <span className="text-[10px] text-slate-400">Continúa tu trabajo sin perder datos</span>
-                    </div>
+                  <Laptop size={15} className="text-indigo-400 shrink-0" />
+                  <div className="truncate">
+                    <span className="text-[11px] font-bold text-indigo-300 block truncate">Sincronizar PC</span>
+                    <span className="text-[9px] text-slate-400 hidden sm:block">Continuar en PC</span>
                   </div>
-                  <RefreshCw size={14} className="text-indigo-400" />
                 </button>
               </div>
 
-              {/* Grid de Sugerencias */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl text-left">
+              {/* Grid de Sugerencias Compacto */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full text-left pt-1">
                 {[
                   { 
                     icon: Puzzle, 
-                    title: "Explicación Inclusiva (TEA/Asperger)", 
-                    desc: "Lenguaje literal y secuencial paso a paso", 
+                    title: "Explicación Inclusiva (TEA)", 
+                    desc: "Lenguaje literal paso a paso", 
                     prompt: "Explícame de forma 100% literal y en pasos secuenciales qué es la inteligencia artificial y cómo funciona, sin usar metáforas ni ambigüedades." 
                   },
                   { 
                     icon: GraduationCap, 
                     title: "Planificación Docente & Rúbrica", 
-                    desc: "Secuencia didáctica oficial y tabla Markdown", 
+                    desc: "Secuencia didáctica oficial y tabla", 
                     prompt: "Arma una planificación de clase para secundaria sobre el cuidado del agua en Corrientes, con objetivos, secuencia didáctica (inicio, desarrollo, cierre), grilla en tabla Markdown y rúbrica." 
                   },
                   { 
                     icon: BookOpen, 
-                    title: "Cátedra y Análisis Doctrinario", 
-                    desc: "Marco teórico y rigor universitario", 
+                    title: "Cátedra y Doctrina", 
+                    desc: "Marco teórico universitario", 
                     prompt: "Explica la teoría de la responsabilidad civil y el nexo causal con fundamentos doctrinarios del Código Civil y Comercial argentino." 
                   },
                   { 
                     icon: ImageIcon, 
                     title: "Generar Imagen con IA", 
-                    desc: "Crea arte hiperrealista o logos en 8k", 
+                    desc: "Arte hiperrealista en 8k", 
                     prompt: "Crea una imagen hiperrealista en 8k de un atardecer sobre el Río Paraná en Ituzaingó, Corrientes." 
                   },
                 ].map((card, i) => (
                   <button
                     key={i}
                     onClick={() => handleSendMessage(card.prompt)}
-                    className="p-3.5 rounded-xl bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800/80 hover:border-sky-500/40 text-left transition-all duration-200 group active:scale-[0.98]"
+                    className="p-2.5 sm:p-3 rounded-xl bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800/80 hover:border-sky-500/40 text-left transition-all active:scale-[0.98] group flex items-start gap-2.5"
                   >
-                    <div className="flex items-center gap-2.5 mb-1.5">
-                      <card.icon size={16} className="text-sky-400 group-hover:scale-110 transition-transform" />
-                      <span className="text-xs font-semibold text-slate-200 group-hover:text-white">{card.title}</span>
+                    <card.icon size={16} className="text-sky-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
+                    <div className="truncate">
+                      <h4 className="text-xs font-semibold text-slate-200 group-hover:text-sky-300 transition-colors truncate">
+                        {card.title}
+                      </h4>
+                      <p className="text-[10px] text-slate-400 truncate">
+                        {card.desc}
+                      </p>
                     </div>
-                    <p className="text-[11px] text-slate-400 group-hover:text-slate-300">{card.desc}</p>
                   </button>
                 ))}
               </div>
