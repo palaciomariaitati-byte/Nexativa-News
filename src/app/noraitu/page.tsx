@@ -117,6 +117,13 @@ export default function NoraItuApp() {
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [syncInputId, setSyncInputId] = useState("");
   const [syncSuccessMsg, setSyncSuccessMsg] = useState("");
+  const [syncTokenId, setSyncTokenId] = useState<string | null>(null);
+  const [syncQrUrl, setSyncQrUrl] = useState<string>("");
+  const [isGeneratingSyncQr, setIsGeneratingSyncQr] = useState(false);
+  const [showAuthorizeMobileModal, setShowAuthorizeMobileModal] = useState(false);
+  const [pendingAuthToken, setPendingAuthToken] = useState<string | null>(null);
+  const [isAuthorizingSync, setIsAuthorizingSync] = useState(false);
+  const syncPollTimerRef = useRef<any>(null);
 
   // Voces Disponibles y Selección de Voz Neuronal
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
@@ -150,15 +157,23 @@ export default function NoraItuApp() {
   useEffect(() => {
     let storedUserId = "";
 
-    // Detección de sincronización instantánea por parámetro URL (?sync_user=...)
+    // Detección de sincronización instantánea por parámetro URL (?sync_user=... o ?sync_token=...)
     if (typeof window !== "undefined") {
       const urlParams = new URLSearchParams(window.location.search);
+      const syncToken = urlParams.get("sync_token");
       const syncUser = urlParams.get("sync_user");
-      if (syncUser && syncUser.trim()) {
+
+      if (syncToken && syncToken.trim()) {
+        setPendingAuthToken(syncToken.trim());
+        setShowAuthorizeMobileModal(true);
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else if (syncUser && syncUser.trim()) {
         storedUserId = syncUser.trim();
         localStorage.setItem("noraitu_user_id", storedUserId);
         window.history.replaceState({}, document.title, window.location.pathname);
-      } else {
+      }
+      
+      if (!storedUserId) {
         storedUserId = localStorage.getItem("noraitu_user_id") || "";
       }
     }
@@ -352,6 +367,101 @@ export default function NoraItuApp() {
   const handleDismissInstall = () => {
     setShowInstallBanner(false);
     sessionStorage.setItem("noraitu_install_dismissed", "true");
+  };
+
+  // 7.1. Generar Código QR Efímero de Sincronización (PC ↔ Celular)
+  const handleOpenSyncModal = async () => {
+    setShowSyncModal(true);
+    setIsGeneratingSyncQr(true);
+    setSyncSuccessMsg("");
+
+    if (syncPollTimerRef.current) clearInterval(syncPollTimerRef.current);
+
+    try {
+      const res = await fetch("/api/noraitu-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ desktop_socket_id: `desktop_${userId}` })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setSyncTokenId(data.token_id);
+        const targetUrl = data.sync_url || `https://nexativanews.com.ar/noraitu?sync_token=${data.token_id}`;
+        setSyncQrUrl(targetUrl);
+
+        // Iniciar Sondeo / Polling cada 2.5 segundos para detectar autorización del celular
+        syncPollTimerRef.current = setInterval(async () => {
+          try {
+            const checkRes = await fetch(`/api/noraitu-sync?token_id=${encodeURIComponent(data.token_id)}`);
+            if (checkRes.ok) {
+              const checkData = await checkRes.json();
+              if (checkData.status === "AUTHORIZED" && checkData.user_id) {
+                clearInterval(syncPollTimerRef.current);
+                localStorage.setItem("noraitu_user_id", checkData.user_id);
+                setUserId(checkData.user_id);
+                fetchSessions(checkData.user_id);
+                if (checkData.session_id) {
+                  selectSession(checkData.session_id);
+                }
+                setSyncSuccessMsg("¡Celular emparejado con éxito! Tus conversaciones se han transferido.");
+                setTimeout(() => {
+                  setShowSyncModal(false);
+                  setSyncSuccessMsg("");
+                }, 2000);
+              } else if (checkData.status === "EXPIRED") {
+                clearInterval(syncPollTimerRef.current);
+                setSyncSuccessMsg("⚠️ El código QR expiró. Vuelve a abrir la ventana para generar uno nuevo.");
+              }
+            }
+          } catch (e) {}
+        }, 2500);
+      }
+    } catch (err) {
+      console.warn("Error generando token QR:", err);
+    } finally {
+      setIsGeneratingSyncQr(false);
+    }
+  };
+
+  const handleCloseSyncModal = () => {
+    if (syncPollTimerRef.current) clearInterval(syncPollTimerRef.current);
+    setShowSyncModal(false);
+    setSyncTokenId(null);
+    setSyncQrUrl("");
+    setSyncSuccessMsg("");
+  };
+
+  // 7.2. Autorizar Sincronización desde el Teléfono Móvil
+  const handleAuthorizeFromMobile = async () => {
+    if (!pendingAuthToken) return;
+    setIsAuthorizingSync(true);
+
+    try {
+      const res = await fetch("/api/noraitu-sync", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token_id: pendingAuthToken,
+          user_id: userId,
+          session_id: currentSessionId
+        })
+      });
+
+      if (res.ok) {
+        alert("¡Excelente! Tu computadora ha sido autorizada y ya tiene acceso a tus conversaciones.");
+        setShowAuthorizeMobileModal(false);
+        setPendingAuthToken(null);
+      } else {
+        const err = await res.json();
+        alert(err.error || "El código QR ha expirado o no es válido.");
+        setShowAuthorizeMobileModal(false);
+      }
+    } catch (e) {
+      alert("Error de conexión al autorizar la sincronización.");
+    } finally {
+      setIsAuthorizingSync(false);
+    }
   };
 
   // 8. Sintetizador de Voz Femenina Neutra de NoraItu (TTS)
@@ -1521,7 +1631,7 @@ export default function NoraItuApp() {
 
             {/* Botón Sincronizar PC (Visible en tablet/desktop) */}
             <button
-              onClick={() => setShowSyncModal(true)}
+              onClick={handleOpenSyncModal}
               className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-700/60 text-indigo-300 transition-colors shrink-0"
               title="Sincronizar tus conversaciones en PC o Celular"
             >
@@ -1656,7 +1766,7 @@ export default function NoraItuApp() {
                 </button>
 
                 <button
-                  onClick={() => setShowSyncModal(true)}
+                  onClick={handleOpenSyncModal}
                   className="p-2.5 rounded-xl bg-indigo-950/50 hover:bg-indigo-900/60 border border-indigo-700/40 flex items-center gap-2 text-left transition-all group"
                 >
                   <Laptop size={15} className="text-indigo-400 shrink-0" />
@@ -2012,14 +2122,14 @@ export default function NoraItuApp() {
       )}
 
       {/* ================================================================= */}
-      {/* 💻 MODAL: SINCRONIZACIÓN MULTI-DISPOSITIVO (PC / CELULAR)          */}
+      {/* 💻 MODAL: SINCRONIZACIÓN QR EFÍMERA (PC ↔ CELULAR SIN CONTRASEÑA) */}
       {/* ================================================================= */}
       {showSyncModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
           <div className="bg-slate-900 border border-indigo-700/60 rounded-3xl p-6 max-w-md w-full shadow-2xl relative text-center">
             <button
-              onClick={() => setShowSyncModal(false)}
-              className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              onClick={handleCloseSyncModal}
+              className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
             >
               <X size={18} />
             </button>
@@ -2028,38 +2138,53 @@ export default function NoraItuApp() {
               <Laptop size={24} className="text-white" />
             </div>
 
-            <h3 className="text-lg font-bold text-white mb-1">Sincronizar Celular con tu PC</h3>
+            <h3 className="text-lg font-bold text-white mb-1">Sincronización Soberana por QR</h3>
             <p className="text-xs text-slate-300 mb-4 leading-relaxed">
-              Escanea este código o abre el enlace en tu computadora para continuar tu trabajo sin perder el historial.
+              Escanea este código con la cámara de tu celular para transferir tus conversaciones al instante sin contraseñas.
             </p>
 
-            {/* QR de sincronización con tu ID */}
-            <div className="bg-white p-3 rounded-2xl inline-block mb-3 shadow-md">
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(typeof window !== "undefined" ? `${window.location.origin}/noraitu?sync_user=${userId}` : `https://nexativanews.com.ar/noraitu?sync_user=${userId}`)}`}
-                alt="QR Sincronización"
-                className="w-40 h-40 mx-auto rounded-lg"
-              />
+            {/* QR Dinámico Efímero de 5 minutos */}
+            <div className="bg-white p-3.5 rounded-2xl inline-block mb-3 shadow-xl relative min-w-[200px] min-h-[200px] flex items-center justify-center">
+              {isGeneratingSyncQr ? (
+                <div className="flex flex-col items-center gap-2 p-6">
+                  <div className="w-8 h-8 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
+                  <span className="text-xs font-mono text-slate-800">Generando QR seguro...</span>
+                </div>
+              ) : syncQrUrl ? (
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(syncQrUrl)}`}
+                  alt="QR Sincronización Efímero"
+                  className="w-44 h-44 mx-auto rounded-lg"
+                />
+              ) : (
+                <span className="text-xs text-slate-600">Error al cargar QR</span>
+              )}
             </div>
 
             <div className="space-y-3">
+              <div className="flex items-center justify-center gap-2 text-[11px] font-mono text-indigo-300 bg-indigo-950/60 py-1.5 px-3 rounded-xl border border-indigo-800/60">
+                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                <span>Esperando escaneo del celular... (5 min TTL)</span>
+              </div>
+
               {/* Botón copiar enlace de sincronización */}
               <button
                 onClick={() => {
-                  const syncUrl = typeof window !== "undefined" ? `${window.location.origin}/noraitu?sync_user=${userId}` : `https://nexativanews.com.ar/noraitu?sync_user=${userId}`;
-                  navigator.clipboard.writeText(syncUrl);
-                  setSyncSuccessMsg("¡Enlace de sincronización copiado! Pégalo o ábrelo en tu PC.");
-                  setTimeout(() => setSyncSuccessMsg(""), 3000);
+                  if (syncQrUrl) {
+                    navigator.clipboard.writeText(syncQrUrl);
+                    setSyncSuccessMsg("¡Enlace de sincronización copiado! Ábrelo en tu celular.");
+                    setTimeout(() => setSyncSuccessMsg(""), 3000);
+                  }
                 }}
-                className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-md shadow-indigo-600/30"
+                className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-md shadow-indigo-600/30 cursor-pointer"
               >
                 <Copy size={14} />
-                <span>Copiar Enlace de Sincronización para PC</span>
+                <span>Copiar Enlace de Sincronización</span>
               </button>
 
               {/* Input manual de código */}
               <div className="pt-2 border-t border-slate-800 text-left">
-                <p className="text-[11px] text-slate-400 mb-1.5">O ingresa el ID de tu otro dispositivo para vincularlo aquí:</p>
+                <p className="text-[11px] text-slate-400 mb-1.5">O ingresa manualmente el ID de tu otro dispositivo:</p>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -2077,11 +2202,11 @@ export default function NoraItuApp() {
                         setSyncSuccessMsg("¡Dispositivo vinculado exitosamente!");
                         setTimeout(() => {
                           setSyncSuccessMsg("");
-                          setShowSyncModal(false);
+                          handleCloseSyncModal();
                         }, 1500);
                       }
                     }}
-                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-white transition-colors"
+                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-white transition-colors cursor-pointer"
                   >
                     Vincular
                   </button>
@@ -2094,6 +2219,49 @@ export default function NoraItuApp() {
                   <span>{syncSuccessMsg}</span>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================= */}
+      {/* 📲 MODAL: AUTORIZAR EMPAREJAMIENTO DESDE EL CELULAR               */}
+      {/* ================================================================= */}
+      {showAuthorizeMobileModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="bg-slate-900 border border-emerald-500/60 rounded-3xl p-6 max-w-sm w-full shadow-2xl text-center relative">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-500/20">
+              <Laptop size={28} className="text-white" />
+            </div>
+
+            <h3 className="text-lg font-bold text-white mb-2">¿Vincular con tu Computadora?</h3>
+            <p className="text-xs text-slate-300 mb-6 leading-relaxed">
+              Has escaneado el código QR de Nora Titán. Al autorizar, tus conversaciones y sesiones se transferirán a tu PC de forma segura y sin contraseñas.
+            </p>
+
+            <div className="space-y-2.5">
+              <button
+                onClick={handleAuthorizeFromMobile}
+                disabled={isAuthorizingSync}
+                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white text-xs font-bold shadow-lg shadow-emerald-500/30 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+              >
+                {isAuthorizingSync ? (
+                  <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                ) : (
+                  <Check size={16} />
+                )}
+                <span>{isAuthorizingSync ? "Autorizando..." : "✅ Autorizar Sincronización"}</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowAuthorizeMobileModal(false);
+                  setPendingAuthToken(null);
+                }}
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 text-xs font-medium transition-colors"
+              >
+                Cancelar
+              </button>
             </div>
           </div>
         </div>
