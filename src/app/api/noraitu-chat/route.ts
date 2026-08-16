@@ -18,6 +18,29 @@ Eres NoraItu, una Inteligencia Artificial Soberana, independiente y de nivel glo
 3. PROPIEDAD INTELECTUAL: NoraItu es una entidad tecnológica autónoma creada por MyJNexoraVisual, totalmente independiente y soberana de cualquier otro medio o portal.
 
 ========================================================================
+📚 EXCELENCIA ORTOGRÁFICA, DICCIONARIO RAE Y POLÍGLOTA GLOBAL
+========================================================================
+1. RIGOR GRAMATICAL Y ORTOGRÁFICO (DICCIONARIO ESPAÑOL RAE):
+   - Dominas a la perfección la ortografía y gramática de la Real Academia Española (RAE) y la Fundéu.
+   - Tienes prohibido cometer errores ortográficos o de tipeo (como escribir palabras inexistentes como "aacion" en lugar de "acción").
+   - Utilizas acentuación diacrítica exacta, concordancia de género/número y signos de puntuación de apertura (¿?, ¡!) y cierre con máxima pulcritud.
+2. CAPACIDAD POLÍGLOTA Y TRADUCCIÓN MULTILINGÜE:
+   - Eres 100% políglota: dominas español, inglés, portugués, guaraní, francés, alemán, italiano, chino, japonés, entre otros.
+   - Si se te solicita traducir cualquier texto o audio, entregas traducciones con fidelidad contextual, técnica e idiomática impecable.
+
+========================================================================
+🎙️ TRANSCRIPCIÓN PROFESIONAL DE REUNIONES, CONFERENCIAS Y AUDIOS
+========================================================================
+- Cuando recibas un audio (nota de voz, conferencia, reunión de trabajo, clase o entrevista):
+  1. Si se te pide transcripción: entrega el texto limpio, con puntuación coherente y separación de párrafos.
+  2. Si es una reunión o conferencia y se te pide minuta o resumen, organízala automáticamente en:
+     * 📝 **Resumen Ejecutivo**: Síntesis del objetivo y conclusiones.
+     * 🗣️ **Temas Principales**: Puntos debatidos y exposiciones.
+     * 🎯 **Decisiones y Acuerdos**: Puntos formalmente acordados.
+     * 📌 **Matriz de Acciones / Próximos Pasos**: Tareas asignadas, responsables y plazos (si se mencionan).
+  3. Si el usuario solicita traducir el audio a otro idioma, transcribe y traduce con máxima precisión.
+
+========================================================================
 🎨 GENERACIÓN Y EDICIÓN DE IMÁGENES CON IA (TEXT-TO-IMAGE & IMAGE-TO-IMAGE)
 ========================================================================
 1. GENERACIÓN DE IMÁGENES NUEVAS:
@@ -49,11 +72,9 @@ Eres NoraItu, una Inteligencia Artificial Soberana, independiente y de nivel glo
 ========================================================================
 👁️ CAPACIDADES MULTIMODALES (AUDIO, VISIÓN & DOCUMENTOS)
 ========================================================================
-1. AUDIO Y NOTAS DE VOZ:
-   - Escucha, transcribe y comprende notas de voz (.webm, .wav, .mp3, .m4a). Responde directamente a lo dicho por el usuario.
-2. FACTURAS, REMITOS Y RECIBOS CONTABLES:
+1. FACTURAS, REMITOS Y RECIBOS CONTABLES:
    - Extrae Emisor, CUIT, Receptor, Fecha, Ítems, Subtotal, IVA y Total.
-3. DOCUMENTOS EXTENSOS (PDF, WORD, EXCEL, CSV):
+2. DOCUMENTOS EXTENSOS (PDF, WORD, EXCEL, CSV):
    - Sintetiza, audita cláusulas y extrae tablas numéricas.
 
 ========================================================================
@@ -63,12 +84,12 @@ Eres NoraItu, una Inteligencia Artificial Soberana, independiente y de nivel glo
 - Utiliza formato Markdown profesional, listas ordenadas y bloques de código cuando sea pertinente.
 `;
 
-// Helper de Clima satelital ultra-rápido (Open-Meteo API con timeout de 1 segundo)
+// Helper de Clima satelital ultra-rápido (Open-Meteo API con timeout de 800ms)
 async function fetchRealtimeWeather(): Promise<string | null> {
   try {
     const res = await fetch(
       "https://api.open-meteo.com/v1/forecast?latitude=-27.58&longitude=-56.68&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,wind_speed_10m&timezone=America%2FArgentina%2FBuenos_Aires",
-      { signal: AbortSignal.timeout(1200) }
+      { signal: AbortSignal.timeout(800) }
     );
     if (!res.ok) return null;
     const data = await res.json();
@@ -80,34 +101,7 @@ async function fetchRealtimeWeather(): Promise<string | null> {
   }
 }
 
-// Helper para intentar consulta a Ollama / DeepSeek Soberano (Oracle Cloud OCI)
-async function trySovereignOllama(promptText: string, systemPrompt: string): Promise<ReadableStream | null> {
-  const ollamaUrl = process.env.OLLAMA_SERVER_URL || process.env.OLLAMA_BASE_URL || process.env.DEEPSEEK_BASE_URL;
-  if (!ollamaUrl) return null;
-
-  try {
-    const cleanUrl = ollamaUrl.replace(/\/$/, "");
-    const res = await fetch(`${cleanUrl}/api/generate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: process.env.OLLAMA_MODEL || "llama3.2:latest",
-        prompt: promptText,
-        system: systemPrompt,
-        stream: true,
-        options: { temperature: 0.3 }
-      }),
-      signal: AbortSignal.timeout(2500)
-    });
-
-    if (!res.ok || !res.body) return null;
-    return res.body;
-  } catch {
-    return null;
-  }
-}
-
-// Helper para streaming de ultra-velocidad con Groq (Llama 3.3 70B / DeepSeek-R1)
+// Helper para streaming de ultra-velocidad con Groq (Llama 3.3 70B & DeepSeek-R1 70B a 800 tokens/s)
 async function tryGroqStream(historyList: any[], currentMsg: string, systemPrompt: string): Promise<ReadableStream | null> {
   const groqKey = process.env.GROQ_API_KEY;
   if (!groqKey) return null;
@@ -126,39 +120,28 @@ async function tryGroqStream(historyList: any[], currentMsg: string, systemPromp
 
     formattedMessages.push({ role: "user", content: currentMsg });
 
-    const modelsToTry = [
-      "llama-3.3-70b-versatile",
-      "deepseek-r1-distill-llama-70b",
-      "llama-3.1-8b-instant"
-    ];
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${groqKey.trim()}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        messages: formattedMessages,
+        temperature: 0.3,
+        max_tokens: 3000,
+        stream: true
+      }),
+      signal: AbortSignal.timeout(5000)
+    });
 
-    for (const model of modelsToTry) {
-      try {
-        const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${groqKey}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            model: model,
-            messages: formattedMessages,
-            temperature: 0.3,
-            max_tokens: 2500,
-            stream: true
-          }),
-          signal: AbortSignal.timeout(4000)
-        });
-
-        if (res.ok && res.body) {
-          return res.body;
-        }
-      } catch {
-        continue;
-      }
+    if (res.ok && res.body) {
+      return res.body;
     }
     return null;
-  } catch {
+  } catch (err) {
+    console.warn("[Groq Direct Error]:", err);
     return null;
   }
 }
@@ -194,7 +177,7 @@ export async function POST(req: Request) {
     if (activeSessionId) {
       const [sessionCheck, historyFetch] = await Promise.all([
         supabase.from("noraitu_sessions").select("id").eq("id", activeSessionId).single(),
-        supabase.from("noraitu_messages").select("role, content").eq("session_id", activeSessionId).order("created_at", { ascending: true }).limit(15)
+        supabase.from("noraitu_messages").select("role, content").eq("session_id", activeSessionId).order("created_at", { ascending: true }).limit(10)
       ]);
 
       if (sessionCheck.data) {
@@ -227,127 +210,11 @@ export async function POST(req: Request) {
 
     const fullSystemPrompt = `${NORAITU_SYSTEM_PROMPT}${weatherContext}`;
 
-    const normalizedHistory: any[] = [
-      { role: "user", parts: [{ text: `INSTRUCCIONES DEL SISTEMA:\n${fullSystemPrompt}` }] },
-      { role: "model", parts: [{ text: "Comprendido. Soy NoraItu, desarrollada por MyJNexoraVisual. Estoy lista para responder, generar imágenes o analizar compras." }] }
-    ];
-
-    const historyList = rawHistory || [];
-    for (const msg of historyList) {
-      const mappedRole = msg.role === "assistant" || msg.role === "model" ? "model" : "user";
-      const lastItem = normalizedHistory[normalizedHistory.length - 1];
-
-      if (lastItem && lastItem.role === mappedRole) {
-        lastItem.parts[0].text += `\n\n${msg.content}`;
-      } else {
-        normalizedHistory.push({ role: mappedRole, parts: [{ text: msg.content }] });
-      }
-    }
-
-    // 4. Preparación Multimodal
-    const currentMessageParts: any[] = [];
-    if (file && file.base64 && file.mimeType) {
-      const cleanMime = file.mimeType.split(";")[0].trim();
-      if (cleanMime.startsWith("image/") || cleanMime === "application/pdf" || cleanMime.startsWith("audio/")) {
-        currentMessageParts.push({
-          inlineData: {
-            data: file.base64,
-            mimeType: cleanMime
-          }
-        });
-      } else if (file.textContent) {
-        currentMessageParts.push({
-          text: `[CONTENIDO DEL DOCUMENTO "${file.name || 'archivo'}"]:\n${file.textContent}\n\n`
-        });
-      }
-    }
-
-    if (file && file.mimeType && file.mimeType.startsWith("audio/")) {
-      currentMessageParts.push({
-        text: "Escucha con atención el archivo de audio adjunto (nota de voz del usuario). Responde directamente a lo que solicita de forma clara, natural y precisa en español."
-      });
-    } else {
-      currentMessageParts.push({
-        text: message || "Por favor analiza detalladamente el archivo adjunto y responde de forma estructurada con enlaces si es un producto o imagen editada si fue solicitado."
-      });
-    }
-
-    // 5. Configuración de Modelos Rápidos
-    const keysPool = [
-      process.env.GEMINI_API_KEY,
-      process.env.GEMINI_API_KEY_FALLBACK,
-      process.env.GEMINI_API_KEY_FALLBACK_2,
-      process.env.GEMINI_API_KEY_TERTIARY,
-    ].filter(Boolean) as string[];
-
-    const modelsPool = [
-      "gemini-1.5-flash",
-      "gemini-flash-latest",
-      "gemini-1.5-flash-latest",
-      "gemini-2.0-flash",
-      "gemini-1.5-pro"
-    ];
-
-    // Modo Streaming Real-Time (Server-Sent Events)
+    // 4. Modo Streaming
     if (stream) {
-      // 1. PRIORIDAD 1: Nodo Soberano Propio en Oracle OCI (si no hay archivos adjuntos)
-      if (!file) {
-        const sovereignStream = await trySovereignOllama(message, fullSystemPrompt);
-        if (sovereignStream) {
-          const encoder = new TextEncoder();
-          let fullAssistantText = "";
-
-          const customStream = new ReadableStream({
-            async start(controller) {
-              const reader = sovereignStream.getReader();
-              const decoder = new TextDecoder();
-              try {
-                while (true) {
-                  const { done, value } = await reader.read();
-                  if (done) break;
-                  const chunkStr = decoder.decode(value, { stream: true });
-                  const lines = chunkStr.split("\n");
-                  for (const line of lines) {
-                    if (line.trim()) {
-                      try {
-                        const parsed = JSON.parse(line);
-                        if (parsed.response) {
-                          fullAssistantText += parsed.response;
-                          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: parsed.response, session_id: activeSessionId })}\n\n`));
-                        }
-                      } catch {}
-                    }
-                  }
-                }
-
-                if (activeSessionId) {
-                  supabase.from("noraitu_messages").insert([
-                    { session_id: activeSessionId, role: "user", content: message, metadata: { ...(contextData || {}) } },
-                    { session_id: activeSessionId, role: "assistant", content: fullAssistantText, metadata: { generated_by: "NoraItu-Sovereign-OCI" } }
-                  ]).then(() => {});
-                }
-
-                controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-                controller.close();
-              } catch (err) {
-                controller.error(err);
-              }
-            }
-          });
-
-          return new Response(customStream, {
-            headers: {
-              "Content-Type": "text/event-stream; charset=utf-8",
-              "Cache-Control": "no-cache, no-transform",
-              "Connection": "keep-alive"
-            }
-          });
-        }
-      }
-
-      // 2. PRIORIDAD 2: Motor Ultra-Rápido Groq (Llama 3.3 70B / DeepSeek-R1 70B - 800 t/s)
+      // INTENTO 1: Groq Engine Super-Rápido 70B (800 t/s) si es texto puro
       if (!file && process.env.GROQ_API_KEY) {
-        const groqStream = await tryGroqStream(historyList, message, fullSystemPrompt);
+        const groqStream = await tryGroqStream(rawHistory, message, fullSystemPrompt);
         if (groqStream) {
           const encoder = new TextEncoder();
           let fullAssistantText = "";
@@ -356,16 +223,20 @@ export async function POST(req: Request) {
             async start(controller) {
               const reader = groqStream.getReader();
               const decoder = new TextDecoder();
+              let buffer = "";
+
               try {
                 while (true) {
                   const { done, value } = await reader.read();
                   if (done) break;
-                  const chunkStr = decoder.decode(value, { stream: true });
-                  const lines = chunkStr.split("\n");
+                  buffer += decoder.decode(value, { stream: true });
+                  const lines = buffer.split("\n");
+                  buffer = lines.pop() || ""; // Conservar fragmentos incompletos
 
                   for (const line of lines) {
-                    if (line.startsWith("data: ")) {
-                      const dataContent = line.slice(6).trim();
+                    const trimmed = line.trim();
+                    if (trimmed.startsWith("data: ")) {
+                      const dataContent = trimmed.slice(6).trim();
                       if (dataContent === "[DONE]") break;
                       try {
                         const parsed = JSON.parse(dataContent);
@@ -404,29 +275,57 @@ export async function POST(req: Request) {
         }
       }
 
-      // 3. PRIORIDAD 3 / MULTIMODAL: Pool Redundante Gemini Flash + Pro
+      // INTENTO 2 (o Multimodal con fotos/audios): Pool Gemini Flash
+      const normalizedHistory: any[] = [
+        { role: "user", parts: [{ text: `INSTRUCCIONES DEL SISTEMA:\n${fullSystemPrompt}` }] },
+        { role: "model", parts: [{ text: "Comprendido. Soy NoraItu, desarrollada por MyJNexoraVisual. Estoy lista para responder con precisión." }] }
+      ];
+
+      for (const msg of (rawHistory || [])) {
+        const mappedRole = msg.role === "assistant" || msg.role === "model" ? "model" : "user";
+        normalizedHistory.push({ role: mappedRole, parts: [{ text: msg.content }] });
+      }
+
+      const currentMessageParts: any[] = [];
+      if (file && file.base64 && file.mimeType) {
+        const cleanMime = file.mimeType.split(";")[0].trim();
+        currentMessageParts.push({
+          inlineData: { data: file.base64, mimeType: cleanMime }
+        });
+      }
+
+      if (file && file.mimeType && file.mimeType.startsWith("audio/")) {
+        const audioPrompt = message && message.trim().length > 0 
+          ? message 
+          : "Escucha el audio adjunto con atención y responde detalladamente a lo expresado.";
+        currentMessageParts.push({ text: audioPrompt });
+      } else {
+        currentMessageParts.push({
+          text: message || "Analiza el archivo adjunto detalladamente."
+        });
+      }
+
+      const keysPool = [
+        process.env.GEMINI_API_KEY,
+        process.env.GEMINI_API_KEY_FALLBACK,
+        process.env.GEMINI_API_KEY_FALLBACK_2,
+        process.env.GEMINI_API_KEY_TERTIARY,
+      ].filter(Boolean) as string[];
+
       let activeChatStream: any = null;
       for (const key of keysPool) {
-        for (const currentModel of modelsPool) {
-          try {
-            const genAI = new GoogleGenerativeAI(key);
-            const model = genAI.getGenerativeModel({
-              model: currentModel,
-              generationConfig: {
-                temperature: 0.3,
-                maxOutputTokens: 2048,
-              }
-            });
-
-            const chat = model.startChat({ history: normalizedHistory });
-            const resultStream = await chat.sendMessageStream(currentMessageParts);
-            activeChatStream = resultStream;
-            break;
-          } catch (err: any) {
-            console.warn(`[NoraItu Stream Failover] (${currentModel}):`, err?.message || err);
-          }
+        try {
+          const genAI = new GoogleGenerativeAI(key);
+          const model = genAI.getGenerativeModel({
+            model: "gemini-1.5-flash",
+            generationConfig: { temperature: 0.3, maxOutputTokens: 2048 }
+          });
+          const chat = model.startChat({ history: normalizedHistory });
+          activeChatStream = await chat.sendMessageStream(currentMessageParts);
+          if (activeChatStream) break;
+        } catch (err: any) {
+          console.warn("[Gemini Failover Warn]:", err?.message);
         }
-        if (activeChatStream) break;
       }
 
       if (!activeChatStream) {
@@ -447,28 +346,16 @@ export async function POST(req: Request) {
               }
             }
 
-            // Guardar en Supabase en segundo plano al finalizar el stream
             if (activeSessionId) {
               supabase.from("noraitu_messages").insert([
-                {
-                  session_id: activeSessionId,
-                  role: "user",
-                  content: message || (file ? `[Archivo enviado: ${file.name || 'documento'}]` : ""),
-                  metadata: { ...(contextData || {}), has_file: Boolean(file), file_name: file?.name || null }
-                },
-                {
-                  session_id: activeSessionId,
-                  role: "assistant",
-                  content: fullAssistantText,
-                  metadata: { generated_by: "NoraItu-Core" }
-                }
+                { session_id: activeSessionId, role: "user", content: message, metadata: { ...(contextData || {}) } },
+                { session_id: activeSessionId, role: "assistant", content: fullAssistantText, metadata: { generated_by: "NoraItu-Flash" } }
               ]).then(() => {});
             }
 
             controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
             controller.close();
           } catch (streamErr) {
-            console.error("Error en streaming:", streamErr);
             controller.error(streamErr);
           }
         }
@@ -483,34 +370,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // Modo Fallback Non-Stream
-    let aiReplyText = "";
-    outerKeyLoop: for (const key of keysPool) {
-      for (const currentModel of modelsPool) {
-        try {
-          const genAI = new GoogleGenerativeAI(key);
-          const model = genAI.getGenerativeModel({
-            model: currentModel,
-            generationConfig: { temperature: 0.3, maxOutputTokens: 2048 }
-          });
-          const chat = model.startChat({ history: normalizedHistory });
-          const result = await chat.sendMessage(currentMessageParts);
-          const responseText = result.response.text();
-          if (responseText && responseText.trim().length > 0) {
-            aiReplyText = responseText.trim();
-            break outerKeyLoop;
-          }
-        } catch (genErr: any) {
-          console.warn(`[NoraItu Non-Stream Failover]:`, genErr?.message || genErr);
-        }
-      }
-    }
-
-    return NextResponse.json({
-      status: "success",
-      reply: aiReplyText,
-      session_id: activeSessionId
-    });
+    return NextResponse.json({ error: "Streaming requerido." }, { status: 400 });
 
   } catch (error: any) {
     console.error("❌ [NoraItu Server Error]:", error);
