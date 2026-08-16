@@ -398,6 +398,7 @@ export default function NoraItuApp() {
       if (res.ok) {
         const data = await res.json();
         setSyncTokenId(data.token_id);
+        setSyncPinCode(data.pin_code || "");
         const targetUrl = data.sync_url || `https://nexativanews.com.ar/noraitu?sync_token=${data.token_id}`;
         setSyncQrUrl(targetUrl);
 
@@ -608,36 +609,73 @@ export default function NoraItuApp() {
       if (liveIntervalRef.current) clearInterval(liveIntervalRef.current);
 
       // Escáner continuo de códigos QR y emparejamiento con PC sin salir de la app
-      const qrScannerInterval = setInterval(() => {
+      let isProcessingQr = false;
+      const qrScannerInterval = setInterval(async () => {
+        if (isProcessingQr) return;
         try {
           if (!liveVideoRef.current || liveVideoRef.current.videoWidth === 0) return;
           const video = liveVideoRef.current;
-          const canvas = liveCanvasRef.current || document.createElement("canvas");
-          canvas.width = Math.min(video.videoWidth, 640);
-          canvas.height = Math.min(video.videoHeight, 480);
-          const ctx = canvas.getContext("2d", { willReadFrequently: true });
-          if (!ctx) return;
 
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const code = jsQR(imgData.data, imgData.width, imgData.height);
+          let detectedRaw: string | null = null;
 
-          if (code && code.data) {
-            const raw = code.data.trim();
+          // 1. Intentar con BarcodeDetector nativo por hardware si está disponible en el navegador
+          if (typeof window !== "undefined" && "BarcodeDetector" in window) {
+            try {
+              const detector = new (window as any).BarcodeDetector({ formats: ["qr_code"] });
+              const barcodes = await detector.detect(video);
+              if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                detectedRaw = barcodes[0].rawValue.trim();
+              }
+            } catch (e) {}
+          }
+
+          // 2. Fallback a jsQR con canvas de alta definición
+          if (!detectedRaw) {
+            const canvas = liveCanvasRef.current || document.createElement("canvas");
+            canvas.width = Math.min(video.videoWidth, 800);
+            canvas.height = Math.min(video.videoHeight, 600);
+            const ctx = canvas.getContext("2d", { willReadFrequently: true });
+            if (ctx) {
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+              const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+              const code = jsQR(imgData.data, imgData.width, imgData.height, {
+                inversionAttempts: "attemptBoth"
+              });
+              if (code && code.data) {
+                detectedRaw = code.data.trim();
+              }
+            }
+          }
+
+          if (detectedRaw) {
             let targetToken: string | null = null;
             let targetPin: string | null = null;
 
-            if (raw.includes("sync_token=")) {
-              const match = raw.match(/sync_token=([^&]+)/);
+            if (detectedRaw.includes("sync_token=")) {
+              const match = detectedRaw.match(/sync_token=([^&]+)/);
               if (match) targetToken = match[1];
-            } else if (raw.startsWith("sync_") || raw.length === 36) {
-              targetToken = raw;
-            } else if (/^\d{6}$/.test(raw)) {
-              targetPin = raw;
+            } else if (detectedRaw.includes("sync_auth=")) {
+              const match = detectedRaw.match(/sync_auth=([^&]+)/);
+              if (match) targetToken = match[1];
+            } else if (detectedRaw.startsWith("sync_") || (detectedRaw.length === 36 && detectedRaw.includes("-"))) {
+              targetToken = detectedRaw;
+            } else if (/^\d{6}$/.test(detectedRaw)) {
+              targetPin = detectedRaw;
+            } else if (detectedRaw.includes("noraitu") && detectedRaw.includes("token")) {
+              try {
+                const parsedUrl = new URL(detectedRaw);
+                targetToken = parsedUrl.searchParams.get("sync_token") || parsedUrl.searchParams.get("token");
+              } catch (e) {}
             }
 
             if (targetToken || targetPin) {
+              isProcessingQr = true;
               clearInterval(qrScannerInterval);
+              
+              if (typeof navigator !== "undefined" && navigator.vibrate) {
+                navigator.vibrate([100, 50, 100]);
+              }
+
               setLiveSubtitles("⚡ ¡Código QR de PC detectado! Vinculando tus conversaciones...");
               
               const currentUid = localStorage.getItem("noraitu_user_id") || userId;
@@ -656,14 +694,18 @@ export default function NoraItuApp() {
                   speakText("Listo. Tu computadora ha sido vinculada con éxito.", -99);
                   setTimeout(() => {
                     stopLiveVision();
-                    alert("🎉 ¡Computadora Vinculada con Éxito!\n\nTodas tus conversaciones ya están abiertas en tu PC para trabajar más cómodo.");
-                  }, 1500);
+                    alert("🎉 ¡Computadora Vinculada con Éxito!\n\nTodas tus conversaciones ya están sincronizadas en tu PC.");
+                  }, 1200);
+                } else {
+                  isProcessingQr = false;
                 }
-              }).catch(() => {});
+              }).catch(() => {
+                isProcessingQr = false;
+              });
             }
           }
         } catch (e) {}
-      }, 400);
+      }, 300);
 
       liveIntervalRef.current = qrScannerInterval;
 
@@ -1636,7 +1678,7 @@ export default function NoraItuApp() {
                 >
                   <span className="truncate pr-2">{sess.title}</span>
                   <button
-                    onClick={(e) => deleteSession(sess.id, e)}
+                    onClick={(e) => handleDeleteSession(sess.id, e)}
                     className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition-all"
                     title="Eliminar conversación"
                   >
@@ -2236,6 +2278,13 @@ export default function NoraItuApp() {
               )}
             </div>
 
+            {syncPinCode && (
+              <div className="mb-3 p-2.5 rounded-2xl bg-indigo-950/70 border border-indigo-500/50 flex flex-col items-center justify-center">
+                <span className="text-[11px] font-mono text-indigo-300 uppercase tracking-wider">O ingresa este PIN de 6 dígitos en tu celular:</span>
+                <span className="text-2xl font-extrabold font-mono tracking-widest text-emerald-400 mt-0.5">{syncPinCode}</span>
+              </div>
+            )}
+
             <div className="space-y-3">
               <div className="flex items-center justify-center gap-2 text-[11px] font-mono text-indigo-300 bg-indigo-950/60 py-1.5 px-3 rounded-xl border border-indigo-800/60">
                 <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
@@ -2257,28 +2306,48 @@ export default function NoraItuApp() {
                 <span>Copiar Enlace de Sincronización</span>
               </button>
 
-              {/* Input manual de código */}
+              {/* Input manual de código o PIN */}
               <div className="pt-2 border-t border-slate-800 text-left">
-                <p className="text-[11px] text-slate-400 mb-1.5">O ingresa manualmente el ID de tu otro dispositivo:</p>
+                <p className="text-[11px] text-slate-400 mb-1.5">O ingresa el PIN de 6 dígitos o ID de usuario:</p>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={syncInputId}
                     onChange={(e) => setSyncInputId(e.target.value)}
-                    placeholder="Ej: user_abc123..."
+                    placeholder="PIN de 6 dígitos o user_..."
                     className="flex-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-slate-200 placeholder-slate-500 focus:outline-hidden focus:border-indigo-500"
                   />
                   <button
                     onClick={() => {
                       if (syncInputId.trim()) {
-                        localStorage.setItem("noraitu_user_id", syncInputId.trim());
-                        setUserId(syncInputId.trim());
-                        fetchSessions(syncInputId.trim());
-                        setSyncSuccessMsg("¡Dispositivo vinculado exitosamente!");
-                        setTimeout(() => {
-                          setSyncSuccessMsg("");
-                          handleCloseSyncModal();
-                        }, 1500);
+                        const val = syncInputId.trim();
+                        if (/^\d{6}$/.test(val)) {
+                          const currentUid = localStorage.getItem("noraitu_user_id") || userId;
+                          fetch("/api/noraitu-sync", {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ pin_code: val, user_id: currentUid, session_id: currentSessionId })
+                          }).then(async (res) => {
+                            if (res.ok) {
+                              setSyncSuccessMsg("🎉 ¡Dispositivo vinculado con éxito!");
+                              setTimeout(() => {
+                                setSyncSuccessMsg("");
+                                handleCloseSyncModal();
+                              }, 1500);
+                            } else {
+                              setSyncSuccessMsg("⚠️ PIN incorrecto o expirado.");
+                            }
+                          });
+                        } else {
+                          localStorage.setItem("noraitu_user_id", val);
+                          setUserId(val);
+                          fetchSessions(val);
+                          setSyncSuccessMsg("¡Dispositivo vinculado exitosamente!");
+                          setTimeout(() => {
+                            setSyncSuccessMsg("");
+                            handleCloseSyncModal();
+                          }, 1500);
+                        }
                       }
                     }}
                     className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-white transition-colors cursor-pointer"
