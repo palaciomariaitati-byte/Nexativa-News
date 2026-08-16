@@ -7,7 +7,7 @@ import { Home, Newspaper, Briefcase, Store, UserCheck } from "lucide-react";
 export default function MobileBottomNav() {
   const pathname = usePathname();
 
-  if (pathname?.startsWith("/admin") || pathname?.startsWith("/login")) {
+  if (pathname?.startsWith("/admin") || pathname?.startsWith("/login") || pathname?.startsWith("/noraitu") || pathname?.startsWith("/clasico")) {
     return null;
   }
 

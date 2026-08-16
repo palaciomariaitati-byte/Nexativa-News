@@ -6,7 +6,10 @@ import { supabase } from "@/lib/supabase/client";
 import type { Session } from "@supabase/supabase-js";
 import { Menu, X, Briefcase, Store as StoreIcon, Newspaper, BookOpen, Sparkles, UserCheck } from "lucide-react";
 
+import { usePathname } from "next/navigation";
+
 export default function Navbar() {
+  const pathname = usePathname();
   const [session, setSession] = useState<Session | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -18,6 +21,10 @@ export default function Navbar() {
       authListener?.subscription?.unsubscribe();
     };
   }, []);
+
+  if (pathname?.startsWith("/noraitu") || pathname?.startsWith("/clasico") || pathname?.startsWith("/admin")) {
+    return null;
+  }
 
   return (
     <>
