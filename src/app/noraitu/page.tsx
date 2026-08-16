@@ -129,6 +129,13 @@ export default function NoraItuApp() {
       (window.navigator as any).standalone === true
     );
 
+    // Registrar Service Worker de NoraItu para instalación nativa PWA en Chrome/Android
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/noraitu-sw.js", { scope: "/noraitu" })
+        .then((reg) => console.log("NoraItu Service Worker activo:", reg.scope))
+        .catch((err) => console.warn("NoraItu SW aviso:", err));
+    }
+
     // Capturar evento de instalación nativa PWA (Android / Chrome / Edge)
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
