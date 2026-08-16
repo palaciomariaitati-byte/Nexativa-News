@@ -44,8 +44,46 @@ export async function POST(req: Request) {
       process.env.GEMINI_API_KEY_TERTIARY,
     ].filter(Boolean) as string[];
 
-    // 1. Intentar con Gemini 2.0 Flash (Máxima agudeza visual)
-    const modelCandidates = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
+    // 1. Intentar con Open Source Sovereign Vision (Cloudflare AI / Ollama / HF / OpenRouter)
+    if (process.env.CLOUDFLARE_ACCOUNT_ID || process.env.HUGGINGFACE_API_KEY || process.env.LOCAL_OLLAMA_URL || process.env.OPENROUTER_API_KEY) {
+      try {
+        const sovRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY || ""}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: "qwen/qwen-2.5-vl-72b-instruct:free",
+            messages: [
+              { role: "system", content: `${TITAN_LIVE_SYSTEM_PROMPT}\n\n[MODO ACTIVO: ${mode.toUpperCase()}]` },
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: queryDirective },
+                  { type: "image_url", image_url: { url: `data:image/jpeg;base64,${cleanBase64}` } }
+                ]
+              }
+            ],
+            max_tokens: 250,
+            temperature: 0.25
+          }),
+          signal: AbortSignal.timeout(7000)
+        });
+        if (sovRes.ok) {
+          const sovData = await sovRes.json();
+          const txt = sovData.choices?.[0]?.message?.content;
+          if (txt && txt.trim()) {
+            return NextResponse.json({ text: txt.trim() });
+          }
+        }
+      } catch (e) {
+        console.warn("[Sovereign Live Vision OpenRouter Fail]:", e);
+      }
+    }
+
+    // 2. Intentar con Gemini Multimodal (Modelos de última generación)
+    const modelCandidates = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-pro", "gemini-3.7-flash"];
 
     for (const key of keysPool) {
       for (const modelName of modelCandidates) {
@@ -76,54 +114,8 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2. Fallback con Groq Vision (llama-3.2-11b-vision-preview)
-    if (process.env.GROQ_API_KEY) {
-      try {
-        const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            model: "llama-3.2-11b-vision-preview",
-            messages: [
-              {
-                role: "user",
-                content: [
-                  {
-                    type: "text",
-                    text: `${TITAN_LIVE_SYSTEM_PROMPT}\n\n${queryDirective}`
-                  },
-                  {
-                    type: "image_url",
-                    image_url: {
-                      url: `data:image/jpeg;base64,${cleanBase64}`
-                    }
-                  }
-                ]
-              }
-            ],
-            max_tokens: 250,
-            temperature: 0.25
-          }),
-          signal: AbortSignal.timeout(8000)
-        });
-
-        if (groqRes.ok) {
-          const groqData = await groqRes.json();
-          const groqText = groqData.choices?.[0]?.message?.content;
-          if (groqText && groqText.trim()) {
-            return NextResponse.json({ text: groqText.trim() });
-          }
-        }
-      } catch (groqErr) {
-        console.warn("[Groq Vision Fallback Warning]:", groqErr);
-      }
-    }
-
     return NextResponse.json({
-      text: "Estoy enfocando la escena. Mueve la cámara o hazme una pregunta específica para ayudarte."
+      text: "Estoy observando la escena con atención. Puedes pulsar Analizar o hacer tu pregunta sobre lo que estás mostrando."
     });
 
   } catch (error: any) {

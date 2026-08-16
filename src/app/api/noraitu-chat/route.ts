@@ -5,6 +5,7 @@ import { generateTextEmbedding } from "@/lib/nora/embeddings";
 import { resolveAdaptiveEducationalContext } from "@/lib/nora/educationalRouter";
 import { NORA_CONSTITUTIONAL_AXIOMS, sanitizeAndInspectPrompt } from "@/lib/nora/constitutionalShield";
 import { fetchUserContinuousMemory } from "@/lib/nora/userMemory";
+import { dispatchSovereignInference } from "@/lib/nora/sovereignRouter";
 
 export const runtime = "nodejs";
 
@@ -420,7 +421,20 @@ export async function POST(req: Request) {
         }
       }
 
-      // Fallback Multimodal a Gemini (para imágenes, documentos o si Groq no estuviera disponible)
+      // Intentar con la Red Abierta Soberana (Cloudflare AI, Hugging Face Qwen-VL, OpenRouter, Ollama)
+      const sovereignResponse = await dispatchSovereignInference({
+        history: rawHistory,
+        userMessage: effectiveUserMessage,
+        systemPrompt: fullSystemPrompt,
+        file: file,
+        sessionId: activeSessionId
+      });
+
+      if (sovereignResponse) {
+        return sovereignResponse;
+      }
+
+      // Fallback Multimodal a Gemini (en caso de que ninguna red abierta esté configurada)
       const currentMessageParts: any[] = [];
 
       if (file) {
