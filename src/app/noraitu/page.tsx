@@ -28,7 +28,10 @@ import {
   Bell,
   BellRing,
   Volume2,
-  Square
+  VolumeX,
+  Download,
+  Smartphone,
+  Share2
 } from "lucide-react";
 
 interface AttachedFile {
@@ -81,13 +84,23 @@ export default function NoraItuApp() {
   // Estados de Notificaciones Push
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 
+  // Estados de Voz Femenina Neutra (TTS)
+  const [autoVoice, setAutoVoice] = useState(false);
+  const [playingMsgIndex, setPlayingMsgIndex] = useState<number | null>(null);
+
+  // Estados de Instalación PWA Nativa
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+  const [showIOSModal, setShowIOSModal] = useState(false);
+
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  // 1. Inicializar UUID de usuario único y verificar notificaciones
+  // 1. Inicializar UUID de usuario, Voz, Notificaciones y PWA Install Prompt
   useEffect(() => {
     let storedUserId = localStorage.getItem("noraitu_user_id");
     if (!storedUserId) {
@@ -97,9 +110,38 @@ export default function NoraItuApp() {
     setUserId(storedUserId);
     fetchSessions(storedUserId);
 
+    // Recuperar preferencia de voz automática
+    const savedVoice = localStorage.getItem("noraitu_auto_voice");
+    if (savedVoice === "true") setAutoVoice(true);
+
+    // Verificar permisos de notificaciones
     if (typeof window !== "undefined" && "Notification" in window) {
       setNotificationsEnabled(Notification.permission === "granted");
     }
+
+    // Detectar iOS
+    const userAgent = typeof window !== "undefined" ? window.navigator.userAgent.toLowerCase() : "";
+    const isAppleMobile = /iphone|ipad|ipod/.test(userAgent);
+    setIsIOS(isAppleMobile);
+
+    // Capturar evento de instalación nativa PWA (Android / Chrome / Edge)
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredInstallPrompt(e);
+      const dismissed = sessionStorage.getItem("noraitu_install_dismissed");
+      if (!dismissed) {
+        setShowInstallBanner(true);
+      }
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
   }, []);
 
   // 2. Cargar sesiones del usuario
@@ -120,6 +162,7 @@ export default function NoraItuApp() {
     setCurrentSessionId(sessionId);
     setSidebarOpen(false);
     setIsLoading(true);
+    stopSpeaking();
     try {
       const res = await fetch(`/api/noraitu-sessions?session_id=${encodeURIComponent(sessionId)}`);
       if (res.ok) {
@@ -135,6 +178,7 @@ export default function NoraItuApp() {
 
   // 4. Crear nuevo chat
   const handleNewChat = () => {
+    stopSpeaking();
     setCurrentSessionId(null);
     setMessages([]);
     setInputMessage("");
@@ -172,7 +216,96 @@ export default function NoraItuApp() {
     scrollToBottom();
   }, [messages, isLoading]);
 
-  // 7. Solicitar Permisos de Notificaciones Push
+  // 7. Instalación Nativa PWA
+  const handleInstallApp = async () => {
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      const choiceResult = await deferredInstallPrompt.userChoice;
+      if (choiceResult.outcome === "accepted") {
+        setShowInstallBanner(false);
+      }
+      setDeferredInstallPrompt(null);
+    } else if (isIOS) {
+      setShowIOSModal(true);
+    } else {
+      alert("Para instalar NoraItu, abre el menú de tu navegador y selecciona 'Instalar aplicación' o 'Agregar a la pantalla principal'.");
+    }
+  };
+
+  const handleDismissInstall = () => {
+    setShowInstallBanner(false);
+    sessionStorage.setItem("noraitu_install_dismissed", "true");
+  };
+
+  // 8. Sintetizador de Voz Femenina Neutra de NoraItu (TTS)
+  const speakText = (text: string, msgIndex: number) => {
+    if (!("speechSynthesis" in window)) return;
+
+    // Si ya está sonando este mensaje, detenerlo
+    if (playingMsgIndex === msgIndex) {
+      stopSpeaking();
+      return;
+    }
+
+    stopSpeaking();
+
+    // Limpiar Markdown y bloques de código para una lectura fluida
+    const cleanText = text
+      .replace(/```[\s\S]*?```/g, " Bloque de código. ")
+      .replace(/`([^`]+)`/g, "$1")
+      .replace(/###/g, "")
+      .replace(/\*\*(.*?)\*\*/g, "$1")
+      .replace(/[-*]\s+/g, "")
+      .trim();
+
+    if (!cleanText) return;
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = "es-MX"; // Español neutro latinoamericano
+    utterance.rate = 1.0;     // Velocidad natural
+    utterance.pitch = 1.08;   // Tono femenino cálido y elegante
+
+    // Buscar la mejor voz femenina neutra disponible en el sistema
+    const voices = window.speechSynthesis.getVoices();
+    const femaleVoice = voices.find(v => 
+      (v.lang.startsWith("es") || v.lang.includes("es-")) && 
+      (v.name.toLowerCase().includes("female") || 
+       v.name.toLowerCase().includes("paulina") || 
+       v.name.toLowerCase().includes("sabina") || 
+       v.name.toLowerCase().includes("monica") || 
+       v.name.toLowerCase().includes("dalia") || 
+       v.name.toLowerCase().includes("hilda") || 
+       v.name.toLowerCase().includes("zira") || 
+       v.name.toLowerCase().includes("elena") || 
+       v.name.toLowerCase().includes("google español"))
+    ) || voices.find(v => v.lang.startsWith("es"));
+
+    if (femaleVoice) {
+      utterance.voice = femaleVoice;
+    }
+
+    utterance.onend = () => setPlayingMsgIndex(null);
+    utterance.onerror = () => setPlayingMsgIndex(null);
+
+    setPlayingMsgIndex(msgIndex);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const stopSpeaking = () => {
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setPlayingMsgIndex(null);
+  };
+
+  const toggleAutoVoice = () => {
+    const newVal = !autoVoice;
+    setAutoVoice(newVal);
+    localStorage.setItem("noraitu_auto_voice", String(newVal));
+    if (!newVal) stopSpeaking();
+  };
+
+  // 9. Solicitar Permisos de Notificaciones Push
   const handleRequestNotifications = async () => {
     if (!("Notification" in window)) {
       alert("Este navegador no soporta notificaciones web.");
@@ -184,7 +317,7 @@ export default function NoraItuApp() {
       if (permission === "granted") {
         setNotificationsEnabled(true);
         new Notification("NoraItu AI", {
-          body: "¡Notificaciones activadas con éxito! Te avisaremos cuando NoraItu termine de responder.",
+          body: "¡Notificaciones activadas! Te avisaremos cuando NoraItu termine de responder.",
           icon: "/icons/main-icon.png"
         });
       } else {
@@ -195,7 +328,7 @@ export default function NoraItuApp() {
     }
   };
 
-  // 8. Iniciar Grabación de Audio por Micrófono (MediaRecorder Nativo)
+  // 10. Iniciar Grabación de Audio por Micrófono (MediaRecorder Nativo)
   const startRecordingAudio = async () => {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       alert("Tu dispositivo o navegador no tiene acceso al micrófono.");
@@ -237,13 +370,11 @@ export default function NoraItuApp() {
           return;
         }
 
-        // Convertir blob a base64
         const reader = new FileReader();
         reader.onloadend = () => {
           const result = reader.result as string;
           const base64Data = result.split(",")[1];
 
-          // Enviar inmediatamente la nota de voz a NoraItu
           handleSendAudioMessage({
             name: `Nota de Voz (${finalSecs}s).${mimeType.includes("mp4") ? "mp4" : "webm"}`,
             type: mimeType,
@@ -289,11 +420,12 @@ export default function NoraItuApp() {
     }
   };
 
-  // 9. Enviar Mensaje de Audio Directo
+  // 11. Enviar Mensaje de Audio Directo
   const handleSendAudioMessage = async (audioFile: AttachedFile) => {
+    stopSpeaking();
     const tempUserMsg: Message = {
       role: "user",
-      content: `🎙️ [Mensaje de voz enviado]`,
+      content: `🎙️ [Nota de voz enviada]`,
       file: {
         name: audioFile.name,
         type: audioFile.type
@@ -313,7 +445,7 @@ export default function NoraItuApp() {
           "x-message-id": msgId
         },
         body: JSON.stringify({
-          message: "He enviado una nota de voz. Por favor escúchala y responde detalladamente.",
+          message: "Escucha este audio del usuario y respóndele detalladamente.",
           session_id: currentSessionId,
           user_id: userId,
           message_id: msgId,
@@ -328,6 +460,7 @@ export default function NoraItuApp() {
       const data = await res.json();
 
       if (res.ok && data.reply) {
+        const newMsgIndex = messages.length + 1;
         const assistantMsg: Message = {
           role: "assistant",
           content: data.reply,
@@ -340,7 +473,12 @@ export default function NoraItuApp() {
           fetchSessions(userId);
         }
 
-        // Notificación si la ventana está en segundo plano
+        // Si la voz automática está activa, hablar
+        if (autoVoice) {
+          speakText(data.reply, newMsgIndex);
+        }
+
+        // Notificación si la ventana está oculta
         if (document.hidden && Notification.permission === "granted") {
           new Notification("NoraItu AI", {
             body: data.reply.slice(0, 100) + "...",
@@ -371,7 +509,7 @@ export default function NoraItuApp() {
     }
   };
 
-  // 10. Procesar archivos y fotos seleccionados
+  // 12. Procesar archivos y fotos seleccionados
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -411,8 +549,9 @@ export default function NoraItuApp() {
     e.target.value = "";
   };
 
-  // 11. Enviar Mensaje a NoraItu (Texto o Archivos)
+  // 13. Enviar Mensaje a NoraItu (Texto o Archivos)
   const handleSendMessage = async (customPrompt?: string) => {
+    stopSpeaking();
     const textToSend = customPrompt || inputMessage;
     if ((!textToSend.trim() && !attachedFile) || isLoading) return;
 
@@ -462,6 +601,7 @@ export default function NoraItuApp() {
       const data = await res.json();
 
       if (res.ok && data.reply) {
+        const newMsgIndex = messages.length + 1;
         const assistantMsg: Message = {
           role: "assistant",
           content: data.reply,
@@ -472,6 +612,11 @@ export default function NoraItuApp() {
         if (data.session_id && data.session_id !== currentSessionId) {
           setCurrentSessionId(data.session_id);
           fetchSessions(userId);
+        }
+
+        // Si la voz automática está activa, hablar en voz femenina
+        if (autoVoice) {
+          speakText(data.reply, newMsgIndex);
         }
 
         // Notificación en segundo plano
@@ -503,14 +648,14 @@ export default function NoraItuApp() {
     }
   };
 
-  // 12. Auto-resize textarea
+  // 14. Auto-resize textarea
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputMessage(e.target.value);
     e.target.style.height = "auto";
     e.target.style.height = `${Math.min(e.target.scrollHeight, 180)}px`;
   };
 
-  // 13. Manejo de tecla Enter
+  // 15. Manejo de tecla Enter
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -518,7 +663,7 @@ export default function NoraItuApp() {
     }
   };
 
-  // 14. Copiar texto al portapapeles
+  // 16. Copiar texto al portapapeles
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
@@ -613,6 +758,65 @@ export default function NoraItuApp() {
       />
 
       {/* ================================================================= */}
+      {/* 📱 BANNER / MODAL FLOTANTE DE INSTALACIÓN NATIVA PWA              */}
+      {/* ================================================================= */}
+      {showInstallBanner && (
+        <div className="fixed top-3 inset-x-3 sm:inset-x-auto sm:right-4 z-50 max-w-md bg-slate-900/95 border border-sky-500/50 rounded-2xl p-4 shadow-2xl backdrop-blur-xl animate-fadeIn">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-lg shadow-sky-500/30">
+              <Smartphone size={20} className="text-white" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-bold text-white mb-0.5">¿Instalar NoraItu en tu dispositivo?</h3>
+              <p className="text-xs text-slate-300 leading-relaxed mb-3">
+                Úsala a pantalla completa como una app nativa con respuestas inmediatas y acceso directo.
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleInstallApp}
+                  className="px-3.5 py-1.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white text-xs font-semibold rounded-lg shadow-md shadow-sky-500/20 active:scale-95 transition-all flex items-center gap-1.5"
+                >
+                  <Download size={14} />
+                  <span>Instalar Ahora</span>
+                </button>
+                <button
+                  onClick={handleDismissInstall}
+                  className="px-3 py-1.5 text-xs text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                >
+                  Quizás más tarde
+                </button>
+              </div>
+            </div>
+            <button onClick={handleDismissInstall} className="text-slate-400 hover:text-white">
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Guía para iPhone / iOS */}
+      {showIOSModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-sky-500/40 rounded-2xl p-5 max-w-sm w-full text-center space-y-4 shadow-2xl">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-sky-500 to-indigo-600 mx-auto flex items-center justify-center">
+              <Share2 size={24} className="text-white" />
+            </div>
+            <h3 className="font-bold text-base text-white">Instalar en iPhone / iPad</h3>
+            <div className="text-left text-xs text-slate-300 space-y-2 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+              <p>1. Toca el botón <strong>Compartir</strong> en la barra inferior de Safari (icono de cuadrado con flecha hacia arriba).</p>
+              <p>2. Desliza hacia abajo y selecciona <strong>"Agregar al inicio"</strong> (icono +).</p>
+            </div>
+            <button
+              onClick={() => setShowIOSModal(false)}
+              className="w-full py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-xl transition-colors"
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================= */}
       {/* 📱 SIDEBAR / HISTORIAL DE CONVERSACIONES                          */}
       {/* ================================================================= */}
       <aside className={`
@@ -642,13 +846,25 @@ export default function NoraItuApp() {
         </div>
 
         {/* Botón Nuevo Chat */}
-        <div className="p-3">
+        <div className="p-3 space-y-2">
           <button
             onClick={handleNewChat}
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-medium text-sm shadow-md shadow-sky-600/20 hover:shadow-sky-500/30 transition-all duration-200 active:scale-[0.98]"
           >
             <Plus size={18} />
             <span>Nuevo Chat</span>
+          </button>
+
+          {/* Botón Instalar App en Sidebar */}
+          <button
+            onClick={handleInstallApp}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs bg-slate-900/80 hover:bg-slate-800/90 border border-slate-800 text-sky-300 hover:text-white transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Smartphone size={14} className="text-sky-400" />
+              <span>Instalar App en Celular</span>
+            </div>
+            <Download size={12} className="text-sky-400" />
           </button>
         </div>
 
@@ -743,18 +959,34 @@ export default function NoraItuApp() {
               <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400/50" />
               <span className="font-semibold text-sm text-slate-200">NoraItu Universal</span>
               <span className="hidden sm:inline-block px-2 py-0.5 rounded-full text-[10px] font-mono bg-sky-950/80 text-sky-400 border border-sky-800/40">
-                Multimodal • Visión, Voz & Docs
+                Voz Femenina • Visión & Docs
               </span>
             </div>
           </div>
           
-          <button
-            onClick={handleNewChat}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/80 border border-slate-700/60 transition-colors"
-          >
-            <Plus size={14} />
-            <span className="hidden sm:inline">Nuevo Chat</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Toggle de Voz Femenina Automática */}
+            <button
+              onClick={toggleAutoVoice}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                autoVoice 
+                  ? "bg-sky-950/80 border-sky-700 text-sky-300 shadow-sm shadow-sky-500/20" 
+                  : "bg-slate-900/60 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800/60"
+              }`}
+              title={autoVoice ? "Desactivar voz automática" : "Activar voz femenina automática"}
+            >
+              {autoVoice ? <Volume2 size={14} className="text-sky-400" /> : <VolumeX size={14} />}
+              <span className="hidden sm:inline">{autoVoice ? "Voz: Activa" : "Voz: Manual"}</span>
+            </button>
+
+            <button
+              onClick={handleNewChat}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/80 border border-slate-700/60 transition-colors"
+            >
+              <Plus size={14} />
+              <span className="hidden sm:inline">Nuevo Chat</span>
+            </button>
+          </div>
         </header>
 
         {/* Contenedor de Mensajes */}
@@ -772,7 +1004,7 @@ export default function NoraItuApp() {
                 NoraItu Inteligencia Multimodal
               </h2>
               <p className="text-sm text-slate-400 max-w-md mb-8">
-                Graba audios de voz, sube fotos de productos o documentos contables. NoraItu resolverá tus consultas con alta precisión.
+                Habla por notas de voz, sube fotos de productos o documentos contables. NoraItu responderá con voz femenina y máxima precisión.
               </p>
 
               {/* Grid de Sugerencias */}
@@ -802,6 +1034,8 @@ export default function NoraItuApp() {
             <div className="max-w-3xl mx-auto space-y-6">
               {messages.map((msg, index) => {
                 const isUser = msg.role === "user";
+                const isSpeakingThis = playingMsgIndex === index;
+
                 return (
                   <div 
                     key={msg.id || index}
@@ -843,13 +1077,27 @@ export default function NoraItuApp() {
                       {!isUser && (
                         <div className="mt-2.5 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-500">
                           <span className="font-mono">NoraItu</span>
-                          <button
-                            onClick={() => handleCopy(msg.content, `msg_${index}`)}
-                            className="flex items-center gap-1 hover:text-sky-400 transition-colors"
-                          >
-                            {copiedId === `msg_${index}` ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-                            <span>{copiedId === `msg_${index}` ? "Copiado" : "Copiar"}</span>
-                          </button>
+                          <div className="flex items-center gap-3">
+                            {/* Botón Escuchar en Voz Femenina */}
+                            <button
+                              onClick={() => speakText(msg.content, index)}
+                              className={`flex items-center gap-1 transition-colors ${
+                                isSpeakingThis ? "text-rose-400 font-semibold animate-pulse" : "hover:text-sky-400"
+                              }`}
+                              title={isSpeakingThis ? "Detener voz" : "Escuchar en voz femenina neutra"}
+                            >
+                              {isSpeakingThis ? <VolumeX size={13} /> : <Volume2 size={13} />}
+                              <span>{isSpeakingThis ? "Detener" : "Escuchar"}</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleCopy(msg.content, `msg_${index}`)}
+                              className="flex items-center gap-1 hover:text-sky-400 transition-colors"
+                            >
+                              {copiedId === `msg_${index}` ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                              <span>{copiedId === `msg_${index}` ? "Copiado" : "Copiar"}</span>
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
