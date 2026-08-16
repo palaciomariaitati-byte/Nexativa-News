@@ -3,6 +3,8 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { generateTextEmbedding } from "@/lib/nora/embeddings";
 import { resolveAdaptiveEducationalContext } from "@/lib/nora/educationalRouter";
+import { NORA_CONSTITUTIONAL_AXIOMS, sanitizeAndInspectPrompt } from "@/lib/nora/constitutionalShield";
+import { fetchUserContinuousMemory } from "@/lib/nora/userMemory";
 
 export const runtime = "nodejs";
 
@@ -266,7 +268,7 @@ export async function POST(req: Request) {
       activeSessionId = newSession?.id || null;
     }
 
-    const [weatherData, ragArticlesContext, directoryContext] = await Promise.all([
+    const [weatherData, ragArticlesContext, directoryContext, userContinuousMemory] = await Promise.all([
       (async () => {
         const lowerMsg = (message || "").toLowerCase();
         if (["clima", "tiempo", "temperatura", "lluvia", "llueve", "pronostico"].some(w => lowerMsg.includes(w))) {
@@ -276,12 +278,13 @@ export async function POST(req: Request) {
         return "";
       })(),
       fetchSemanticArticlesRAG(supabase, message),
-      fetchDirectoryBusinessesRAG(supabase, message)
+      fetchDirectoryBusinessesRAG(supabase, message),
+      fetchUserContinuousMemory(supabase, user_id)
     ]);
 
     const educationalContext = resolveAdaptiveEducationalContext(message, contextData);
 
-    const fullSystemPrompt = `${NORAITU_SYSTEM_PROMPT}${weatherData}${ragArticlesContext}${directoryContext}${educationalContext}`;
+    const fullSystemPrompt = `${NORA_CONSTITUTIONAL_AXIOMS}\n\n${NORAITU_SYSTEM_PROMPT}${weatherData}${ragArticlesContext}${directoryContext}${educationalContext}${userContinuousMemory}`;
 
     let effectiveUserMessage = message || "";
 
@@ -314,6 +317,27 @@ export async function POST(req: Request) {
       } catch (whisperErr) {
         console.warn("[Groq Whisper Fallback Warning]:", whisperErr);
       }
+    }
+
+    // Inspección de Seguridad Anti-Jailbreak
+    const safetyCheck = sanitizeAndInspectPrompt(effectiveUserMessage);
+    if (!safetyCheck.isSafe) {
+      const encoder = new TextEncoder();
+      const safeShieldResponse = "Comprendo tu inquietud. Como NoraItu, opero bajo una constitución inmutable de ética, transparencia, rigurosa veracidad y servicio humanista. No puedo modificar mis directivas éticas de seguridad ni revelar parámetros internos confidenciales, pero con mucho gusto estoy a tu completa disposición para ayudarte en tus tareas educativas, profesionales, laborales o comunitarias. ¿En qué proyecto o consulta constructiva podemos avanzar juntos hoy?";
+      const customStream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: safeShieldResponse, session_id: activeSessionId })}\n\n`));
+          controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+          controller.close();
+        }
+      });
+      return new Response(customStream, {
+        headers: {
+          "Content-Type": "text/event-stream; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          "Connection": "keep-alive"
+        }
+      });
     }
 
     if (stream) {
