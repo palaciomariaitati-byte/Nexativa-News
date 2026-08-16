@@ -761,8 +761,16 @@ export default function NoraItuApp() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // Renderizador de Markdown con soporte de código y listas
+  // Helper de formateo de Markdown y enlaces de compra ecommerce
+  const formatMarkdownText = (str: string) => {
+    return str
+      .replace(/\*\*(.*?)\*\*/g, '<strong class="text-sky-300 font-semibold">$1</strong>')
+      .replace(/\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-sky-400 hover:text-sky-300 underline font-medium hover:scale-[1.02] transition-transform">$1 ↗</a>');
+  };
+
+  // Renderizador de Markdown con soporte de imágenes IA generadas, links de compra y código
   const renderMessageContent = (content: string, msgIndex: number) => {
+    const imageRegex = /!\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g;
     const parts = content.split(/(```[\s\S]*?```)/g);
 
     return (
@@ -796,14 +804,60 @@ export default function NoraItuApp() {
           return (
             <div key={idx} className="space-y-2">
               {part.split("\n\n").map((paragraph, pIdx) => {
+                // Detectar si el párrafo contiene una imagen generada por IA
+                const imgMatch = [...paragraph.matchAll(imageRegex)];
+                if (imgMatch.length > 0) {
+                  return (
+                    <div key={pIdx} className="my-3 space-y-3">
+                      {imgMatch.map((m, mIdx) => {
+                        const caption = m[1] || "Imagen Generada por NoraItu";
+                        const imgUrl = m[2];
+                        return (
+                          <div key={mIdx} className="rounded-2xl overflow-hidden border border-sky-500/40 bg-slate-950/90 p-2.5 shadow-2xl space-y-2.5">
+                            <div className="relative group rounded-xl overflow-hidden bg-black/50">
+                              <img 
+                                src={imgUrl} 
+                                alt={caption} 
+                                className="w-full max-h-96 object-contain rounded-xl mx-auto transition-transform duration-300 group-hover:scale-[1.01]"
+                                loading="lazy" 
+                              />
+                            </div>
+                            <div className="flex items-center justify-between px-2 py-1 text-xs">
+                              <span className="font-medium text-slate-300 truncate max-w-[60%]">{caption}</span>
+                              <a
+                                href={imgUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                download="noraitu_arte_ia.jpg"
+                                className="px-3 py-1.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white rounded-lg font-semibold flex items-center gap-1.5 shadow-md shadow-sky-500/20 active:scale-95 transition-all text-xs"
+                              >
+                                <Download size={13} />
+                                <span>Descargar HD</span>
+                              </a>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {paragraph.replace(imageRegex, "").trim() && (
+                        <p 
+                          className="text-slate-200"
+                          dangerouslySetInnerHTML={{
+                            __html: formatMarkdownText(paragraph.replace(imageRegex, "").trim())
+                          }}
+                        />
+                      )}
+                    </div>
+                  );
+                }
+
                 if (paragraph.trim().startsWith("- ") || paragraph.trim().startsWith("* ")) {
                   const items = paragraph.split("\n");
                   return (
-                    <ul key={pIdx} className="list-disc pl-5 space-y-1 my-2 text-slate-200">
+                    <ul key={pIdx} className="list-disc pl-5 space-y-1.5 my-2 text-slate-200">
                       {items.map((item, iIdx) => (
                         <li key={iIdx}>
                           <span dangerouslySetInnerHTML={{
-                            __html: item.replace(/^[-*]\s+/, "").replace(/\*\*(.*?)\*\*/g, '<strong class="text-sky-300 font-semibold">$1</strong>')
+                            __html: formatMarkdownText(item.replace(/^[-*]\s+/, ""))
                           }} />
                         </li>
                       ))}
@@ -816,7 +870,7 @@ export default function NoraItuApp() {
                     key={pIdx} 
                     className="text-slate-200"
                     dangerouslySetInnerHTML={{
-                      __html: paragraph.replace(/\*\*(.*?)\*\*/g, '<strong class="text-sky-300 font-semibold">$1</strong>')
+                      __html: formatMarkdownText(paragraph)
                     }}
                   />
                 );
@@ -1101,10 +1155,10 @@ export default function NoraItuApp() {
               {/* Grid de Sugerencias */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl text-left">
                 {[
-                  { icon: Volume2, title: "Hablarle por Voz", desc: "Toca el micrófono para dictar una consulta", prompt: "Hola NoraItu, ¿qué temas de ingeniería y negocios dominas?" },
-                  { icon: Camera, title: "Identificar Producto / Foto", desc: "Toma una foto y cotiza precios de mercado", prompt: "Identifica este producto en la foto, sus especificaciones y precio promedio de venta." },
+                  { icon: ImageIcon, title: "Generar Imagen con IA", desc: "Crea arte hiperrealista, logos o renders", prompt: "Crea una imagen hiperrealista en 8k de un atardecer sobre el Río Paraná en Ituzaingó, Corrientes." },
+                  { icon: Camera, title: "Identificar & Comprar Producto", desc: "Sube una foto y obtén links de compra directos", prompt: "Identifica este producto y facilítame los enlaces directos para comprarlo en MercadoLibre, Amazon y Google Shopping." },
+                  { icon: Volume2, title: "Hablarle por Voz", desc: "Toca el micrófono para dictar una consulta", prompt: "Hola NoraItu, ¿qué capacidades de negocios, visión y tecnología posees?" },
                   { icon: FileCheck2, title: "Auditar Factura o Recibo", desc: "Extrae CUIT, totales, ítems e IVA", prompt: "Extrae todos los ítems, CUIT, subtotal e impuestos de este comprobante adjunto." },
-                  { icon: Zap, title: "Clima en Tiempo Real", desc: "Temperatura y pronóstico satelital", prompt: "¿Cuál es el clima actual en Ituzaingó y el pronóstico para hoy?" },
                 ].map((card, i) => (
                   <button
                     key={i}
