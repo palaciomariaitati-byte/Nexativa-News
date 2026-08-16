@@ -165,16 +165,15 @@ async function fetchDirectoryBusinessesRAG(supabase: any, userQuery: string): Pr
   }
 }
 
-async function tryGroqStream(historyList: any[], currentMsg: string, systemPrompt: string): Promise<ReadableStream | null> {
+async function tryGroqStream(historyList: any[], currentMsg: string, systemPrompt: string, fileObj?: any): Promise<ReadableStream | null> {
   const groqKey = process.env.GROQ_API_KEY;
   if (!groqKey) return null;
 
-  const candidateModels = [
-    "llama-3.3-70b-versatile",
-    "llama-3.1-8b-instant",
-    "mixtral-8x7b-32768",
-    "gemma2-9b-it"
-  ];
+  const isImageFile = fileObj && fileObj.mimeType && fileObj.mimeType.startsWith("image/") && fileObj.base64;
+
+  const candidateModels = isImageFile
+    ? ["llama-3.2-11b-vision-preview", "llama-3.2-90b-vision-preview"]
+    : ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768", "gemma2-9b-it"];
 
   const formattedMessages: any[] = [
     { role: "system", content: systemPrompt }
@@ -187,7 +186,24 @@ async function tryGroqStream(historyList: any[], currentMsg: string, systemPromp
     });
   }
 
-  formattedMessages.push({ role: "user", content: currentMsg });
+  if (isImageFile) {
+    const cleanB64 = fileObj.base64.includes(",") ? fileObj.base64.split(",")[1] : fileObj.base64;
+    const cleanMime = fileObj.mimeType.split(";")[0].trim() || "image/jpeg";
+    formattedMessages.push({
+      role: "user",
+      content: [
+        { type: "text", text: currentMsg || "Analiza detalladamente la imagen adjunta." },
+        {
+          type: "image_url",
+          image_url: {
+            url: `data:${cleanMime};base64,${cleanB64}`
+          }
+        }
+      ]
+    });
+  } else {
+    formattedMessages.push({ role: "user", content: currentMsg });
+  }
 
   for (const modelName of candidateModels) {
     try {
@@ -341,11 +357,9 @@ export async function POST(req: Request) {
     }
 
     if (stream) {
-      // Si tenemos Groq API Key y no hay archivo de imagen pesado (o el audio ya fue transcrito)
-      const isPureTextOrTranscribedAudio = !file || (file.mimeType && file.mimeType.startsWith("audio/") && effectiveUserMessage);
-      
-      if (isPureTextOrTranscribedAudio && process.env.GROQ_API_KEY) {
-        const groqStream = await tryGroqStream(rawHistory, effectiveUserMessage, fullSystemPrompt);
+      // Intentar primero con Groq (Soporta texto ultrarrápido y Groq Vision para imágenes)
+      if (process.env.GROQ_API_KEY) {
+        const groqStream = await tryGroqStream(rawHistory, effectiveUserMessage, fullSystemPrompt, file);
         if (groqStream) {
           const encoder = new TextEncoder();
           let fullAssistantText = "";
@@ -411,9 +425,10 @@ export async function POST(req: Request) {
 
       if (file) {
         if (file.base64 && file.mimeType) {
-          const cleanMime = file.mimeType.split(";")[0].trim();
+          const cleanMime = file.mimeType.split(";")[0].trim() || "image/jpeg";
+          const cleanB64 = file.base64.includes(",") ? file.base64.split(",")[1] : file.base64;
           currentMessageParts.push({
-            inlineData: { data: file.base64, mimeType: cleanMime }
+            inlineData: { data: cleanB64, mimeType: cleanMime }
           });
         } else if (file.storage_url || file.url) {
           try {
