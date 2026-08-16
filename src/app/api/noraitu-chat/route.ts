@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { generateTextEmbedding } from "@/lib/nora/embeddings";
+import { resolveAdaptiveEducationalContext } from "@/lib/nora/educationalRouter";
 
 export const runtime = "nodejs";
 
@@ -278,7 +279,9 @@ export async function POST(req: Request) {
       fetchDirectoryBusinessesRAG(supabase, message)
     ]);
 
-    const fullSystemPrompt = `${NORAITU_SYSTEM_PROMPT}${weatherData}${ragArticlesContext}${directoryContext}`;
+    const educationalContext = resolveAdaptiveEducationalContext(message, contextData);
+
+    const fullSystemPrompt = `${NORAITU_SYSTEM_PROMPT}${weatherData}${ragArticlesContext}${directoryContext}${educationalContext}`;
 
     if (stream) {
       if (!file && process.env.GROQ_API_KEY) {

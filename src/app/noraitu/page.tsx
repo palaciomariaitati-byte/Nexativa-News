@@ -31,7 +31,13 @@ import {
   VolumeX,
   Download,
   Smartphone,
-  Share2
+  Share2,
+  QrCode,
+  GraduationCap,
+  BookOpen,
+  Puzzle,
+  MessageCircle,
+  ExternalLink
 } from "lucide-react";
 
 interface AttachedFile {
@@ -93,6 +99,13 @@ export default function NoraItuApp() {
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [showIOSModal, setShowIOSModal] = useState(false);
+
+  // Estados de Compartir / Viralización WhatsApp y QR
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [copiedShareLink, setCopiedShareLink] = useState(false);
+  
+  // Estado de Modo Adaptativo (General, Inclusión TEA, Docente, Cátedra)
+  const [activeMode, setActiveMode] = useState<string>("general");
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -480,6 +493,7 @@ export default function NoraItuApp() {
           session_id: currentSessionId,
           user_id: userId,
           message_id: msgId,
+          contextData: { mode: activeMode },
           stream: true,
           file: {
             name: audioFile.name,
@@ -660,6 +674,7 @@ export default function NoraItuApp() {
           session_id: currentSessionId,
           user_id: userId,
           message_id: msgId,
+          contextData: { mode: activeMode },
           stream: true,
           file: currentFile ? {
             name: currentFile.name,
@@ -984,6 +999,72 @@ export default function NoraItuApp() {
       )}
 
       {/* ================================================================= */}
+      {/* 📲 MODAL DE COMPARTIR, CÓDIGO QR Y VIRALIZACIÓN WHATSAPP         */}
+      {/* ================================================================= */}
+      {showShareModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-[#0c121e] border border-sky-500/40 rounded-3xl p-6 max-w-md w-full text-center space-y-5 shadow-2xl relative">
+            <button
+              onClick={() => setShowShareModal(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="space-y-1">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 via-sky-500 to-indigo-600 mx-auto flex items-center justify-center shadow-lg shadow-emerald-500/20 mb-3">
+                <QrCode size={26} className="text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-white">Recomendar NoraItu</h3>
+              <p className="text-xs text-slate-400">
+                Comparte la IA Soberana por WhatsApp o escanea el QR desde cualquier celular.
+              </p>
+            </div>
+
+            {/* Código QR Generado en Tiempo Real */}
+            <div className="p-4 bg-white rounded-2xl max-w-[210px] mx-auto shadow-inner border border-slate-700">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(typeof window !== "undefined" ? `${window.location.origin}/noraitu` : "https://nexativanews.com.ar/noraitu")}&bgcolor=ffffff&color=090d16`}
+                alt="Código QR de NoraItu"
+                className="w-full h-auto rounded-lg mx-auto"
+              />
+            </div>
+
+            <div className="space-y-2.5">
+              {/* Botón Compartir Directo en WhatsApp */}
+              <a
+                href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`¡Hola! Te recomiendo probar NoraItu, la IA Soberana desarrollada en Ituzaingó por MyJNexoraVisual. Transcribe audios, crea imágenes, traduce y planifica clases gratis: ${typeof window !== "undefined" ? `${window.location.origin}/noraitu` : "https://nexativanews.com.ar/noraitu"}`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs md:text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 transition-all hover:scale-[1.02] active:scale-95"
+              >
+                <MessageCircle size={18} />
+                <span>Enviar por WhatsApp</span>
+              </a>
+
+              {/* Botón Copiar Enlace */}
+              <button
+                onClick={() => {
+                  const url = typeof window !== "undefined" ? `${window.location.origin}/noraitu` : "https://nexativanews.com.ar/noraitu";
+                  navigator.clipboard.writeText(url);
+                  setCopiedShareLink(true);
+                  setTimeout(() => setCopiedShareLink(false), 2500);
+                }}
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-medium flex items-center justify-center gap-2 transition-colors"
+              >
+                {copiedShareLink ? <Check size={16} className="text-emerald-400" /> : <Copy size={16} />}
+                <span>{copiedShareLink ? "¡Enlace copiado al portapapeles!" : "Copiar Enlace Directo"}</span>
+              </button>
+            </div>
+
+            <div className="text-[11px] text-slate-500 font-mono">
+              Desarrollada por MyJNexoraVisual • Ituzaingó, Corrientes
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================= */}
       {/* 📱 SIDEBAR / HISTORIAL DE CONVERSACIONES                          */}
       {/* ================================================================= */}
       <aside className={`
@@ -1020,6 +1101,18 @@ export default function NoraItuApp() {
           >
             <Plus size={18} />
             <span>Nuevo Chat</span>
+          </button>
+
+          {/* Botón Compartir / QR en Sidebar */}
+          <button
+            onClick={() => setShowShareModal(true)}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-800/60 text-emerald-300 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <QrCode size={14} className="text-emerald-400" />
+              <span>Compartir / Código QR</span>
+            </div>
+            <Share2 size={12} className="text-emerald-400" />
           </button>
 
           {/* Botón Instalar App en Sidebar */}
@@ -1126,12 +1219,22 @@ export default function NoraItuApp() {
               <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400/50" />
               <span className="font-semibold text-sm text-slate-200">NoraItu Universal</span>
               <span className="hidden sm:inline-block px-2 py-0.5 rounded-full text-[10px] font-mono bg-sky-950/80 text-sky-400 border border-sky-800/40">
-                Voz Femenina • Visión & Docs
+                Educación • Inclusión DUA • Visión & Docs
               </span>
             </div>
           </div>
           
           <div className="flex items-center gap-2">
+            {/* Botón Compartir / QR en Navbar */}
+            <button
+              onClick={() => setShowShareModal(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 transition-colors shadow-sm shadow-emerald-500/10"
+              title="Compartir NoraItu por WhatsApp o QR"
+            >
+              <QrCode size={14} className="text-emerald-400" />
+              <span className="hidden sm:inline">Compartir</span>
+            </button>
+
             {/* Toggle de Voz Femenina Automática */}
             <button
               onClick={toggleAutoVoice}
@@ -1162,25 +1265,67 @@ export default function NoraItuApp() {
           className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-6 scrollbar-thin scrollbar-thumb-slate-800"
         >
           {messages.length === 0 ? (
-            /* Vista de Bienvenida */
+            /* Vista de Bienvenida con Modos Adaptativos */
             <div className="max-w-2xl mx-auto h-full flex flex-col items-center justify-center text-center px-4 my-auto">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-sky-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-xl shadow-sky-500/20 mb-6">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-sky-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-xl shadow-sky-500/20 mb-4">
                 <Sparkles size={32} className="text-white" />
               </div>
               <h2 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-white via-slate-100 to-sky-400 bg-clip-text text-transparent mb-2">
-                NoraItu Inteligencia Multimodal
+                NoraItu Inteligencia Soberana
               </h2>
-              <p className="text-sm text-slate-400 max-w-md mb-8">
-                Habla por notas de voz, sube fotos de productos o documentos contables. NoraItu responderá con voz femenina y máxima precisión.
+              <p className="text-xs md:text-sm text-slate-400 max-w-md mb-5">
+                Desarrollada por MyJNexoraVisual. Diseñada con rigor pedagógico, accesibilidad para neurodivergencias (TEA) y visión multimodal.
               </p>
+
+              {/* Selector de Modos de Adaptación Rápida */}
+              <div className="flex flex-wrap items-center justify-center gap-2 mb-6 max-w-xl">
+                {[
+                  { id: "general", label: "🌟 General", desc: "Equilibrado" },
+                  { id: "inclusion", label: "🧩 Inclusión TEA", desc: "100% Literal y Secuencial" },
+                  { id: "docente", label: "🎓 Docente / Curricular", desc: "Planificaciones y Rúbricas" },
+                  { id: "catedra", label: "🏛️ Cátedra Universitaria", desc: "Rigor y Doctrina" },
+                ].map((mode) => (
+                  <button
+                    key={mode.id}
+                    onClick={() => setActiveMode(mode.id)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                      activeMode === mode.id
+                        ? "bg-sky-500 text-white border-sky-400 shadow-md shadow-sky-500/30 scale-105"
+                        : "bg-slate-900/80 text-slate-400 border-slate-800 hover:text-slate-200 hover:border-slate-700"
+                    }`}
+                  >
+                    {mode.label}
+                  </button>
+                ))}
+              </div>
 
               {/* Grid de Sugerencias */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl text-left">
                 {[
-                  { icon: ImageIcon, title: "Generar Imagen con IA", desc: "Crea arte hiperrealista, logos o renders", prompt: "Crea una imagen hiperrealista en 8k de un atardecer sobre el Río Paraná en Ituzaingó, Corrientes." },
-                  { icon: Camera, title: "Identificar & Comprar Producto", desc: "Sube una foto y obtén links de compra directos", prompt: "Identifica este producto y facilítame los enlaces directos para comprarlo en MercadoLibre, Amazon y Google Shopping." },
-                  { icon: Volume2, title: "Hablarle por Voz", desc: "Toca el micrófono para dictar una consulta", prompt: "Hola NoraItu, ¿qué capacidades de negocios, visión y tecnología posees?" },
-                  { icon: FileCheck2, title: "Auditar Factura o Recibo", desc: "Extrae CUIT, totales, ítems e IVA", prompt: "Extrae todos los ítems, CUIT, subtotal e impuestos de este comprobante adjunto." },
+                  { 
+                    icon: Puzzle, 
+                    title: "Explicación Inclusiva (TEA/Asperger)", 
+                    desc: "Lenguaje literal y secuencial paso a paso", 
+                    prompt: "Explícame de forma 100% literal y en pasos secuenciales qué es la inteligencia artificial y cómo funciona, sin usar metáforas ni ambigüedades." 
+                  },
+                  { 
+                    icon: GraduationCap, 
+                    title: "Planificación Docente & Rúbrica", 
+                    desc: "Secuencia didáctica oficial y tabla Markdown", 
+                    prompt: "Arma una planificación de clase para secundaria sobre el cuidado del agua en Corrientes, con objetivos, secuencia didáctica (inicio, desarrollo, cierre), grilla en tabla Markdown y rúbrica." 
+                  },
+                  { 
+                    icon: BookOpen, 
+                    title: "Cátedra y Análisis Doctrinario", 
+                    desc: "Marco teórico y rigor universitario", 
+                    prompt: "Explica la teoría de la responsabilidad civil y el nexo causal con fundamentos doctrinarios del Código Civil y Comercial argentino." 
+                  },
+                  { 
+                    icon: ImageIcon, 
+                    title: "Generar Imagen con IA", 
+                    desc: "Crea arte hiperrealista o logos en 8k", 
+                    prompt: "Crea una imagen hiperrealista en 8k de un atardecer sobre el Río Paraná en Ituzaingó, Corrientes." 
+                  },
                 ].map((card, i) => (
                   <button
                     key={i}
