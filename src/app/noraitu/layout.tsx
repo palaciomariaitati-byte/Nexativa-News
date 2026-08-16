@@ -18,6 +18,7 @@ export const metadata: Metadata = {
   creator: 'MyJNexoraVisual',
   publisher: 'MyJNexoraVisual',
   metadataBase: new URL('https://www.nexativanews.com.ar'),
+  manifest: '/manifest.webmanifest',
   alternates: {
     canonical: '/noraitu',
   },
