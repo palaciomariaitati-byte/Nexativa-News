@@ -1,14 +1,13 @@
 /**
  * ========================================================================
- * 🏛️ NORA TITÁN - ROUTER MULTIMODAL SOBERANO (SOVEREIGN ROUTER)
+ * 🏛️ NORA TITÁN - ROUTER MULTIMODAL SOBERANO (FASE 2)
  * Ubicación: /src/lib/nora/sovereignRouter.ts
  * 
- * Despachador de inferencia abierta y pesos libres (Open Source / Open Weights)
- * a Costo $0 con 4 capas de resiliencia descentralizada:
+ * Conectores de Código Abierto y Pesos Libres (Open Weights) a Costo $0:
  *   1. Capa 1: Cloudflare Workers AI (@cf/meta/llama-3.2-11b-vision-instruct / llama-3.3-70b)
- *   2. Capa 2: Hugging Face Serverless (Qwen/Qwen2.5-VL-7B-Instruct / DeepSeek-R1)
- *   3. Capa 3: OpenRouter Free Open Mesh (Modelos :free comunitarios)
- *   4. Capa 4: Ollama Local / VPS Bridge (Inmunidad total a caídas de red)
+ *   2. Capa 2: Hugging Face Serverless (Qwen/Qwen2.5-VL-7B-Instruct / DeepSeek-R1 Distill)
+ *   3. Capa 3: OpenRouter Free Open Mesh (Modelos con sufijo :free exclusivos)
+ *   4. Capa 4: Ollama Local / VPS Bridge (Inferencia local offline 100% soberana)
  * ========================================================================
  */
 
@@ -93,7 +92,7 @@ function assembleMessages(
     finalUserContent = [
       {
         type: "text",
-        text: userMessage || "Analiza detalladamente esta imagen, describe lo que ves y ofrece una explicación clara, útil y educativa."
+        text: userMessage || "Analiza detalladamente esta imagen, describe con precisión lo que observas y ofrece una explicación clara, útil y educativa."
       },
       {
         type: "image_url",
@@ -101,7 +100,7 @@ function assembleMessages(
       }
     ];
   } else if (fileTextContent) {
-    finalUserContent = `[DOCUMENTO ADJUNTO]:\n${fileTextContent.slice(0, 12000)}\n\n[CONSULTA DEL USUARIO]:\n${userMessage || "Analiza el documento adjunto."}`;
+    finalUserContent = `[DOCUMENTO ADJUNTO]:\n${fileTextContent.slice(0, 12000)}\n\n[CONSULTA DEL USUARIO]:\n${userMessage || "Analiza el documento adjunto y responde con rigor."}`;
   }
 
   messages.push({
@@ -114,6 +113,7 @@ function assembleMessages(
 
 /**
  * CAPA 4: Ollama Local / VPS Bridge (Servidor Propio Offline)
+ * Inmune a cortes de internet y caídas de proveedores de nube.
  */
 async function tryOllamaLocal(messages: SovereignMessage[], isVision: boolean): Promise<ReadableStream | null> {
   const ollamaHost = process.env.LOCAL_OLLAMA_URL || process.env.OLLAMA_HOST;
@@ -134,21 +134,22 @@ async function tryOllamaLocal(messages: SovereignMessage[], isVision: boolean): 
         stream: true,
         temperature: 0.3
       }),
-      signal: AbortSignal.timeout(10000)
+      signal: AbortSignal.timeout(8000)
     });
 
     if (res.ok && res.body) {
-      console.log(`[Sovereign Router]: Éxito con Nodo Local Ollama (${preferredModel})`);
+      console.log(`[Sovereign Router - Capa 4]: Inferencia exitosa en Nodo Local (${preferredModel})`);
       return res.body;
     }
   } catch (err) {
-    console.warn("[Sovereign Router - Ollama Local]:", err);
+    console.warn("[Sovereign Router - Capa 4 Ollama]: Desconectado o tiempo excedido, conmutando...");
   }
   return null;
 }
 
 /**
- * CAPA 1: Cloudflare Workers AI (Edge Ingestion)
+ * CAPA 1: Cloudflare Workers AI (Edge Ingestion Descentralizado)
+ * Utiliza @cf/meta/llama-3.2-11b-vision-instruct y @cf/meta/llama-3.3-70b-instruct
  */
 async function tryCloudflareWorkersAI(messages: SovereignMessage[], isVision: boolean): Promise<ReadableStream | null> {
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
@@ -172,24 +173,29 @@ async function tryCloudflareWorkersAI(messages: SovereignMessage[], isVision: bo
         stream: true,
         max_tokens: 3000
       }),
-      signal: AbortSignal.timeout(15000)
+      signal: AbortSignal.timeout(8000)
     });
 
     if (res.ok && res.body) {
-      console.log(`[Sovereign Router]: Éxito con Cloudflare Workers AI (${modelName})`);
+      console.log(`[Sovereign Router - Capa 1]: Inferencia exitosa en Cloudflare Workers AI (${modelName})`);
       return res.body;
     }
+
+    if (res.status === 429 || res.status === 503 || res.status === 500) {
+      console.warn(`[Sovereign Router - Capa 1]: HTTP ${res.status}, conmutando a Capa 2 en <150ms...`);
+    }
   } catch (err) {
-    console.warn("[Sovereign Router - Cloudflare AI]:", err);
+    console.warn("[Sovereign Router - Capa 1 Cloudflare]:", err);
   }
   return null;
 }
 
 /**
  * CAPA 2: Hugging Face Serverless Inference (Open Source Hub)
+ * Conectores directos a Qwen2.5-VL y DeepSeek-R1 Distill
  */
 async function tryHuggingFaceInference(messages: SovereignMessage[], isVision: boolean): Promise<ReadableStream | null> {
-  const hfToken = process.env.HUGGINGFACE_API_KEY || process.env.HF_TOKEN;
+  const hfToken = process.env.HF_ACCESS_TOKEN || process.env.HUGGINGFACE_API_KEY || process.env.HF_TOKEN;
   if (!hfToken) return null;
 
   const candidateModels = isVision
@@ -198,35 +204,48 @@ async function tryHuggingFaceInference(messages: SovereignMessage[], isVision: b
 
   for (const model of candidateModels) {
     try {
-      const res = await fetch(`https://api-inference.huggingface.co/models/${model}/v1/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${hfToken.trim()}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model,
-          messages,
-          stream: true,
-          max_tokens: 3500,
-          temperature: 0.3
-        }),
-        signal: AbortSignal.timeout(15000)
-      });
+      const endpoints = [
+        `https://router.huggingface.co/hf-inference/v1/chat/completions`,
+        `https://api-inference.huggingface.co/models/${model}/v1/chat/completions`
+      ];
 
-      if (res.ok && res.body) {
-        console.log(`[Sovereign Router]: Éxito con Hugging Face (${model})`);
-        return res.body;
+      for (const endpoint of endpoints) {
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${hfToken.trim()}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model,
+            messages,
+            stream: true,
+            max_tokens: 3500,
+            temperature: 0.3
+          }),
+          signal: AbortSignal.timeout(8000)
+        });
+
+        if (res.ok && res.body) {
+          console.log(`[Sovereign Router - Capa 2]: Inferencia exitosa en Hugging Face (${model})`);
+          return res.body;
+        }
+
+        // Si el modelo está cargando (503) o con rate limit (429), conmutar de inmediato
+        if (res.status === 503 || res.status === 429) {
+          break;
+        }
       }
     } catch (err) {
-      console.warn(`[Sovereign Router - HF ${model}]:`, err);
+      console.warn(`[Sovereign Router - Capa 2 HF ${model}]: Conmutando siguiente modelo...`);
     }
   }
   return null;
 }
 
 /**
- * CAPA 3: OpenRouter Free Mesh (Modelos Libres de Costo :free)
+ * CAPA 3: OpenRouter Free Open Mesh (Modelos Libres de Costo :free)
+ * Exclusivamente modelos abiertos comunitarios sin facturación.
  */
 async function tryOpenRouterFree(messages: SovereignMessage[], isVision: boolean): Promise<ReadableStream | null> {
   const openRouterKey = process.env.OPENROUTER_API_KEY;
@@ -235,8 +254,8 @@ async function tryOpenRouterFree(messages: SovereignMessage[], isVision: boolean
   const freeModels = isVision
     ? [
         "qwen/qwen-2.5-vl-72b-instruct:free",
-        "google/gemini-2.0-flash-lite-preview:free",
-        "meta-llama/llama-3.2-11b-vision-instruct:free"
+        "meta-llama/llama-3.2-11b-vision-instruct:free",
+        "google/gemini-2.0-flash-lite-preview:free"
       ]
     : [
         "deepseek/deepseek-r1:free",
@@ -261,15 +280,19 @@ async function tryOpenRouterFree(messages: SovereignMessage[], isVision: boolean
           stream: true,
           temperature: 0.3
         }),
-        signal: AbortSignal.timeout(15000)
+        signal: AbortSignal.timeout(8000)
       });
 
       if (res.ok && res.body) {
-        console.log(`[Sovereign Router]: Éxito con OpenRouter Free (${model})`);
+        console.log(`[Sovereign Router - Capa 3]: Inferencia exitosa en OpenRouter Free (${model})`);
         return res.body;
       }
+
+      if (res.status === 429 || res.status === 503) {
+        continue;
+      }
     } catch (err) {
-      console.warn(`[Sovereign Router - OpenRouter ${model}]:`, err);
+      console.warn(`[Sovereign Router - Capa 3 OpenRouter ${model}]: Conmutando...`);
     }
   }
   return null;
@@ -277,7 +300,7 @@ async function tryOpenRouterFree(messages: SovereignMessage[], isVision: boolean
 
 /**
  * DESPACHADOR PRINCIPAL (DISPATCHER)
- * Ejecuta la cascada soberana a través de las 4 capas abiertas.
+ * Ejecuta la cascada soberana a través de las 4 capas abiertas en alta velocidad.
  */
 export async function dispatchSovereignInference(params: SovereignRouterParams): Promise<Response | null> {
   const {
