@@ -482,18 +482,13 @@ export default function NoraItuApp() {
         liveVideoRef.current.play();
       }
 
-      setLiveSubtitles("👁️ Nora Titán está observando en vivo...");
+      setLiveSubtitles("👁️ Nora Titán está observando en vivo. Apunta a lo que deseas analizar...");
 
       if (liveIntervalRef.current) clearInterval(liveIntervalRef.current);
-      // Primer análisis inmediato
+      // Primer análisis tras 1.5s de enfocar la cámara
       setTimeout(() => {
-        captureAndAnalyzeFrame("Describe con detalle qué estás viendo en este momento.");
-      }, 1200);
-
-      // Escaneo continuo cada 6 segundos
-      liveIntervalRef.current = setInterval(() => {
-        captureAndAnalyzeFrame();
-      }, 6000);
+        captureAndAnalyzeFrame("Describe qué estás observando en esta toma en vivo y qué detalles útiles o educativos detectas.");
+      }, 1500);
 
     } catch (err: any) {
       console.error("Error iniciando cámara en vivo:", err);
@@ -508,13 +503,14 @@ export default function NoraItuApp() {
     }
 
     try {
+      stopSpeaking();
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       const recognition = new SpeechRecognition();
       recognition.lang = "es-AR";
       recognition.interimResults = false;
       recognition.maxAlternatives = 1;
 
-      setLiveSubtitles("🎙️ Te escucho... Haz tu pregunta sobre lo que estás mostrando.");
+      setLiveSubtitles("🎙️ Te escucho... Pregúntame sobre lo que estás mostrando.");
 
       recognition.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
@@ -525,7 +521,7 @@ export default function NoraItuApp() {
       };
 
       recognition.onerror = () => {
-        setLiveSubtitles("👁️ Nora sigue observando. Puedes escribir o pulsar Analizar.");
+        setLiveSubtitles("👁️ Nora sigue observando. Puedes pulsar 'Analizar' o escribir.");
       };
 
       recognition.start();
@@ -555,6 +551,11 @@ export default function NoraItuApp() {
   const captureAndAnalyzeFrame = async (customPrompt?: string) => {
     if (!liveVideoRef.current || isAnalyzingFrame) return;
 
+    // Si Nora está hablando y es un escaneo automático, no cortarla
+    if (typeof window !== "undefined" && window.speechSynthesis && window.speechSynthesis.speaking && !customPrompt) {
+      return;
+    }
+
     try {
       setIsAnalyzingFrame(true);
       const video = liveVideoRef.current;
@@ -580,7 +581,7 @@ export default function NoraItuApp() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           imageBase64: base64Image,
-          userPrompt: customPrompt || liveCustomPrompt || "Analiza lo que ves y ofrece una explicación clara, útil y concisa.",
+          userPrompt: customPrompt || liveCustomPrompt || "Describe qué estás observando en esta toma en vivo.",
           mode: activeMode
         })
       });
@@ -1035,7 +1036,11 @@ export default function NoraItuApp() {
           created_at: new Date().toISOString()
         }
       ]);
+    } finally {
       setIsLoading(false);
+      setTimeout(() => {
+        if (textareaRef.current) textareaRef.current.focus();
+      }, 50);
     }
   };
 
