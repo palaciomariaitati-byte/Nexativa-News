@@ -41,7 +41,11 @@ import {
   Printer,
   Laptop,
   RefreshCw,
-  Sliders
+  Sliders,
+  Eye,
+  Video,
+  FlipHorizontal,
+  Radio
 } from "lucide-react";
 import { exportNoraCleanWord, exportNoraCleanPdf } from "@/lib/exportUtils";
 
@@ -120,6 +124,18 @@ export default function NoraItuApp() {
   const [voicePitch, setVoicePitch] = useState<number>(0.92);
   const [voiceRate, setVoiceRate] = useState<number>(0.94);
   const [showVoiceModal, setShowVoiceModal] = useState(false);
+
+  // Estados de Nora Titán Live Vision (Cámara y Audio en Vivo Full-Duplex)
+  const [showLiveVisionModal, setShowLiveVisionModal] = useState(false);
+  const [isLiveStreaming, setIsLiveStreaming] = useState(false);
+  const [liveFacingMode, setLiveFacingMode] = useState<"user" | "environment">("environment");
+  const [liveSubtitles, setLiveSubtitles] = useState<string>("Iniciando visión en vivo...");
+  const [isAnalyzingFrame, setIsAnalyzingFrame] = useState(false);
+  const [liveCustomPrompt, setLiveCustomPrompt] = useState<string>("");
+  const liveVideoRef = useRef<HTMLVideoElement>(null);
+  const liveCanvasRef = useRef<HTMLCanvasElement>(null);
+  const liveMediaStreamRef = useRef<MediaStream | null>(null);
+  const liveIntervalRef = useRef<any>(null);
   
   // Estado de Modo Adaptativo (General, Inclusión TEA, Docente, Cátedra)
   const [activeMode, setActiveMode] = useState<string>("general");
@@ -438,6 +454,111 @@ export default function NoraItuApp() {
       window.speechSynthesis.cancel();
     }
     setPlayingMsgIndex(null);
+  };
+
+  // 9. Motor de Visión y Audio en Vivo de Nora Titán (Cámara en Tiempo Real)
+  const startLiveVision = async (facingMode: "user" | "environment" = liveFacingMode) => {
+    stopSpeaking();
+    setIsLiveStreaming(true);
+    setLiveSubtitles("Activando cámara y visor neuronal de Nora Titán...");
+
+    try {
+      if (liveMediaStreamRef.current) {
+        liveMediaStreamRef.current.getTracks().forEach(t => t.stop());
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: facingMode,
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      });
+
+      liveMediaStreamRef.current = stream;
+      if (liveVideoRef.current) {
+        liveVideoRef.current.srcObject = stream;
+        liveVideoRef.current.play();
+      }
+
+      setLiveSubtitles("👁️ Nora Titán está viendo en vivo. Habla o escribe qué deseas que analice.");
+
+      if (liveIntervalRef.current) clearInterval(liveIntervalRef.current);
+      // Iniciar primer análisis a los 2 segundos
+      setTimeout(() => {
+        captureAndAnalyzeFrame("Describe qué estás viendo en la cámara y qué detalles educativos o útiles detectas.");
+      }, 1800);
+
+    } catch (err: any) {
+      console.error("Error iniciando cámara en vivo:", err);
+      setLiveSubtitles("⚠️ No se pudo acceder a la cámara. Por favor permite el acceso en tu navegador.");
+    }
+  };
+
+  const stopLiveVision = () => {
+    if (liveIntervalRef.current) clearInterval(liveIntervalRef.current);
+    if (liveMediaStreamRef.current) {
+      liveMediaStreamRef.current.getTracks().forEach(t => t.stop());
+      liveMediaStreamRef.current = null;
+    }
+    setIsLiveStreaming(false);
+    setIsAnalyzingFrame(false);
+    setShowLiveVisionModal(false);
+    stopSpeaking();
+  };
+
+  const toggleLiveCamera = () => {
+    const nextMode = liveFacingMode === "environment" ? "user" : "environment";
+    setLiveFacingMode(nextMode);
+    startLiveVision(nextMode);
+  };
+
+  const captureAndAnalyzeFrame = async (customPrompt?: string) => {
+    if (!liveVideoRef.current || isAnalyzingFrame) return;
+
+    try {
+      setIsAnalyzingFrame(true);
+      const video = liveVideoRef.current;
+      if (video.videoWidth === 0 || video.videoHeight === 0) {
+        setIsAnalyzingFrame(false);
+        return;
+      }
+
+      const canvas = liveCanvasRef.current || document.createElement("canvas");
+      canvas.width = Math.min(video.videoWidth, 800);
+      canvas.height = Math.min(video.videoHeight, 600);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        setIsAnalyzingFrame(false);
+        return;
+      }
+
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const base64Image = canvas.toDataURL("image/jpeg", 0.6);
+
+      const res = await fetch("/api/noraitu-live", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageBase64: base64Image,
+          userPrompt: customPrompt || liveCustomPrompt || "Analiza lo que ves y ofrece una explicación clara, útil y concisa.",
+          mode: activeMode
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.text) {
+          setLiveSubtitles(data.text);
+          speakText(data.text, -99);
+        }
+      }
+    } catch (err) {
+      console.warn("Error analizando frame en vivo:", err);
+    } finally {
+      setIsAnalyzingFrame(false);
+    }
   };
 
   const toggleAutoVoice = () => {
@@ -1341,6 +1462,19 @@ export default function NoraItuApp() {
           </div>
           
           <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Botón Nora Titán Live Vision */}
+            <button
+              onClick={() => {
+                setShowLiveVisionModal(true);
+                startLiveVision();
+              }}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-rose-600 via-purple-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white transition-all shadow-md shadow-rose-500/20 animate-pulse cursor-pointer"
+              title="Abrir Nora Titán Live (Cámara y Visión en Vivo)"
+            >
+              <Eye size={14} className="text-white" />
+              <span className="inline font-extrabold tracking-wide">👁️ Titán Live</span>
+            </button>
+
             {/* Botón Sincronizar PC */}
             <button
               onClick={() => setShowSyncModal(true)}
@@ -1407,14 +1541,37 @@ export default function NoraItuApp() {
                 <Sparkles size={32} className="text-white" />
               </div>
               <h2 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-white via-slate-100 to-sky-400 bg-clip-text text-transparent mb-2">
-                NoraItu Inteligencia Soberana
+                Nora Titán Universal
               </h2>
-              <p className="text-xs md:text-sm text-slate-400 max-w-md mb-5">
-                Desarrollada por MyJNexoraVisual. Diseñada con rigor pedagógico, accesibilidad para neurodivergencias (TEA) y visión multimodal.
+              <p className="text-xs md:text-sm text-slate-400 max-w-md mb-4">
+                Desarrollada por MyJNexoraVisual. Inteligencia Artificial Soberana al servicio de la educación, la ciencia y la comunidad nacional.
               </p>
 
+              {/* Banner Titán Live Destacado */}
+              <button
+                onClick={() => {
+                  setShowLiveVisionModal(true);
+                  startLiveVision();
+                }}
+                className="w-full max-w-xl p-3.5 mb-4 rounded-2xl bg-gradient-to-r from-rose-950/80 via-purple-950/80 to-indigo-950/80 hover:from-rose-900 hover:to-indigo-900 border border-rose-500/50 flex items-center justify-between text-left transition-all shadow-lg shadow-rose-950/40 group cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-500 to-purple-600 flex items-center justify-center shrink-0 shadow-md shadow-rose-500/30 group-hover:scale-105 transition-transform">
+                    <Eye size={20} className="text-white animate-pulse" />
+                  </div>
+                  <div>
+                    <span className="text-sm font-bold text-white flex items-center gap-2">
+                      👁️ Nora Titán Live (Cámara y Voz en Vivo)
+                      <span className="px-2 py-0.5 rounded-full text-[9px] bg-rose-500 text-white font-mono uppercase">Full-Duplex</span>
+                    </span>
+                    <span className="text-xs text-rose-200/80">Apunta tu cámara a libros, pizarrones o planos y habla en tiempo real</span>
+                  </div>
+                </div>
+                <Radio size={18} className="text-rose-400 animate-pulse shrink-0" />
+              </button>
+
               {/* Selector de Modos de Adaptación Rápida */}
-              <div className="flex flex-wrap items-center justify-center gap-2 mb-6 max-w-xl">
+              <div className="flex flex-wrap items-center justify-center gap-2 mb-4 max-w-xl">
                 {[
                   { id: "general", label: "🌟 General", desc: "Equilibrado" },
                   { id: "inclusion", label: "🧩 Inclusión TEA", desc: "100% Literal y Secuencial" },
@@ -2076,6 +2233,125 @@ export default function NoraItuApp() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ================================================================= */}
+      {/* 👁️ MODAL: NORA TITÁN LIVE VISION (CÁMARA & VOZ FULL-DUPLEX)      */}
+      {/* ================================================================= */}
+      {showLiveVisionModal && (
+        <div className="fixed inset-0 z-50 bg-black flex flex-col justify-between overflow-hidden animate-fade-in">
+          
+          {/* Canvas oculto para capturas de frame */}
+          <canvas ref={liveCanvasRef} className="hidden" />
+
+          {/* Top Bar HUD */}
+          <div className="p-4 flex items-center justify-between z-20 bg-gradient-to-b from-black/80 to-transparent">
+            <div className="flex items-center gap-2.5">
+              <div className="w-3 h-3 rounded-full bg-rose-500 animate-ping shadow-lg shadow-rose-500/50" />
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  Nora Titán Live
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-950/80 border border-rose-600 text-rose-300 uppercase">En Vivo</span>
+                </h3>
+                <p className="text-[10px] text-slate-300 font-mono">Modo: {activeMode.toUpperCase()}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={toggleLiveCamera}
+                className="p-2.5 rounded-full bg-black/60 backdrop-blur-md border border-white/20 text-white hover:bg-white/20 transition-all cursor-pointer"
+                title="Cambiar Cámara (Frontal / Trasera)"
+              >
+                <FlipHorizontal size={18} />
+              </button>
+
+              <button
+                onClick={stopLiveVision}
+                className="p-2.5 rounded-full bg-rose-600/90 text-white hover:bg-rose-500 transition-all shadow-lg shadow-rose-600/40 cursor-pointer"
+                title="Cerrar Live Vision"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+
+          {/* Visor de Video en Tiempo Real con HUD Cyberpunk */}
+          <div className="relative flex-1 flex items-center justify-center overflow-hidden">
+            <video
+              ref={liveVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className={`w-full h-full object-cover ${liveFacingMode === "user" ? "scale-x-[-1]" : ""}`}
+            />
+
+            {/* Retícula de enfoque táctico / radar */}
+            <div className="absolute inset-8 sm:inset-16 pointer-events-none border border-rose-500/30 rounded-3xl flex flex-col justify-between p-4">
+              <div className="flex justify-between">
+                <div className="w-6 h-6 border-t-2 border-l-2 border-rose-400 rounded-tl-lg" />
+                <div className="w-6 h-6 border-t-2 border-r-2 border-rose-400 rounded-tr-lg" />
+              </div>
+              <div className="flex justify-center items-center">
+                <div className={`w-20 h-20 rounded-full border-2 border-dashed border-rose-400/60 flex items-center justify-center ${isAnalyzingFrame ? "animate-spin border-rose-400" : "animate-pulse"}`}>
+                  <Eye size={24} className="text-rose-400" />
+                </div>
+              </div>
+              <div className="flex justify-between">
+                <div className="w-6 h-6 border-b-2 border-l-2 border-rose-400 rounded-bl-lg" />
+                <div className="w-6 h-6 border-b-2 border-r-2 border-rose-400 rounded-br-lg" />
+              </div>
+            </div>
+
+            {/* Badge de análisis en progreso */}
+            {isAnalyzingFrame && (
+              <div className="absolute top-6 px-4 py-1.5 rounded-full bg-black/80 border border-rose-500/60 text-rose-300 text-xs font-mono backdrop-blur-md flex items-center gap-2 animate-pulse">
+                <Radio size={14} className="animate-spin" />
+                <span>Nora está analizando lo que ve...</span>
+              </div>
+            )}
+          </div>
+
+          {/* Subtítulos y Controles Inferiores */}
+          <div className="p-4 z-20 bg-gradient-to-t from-black via-black/90 to-transparent space-y-3">
+            
+            {/* Globo de Subtítulos de Nora */}
+            <div className="max-w-xl mx-auto p-3.5 rounded-2xl bg-black/80 border border-rose-500/40 text-slate-100 text-xs sm:text-sm backdrop-blur-md shadow-2xl leading-relaxed text-center font-medium">
+              <span className="text-rose-400 font-bold mr-1.5">Nora:</span>
+              {liveSubtitles}
+            </div>
+
+            {/* Barra de Entrada / Pregunta Rápida */}
+            <div className="max-w-xl mx-auto flex items-center gap-2">
+              <input
+                type="text"
+                value={liveCustomPrompt}
+                onChange={(e) => setLiveCustomPrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && liveCustomPrompt.trim()) {
+                    captureAndAnalyzeFrame(liveCustomPrompt);
+                    setLiveCustomPrompt("");
+                  }
+                }}
+                placeholder="Pregúntale a Nora sobre lo que estás enfocando..."
+                className="flex-1 px-4 py-3 rounded-2xl bg-slate-900/90 border border-slate-700 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-hidden focus:border-rose-500 backdrop-blur-md"
+              />
+
+              <button
+                onClick={() => {
+                  captureAndAnalyzeFrame(liveCustomPrompt || "Explica detalladamente qué estás viendo en la cámara.");
+                  if (liveCustomPrompt) setLiveCustomPrompt("");
+                }}
+                disabled={isAnalyzingFrame}
+                className="p-3 rounded-2xl bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white font-semibold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-rose-600/30 transition-all active:scale-95 cursor-pointer shrink-0"
+              >
+                <Eye size={18} />
+                <span className="hidden sm:inline">Analizar Ahora</span>
+              </button>
+            </div>
+          </div>
+
         </div>
       )}
     </div>
