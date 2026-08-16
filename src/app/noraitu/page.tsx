@@ -37,8 +37,10 @@ import {
   BookOpen,
   Puzzle,
   MessageCircle,
-  ExternalLink
+  ExternalLink,
+  Printer
 } from "lucide-react";
+import { exportNoraCleanWord, exportNoraCleanPdf } from "@/lib/exportUtils";
 
 interface AttachedFile {
   name: string;
@@ -284,14 +286,19 @@ export default function NoraItuApp() {
 
     stopSpeaking();
 
-    // Limpiar Markdown y corregir fonética para habla humana y natural
+    // Limpiar Markdown, emojis y corregir fonética para habla humana y natural
     const cleanText = text
+      .replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '')
+      .replace(/!\[.*?\]\(.*?\)/g, '')
       .replace(/```[\s\S]*?```/g, " Bloque de código. ")
       .replace(/`([^`]+)`/g, "$1")
       .replace(/###/g, "")
+      .replace(/##/g, "")
+      .replace(/#/g, "")
       .replace(/\*\*(.*?)\*\*/g, "$1")
+      .replace(/\[(.*?)\]\([^\s)]+\)/g, "$1")
       .replace(/[-*]\s+/g, "")
-      // Fonética y unidades en español / argentino natural
+      // Fonética y unidades en español natural
       .replace(/(\d+)\s*°\s*C/gi, "$1 grados centígrados")
       .replace(/(\d+)\s*°/g, "$1 grados")
       .replace(/km\/h/gi, " kilómetros por hora")
@@ -300,32 +307,45 @@ export default function NoraItuApp() {
       .replace(/\$\s*(\d+)/g, "$1 pesos")
       .replace(/\bCUIT\b/gi, " cuit ")
       .replace(/\bIVA\b/gi, " iva ")
+      .replace(/\bRAE\b/gi, " rae ")
+      .replace(/\bTEA\b/gi, " tea ")
       .trim();
 
     if (!cleanText) return;
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = "es-MX"; // Español neutro latinoamericano
-    utterance.rate = 1.0;     // Velocidad fluida y natural
-    utterance.pitch = 1.08;   // Tono femenino cálido y elegante
+    utterance.rate = 0.98;    // Velocidad pausada, humana y comprensible
+    utterance.pitch = 1.02;   // Tono cálido, femenino y profesional
 
-    // Buscar la mejor voz femenina neutra disponible en el sistema
+    // Buscar y priorizar la mejor voz neuronal de alta fidelidad disponible
     const voices = window.speechSynthesis.getVoices();
-    const femaleVoice = voices.find(v => 
-      (v.lang.startsWith("es") || v.lang.includes("es-")) && 
-      (v.name.toLowerCase().includes("female") || 
-       v.name.toLowerCase().includes("paulina") || 
-       v.name.toLowerCase().includes("sabina") || 
-       v.name.toLowerCase().includes("monica") || 
-       v.name.toLowerCase().includes("dalia") || 
-       v.name.toLowerCase().includes("hilda") || 
-       v.name.toLowerCase().includes("zira") || 
-       v.name.toLowerCase().includes("elena") || 
-       v.name.toLowerCase().includes("google español"))
-    ) || voices.find(v => v.lang.startsWith("es"));
+    const neuralVoices = [
+      "Microsoft Sabina Online (Natural)",
+      "Microsoft Dalia Online (Natural)",
+      "Microsoft Paulina Online (Natural)",
+      "Google español",
+      "Microsoft Sabina",
+      "Microsoft Dalia",
+      "Microsoft Paulina",
+      "Microsoft Elena",
+      "Monica",
+      "Zira"
+    ];
 
-    if (femaleVoice) {
-      utterance.voice = femaleVoice;
+    let selectedVoice = voices.find(v => 
+      neuralVoices.some(nv => v.name.toLowerCase().includes(nv.toLowerCase()))
+    );
+
+    if (!selectedVoice) {
+      selectedVoice = voices.find(v => 
+        (v.lang.startsWith("es") || v.lang.includes("es-")) && 
+        (v.name.toLowerCase().includes("female") || v.name.toLowerCase().includes("mujer"))
+      ) || voices.find(v => v.lang.startsWith("es"));
+    }
+
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
     }
 
     utterance.onend = () => setPlayingMsgIndex(null);
@@ -1387,10 +1407,10 @@ export default function NoraItuApp() {
                       {renderMessageContent(msg.content, index)}
                       
                       {!isUser && (
-                        <div className="mt-2.5 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-500">
-                          <span className="font-mono">NoraItu</span>
-                          <div className="flex items-center gap-3">
-                            {/* Botón Escuchar en Voz Femenina */}
+                        <div className="mt-2.5 pt-2 border-t border-slate-800/60 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+                          <span className="font-mono text-slate-400">NoraItu</span>
+                          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3.5">
+                            {/* Botón Escuchar en Voz Femenina Neuronal */}
                             <button
                               onClick={() => speakText(msg.content, index)}
                               className={`flex items-center gap-1 transition-colors ${
@@ -1402,9 +1422,31 @@ export default function NoraItuApp() {
                               <span>{isSpeakingThis ? "Detener" : "Escuchar"}</span>
                             </button>
 
+                            {/* Botón Exportar Word (.doc) */}
+                            <button
+                              onClick={() => exportNoraCleanWord(`Documento_NoraItu_${index + 1}`, msg.content)}
+                              className="flex items-center gap-1 hover:text-indigo-300 transition-colors"
+                              title="Descargar en formato Word (.doc) justificado y limpio de emojis"
+                            >
+                              <FileText size={13} className="text-indigo-400" />
+                              <span>Word</span>
+                            </button>
+
+                            {/* Botón Imprimir / PDF */}
+                            <button
+                              onClick={() => exportNoraCleanPdf(`Informe_NoraItu_${index + 1}`, msg.content)}
+                              className="flex items-center gap-1 hover:text-sky-300 transition-colors"
+                              title="Imprimir o guardar en PDF formal justificado"
+                            >
+                              <Printer size={13} className="text-sky-400" />
+                              <span>PDF</span>
+                            </button>
+
+                            {/* Botón Copiar */}
                             <button
                               onClick={() => handleCopy(msg.content, `msg_${index}`)}
-                              className="flex items-center gap-1 hover:text-sky-400 transition-colors"
+                              className="flex items-center gap-1 hover:text-emerald-400 transition-colors"
+                              title="Copiar texto al portapapeles"
                             >
                               {copiedId === `msg_${index}` ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
                               <span>{copiedId === `msg_${index}` ? "Copiado" : "Copiar"}</span>

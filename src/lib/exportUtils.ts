@@ -185,3 +185,234 @@ export function exportToPdf(title: string, markdownContent: string) {
   `);
   printWindow.document.close();
 }
+
+/**
+ * ========================================================================
+ * 🎓 EXPORTADOR PROFESIONAL Y LIMPIO PARA NORAITU (WORD & PDF IMPRIMIBLE)
+ * ========================================================================
+ * Elimina emojis, íconos y marcas de chat. Justifica párrafos y convierte
+ * tablas markdown en tablas HTML estilizadas para evaluación o entrega formal.
+ */
+export function formatNoraCleanDocumentHtml(markdown: string): string {
+  if (!markdown) return "";
+
+  // 1. Eliminar emojis y caracteres gráficos innecesarios
+  let text = markdown
+    .replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '')
+    // Eliminar sintaxis de imágenes markdown ![caption](url)
+    .replace(/!\[.*?\]\(.*?\)/g, '')
+    // Reemplazar enlaces markdown [texto](url) por solo "texto"
+    .replace(/\[(.*?)\]\(https?:\/\/[^\s)]+\)/g, '$1')
+    // Eliminar bloques de código de depuración si los hubiera
+    .replace(/```[\s\S]*?```/g, '');
+
+  // 2. Procesar tablas de Markdown (| col1 | col2 |)
+  const tableRegex = /(\|.*\|\r?\n\|[\s\-:|]+\|\r?\n(?:\|.*\|\r?\n?)+)/g;
+  text = text.replace(tableRegex, (match) => {
+    const lines = match.trim().split("\n");
+    if (lines.length < 2) return match;
+
+    const headers = lines[0].split("|").filter(c => c.trim().length > 0).map(c => c.trim());
+    const dataRows = lines.slice(2).map(line => line.split("|").filter(c => c.trim().length > 0).map(c => c.trim()));
+
+    let tableHtml = '<table style="width:100%; border-collapse:collapse; margin:16px 0; font-size:10.5pt;">';
+    tableHtml += '<thead><tr style="background-color:#f1f5f9; border-bottom:2px solid #334155;">';
+    headers.forEach(h => {
+      tableHtml += `<th style="border:1px solid #cbd5e1; padding:8px 10px; text-align:left; font-weight:bold; color:#0f172a;">${h}</th>`;
+    });
+    tableHtml += '</tr></thead><tbody>';
+
+    dataRows.forEach((row, rIdx) => {
+      const bg = rIdx % 2 === 0 ? '#ffffff' : '#f8fafc';
+      tableHtml += `<tr style="background-color:${bg};">`;
+      row.forEach(cell => {
+        tableHtml += `<td style="border:1px solid #cbd5e1; padding:8px 10px; color:#334155; text-align:justify;">${cell}</td>`;
+      });
+      tableHtml += '</tr>';
+    });
+
+    tableHtml += '</tbody></table>';
+    return tableHtml;
+  });
+
+  // 3. Encabezados H1, H2, H3
+  text = text.replace(/^### (.*$)/gim, '<h3 style="color:#1e293b; font-size:13pt; font-weight:bold; margin-top:16px; margin-bottom:6px;">$1</h3>');
+  text = text.replace(/^## (.*$)/gim, '<h2 style="color:#0f172a; font-size:15pt; font-weight:bold; margin-top:20px; margin-bottom:8px; border-bottom:1px solid #e2e8f0; padding-bottom:4px;">$1</h2>');
+  text = text.replace(/^# (.*$)/gim, '<h1 style="color:#020617; font-size:18pt; font-weight:bold; margin-top:24px; margin-bottom:12px; text-align:center; border-bottom:2px solid #0284c7; padding-bottom:6px;">$1</h1>');
+
+  // 4. Negritas y Cursivas
+  text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+  // 5. Viñetas
+  text = text.replace(/^\s*[\-\*]\s+(.*$)/gim, '<li style="margin-bottom:4px; margin-left:24px; text-align:justify;">$1</li>');
+
+  // 6. Párrafos Justificados
+  const parts = text.split(/\n\n+/);
+  const cleanHtml = parts.map(p => {
+    const trimmed = p.trim();
+    if (trimmed.startsWith('<h') || trimmed.startsWith('<table') || trimmed.startsWith('<li') || trimmed.startsWith('<hr')) {
+      return trimmed;
+    }
+    return `<p style="margin-bottom:10px; line-height:1.6; text-align:justify; color:#1e293b;">${trimmed.replace(/\n/g, '<br/>')}</p>`;
+  }).join('');
+
+  return cleanHtml;
+}
+
+/**
+ * Descarga el contenido en formato Microsoft Word (.doc) limpio y formal
+ */
+export function exportNoraCleanWord(title: string, markdownContent: string) {
+  const cleanBodyHtml = formatNoraCleanDocumentHtml(markdownContent);
+  const cleanTitle = title.replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '').trim() || "Documento NoraItu";
+
+  const documentTemplate = `
+    <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+    <head>
+      <meta charset='utf-8'>
+      <title>${cleanTitle}</title>
+      <style>
+        body {
+          font-family: 'Calibri', 'Arial', sans-serif;
+          font-size: 11pt;
+          line-height: 1.6;
+          color: #0f172a;
+          margin: 1in;
+        }
+        .doc-header {
+          border-bottom: 2px solid #0284c7;
+          padding-bottom: 6px;
+          margin-bottom: 24px;
+          font-size: 9pt;
+          font-weight: bold;
+          color: #0369a1;
+          display: flex;
+          justify-content: space-between;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+        }
+        h1 { font-size: 18pt; color: #020617; margin-top: 14px; margin-bottom: 12px; text-align: center; }
+        h2 { font-size: 14pt; color: #0f172a; margin-top: 18px; margin-bottom: 8px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+        h3 { font-size: 12pt; color: #1e293b; margin-top: 14px; margin-bottom: 6px; }
+        p { margin-bottom: 10px; text-align: justify; line-height: 1.6; }
+        ul, ol { margin-bottom: 10px; padding-left: 24px; }
+        li { margin-bottom: 4px; text-align: justify; }
+        table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+        th { border: 1px solid #94a3b8; padding: 8px; background-color: #f1f5f9; font-weight: bold; text-align: left; }
+        td { border: 1px solid #cbd5e1; padding: 8px; }
+        .doc-footer {
+          margin-top: 40px;
+          border-top: 1px solid #cbd5e1;
+          padding-top: 10px;
+          font-size: 8pt;
+          color: #64748b;
+          text-align: center;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="doc-header">
+        <span>NORAITU AI — INFORME INSTITUCIONAL & ACADÉMICO</span>
+        <span>${new Date().toLocaleDateString('es-AR')}</span>
+      </div>
+      <div>${cleanBodyHtml}</div>
+      <div class="doc-footer">
+        Documento generado por NoraItu AI • Desarrollada por MyJNexoraVisual (Ituzaingó, Corrientes) • Copia Formal Verificada
+      </div>
+    </body>
+    </html>
+  `;
+
+  const blob = new Blob(['\ufeff', documentTemplate], { type: 'application/msword' });
+  const url = URL.createObjectURL(blob);
+  const downloadAnchor = document.createElement('a');
+  downloadAnchor.href = url;
+  downloadAnchor.download = `${cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, '_')}.doc`;
+  document.body.appendChild(downloadAnchor);
+  downloadAnchor.click();
+  document.body.removeChild(downloadAnchor);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Abre ventana de impresión profesional o guardado en PDF justificado y limpio
+ */
+export function exportNoraCleanPdf(title: string, markdownContent: string) {
+  const cleanBodyHtml = formatNoraCleanDocumentHtml(markdownContent);
+  const cleanTitle = title.replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '').trim() || "Documento NoraItu";
+
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) return;
+
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html lang="es">
+      <head>
+        <meta charset="utf-8">
+        <title>${cleanTitle} - NoraItu</title>
+        <style>
+          @page {
+            size: A4;
+            margin: 20mm 20mm 20mm 20mm;
+          }
+          body {
+            font-family: 'Times New Roman', Times, serif, Arial;
+            padding: 20px;
+            color: #0f172a;
+            line-height: 1.6;
+            font-size: 11pt;
+            background: #ffffff;
+          }
+          .doc-header {
+            border-bottom: 2px solid #0284c7;
+            padding-bottom: 8px;
+            margin-bottom: 24px;
+            font-size: 9pt;
+            font-weight: bold;
+            color: #0369a1;
+            display: flex;
+            justify-content: space-between;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+          }
+          h1 { color: #020617; font-size: 17pt; margin-top: 14px; margin-bottom: 12px; text-align: center; }
+          h2 { color: #0f172a; font-size: 13pt; margin-top: 18px; margin-bottom: 8px; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; }
+          h3 { color: #1e293b; font-size: 11.5pt; margin-top: 14px; margin-bottom: 6px; }
+          p { text-align: justify; margin-bottom: 10px; line-height: 1.6; }
+          ul, ol { margin-bottom: 10px; padding-left: 24px; }
+          li { margin-bottom: 4px; text-align: justify; }
+          table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 10pt; }
+          th { border: 1px solid #475569; padding: 6px 8px; background-color: #f1f5f9; font-weight: bold; text-align: left; color: #0f172a; }
+          td { border: 1px solid #94a3b8; padding: 6px 8px; text-align: justify; }
+          .doc-footer {
+            margin-top: 40px;
+            border-top: 1px solid #cbd5e1;
+            padding-top: 10px;
+            font-size: 8pt;
+            color: #64748b;
+            text-align: center;
+          }
+          @media print {
+            body { padding: 0; }
+            .doc-header { margin-bottom: 20px; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="doc-header">
+          <span>NORAITU AI — INFORME INSTITUCIONAL & ACADÉMICO</span>
+          <span>${new Date().toLocaleDateString('es-AR')}</span>
+        </div>
+        <div>${cleanBodyHtml}</div>
+        <div class="doc-footer">
+          Documento generado por NoraItu AI (MyJNexoraVisual) • Ituzaingó, Corrientes • Copia Formal para Evaluación / Impresión
+        </div>
+        <script>
+          window.onload = function() { window.print(); }
+        </script>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+}
