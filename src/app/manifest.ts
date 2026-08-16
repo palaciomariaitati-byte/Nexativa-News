@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'NoraItu AI - Asistente Autónomo',
     short_name: 'NoraItu',
-    description: 'Inteligencia Artificial Libre, Analítica y Multidispositivo a Costo $0.',
+    description: 'Inteligencia Artificial Universal, Multimodal y Soberana de MyJNexoraVisual.',
     start_url: '/noraitu',
     display: 'standalone',
     background_color: '#090d16',

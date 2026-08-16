@@ -1089,7 +1089,7 @@ export default function NoraItuApp() {
             <ShieldCheck size={14} className="text-emerald-400" />
             <span>100% Blindada</span>
           </div>
-          <span className="text-[10px] font-mono text-slate-600">Soberanía $0</span>
+          <span className="text-[10px] font-mono text-slate-600">MyJNexoraVisual</span>
         </div>
       </aside>
 
