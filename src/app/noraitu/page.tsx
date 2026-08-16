@@ -38,7 +38,10 @@ import {
   Puzzle,
   MessageCircle,
   ExternalLink,
-  Printer
+  Printer,
+  Laptop,
+  RefreshCw,
+  Sliders
 } from "lucide-react";
 import { exportNoraCleanWord, exportNoraCleanPdf } from "@/lib/exportUtils";
 
@@ -105,6 +108,15 @@ export default function NoraItuApp() {
   // Estados de Compartir / Viralización WhatsApp y QR
   const [showShareModal, setShowShareModal] = useState(false);
   const [copiedShareLink, setCopiedShareLink] = useState(false);
+
+  // Estados de Sincronización Multi-Dispositivo (PC / Celular / Tablet)
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [syncInputId, setSyncInputId] = useState("");
+  const [syncSuccessMsg, setSyncSuccessMsg] = useState("");
+
+  // Voces Disponibles y Selección de Voz Neuronal
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoiceUri, setSelectedVoiceUri] = useState<string>("");
   
   // Estado de Modo Adaptativo (General, Inclusión TEA, Docente, Cátedra)
   const [activeMode, setActiveMode] = useState<string>("general");
@@ -115,15 +127,44 @@ export default function NoraItuApp() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  // 1. Inicializar UUID de usuario, Voz, Notificaciones y PWA Install Prompt
+  // 1. Inicializar UUID de usuario, Sincronización Multi-dispositivo, Voz y PWA Prompt
   useEffect(() => {
-    let storedUserId = localStorage.getItem("noraitu_user_id");
+    let storedUserId = "";
+
+    // Detección de sincronización instantánea por parámetro URL (?sync_user=...)
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const syncUser = urlParams.get("sync_user");
+      if (syncUser && syncUser.trim()) {
+        storedUserId = syncUser.trim();
+        localStorage.setItem("noraitu_user_id", storedUserId);
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else {
+        storedUserId = localStorage.getItem("noraitu_user_id") || "";
+      }
+    }
+
     if (!storedUserId) {
       storedUserId = "user_" + Math.random().toString(36).substring(2, 12) + "_" + Date.now();
       localStorage.setItem("noraitu_user_id", storedUserId);
     }
+
     setUserId(storedUserId);
     fetchSessions(storedUserId);
+
+    // Precargar voces del sistema operativo
+    const loadSystemVoices = () => {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        const vList = window.speechSynthesis.getVoices();
+        const spanishVoices = vList.filter(v => v.lang.startsWith("es") || v.lang.includes("es-"));
+        setAvailableVoices(spanishVoices.length > 0 ? spanishVoices : vList);
+      }
+    };
+
+    loadSystemVoices();
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.onvoiceschanged = loadSystemVoices;
+    }
 
     // Recuperar preferencia de voz automática
     const savedVoice = localStorage.getItem("noraitu_auto_voice");
@@ -1132,13 +1173,25 @@ export default function NoraItuApp() {
           {/* Botón Compartir / QR en Sidebar */}
           <button
             onClick={() => setShowShareModal(true)}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-800/60 text-emerald-300 transition-colors"
+            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs bg-emerald-950/50 hover:bg-emerald-900/60 border border-emerald-800/70 text-emerald-300 transition-colors shadow-xs"
           >
             <div className="flex items-center gap-2">
               <QrCode size={14} className="text-emerald-400" />
-              <span>Compartir / Código QR</span>
+              <span className="font-medium">Compartir / Código QR</span>
             </div>
             <Share2 size={12} className="text-emerald-400" />
+          </button>
+
+          {/* Botón Sincronizar con PC en Sidebar */}
+          <button
+            onClick={() => setShowSyncModal(true)}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs bg-indigo-950/50 hover:bg-indigo-900/60 border border-indigo-800/70 text-indigo-300 transition-colors shadow-xs"
+          >
+            <div className="flex items-center gap-2">
+              <Laptop size={14} className="text-indigo-400" />
+              <span className="font-medium">Sincronizar con PC</span>
+            </div>
+            <RefreshCw size={12} className="text-indigo-400" />
           </button>
 
           {/* Botón Instalar App en Sidebar */}
@@ -1197,11 +1250,11 @@ export default function NoraItuApp() {
                 >
                   <span className="truncate pr-2">{sess.title}</span>
                   <button
-                    onClick={(e) => handleDeleteSession(sess.id, e)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-rose-400 rounded transition-opacity"
-                    title="Eliminar chat"
+                    onClick={(e) => deleteSession(sess.id, e)}
+                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition-all"
+                    title="Eliminar conversación"
                   >
-                    <Trash2 size={14} />
+                    <Trash2 size={13} />
                   </button>
                 </div>
               );
@@ -1233,8 +1286,8 @@ export default function NoraItuApp() {
       <main className="flex-1 flex flex-col h-full relative overflow-hidden bg-radial from-[#101827] via-[#090d16] to-[#06080e]">
         
         {/* Top Navbar */}
-        <header className="h-14 border-b border-slate-800/80 px-4 flex items-center justify-between bg-[#090d16]/80 backdrop-blur-md z-30">
-          <div className="flex items-center gap-3">
+        <header className="h-14 border-b border-slate-800/80 px-3 sm:px-4 flex items-center justify-between bg-[#090d16]/80 backdrop-blur-md z-30">
+          <div className="flex items-center gap-2.5">
             <button
               onClick={() => setSidebarOpen(true)}
               className="md:hidden p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800/80"
@@ -1243,22 +1296,32 @@ export default function NoraItuApp() {
             </button>
             <div className="flex items-center gap-2">
               <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400/50" />
-              <span className="font-semibold text-sm text-slate-200">NoraItu Universal</span>
+              <span className="font-semibold text-sm text-slate-200">NoraItu</span>
               <span className="hidden sm:inline-block px-2 py-0.5 rounded-full text-[10px] font-mono bg-sky-950/80 text-sky-400 border border-sky-800/40">
-                Educación • Inclusión DUA • Visión & Docs
+                Educación • Inclusión DUA • Docs
               </span>
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Botón Sincronizar PC */}
+            <button
+              onClick={() => setShowSyncModal(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-700/60 text-indigo-300 transition-colors shadow-xs"
+              title="Sincronizar tus conversaciones en PC o Celular"
+            >
+              <Laptop size={14} className="text-indigo-400" />
+              <span className="hidden md:inline">Sincronizar PC</span>
+            </button>
+
             {/* Botón Compartir / QR en Navbar */}
             <button
               onClick={() => setShowShareModal(true)}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 transition-colors shadow-sm shadow-emerald-500/10"
-              title="Compartir NoraItu por WhatsApp o QR"
+              title="Compartir NoraItu por WhatsApp o Código QR"
             >
               <QrCode size={14} className="text-emerald-400" />
-              <span className="hidden sm:inline">Compartir</span>
+              <span className="inline font-medium">Compartir / QR</span>
             </button>
 
             {/* Toggle de Voz Femenina Automática */}
@@ -1323,6 +1386,41 @@ export default function NoraItuApp() {
                     {mode.label}
                   </button>
                 ))}
+              </div>
+
+              {/* Banners Destacados de Compartir y Sincronizar */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full max-w-xl mb-4">
+                <button
+                  onClick={() => setShowShareModal(true)}
+                  className="p-3 rounded-2xl bg-emerald-950/60 hover:bg-emerald-900/70 border border-emerald-700/60 flex items-center justify-between text-left transition-all group shadow-sm shadow-emerald-500/10"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500/20 flex items-center justify-center shrink-0">
+                      <QrCode size={16} className="text-emerald-400 group-hover:scale-110 transition-transform" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-emerald-300 block">📲 Recomendar por WhatsApp & QR</span>
+                      <span className="text-[10px] text-slate-400">Comparte con docentes o amigos</span>
+                    </div>
+                  </div>
+                  <Share2 size={14} className="text-emerald-400" />
+                </button>
+
+                <button
+                  onClick={() => setShowSyncModal(true)}
+                  className="p-3 rounded-2xl bg-indigo-950/60 hover:bg-indigo-900/70 border border-indigo-700/60 flex items-center justify-between text-left transition-all group shadow-sm shadow-indigo-500/10"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-indigo-500/20 flex items-center justify-center shrink-0">
+                      <Laptop size={16} className="text-indigo-400 group-hover:scale-110 transition-transform" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-indigo-300 block">💻 Sincronizar con tu PC</span>
+                      <span className="text-[10px] text-slate-400">Continúa tu trabajo sin perder datos</span>
+                    </div>
+                  </div>
+                  <RefreshCw size={14} className="text-indigo-400" />
+                </button>
               </div>
 
               {/* Grid de Sugerencias */}
@@ -1606,6 +1704,217 @@ export default function NoraItuApp() {
           </div>
         </div>
       </main>
+
+      {/* ================================================================= */}
+      {/* 📲 MODAL: COMPARTIR Y RECOMENDAR POR WHATSAPP & CÓDIGO QR         */}
+      {/* ================================================================= */}
+      {showShareModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-3xl p-6 max-w-sm w-full shadow-2xl relative text-center">
+            <button
+              onClick={() => setShowShareModal(false)}
+              className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-600 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-emerald-500/20">
+              <QrCode size={24} className="text-white" />
+            </div>
+
+            <h3 className="text-lg font-bold text-white mb-1">Compartir NoraItu AI</h3>
+            <p className="text-xs text-slate-400 mb-4">
+              Invita a otros a usar NoraItu para educación, inclusión DUA, planificación docente y documentos formales.
+            </p>
+
+            {/* Código QR Dinámico */}
+            <div className="bg-white p-3 rounded-2xl inline-block mb-4 shadow-md">
+              <img
+                src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=https%3A%2F%2Fnexativanews.com.ar%2Fnoraitu"
+                alt="QR NoraItu"
+                className="w-44 h-44 mx-auto rounded-lg"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <a
+                href="https://api.whatsapp.com/send?text=%C2%A1Hola!%20Te%20recomiendo%20probar%20NoraItu%2C%20la%20inteligencia%20artificial%20de%20Ituzaing%C3%B3%20para%20educaci%C3%B3n%2C%20planificaci%C3%B3n%20docente%2C%20inclusi%C3%B3n%20DUA%20y%20documentos%20formales%3A%20https%3A%2F%2Fnexativanews.com.ar%2Fnoraitu"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-md shadow-emerald-600/30"
+              >
+                <MessageCircle size={16} />
+                <span>Compartir por WhatsApp</span>
+              </a>
+
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText("https://nexativanews.com.ar/noraitu");
+                  setCopiedShareLink(true);
+                  setTimeout(() => setCopiedShareLink(false), 2500);
+                }}
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-medium flex items-center justify-center gap-2 transition-colors"
+              >
+                {copiedShareLink ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                <span>{copiedShareLink ? "¡Enlace Copiado al Portapapeles!" : "Copiar Enlace Directo"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================= */}
+      {/* 💻 MODAL: SINCRONIZACIÓN MULTI-DISPOSITIVO (PC / CELULAR)          */}
+      {/* ================================================================= */}
+      {showSyncModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-slate-900 border border-indigo-700/60 rounded-3xl p-6 max-w-md w-full shadow-2xl relative text-center">
+            <button
+              onClick={() => setShowSyncModal(false)}
+              className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-500 to-sky-600 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-indigo-500/20">
+              <Laptop size={24} className="text-white" />
+            </div>
+
+            <h3 className="text-lg font-bold text-white mb-1">Sincronizar Celular con tu PC</h3>
+            <p className="text-xs text-slate-300 mb-4 leading-relaxed">
+              Escanea este código o abre el enlace en tu computadora para continuar tu trabajo sin perder el historial.
+            </p>
+
+            {/* QR de sincronización con tu ID */}
+            <div className="bg-white p-3 rounded-2xl inline-block mb-3 shadow-md">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(typeof window !== "undefined" ? `${window.location.origin}/noraitu?sync_user=${userId}` : `https://nexativanews.com.ar/noraitu?sync_user=${userId}`)}`}
+                alt="QR Sincronización"
+                className="w-40 h-40 mx-auto rounded-lg"
+              />
+            </div>
+
+            <div className="space-y-3">
+              {/* Botón copiar enlace de sincronización */}
+              <button
+                onClick={() => {
+                  const syncUrl = typeof window !== "undefined" ? `${window.location.origin}/noraitu?sync_user=${userId}` : `https://nexativanews.com.ar/noraitu?sync_user=${userId}`;
+                  navigator.clipboard.writeText(syncUrl);
+                  setSyncSuccessMsg("¡Enlace de sincronización copiado! Pégalo o ábrelo en tu PC.");
+                  setTimeout(() => setSyncSuccessMsg(""), 3000);
+                }}
+                className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-md shadow-indigo-600/30"
+              >
+                <Copy size={14} />
+                <span>Copiar Enlace de Sincronización para PC</span>
+              </button>
+
+              {/* Input manual de código */}
+              <div className="pt-2 border-t border-slate-800 text-left">
+                <p className="text-[11px] text-slate-400 mb-1.5">O ingresa el ID de tu otro dispositivo para vincularlo aquí:</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={syncInputId}
+                    onChange={(e) => setSyncInputId(e.target.value)}
+                    placeholder="Ej: user_abc123..."
+                    className="flex-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-slate-200 placeholder-slate-500 focus:outline-hidden focus:border-indigo-500"
+                  />
+                  <button
+                    onClick={() => {
+                      if (syncInputId.trim()) {
+                        localStorage.setItem("noraitu_user_id", syncInputId.trim());
+                        setUserId(syncInputId.trim());
+                        fetchSessions(syncInputId.trim());
+                        setSyncSuccessMsg("¡Dispositivo vinculado exitosamente!");
+                        setTimeout(() => {
+                          setSyncSuccessMsg("");
+                          setShowSyncModal(false);
+                        }, 1500);
+                      }
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-white transition-colors"
+                  >
+                    Vincular
+                  </button>
+                </div>
+              </div>
+
+              {syncSuccessMsg && (
+                <div className="p-2 rounded-xl bg-emerald-950/80 border border-emerald-800 text-emerald-300 text-xs flex items-center justify-center gap-1.5 animate-fade-in">
+                  <Check size={14} />
+                  <span>{syncSuccessMsg}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================= */}
+      {/* 📱 BANNER FLOTANTE DE INSTALACIÓN PWA                             */}
+      {/* ================================================================= */}
+      {showInstallBanner && (
+        <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-40 bg-slate-900/95 border border-sky-500/40 rounded-2xl p-3.5 shadow-2xl backdrop-blur-md flex items-center justify-between gap-3 animate-fade-in">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-md shadow-sky-500/20">
+              <Sparkles size={18} className="text-white" />
+            </div>
+            <div className="min-w-0">
+              <h4 className="text-xs font-bold text-white truncate">Instalar NoraItu en tu celular</h4>
+              <p className="text-[10px] text-slate-400 truncate">Acceso rápido sin abrir navegador</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={handleInstallApp}
+              className="px-3 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-xs font-semibold shadow-md shadow-sky-500/30 transition-all"
+            >
+              Instalar
+            </button>
+            <button
+              onClick={handleDismissInstall}
+              className="p-1.5 rounded-xl text-slate-400 hover:text-white"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================= */}
+      {/* 🍎 MODAL INSTRUCCIONES iOS SAFARI                                 */}
+      {/* ================================================================= */}
+      {showIOSModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-sm w-full shadow-2xl relative text-center">
+            <button
+              onClick={() => setShowIOSModal(false)}
+              className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-sky-500/20">
+              <Sparkles size={24} className="text-white" />
+            </div>
+
+            <h3 className="text-lg font-bold text-white mb-2">Instalar en iPhone / iPad</h3>
+            <div className="text-xs text-slate-300 text-left space-y-2.5 mb-5 bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800">
+              <p>1. Toca el botón <strong>Compartir</strong> (icono de cuadrado con flecha hacia arriba) en Safari.</p>
+              <p>2. Desplázate hacia abajo y selecciona <strong>"Agregar a Inicio"</strong>.</p>
+              <p>3. Toca <strong>"Agregar"</strong> arriba a la derecha y ¡listo!</p>
+            </div>
+
+            <button
+              onClick={() => setShowIOSModal(false)}
+              className="w-full py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-xs font-semibold transition-colors"
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
