@@ -482,17 +482,55 @@ export default function NoraItuApp() {
         liveVideoRef.current.play();
       }
 
-      setLiveSubtitles("👁️ Nora Titán está viendo en vivo. Habla o escribe qué deseas que analice.");
+      setLiveSubtitles("👁️ Nora Titán está observando en vivo...");
 
       if (liveIntervalRef.current) clearInterval(liveIntervalRef.current);
-      // Iniciar primer análisis a los 2 segundos
+      // Primer análisis inmediato
       setTimeout(() => {
-        captureAndAnalyzeFrame("Describe qué estás viendo en la cámara y qué detalles educativos o útiles detectas.");
-      }, 1800);
+        captureAndAnalyzeFrame("Describe con detalle qué estás viendo en este momento.");
+      }, 1200);
+
+      // Escaneo continuo cada 6 segundos
+      liveIntervalRef.current = setInterval(() => {
+        captureAndAnalyzeFrame();
+      }, 6000);
 
     } catch (err: any) {
       console.error("Error iniciando cámara en vivo:", err);
       setLiveSubtitles("⚠️ No se pudo acceder a la cámara. Por favor permite el acceso en tu navegador.");
+    }
+  };
+
+  const handleLiveVoiceAsk = () => {
+    if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
+      alert("El reconocimiento de voz no está soportado en este navegador.");
+      return;
+    }
+
+    try {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognition.lang = "es-AR";
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      setLiveSubtitles("🎙️ Te escucho... Haz tu pregunta sobre lo que estás mostrando.");
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript) {
+          setLiveCustomPrompt(transcript);
+          captureAndAnalyzeFrame(transcript);
+        }
+      };
+
+      recognition.onerror = () => {
+        setLiveSubtitles("👁️ Nora sigue observando. Puedes escribir o pulsar Analizar.");
+      };
+
+      recognition.start();
+    } catch (err) {
+      console.warn("Error en live voice:", err);
     }
   };
 
@@ -2324,6 +2362,14 @@ export default function NoraItuApp() {
 
             {/* Barra de Entrada / Pregunta Rápida */}
             <div className="max-w-xl mx-auto flex items-center gap-2">
+              <button
+                onClick={handleLiveVoiceAsk}
+                className="p-3 rounded-2xl bg-slate-800/90 border border-slate-700 hover:bg-slate-700 text-rose-400 hover:text-white transition-all backdrop-blur-md cursor-pointer shrink-0 shadow-md shadow-rose-500/10"
+                title="Hablar por micrófono a Nora"
+              >
+                <Mic size={18} />
+              </button>
+
               <input
                 type="text"
                 value={liveCustomPrompt}
@@ -2347,7 +2393,7 @@ export default function NoraItuApp() {
                 className="p-3 rounded-2xl bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white font-semibold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-rose-600/30 transition-all active:scale-95 cursor-pointer shrink-0"
               >
                 <Eye size={18} />
-                <span className="hidden sm:inline">Analizar Ahora</span>
+                <span className="hidden sm:inline">Analizar</span>
               </button>
             </div>
           </div>

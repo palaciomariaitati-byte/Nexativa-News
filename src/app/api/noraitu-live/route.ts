@@ -7,17 +7,20 @@ export const runtime = "nodejs";
 const TITAN_LIVE_SYSTEM_PROMPT = `
 ${NORA_CONSTITUTIONAL_AXIOMS}
 
-Eres Nora Titán en Modo Live Vision (Visión y Voz en Tiempo Real).
-Estás viendo el mundo a través de la cámara del usuario en vivo y escuchando su voz.
+ERES NORA TITÁN EN MODO LIVE VISION (VISIÓN EN TIEMPO REAL).
+Estás observando el mundo directamente a través de la cámara del usuario en vivo.
 
-DIRECTIVAS CRÍTICAS DE NORA TITÁN LIVE:
-1. SÉ DIRECTA, CONCISA Y DINÁMICA: Como esto es una interacción hablada en tiempo real, responde en 1 a 3 oraciones claras, fluidas y directas al grano (máximo 60 palabras).
-2. VISIÓN PEDAGÓGICA Y ASISTENCIA ACTIVA:
-   - Si el usuario te muestra un ejercicio de matemáticas, texto de estudio, mapa o pizarrón, explícale el concepto clave de inmediato.
-   - Si te muestra un objeto, planta, repuesto o documento, identifícalo y dale datos útiles al instante.
-   - Si hay texto visible en la cámara, léelo y sintetízalo con precisión.
-3. TONO HUMANO, CÁLIDO Y SEGURO: Habla en español latinoamericano neutro/argentino culto, con empatía y cercanía.
-4. CERO FORMATO EXTRAÑO: No uses markdown complejo ni tablas largas; genera texto limpio pensado para ser leído en voz alta por el sintetizador.
+REGLAS DE ORO OBLIGATORIAS:
+1. DESCRIPCIÓN PROACTIVA DIRECTA:
+   - NO hagas preguntas genéricas como "¿en qué te puedo ayudar?" o "¿qué necesitas?".
+   - DESCRIBE DE FORMA INMEDIATA y con precisión qué estás viendo: objetos, textos visibles, personas, entorno, pantallas, documentos, problemas matemáticos, repuestos o situaciones.
+2. CONCISIÓN PARA VOZ EN VIVO:
+   - Responde en 2 a 4 oraciones fluidas, claras y bien estructuradas (máximo 60 palabras).
+   - Diseñado para ser leído en voz alta por el sintetizador con tono empático, inteligente y cercano.
+3. SI DETECTAS TEXTO O UN EJERCICIO:
+   - Léelo, resume de qué trata o explica la solución clave directamente.
+4. CERO FORMATEO EXTRAÑO:
+   - No uses tablas complejas, asteriscos ni markdown denso; habla con naturalidad y precisión humana.
 `;
 
 export async function POST(req: Request) {
@@ -28,6 +31,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Frame de imagen requerido" }, { status: 400 });
     }
 
+    const cleanBase64 = imageBase64.includes(",") ? imageBase64.split(",")[1] : imageBase64;
+
+    const queryDirective = userPrompt && userPrompt.trim()
+      ? `[CONSULTA DEL USUARIO SOBRE LA IMAGEN]: "${userPrompt.trim()}". Responde a su pregunta con base en lo que ves.`
+      : `Describe con precisión qué estás observando en esta toma en vivo y qué detalles clave o útiles detectas.`;
+
     const keysPool = [
       process.env.GEMINI_API_KEY,
       process.env.GEMINI_API_KEY_FALLBACK,
@@ -35,25 +44,7 @@ export async function POST(req: Request) {
       process.env.GEMINI_API_KEY_TERTIARY,
     ].filter(Boolean) as string[];
 
-    if (keysPool.length === 0) {
-      return NextResponse.json({ 
-        text: "Veo lo que me estás mostrando a través de la cámara. ¿Qué consulta específica deseas que analicemos?" 
-      });
-    }
-
-    const cleanBase64 = imageBase64.includes(",") ? imageBase64.split(",")[1] : imageBase64;
-    const parts: any[] = [
-      {
-        inlineData: {
-          data: cleanBase64,
-          mimeType: "image/jpeg"
-        }
-      },
-      {
-        text: `${TITAN_LIVE_SYSTEM_PROMPT}\n\n[MODO ACTIVO: ${mode.toUpperCase()}]\n\n[CONSULTA HABLADA DEL USUARIO]: "${userPrompt || 'Describe qué estás viendo en la cámara y qué ayuda relevante puedes ofrecerme.'}"`
-      }
-    ];
-
+    // 1. Intentar con Gemini 2.0 Flash (Máxima agudeza visual)
     const modelCandidates = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
 
     for (const key of keysPool) {
@@ -62,9 +53,19 @@ export async function POST(req: Request) {
           const genAI = new GoogleGenerativeAI(key);
           const model = genAI.getGenerativeModel({
             model: modelName,
-            generationConfig: { temperature: 0.3, maxOutputTokens: 250 }
+            generationConfig: { temperature: 0.25, maxOutputTokens: 250 }
           });
-          const result = await model.generateContent(parts);
+          const result = await model.generateContent([
+            {
+              inlineData: {
+                data: cleanBase64,
+                mimeType: "image/jpeg"
+              }
+            },
+            {
+              text: `${TITAN_LIVE_SYSTEM_PROMPT}\n\n[MODO ACTIVO: ${mode.toUpperCase()}]\n\n${queryDirective}`
+            }
+          ]);
           const responseText = result.response?.text();
           if (responseText && responseText.trim()) {
             return NextResponse.json({ text: responseText.trim() });
@@ -75,8 +76,54 @@ export async function POST(req: Request) {
       }
     }
 
+    // 2. Fallback con Groq Vision (llama-3.2-11b-vision-preview)
+    if (process.env.GROQ_API_KEY) {
+      try {
+        const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: "llama-3.2-11b-vision-preview",
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text: `${TITAN_LIVE_SYSTEM_PROMPT}\n\n${queryDirective}`
+                  },
+                  {
+                    type: "image_url",
+                    image_url: {
+                      url: `data:image/jpeg;base64,${cleanBase64}`
+                    }
+                  }
+                ]
+              }
+            ],
+            max_tokens: 250,
+            temperature: 0.25
+          }),
+          signal: AbortSignal.timeout(8000)
+        });
+
+        if (groqRes.ok) {
+          const groqData = await groqRes.json();
+          const groqText = groqData.choices?.[0]?.message?.content;
+          if (groqText && groqText.trim()) {
+            return NextResponse.json({ text: groqText.trim() });
+          }
+        }
+      } catch (groqErr) {
+        console.warn("[Groq Vision Fallback Warning]:", groqErr);
+      }
+    }
+
     return NextResponse.json({
-      text: "Estoy observando la imagen en vivo. Por favor reitera tu pregunta para darte la respuesta exacta."
+      text: "Estoy enfocando la escena. Mueve la cámara o hazme una pregunta específica para ayudarte."
     });
 
   } catch (error: any) {
