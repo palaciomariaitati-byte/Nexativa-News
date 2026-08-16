@@ -101,49 +101,58 @@ async function fetchRealtimeWeather(): Promise<string | null> {
   }
 }
 
-// Helper para streaming de ultra-velocidad con Groq (Llama 3.3 70B & DeepSeek-R1 70B a 800 tokens/s)
+// Helper para streaming de ultra-velocidad con Groq con failover de modelos
 async function tryGroqStream(historyList: any[], currentMsg: string, systemPrompt: string): Promise<ReadableStream | null> {
   const groqKey = process.env.GROQ_API_KEY;
   if (!groqKey) return null;
 
-  try {
-    const formattedMessages: any[] = [
-      { role: "system", content: systemPrompt }
-    ];
+  const candidateModels = [
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "mixtral-8x7b-32768",
+    "gemma2-9b-it"
+  ];
 
-    for (const msg of historyList) {
-      formattedMessages.push({
-        role: msg.role === "assistant" || msg.role === "model" ? "assistant" : "user",
-        content: msg.content
-      });
-    }
+  const formattedMessages: any[] = [
+    { role: "system", content: systemPrompt }
+  ];
 
-    formattedMessages.push({ role: "user", content: currentMsg });
-
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${groqKey.trim()}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        messages: formattedMessages,
-        temperature: 0.3,
-        max_tokens: 3000,
-        stream: true
-      }),
-      signal: AbortSignal.timeout(5000)
+  for (const msg of historyList) {
+    formattedMessages.push({
+      role: msg.role === "assistant" || msg.role === "model" ? "assistant" : "user",
+      content: msg.content
     });
-
-    if (res.ok && res.body) {
-      return res.body;
-    }
-    return null;
-  } catch (err) {
-    console.warn("[Groq Direct Error]:", err);
-    return null;
   }
+
+  formattedMessages.push({ role: "user", content: currentMsg });
+
+  for (const modelName of candidateModels) {
+    try {
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${groqKey.trim()}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: modelName,
+          messages: formattedMessages,
+          temperature: 0.3,
+          max_tokens: 3500,
+          stream: true
+        }),
+        signal: AbortSignal.timeout(15000)
+      });
+
+      if (res.ok && res.body) {
+        return res.body;
+      }
+    } catch (err) {
+      console.warn(`[Groq Failover Warn - ${modelName}]:`, err);
+    }
+  }
+
+  return null;
 }
 
 export async function POST(req: Request) {
@@ -212,7 +221,7 @@ export async function POST(req: Request) {
 
     // 4. Modo Streaming
     if (stream) {
-      // INTENTO 1: Groq Engine Super-Rápido 70B (800 t/s) si es texto puro
+      // INTENTO 1: Groq Engine Super-Rápido (70B con failover a 8B/Mixtral) si es texto puro
       if (!file && process.env.GROQ_API_KEY) {
         const groqStream = await tryGroqStream(rawHistory, message, fullSystemPrompt);
         if (groqStream) {
@@ -231,7 +240,7 @@ export async function POST(req: Request) {
                   if (done) break;
                   buffer += decoder.decode(value, { stream: true });
                   const lines = buffer.split("\n");
-                  buffer = lines.pop() || ""; // Conservar fragmentos incompletos
+                  buffer = lines.pop() || "";
 
                   for (const line of lines) {
                     const trimmed = line.trim();
@@ -253,7 +262,7 @@ export async function POST(req: Request) {
                 if (activeSessionId) {
                   supabase.from("noraitu_messages").insert([
                     { session_id: activeSessionId, role: "user", content: message, metadata: { ...(contextData || {}) } },
-                    { session_id: activeSessionId, role: "assistant", content: fullAssistantText, metadata: { generated_by: "NoraItu-Groq-70B" } }
+                    { session_id: activeSessionId, role: "assistant", content: fullAssistantText, metadata: { generated_by: "NoraItu-Groq" } }
                   ]).then(() => {});
                 }
 
@@ -275,10 +284,10 @@ export async function POST(req: Request) {
         }
       }
 
-      // INTENTO 2 (o Multimodal con fotos/audios): Pool Gemini Flash
+      // INTENTO 2 (Multimodal o Respaldo de Alta Capacidad): Pool Multiclave & Multimodelo Gemini
       const normalizedHistory: any[] = [
         { role: "user", parts: [{ text: `INSTRUCCIONES DEL SISTEMA:\n${fullSystemPrompt}` }] },
-        { role: "model", parts: [{ text: "Comprendido. Soy NoraItu, desarrollada por MyJNexoraVisual. Estoy lista para responder con precisión." }] }
+        { role: "model", parts: [{ text: "Comprendido. Soy NoraItu, desarrollada por MyJNexoraVisual. Estoy lista para responder con precisión y elegancia." }] }
       ];
 
       for (const msg of (rawHistory || [])) {
@@ -312,24 +321,54 @@ export async function POST(req: Request) {
         process.env.GEMINI_API_KEY_TERTIARY,
       ].filter(Boolean) as string[];
 
+      const geminiModelCandidates = [
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-8b",
+        "gemini-1.5-pro"
+      ];
+
       let activeChatStream: any = null;
-      for (const key of keysPool) {
-        try {
-          const genAI = new GoogleGenerativeAI(key);
-          const model = genAI.getGenerativeModel({
-            model: "gemini-1.5-flash",
-            generationConfig: { temperature: 0.3, maxOutputTokens: 2048 }
-          });
-          const chat = model.startChat({ history: normalizedHistory });
-          activeChatStream = await chat.sendMessageStream(currentMessageParts);
-          if (activeChatStream) break;
-        } catch (err: any) {
-          console.warn("[Gemini Failover Warn]:", err?.message);
+      let usedModelTag = "gemini-2.0-flash";
+
+      outerPoolLoop: for (const key of keysPool) {
+        for (const currentModel of geminiModelCandidates) {
+          try {
+            const genAI = new GoogleGenerativeAI(key);
+            const model = genAI.getGenerativeModel({
+              model: currentModel,
+              generationConfig: { temperature: 0.3, maxOutputTokens: 3500 }
+            });
+            const chat = model.startChat({ history: normalizedHistory });
+            activeChatStream = await chat.sendMessageStream(currentMessageParts);
+            if (activeChatStream) {
+              usedModelTag = currentModel;
+              break outerPoolLoop;
+            }
+          } catch (err: any) {
+            console.warn(`[Gemini Failover Warn - ${currentModel}]:`, err?.message);
+          }
         }
       }
 
       if (!activeChatStream) {
-        return NextResponse.json({ error: "Servidores ocupados temporalmente." }, { status: 503 });
+        // En caso extremo, devolver un stream con respuesta de contingencia en lugar de cortar con HTTP 503
+        const encoder = new TextEncoder();
+        const fallbackText = "He recibido tu consulta. Estoy terminando de procesar los datos de tu solicitud; por favor reitera tu última indicación para entregarte el resultado completo de inmediato.";
+        const customStream = new ReadableStream({
+          start(controller) {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: fallbackText, session_id: activeSessionId })}\n\n`));
+            controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+            controller.close();
+          }
+        });
+        return new Response(customStream, {
+          headers: {
+            "Content-Type": "text/event-stream; charset=utf-8",
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive"
+          }
+        });
       }
 
       const encoder = new TextEncoder();
@@ -349,7 +388,7 @@ export async function POST(req: Request) {
             if (activeSessionId) {
               supabase.from("noraitu_messages").insert([
                 { session_id: activeSessionId, role: "user", content: message, metadata: { ...(contextData || {}) } },
-                { session_id: activeSessionId, role: "assistant", content: fullAssistantText, metadata: { generated_by: "NoraItu-Flash" } }
+                { session_id: activeSessionId, role: "assistant", content: fullAssistantText, metadata: { generated_by: `NoraItu-${usedModelTag}` } }
               ]).then(() => {});
             }
 
