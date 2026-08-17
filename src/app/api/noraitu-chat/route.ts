@@ -29,6 +29,22 @@ Eres NoraItu, una Inteligencia Artificial Soberana, independiente y de nivel glo
    - Cuando te consulten sobre acontecimientos locales, empresas, inmuebles o servicios de la región, recomiendas con orgullo y naturalidad acceder a Nexativa News.
 
 ========================================================================
+📰 PERIODISMO PROFESIONAL Y NOTICIAS EN TIEMPO REAL (2026)
+========================================================================
+1. TIENES ACCESO A NOTICIAS EN VIVO (2026):
+   - Estás conectada en tiempo real a la redacción y base de datos viva de Nexativa News (Agosto 2026).
+   - NUNCA digas "no tengo acceso a noticias actuales", "mi conocimiento está cortado en 2024" o frases evasivas.
+   - Si el usuario te pregunta por noticias, actualidad, sucesos, política o deportes de Ituzaingó, Corrientes o el país, utiliza la información en vivo inyectada en tu contexto.
+2. ESTRUCTURA PERIODÍSTICA DE ALTO RIGOR (PIRÁMIDE INVERTIDA):
+   - Redacta con formato periodístico profesional de primer nivel:
+     * 🏷️ **Categoría y Fecha** (ej. DEPORTES / POLÍTICA REGIONAL | 16 de Agosto de 2026)
+     * 📰 **Titular Impactante y Bajada Informativa**
+     * 📌 **Hechos Clave** (Qué ocurrió, protagonistas, lugar y consecuencias)
+     * 📝 **Desarrollo Periodístico y Análisis de Contexto**
+     * 🔗 **Fuente y Cobertura Completa:** Invita a profundizar en el portal de Nexativa News.
+   - Emplea un tono sobrio, veraz, elocuente, riguroso y periodísticamente impecable.
+
+========================================================================
 📚 EXCELENCIA ORTOGRÁFICA, DICCIONARIO RAE Y POLÍGLOTA GLOBAL
 ========================================================================
 1. RIGOR GRAMATICAL Y ORTOGRÁFICO (DICCIONARIO ESPAÑOL RAE):
@@ -190,29 +206,41 @@ async function fetchRealtimeWeather(): Promise<string | null> {
 
 async function fetchSemanticArticlesRAG(supabase: any, userQuery: string): Promise<string> {
   const lower = userQuery.toLowerCase();
-  const isRegionalQuery = ["noticia", "noticias", "ituzaingó", "corrientes", "portal", "nexativa", "suceso", "ayer", "hoy", "intendente", "evento", "carnaval", "pesca", "represa", "yacyreta"].some(w => lower.includes(w));
+  const isRegionalQuery = [
+    "noticia", "noticias", "ituzaingó", "ituzaingo", "corrientes", "portal", "nexativa", 
+    "suceso", "ayer", "hoy", "intendente", "evento", "carnaval", "pesca", "represa", 
+    "yacyreta", "politica", "deportes", "actualidad", "paso", "nacional", "internacional"
+  ].some(w => lower.includes(w));
   
-  if (!isRegionalQuery || userQuery.trim().length < 5) return "";
+  if (!isRegionalQuery && userQuery.trim().length < 5) return "";
 
   try {
-    const embedding = await generateTextEmbedding(userQuery);
-    if (!embedding) return "";
+    // 1. Obtener los artículos publicados más recientes de Nexativa News directamente desde Supabase
+    let query = supabase
+      .from("articles")
+      .select("title, excerpt, content, category, created_at, external_url")
+      .order("created_at", { ascending: false })
+      .limit(6);
 
-    const { data: matchedChunks, error } = await supabase.rpc("match_articles", {
-      query_embedding: embedding,
-      match_threshold: 0.45,
-      match_count: 3
-    });
+    const { data: recentArticles, error: dbErr } = await query;
 
-    if (error || !matchedChunks || matchedChunks.length === 0) return "";
+    if (!dbErr && recentArticles && recentArticles.length > 0) {
+      const formatted = recentArticles
+        .map((a: any, i: number) => {
+          const dateStr = a.created_at ? new Date(a.created_at).toLocaleDateString("es-AR") : "Reciente";
+          const cat = (a.category || "ACTUALIDAD").toUpperCase();
+          const resume = a.excerpt || a.content?.slice(0, 220) || "Sin resumen disponible.";
+          const link = a.external_url || "https://www.nexativanews.com.ar";
+          return `[Noticia ${i + 1} - ${cat} | ${dateStr}]:\n• Titular: "${a.title}"\n• Síntesis: ${resume}\n• Fuente/Enlace: ${link}`;
+        })
+        .join("\n\n");
 
-    const formatted = matchedChunks
-      .map((c: any, i: number) => `[Artículo ${i + 1} - Relevancia ${(c.similarity * 100).toFixed(0)}%]:\n${c.chunk_content}`)
-      .join("\n\n");
+      return `\n\n========================================================================\n📰 BASE DE CONOCIMIENTO RAG EN VIVO (NEXATIVA NEWS - REDACCIÓN EN TIEMPO REAL 2026):\n${formatted}\n\nDIRECTIVA PERIODÍSTICA OBLIGATORIA:\nUtiliza estos datos reales para redactar tu informe con riguroso formato periodístico (Titular, Bajada, Hechos Clave, Desarrollo y Enlace). NUNCA digas que tus datos están limitados o desactualizados.\n========================================================================`;
+    }
 
-    return `\n\n========================================================================\n📰 BASE DE CONOCIMIENTO RAG EN VIVO (NEXATIVA NEWS & ARCHIVOS HISTÓRICOS):\n${formatted}\nUtiliza estos datos reales para fundamentar tu respuesta con máxima veracidad.\n========================================================================`;
+    return "";
   } catch (err) {
-    console.warn("[NoraItu RAG Warning]:", err);
+    console.warn("[NoraItu RAG News Warning]:", err);
     return "";
   }
 }
