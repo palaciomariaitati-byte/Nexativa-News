@@ -461,6 +461,41 @@ async function tryGroqStream(historyList: any[], currentMsg: string, systemPromp
     }
   }
 
+async function transcribeAudioWithWhisper(fileObj: any): Promise<string | null> {
+  const groqKey = process.env.GROQ_API_KEY;
+  if (!groqKey || !fileObj?.base64) return null;
+
+  try {
+    const rawB64 = fileObj.base64.includes(",") ? fileObj.base64.split(",")[1] : fileObj.base64;
+    const buffer = Buffer.from(rawB64, "base64");
+    const mime = fileObj.mimeType || fileObj.type || "audio/webm";
+    const ext = mime.includes("mp4") ? "mp4" : mime.includes("wav") ? "wav" : "webm";
+
+    const formData = new FormData();
+    const blob = new Blob([buffer], { type: mime });
+    formData.append("file", blob, `audio.${ext}`);
+    formData.append("model", "whisper-large-v3-turbo");
+    formData.append("language", "es");
+
+    const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${groqKey.trim()}`
+      },
+      body: formData,
+      signal: AbortSignal.timeout(10000)
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.text && data.text.trim().length > 0) {
+        console.log("[Groq Whisper Transcription] 🎙️ Audio transcrito con éxito:", data.text);
+        return data.text.trim();
+      }
+    }
+  } catch (err) {
+    console.warn("[Groq Whisper Warning]:", err);
+  }
   return null;
 }
 
@@ -480,11 +515,30 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Se requiere un mensaje de texto o un archivo adjunto." }, { status: 400 });
     }
 
+    let effectiveMessage = message;
+    const isAudioFile = Boolean(
+      file && (
+        (file.mimeType && file.mimeType.startsWith("audio/")) ||
+        (file.type && file.type.startsWith("audio/")) ||
+        (file.name && /\.(webm|mp3|wav|ogg|m4a|mp4|aac)$/i.test(file.name))
+      )
+    );
+
+    if (isAudioFile && file.base64) {
+      console.log("[NoraItu-Chat] 🎙️ Audio recibido. Transcribiendo con Groq Whisper...");
+      const transcribed = await transcribeAudioWithWhisper(file);
+      if (transcribed) {
+        effectiveMessage = transcribed;
+        console.log("[NoraItu-Chat] 🎙️ Audio convertido a texto:", effectiveMessage);
+      }
+    }
+
     console.log("[NoraItu-Chat] 📥 Request recibido:", { 
       user_id, 
       session_id, 
-      message_preview: message.slice(0, 40), 
-      has_file: !!file 
+      message_preview: effectiveMessage.slice(0, 40), 
+      has_file: !!file,
+      is_audio: isAudioFile 
     });
 
     const supabase = createServerSupabaseClient();
@@ -526,13 +580,13 @@ export async function POST(req: Request) {
     }
 
     // Comprobar si el usuario solicita generación de imagen o mejora modular de foto (Nano Banana)
-    if (isImageGenerationIntent(message, file)) {
-      const generatedImageText = synthesizeImageResponse(message, file);
+    if (isImageGenerationIntent(effectiveMessage, file)) {
+      const generatedImageText = synthesizeImageResponse(effectiveMessage, file);
       const encoder = new TextEncoder();
 
       if (activeSessionId) {
         supabase.from("noraitu_messages").insert([
-          { session_id: activeSessionId, role: "user", content: message, metadata: { ...(contextData || {}) } },
+          { session_id: activeSessionId, role: "user", content: effectiveMessage, metadata: { ...(contextData || {}) } },
           { session_id: activeSessionId, role: "assistant", content: generatedImageText, metadata: { generated_by: "NoraItu-Pollinations-8K" } }
         ]).then(() => {});
       }
@@ -588,13 +642,13 @@ export async function POST(req: Request) {
     // Obtener Clima, RAG semántico y Directorio
     const [weatherData, ragNewsData, ragBizData, continuousUserMemory] = await Promise.all([
       fetchRealtimeWeather(),
-      fetchSemanticArticlesRAG(supabase, message),
-      fetchDirectoryBusinessesRAG(supabase, message),
+      fetchSemanticArticlesRAG(supabase, effectiveMessage),
+      fetchDirectoryBusinessesRAG(supabase, effectiveMessage),
       fetchUserContinuousMemory(supabase, user_id)
     ]);
 
     const activeMode = contextData?.mode || "general";
-    const adaptivePedagogicalDirectives = resolveAdaptiveEducationalContext(activeMode, message);
+    const adaptivePedagogicalDirectives = resolveAdaptiveEducationalContext(activeMode, effectiveMessage);
 
     let fullSystemPrompt = `${NORA_CONSTITUTIONAL_AXIOMS}\n\n${NORAITU_SYSTEM_PROMPT}`;
     if (adaptivePedagogicalDirectives) fullSystemPrompt += adaptivePedagogicalDirectives;
@@ -603,12 +657,14 @@ export async function POST(req: Request) {
     if (ragNewsData) fullSystemPrompt += ragNewsData;
     if (ragBizData) fullSystemPrompt += ragBizData;
 
-    let effectiveUserMessage = message;
+    let effectiveUserMessage = effectiveMessage;
     if (file) {
       if (file.mimeType?.startsWith("image/")) {
-        effectiveUserMessage = `[FOTO ADJUNTA: "${file.name || 'foto.jpg'}"]\n${message || "Analiza detalladamente esta imagen, identifica qué contiene y descríbela con precisión."}`;
+        effectiveUserMessage = `[FOTO ADJUNTA: "${file.name || 'foto.jpg'}"]\n${effectiveMessage || "Analiza detalladamente esta imagen, identifica qué contiene y descríbela con precisión."}`;
       } else if (file.textContent) {
-        effectiveUserMessage = `[DOCUMENTO ADJUNTO: "${file.name || 'documento'}"]:\n${file.textContent.slice(0, 8000)}\n\n[CONSULTA DEL USUARIO]:\n${message || "Sintetiza y analiza el documento adjunto."}`;
+        effectiveUserMessage = `[DOCUMENTO ADJUNTO: "${file.name || 'documento'}"]:\n${file.textContent.slice(0, 8000)}\n\n[CONSULTA DEL USUARIO]:\n${effectiveMessage || "Sintetiza y analiza el documento adjunto."}`;
+      } else if (isAudioFile) {
+        effectiveUserMessage = `[NOTA DE VOZ DEL USUARIO]: "${effectiveMessage}"\nResponde directamente a esta consulta con máxima profesionalidad.`;
       }
     }
 
