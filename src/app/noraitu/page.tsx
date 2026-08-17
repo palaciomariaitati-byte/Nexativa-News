@@ -2239,89 +2239,113 @@ export default function NoraItuApp() {
       )}
 
       {/* ================================================================= */}
-      {/* 💻 MODAL: SINCRONIZACIÓN QR EFÍMERA (PC ↔ CELULAR SIN CONTRASEÑA) */}
+      {/* 🔄 MODAL: SINCRONIZAR MULTI-DISPOSITIVO (PC ↔ CELULAR)           */}
       {/* ================================================================= */}
       {showSyncModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-          <div className="bg-slate-900 border border-indigo-700/60 rounded-3xl p-6 max-w-md w-full shadow-2xl relative text-center">
+          <div className="bg-slate-900 border border-indigo-500/40 rounded-3xl p-6 max-w-md w-full shadow-2xl relative text-center">
             <button
               onClick={handleCloseSyncModal}
-              className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
             >
               <X size={18} />
             </button>
 
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-500 to-sky-600 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-indigo-500/20">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-indigo-500/20">
               <Laptop size={24} className="text-white" />
             </div>
 
-            <h3 className="text-lg font-bold text-white mb-1">Sincronización Soberana por QR</h3>
-            <p className="text-xs text-slate-300 mb-4 leading-relaxed">
-              Escanea este código con la cámara de tu celular para transferir tus conversaciones al instante sin contraseñas.
+            <h3 className="text-lg font-bold text-white mb-1">Sincronizar PC y Celular</h3>
+            <p className="text-xs text-slate-400 mb-4">
+              Comparte tus conversaciones entre tu computadora y tu celular al instante.
             </p>
 
-            {/* QR Dinámico Efímero de 5 minutos */}
-            <div className="bg-white p-3.5 rounded-2xl inline-block mb-3 shadow-xl relative min-w-[200px] min-h-[200px] flex items-center justify-center">
-              {isGeneratingSyncQr ? (
-                <div className="flex flex-col items-center gap-2 p-6">
-                  <div className="w-8 h-8 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
-                  <span className="text-xs font-mono text-slate-800">Generando QR seguro...</span>
-                </div>
-              ) : syncQrUrl ? (
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(syncQrUrl)}`}
-                  alt="QR Sincronización Efímero"
-                  className="w-44 h-44 mx-auto rounded-lg"
-                />
-              ) : (
-                <span className="text-xs text-slate-600">Error al cargar QR</span>
-              )}
+            {/* Selector de Pestañas: Generar Código (PC) vs Ingresar PIN (Móvil) */}
+            <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-950/80 rounded-2xl border border-slate-800 mb-4">
+              <button
+                onClick={() => setSyncInputId("")}
+                className={`py-2 px-3 rounded-xl text-xs font-semibold transition-all ${
+                  !syncInputId ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30" : "text-slate-400 hover:text-white"
+                }`}
+              >
+                🖥️ Estoy en la PC
+              </button>
+              <button
+                onClick={() => setSyncInputId(syncInputId || " ")}
+                className={`py-2 px-3 rounded-xl text-xs font-semibold transition-all ${
+                  syncInputId ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30" : "text-slate-400 hover:text-white"
+                }`}
+              >
+                📱 Estoy en el Celular
+              </button>
             </div>
 
-            {syncPinCode && (
-              <div className="mb-3 p-2.5 rounded-2xl bg-indigo-950/70 border border-indigo-500/50 flex flex-col items-center justify-center">
-                <span className="text-[11px] font-mono text-indigo-300 uppercase tracking-wider">O ingresa este PIN de 6 dígitos en tu celular:</span>
-                <span className="text-2xl font-extrabold font-mono tracking-widest text-emerald-400 mt-0.5">{syncPinCode}</span>
+            {!syncInputId ? (
+              /* VISTA 1: GENERAR CÓDIGO QR Y PIN (PARA MOSTRAR EN PC) */
+              <div>
+                <div className="bg-white p-3.5 rounded-2xl inline-block mb-3 shadow-xl relative min-w-[180px] min-h-[180px] flex items-center justify-center">
+                  {isGeneratingSyncQr ? (
+                    <div className="flex flex-col items-center gap-2 p-6">
+                      <div className="w-8 h-8 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
+                      <span className="text-xs font-mono text-slate-800">Generando QR...</span>
+                    </div>
+                  ) : syncQrUrl ? (
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(syncQrUrl)}`}
+                      alt="QR Sincronización Efímero"
+                      className="w-40 h-40 mx-auto rounded-lg"
+                    />
+                  ) : (
+                    <span className="text-xs text-slate-600">Error al cargar QR</span>
+                  )}
+                </div>
+
+                {syncPinCode && (
+                  <div className="mb-3 p-3 rounded-2xl bg-indigo-950/80 border border-indigo-500/50 flex flex-col items-center justify-center">
+                    <span className="text-[11px] font-mono text-indigo-300 uppercase tracking-wider">PIN de 6 Dígitos para tu celular:</span>
+                    <span className="text-3xl font-extrabold font-mono tracking-widest text-emerald-400 mt-1">{syncPinCode}</span>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-center gap-2 text-[11px] font-mono text-indigo-300 bg-indigo-950/60 py-1.5 px-3 rounded-xl border border-indigo-800/60 mb-3">
+                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                  <span>Esperando escaneo o PIN desde tu celular...</span>
+                </div>
+
+                <button
+                  onClick={() => {
+                    if (syncQrUrl) {
+                      navigator.clipboard.writeText(syncQrUrl);
+                      setSyncSuccessMsg("¡Enlace copiado! Pégalo en tu celular.");
+                      setTimeout(() => setSyncSuccessMsg(""), 3000);
+                    }
+                  }}
+                  className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-md shadow-indigo-600/30 cursor-pointer"
+                >
+                  <Copy size={14} />
+                  <span>Copiar Enlace Directo</span>
+                </button>
               </div>
-            )}
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-center gap-2 text-[11px] font-mono text-indigo-300 bg-indigo-950/60 py-1.5 px-3 rounded-xl border border-indigo-800/60">
-                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                <span>Esperando escaneo del celular... (5 min TTL)</span>
-              </div>
-
-              {/* Botón copiar enlace de sincronización */}
-              <button
-                onClick={() => {
-                  if (syncQrUrl) {
-                    navigator.clipboard.writeText(syncQrUrl);
-                    setSyncSuccessMsg("¡Enlace de sincronización copiado! Ábrelo en tu celular.");
-                    setTimeout(() => setSyncSuccessMsg(""), 3000);
-                  }
-                }}
-                className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-md shadow-indigo-600/30 cursor-pointer"
-              >
-                <Copy size={14} />
-                <span>Copiar Enlace de Sincronización</span>
-              </button>
-
-              {/* Input manual de código o PIN */}
-              <div className="pt-2 border-t border-slate-800 text-left">
-                <p className="text-[11px] text-slate-400 mb-1.5">O ingresa el PIN de 6 dígitos o ID de usuario:</p>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={syncInputId}
-                    onChange={(e) => setSyncInputId(e.target.value)}
-                    placeholder="PIN de 6 dígitos o user_..."
-                    className="flex-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-slate-200 placeholder-slate-500 focus:outline-hidden focus:border-indigo-500"
-                  />
-                  <button
-                    onClick={() => {
-                      if (syncInputId.trim()) {
+            ) : (
+              /* VISTA 2: INGRESAR PIN O ESCANEAR DESDE EL CELULAR */
+              <div className="space-y-3 text-left">
+                <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800">
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Ingresa el PIN de 6 dígitos que ves en tu PC:
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={syncInputId.trim()}
+                      onChange={(e) => setSyncInputId(e.target.value.replace(/\D/g, ''))}
+                      placeholder="Ej: 849201"
+                      className="flex-1 px-4 py-3 rounded-xl bg-slate-900 border border-indigo-500/60 text-lg font-mono tracking-widest text-center text-emerald-400 placeholder-slate-600 focus:outline-hidden focus:border-indigo-400"
+                    />
+                    <button
+                      onClick={() => {
                         const val = syncInputId.trim();
-                        if (/^\d{6}$/.test(val)) {
+                        if (val.length === 6) {
                           const currentUid = localStorage.getItem("noraitu_user_id") || userId;
                           fetch("/api/noraitu-sync", {
                             method: "PUT",
@@ -2329,41 +2353,48 @@ export default function NoraItuApp() {
                             body: JSON.stringify({ pin_code: val, user_id: currentUid, session_id: currentSessionId })
                           }).then(async (res) => {
                             if (res.ok) {
-                              setSyncSuccessMsg("🎉 ¡Dispositivo vinculado con éxito!");
+                              setSyncSuccessMsg("🎉 ¡Computadora vinculada con éxito!");
                               setTimeout(() => {
                                 setSyncSuccessMsg("");
                                 handleCloseSyncModal();
                               }, 1500);
                             } else {
-                              setSyncSuccessMsg("⚠️ PIN incorrecto o expirado.");
+                              const err = await res.json();
+                              setSyncSuccessMsg(`⚠️ ${err.error || 'PIN no encontrado o expirado'}`);
                             }
                           });
                         } else {
-                          localStorage.setItem("noraitu_user_id", val);
-                          setUserId(val);
-                          fetchSessions(val);
-                          setSyncSuccessMsg("¡Dispositivo vinculado exitosamente!");
-                          setTimeout(() => {
-                            setSyncSuccessMsg("");
-                            handleCloseSyncModal();
-                          }, 1500);
+                          setSyncSuccessMsg("⚠️ Escribe los 6 dígitos del PIN.");
                         }
-                      }
+                      }}
+                      className="px-5 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-xs font-bold text-white shadow-lg shadow-emerald-500/20 cursor-pointer"
+                    >
+                      Vincular
+                    </button>
+                  </div>
+                </div>
+
+                <div className="text-center pt-1">
+                  <button
+                    onClick={() => {
+                      handleCloseSyncModal();
+                      startLiveVision("environment");
                     }}
-                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-white transition-colors cursor-pointer"
+                    className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center justify-center gap-2 border border-slate-700 transition-colors cursor-pointer"
                   >
-                    Vincular
+                    <Camera size={15} />
+                    <span>O Escanear el QR con la Cámara de Titán Live</span>
                   </button>
                 </div>
               </div>
+            )}
 
-              {syncSuccessMsg && (
-                <div className="p-2 rounded-xl bg-emerald-950/80 border border-emerald-800 text-emerald-300 text-xs flex items-center justify-center gap-1.5 animate-fade-in">
-                  <Check size={14} />
-                  <span>{syncSuccessMsg}</span>
-                </div>
-              )}
-            </div>
+            {syncSuccessMsg && (
+              <div className="mt-3 p-2.5 rounded-xl bg-emerald-950/80 border border-emerald-800 text-emerald-300 text-xs flex items-center justify-center gap-1.5 animate-fade-in">
+                <Check size={14} />
+                <span>{syncSuccessMsg}</span>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -2502,21 +2533,39 @@ export default function NoraItuApp() {
             <div className="space-y-4">
               {/* Selector de Voz */}
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Voz del Navegador / Sistema</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Voz y Acento Regional</label>
                 <select
                   value={selectedVoiceUri}
                   onChange={(e) => {
                     setSelectedVoiceUri(e.target.value);
                     localStorage.setItem("noraitu_voice_uri", e.target.value);
                   }}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-slate-200 focus:outline-hidden focus:border-sky-500"
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-slate-200 focus:outline-hidden focus:border-sky-500"
                 >
-                  {availableVoices.map((v) => (
-                    <option key={v.voiceURI} value={v.voiceURI}>
-                      {v.name} ({v.lang})
-                    </option>
-                  ))}
+                  {availableVoices.map((v) => {
+                    let flag = "🌐";
+                    let label = v.name;
+                    const l = v.lang.toLowerCase();
+                    if (l.includes("ar") || l === "es-ar" || v.name.toLowerCase().includes("argentina")) {
+                      flag = "🇦🇷";
+                      label = `Nora Argentina (${v.name})`;
+                    } else if (l.includes("us") || l.includes("419") || l.includes("mx") || l.includes("co") || v.name.toLowerCase().includes("google español")) {
+                      flag = "🌎";
+                      label = `Español Latino Neutro (${v.name})`;
+                    } else if (l.includes("es") || l === "es-es") {
+                      flag = "🇪🇸";
+                      label = `Español España (${v.name})`;
+                    }
+                    return (
+                      <option key={v.voiceURI} value={v.voiceURI}>
+                        {flag} {label}
+                      </option>
+                    );
+                  })}
                 </select>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  💡 <strong>Tip para Celular:</strong> Si tu teléfono no tiene acento argentino instalado, selecciona la opción <strong>🌎 Español Latino Neutro</strong> para una dicción suave y natural sin modismos europeos.
+                </p>
               </div>
 
               {/* Control de Tono */}
