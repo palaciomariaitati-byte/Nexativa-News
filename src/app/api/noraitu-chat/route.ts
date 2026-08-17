@@ -461,6 +461,9 @@ async function tryGroqStream(historyList: any[], currentMsg: string, systemPromp
     }
   }
 
+  return null;
+}
+
 async function transcribeAudioWithWhisper(fileObj: any): Promise<string | null> {
   const groqKey = process.env.GROQ_API_KEY;
   if (!groqKey || !fileObj?.base64) return null;
