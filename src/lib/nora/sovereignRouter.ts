@@ -315,25 +315,32 @@ export async function dispatchSovereignInference(params: SovereignRouterParams):
   const isVision = Boolean(imageDataUrl);
   const messages = assembleMessages(history, userMessage, systemPrompt, imageDataUrl, file?.textContent);
 
+  console.log(`[SovereignRouter] 📥 Invocando Router Soberano (Vision: ${isVision}, Historial: ${history.length} msgs)...`);
+
   // 1. Intentar Capa 4: Nodo Local / VPS Propio si está configurado
+  console.log("[SovereignRouter] 🔍 Capa 4: Evaluando Ollama Local / VPS Bridge...");
   let stream = await tryOllamaLocal(messages, isVision);
 
   // 2. Intentar Capa 1: Cloudflare Workers AI
   if (!stream) {
+    console.log(`[SovereignRouter] 🔍 Capa 1: Evaluando Cloudflare Workers AI (Configurado: ${!!process.env.CLOUDFLARE_ACCOUNT_ID && !!process.env.CLOUDFLARE_API_TOKEN})...`);
     stream = await tryCloudflareWorkersAI(messages, isVision);
   }
 
   // 3. Intentar Capa 2: Hugging Face Serverless
   if (!stream) {
+    console.log(`[SovereignRouter] 🔍 Capa 2: Evaluando Hugging Face Serverless (Token: ${!!(process.env.HF_ACCESS_TOKEN || process.env.HUGGINGFACE_API_KEY || process.env.HF_TOKEN)})...`);
     stream = await tryHuggingFaceInference(messages, isVision);
   }
 
   // 4. Intentar Capa 3: OpenRouter Free Mesh
   if (!stream) {
+    console.log(`[SovereignRouter] 🔍 Capa 3: Evaluando OpenRouter Free Mesh (Configurado: ${!!process.env.OPENROUTER_API_KEY})...`);
     stream = await tryOpenRouterFree(messages, isVision);
   }
 
   if (!stream) {
+    console.log("[SovereignRouter] ⚠️ Ninguna capa soberana respondió o no hay tokens configurados. Conmutando a siguiente proveedor...");
     return null;
   }
 

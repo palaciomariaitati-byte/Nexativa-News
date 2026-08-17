@@ -315,17 +315,29 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Se requiere un mensaje de texto o un archivo adjunto." }, { status: 400 });
     }
 
+    console.log("[NoraItu-Chat] 📥 Request recibido:", { 
+      user_id, 
+      session_id, 
+      message_preview: message.slice(0, 40), 
+      has_file: !!file 
+    });
+
     const supabase = createServerSupabaseClient();
 
     const incomingMsgId = message_id || req.headers.get("x-message-id");
     if (incomingMsgId) {
-      const { data: existingMsg } = await supabase
+      const { data: existingMsg, error: checkMsgErr } = await supabase
         .from("noraitu_messages")
         .select("id")
         .eq("metadata->>message_id", incomingMsgId)
         .maybeSingle();
 
+      if (checkMsgErr) {
+        console.warn("[NoraItu-Chat] Advertencia verificando mensaje previo:", checkMsgErr.code, checkMsgErr.message);
+      }
+
       if (existingMsg) {
+        console.log("[NoraItu-Chat] Mensaje ya procesado anteriormente:", incomingMsgId);
         return NextResponse.json({ status: "ALREADY_PROCESSED" }, { status: 200 });
       }
     }
@@ -333,14 +345,18 @@ export async function POST(req: Request) {
     let activeSessionId = session_id;
     if (!activeSessionId) {
       const title = message.slice(0, 30) || "Nueva conversación";
+      console.log("[NoraItu-Chat] 📝 Creando nueva sesión en noraitu_sessions para user:", user_id);
       const { data: newSession, error: sessErr } = await supabase
         .from("noraitu_sessions")
         .insert([{ user_id, title }])
         .select("id")
         .single();
       
-      if (!sessErr && newSession) {
+      if (sessErr) {
+        console.error("❌ [NoraItu-Chat] Error BD en noraitu_sessions:", sessErr.code, sessErr.message);
+      } else if (newSession) {
         activeSessionId = newSession.id;
+        console.log("✓ [NoraItu-Chat] Sesión creada con éxito, ID:", activeSessionId);
       }
     }
 
@@ -454,9 +470,11 @@ export async function POST(req: Request) {
 
     if (stream) {
       // 1. Intentar primero con Groq (Soporta texto ultrarrápido y LLaMA 3.3)
+      console.log(`[NoraItu-Chat] 🚀 Capa 1: Evaluando Groq LLaMA 3.3 (GROQ_API_KEY presente: ${!!process.env.GROQ_API_KEY})...`);
       if (process.env.GROQ_API_KEY) {
         const groqStream = await tryGroqStream(rawHistory, effectiveUserMessage, fullSystemPrompt, file);
         if (groqStream) {
+          console.log("✓ [NoraItu-Chat] Inferencia exitosa en Groq (Iniciando SSE stream)...");
           const encoder = new TextEncoder();
           let fullAssistantText = "";
 
@@ -495,12 +513,19 @@ export async function POST(req: Request) {
                   supabase.from("noraitu_messages").insert([
                     { session_id: activeSessionId, role: "user", content: effectiveUserMessage, metadata: { ...(contextData || {}) } },
                     { session_id: activeSessionId, role: "assistant", content: fullAssistantText, metadata: { generated_by: "NoraItu-Groq" } }
-                  ]).then(() => {});
+                  ]).then(({ error: msgInsErr }) => {
+                    if (msgInsErr) {
+                      console.error("❌ [NoraItu-Chat] Error persistiendo mensajes en Supabase:", msgInsErr.code, msgInsErr.message);
+                    } else {
+                      console.log("✓ [NoraItu-Chat] Mensajes guardados en noraitu_messages.");
+                    }
+                  });
                 }
 
                 controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
                 controller.close();
               } catch (err) {
+                console.error("❌ [NoraItu-Chat] Error en stream Groq:", err);
                 controller.error(err);
               }
             }
@@ -517,6 +542,7 @@ export async function POST(req: Request) {
       }
 
       // 2. Intentar con la Red Abierta Soberana (Cloudflare AI, Hugging Face Qwen-VL, OpenRouter, Ollama)
+      console.log("[NoraItu-Chat] 🚀 Capa 2: Invocando SovereignRouter (Cloudflare / HuggingFace / OpenRouter / Ollama)...");
       const sovereignResponse = await dispatchSovereignInference({
         history: rawHistory,
         userMessage: effectiveUserMessage,
@@ -526,10 +552,12 @@ export async function POST(req: Request) {
       });
 
       if (sovereignResponse) {
+        console.log("✓ [NoraItu-Chat] Inferencia exitosa en SovereignRouter.");
         return sovereignResponse;
       }
 
       // 3. Fallback Multimodal a Gemini
+      console.log("[NoraItu-Chat] 🚀 Capa 3: Invocando Google Gemini Multi-Pool Fallback...");
       const currentMessageParts: any[] = [];
 
       if (file) {
