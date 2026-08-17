@@ -204,30 +204,99 @@ async function fetchRealtimeWeather(): Promise<string | null> {
   }
 }
 
+async function fetchLiveWebSearch(query: string): Promise<string> {
+  try {
+    const encoded = encodeURIComponent(query);
+    const n8nWebhook = process.env.N8N_SEARCH_WEBHOOK_URL;
+
+    // 1. Si hay webhook de n8n configurado, consultarlo primero con timeout de 3.5s
+    if (n8nWebhook) {
+      try {
+        const n8nRes = await fetch(n8nWebhook, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query }),
+          signal: AbortSignal.timeout(3500)
+        });
+        if (n8nRes.ok) {
+          const n8nData = await n8nRes.json();
+          if (n8nData.results || n8nData.summary) {
+            return `\n[RESULTADOS WEB N8N EN VIVO - 2026]:\n${n8nData.summary || JSON.stringify(n8nData.results)}`;
+          }
+        }
+      } catch (n8nErr) {
+        console.warn("[n8n Search Warning]:", n8nErr);
+      }
+    }
+
+    // 2. Búsqueda directa en vivo mediante Google News RSS (Argentina / Regional 2026)
+    const rssUrl = `https://news.google.com/rss/search?q=${encoded}&hl=es-419&gl=AR&ceid=AR:es-419`;
+    const res = await fetch(rssUrl, {
+      signal: AbortSignal.timeout(3500),
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      }
+    });
+
+    if (!res.ok) return "";
+
+    const xml = await res.text();
+    const items: { title: string; link: string; pubDate: string }[] = [];
+    const itemRegex = /<item>[\s\S]*?<title>(.*?)<\/title>[\s\S]*?<link>(.*?)<\/link>[\s\S]*?<pubDate>(.*?)<\/pubDate>[\s\S]*?<\/item>/gi;
+    let match;
+    while ((match = itemRegex.exec(xml)) !== null && items.length < 5) {
+      const title = match[1]?.replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1')?.trim();
+      const link = match[2]?.trim();
+      const pubDate = match[3]?.trim();
+      if (title) {
+        items.push({ title, link, pubDate });
+      }
+    }
+
+    if (items.length === 0) return "";
+
+    const formattedWeb = items.map((it, idx) => 
+      `• [Web ${idx + 1} | ${it.pubDate}]: ${it.title} (Fuente: ${it.link})`
+    ).join("\n");
+
+    return `\n\n🌐 CABLES WEB Y PRENSA EN VIVO (INTERNET 2026):\n${formattedWeb}`;
+  } catch (err) {
+    console.warn("[Live Web Search Warning]:", err);
+    return "";
+  }
+}
+
 async function fetchSemanticArticlesRAG(supabase: any, userQuery: string): Promise<string> {
   const lower = userQuery.toLowerCase();
   const isRegionalQuery = [
     "noticia", "noticias", "ituzaingó", "ituzaingo", "corrientes", "portal", "nexativa", 
     "suceso", "ayer", "hoy", "intendente", "evento", "carnaval", "pesca", "represa", 
-    "yacyreta", "politica", "deportes", "actualidad", "paso", "nacional", "internacional"
+    "yacyreta", "politica", "deportes", "actualidad", "paso", "nacional", "internacional",
+    "clima", "gobierno", "argentina", "presidente", "economia", "dolar", "inflacion"
   ].some(w => lower.includes(w));
   
   if (!isRegionalQuery && userQuery.trim().length < 5) return "";
 
   try {
-    // 1. Obtener los artículos publicados más recientes de Nexativa News directamente desde Supabase
+    // 1. Obtener artículos publicados de Nexativa News en Supabase
     let query = supabase
       .from("articles")
       .select("title, excerpt, content, category, created_at, external_url")
       .order("created_at", { ascending: false })
       .limit(6);
 
-    const { data: recentArticles, error: dbErr } = await query;
+    const [dbResult, webResult] = await Promise.all([
+      query,
+      fetchLiveWebSearch(userQuery)
+    ]);
 
-    if (!dbErr && recentArticles && recentArticles.length > 0) {
-      const formatted = recentArticles
+    const { data: recentArticles } = dbResult;
+    let combinedContext = "";
+
+    if (recentArticles && recentArticles.length > 0) {
+      const formattedDB = recentArticles
         .map((a: any, i: number) => {
-          const dateStr = a.created_at ? new Date(a.created_at).toLocaleDateString("es-AR") : "Reciente";
+          const dateStr = a.created_at ? new Date(a.created_at).toLocaleDateString("es-AR") : "Agosto 2026";
           const cat = (a.category || "ACTUALIDAD").toUpperCase();
           const resume = a.excerpt || a.content?.slice(0, 220) || "Sin resumen disponible.";
           const link = a.external_url || "https://www.nexativanews.com.ar";
@@ -235,7 +304,15 @@ async function fetchSemanticArticlesRAG(supabase: any, userQuery: string): Promi
         })
         .join("\n\n");
 
-      return `\n\n========================================================================\n📰 BASE DE CONOCIMIENTO RAG EN VIVO (NEXATIVA NEWS - REDACCIÓN EN TIEMPO REAL 2026):\n${formatted}\n\nDIRECTIVA PERIODÍSTICA OBLIGATORIA:\nUtiliza estos datos reales para redactar tu informe con riguroso formato periodístico (Titular, Bajada, Hechos Clave, Desarrollo y Enlace). NUNCA digas que tus datos están limitados o desactualizados.\n========================================================================`;
+      combinedContext += `📰 REDACCIÓN EN TIEMPO REAL (NEXATIVA NEWS - 2026):\n${formattedDB}`;
+    }
+
+    if (webResult) {
+      combinedContext += webResult;
+    }
+
+    if (combinedContext) {
+      return `\n\n========================================================================\n🌍 BASE DE CONOCIMIENTO Y CABLES EN VIVO (AÑO 2026):\n${combinedContext}\n\nDIRECTIVA PERIODÍSTICA OBLIGATORIA:\nUtiliza estos datos reales y frescos para fundamentar tu respuesta con rigor periodístico (Titular, Bajada, Hechos Clave y Enlace). NUNCA digas que tus datos están limitados a 2024.\n========================================================================`;
     }
 
     return "";

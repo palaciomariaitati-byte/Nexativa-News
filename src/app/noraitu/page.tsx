@@ -516,11 +516,10 @@ export default function NoraItuApp() {
     if (!cleanText) return;
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.lang = "es-MX"; // Español neutro latinoamericano
-    utterance.rate = voiceRate; // Velocidad calibrada por el usuario (def: 0.94)
-    utterance.pitch = voicePitch; // Tono maduro, femenino y cálido (def: 0.92, NO niña robot)
+    utterance.rate = voiceRate; // Velocidad calibrada (def: 0.94x)
+    utterance.pitch = voicePitch; // Tono maduro y cálido (def: 0.90)
 
-    // Buscar y priorizar la voz seleccionada por el usuario o la mejor voz neuronal
+    // Priorizar voces neurales de alta definición (Google Español, Microsoft Elena/Sabina/Dalia o Argentina)
     const voices = window.speechSynthesis.getVoices();
     let voiceToUse: SpeechSynthesisVoice | undefined = undefined;
 
@@ -529,20 +528,32 @@ export default function NoraItuApp() {
     }
 
     if (!voiceToUse) {
-      const neuralKeywords = [
-        "sabina", "dalia", "paulina", "natural", "google español", "elena", "monica", "hilda", "zira", "mexico", "argentina"
-      ];
+      // 1. Prioridad absoluta: Google Español (Android / Chrome) o Microsoft Elena / Sabina
       voiceToUse = voices.find(v => 
         (v.lang.startsWith("es") || v.lang.includes("es-")) && 
-        neuralKeywords.some(k => v.name.toLowerCase().includes(k))
-      ) || voices.find(v => 
-        (v.lang.startsWith("es") || v.lang.includes("es-")) && 
-        (v.name.toLowerCase().includes("female") || v.name.toLowerCase().includes("mujer"))
-      ) || voices.find(v => v.lang.startsWith("es"));
+        (
+          v.name.toLowerCase().includes("google español") || 
+          v.name.toLowerCase().includes("elena") || 
+          v.name.toLowerCase().includes("sabina") ||
+          v.name.toLowerCase().includes("dalia") ||
+          v.name.toLowerCase().includes("argentina")
+        )
+      );
+
+      // 2. Prioridad secundaria: Cualquier voz femenina en español latino
+      if (!voiceToUse) {
+        voiceToUse = voices.find(v => 
+          (v.lang.includes("419") || v.lang.includes("US") || v.lang.includes("MX") || v.lang.includes("AR") || v.lang.startsWith("es")) &&
+          (v.name.toLowerCase().includes("natural") || v.name.toLowerCase().includes("female") || v.name.toLowerCase().includes("mujer"))
+        ) || voices.find(v => v.lang.startsWith("es"));
+      }
     }
 
     if (voiceToUse) {
       utterance.voice = voiceToUse;
+      utterance.lang = voiceToUse.lang || "es-419";
+    } else {
+      utterance.lang = "es-419";
     }
 
     utterance.onend = () => setPlayingMsgIndex(null);
