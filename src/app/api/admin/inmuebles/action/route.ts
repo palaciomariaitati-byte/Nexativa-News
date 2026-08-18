@@ -3,10 +3,30 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export async function POST(req: Request) {
   try {
-    const { property_id, new_status, penalty_reason = "" } = await req.json();
+    const body = await req.json();
+    const { property_id, new_status, action, penalty_reason = "" } = body;
 
-    if (!property_id || !new_status) {
-      return NextResponse.json({ success: false, error: "ID de propiedad y nuevo estado requeridos." }, { status: 400 });
+    if (!property_id) {
+      return NextResponse.json({ success: false, error: "ID de propiedad requerido." }, { status: 400 });
+    }
+
+    // ACCIÓN: ELIMINAR PROPIEDAD
+    if (new_status === "DELETE" || action === "DELETE") {
+      const { error: delError } = await supabaseAdmin
+        .from("properties_for_rent")
+        .delete()
+        .eq("id", property_id);
+
+      if (delError) {
+        console.error("Error al eliminar propiedad en Supabase:", delError);
+        return NextResponse.json({ success: false, error: delError.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Propiedad eliminada de la base de datos correctamente.",
+        deleted_id: property_id,
+      });
     }
 
     const validStatuses = [
@@ -54,6 +74,30 @@ export async function POST(req: Request) {
       message: `Propiedad actualizada a estado ${new_status} correctamente.`,
       property: data,
     });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const property_id = searchParams.get("id") || searchParams.get("property_id");
+
+    if (!property_id) {
+      return NextResponse.json({ success: false, error: "ID de propiedad requerido para eliminar." }, { status: 400 });
+    }
+
+    const { error } = await supabaseAdmin
+      .from("properties_for_rent")
+      .delete()
+      .eq("id", property_id);
+
+    if (error) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, message: "Inmueble eliminado con éxito." });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }

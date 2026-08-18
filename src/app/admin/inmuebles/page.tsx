@@ -15,6 +15,7 @@ import {
   Search,
   ExternalLink,
   DollarSign,
+  Trash2,
 } from "lucide-react";
 
 export default function AdminInmueblesPage() {
@@ -23,6 +24,36 @@ export default function AdminInmueblesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("TODOS");
   const [processingId, setProcessingId] = useState<string | null>(null);
+
+  const handleDeleteProperty = async (propertyId: string, title: string) => {
+    if (!confirm(`⚠️ ¿Estás seguro de que deseas ELIMINAR PERMANENTEMENTE el inmueble "${title}"?\n\nEsta acción borrará la publicación de la base de datos y no se puede deshacer.`)) {
+      return;
+    }
+
+    setProcessingId(propertyId);
+    try {
+      const res = await fetch("/api/admin/inmuebles/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          property_id: propertyId,
+          action: "DELETE",
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        alert("✅ Inmueble eliminado con éxito de la base de datos.");
+        setProperties((prev) => prev.filter((p) => p.id !== propertyId));
+      } else {
+        alert(data.error || "No se pudo eliminar el inmueble.");
+      }
+    } catch (err) {
+      alert("Error de conexión al eliminar.");
+    } finally {
+      setProcessingId(null);
+    }
+  };
 
   const fetchProperties = async () => {
     setLoading(true);
@@ -293,7 +324,7 @@ export default function AdminInmueblesPage() {
 
                     {/* Acciones */}
                     <td className="p-4 text-right">
-                      <div className="flex flex-wrap items-center justify-end gap-1.5">
+                      <div className="flex flex-wrap items-center justify-end gap-2">
                         <select
                           disabled={processingId === p.id}
                           value={p.status || "DISPONIBLE"}
@@ -307,6 +338,17 @@ export default function AdminInmueblesPage() {
                           <option value="SUSPENDED_NEGLIGENT">⚠️ Aplicar Multa</option>
                           <option value="BAN_PERMANENT">🚫 Banear Propietario</option>
                         </select>
+
+                        <button
+                          type="button"
+                          disabled={processingId === p.id}
+                          onClick={() => handleDeleteProperty(p.id, p.title)}
+                          className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-slate-950 border border-rose-500/30 transition-all text-xs font-bold flex items-center gap-1 shadow"
+                          title="Eliminar Inmueble de la Base de Datos"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Eliminar</span>
+                        </button>
                       </div>
                     </td>
                   </tr>

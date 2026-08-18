@@ -16,6 +16,7 @@ import {
   Settings,
   RefreshCw,
   LogOut,
+  Trash2,
 } from "lucide-react";
 
 export default function AppPropietarioPage() {
@@ -92,6 +93,29 @@ export default function AppPropietarioPage() {
       }
     } catch (err) {
       alert("Error al actualizar estado.");
+    }
+  };
+
+  const handleDeleteProperty = async (propertyId: string, title: string) => {
+    if (!confirm(`⚠️ ¿Deseas eliminar definitivamente la publicación de "${title}"?\n\nEsta acción quitará el inmueble del portal público.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/admin/inmuebles/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ property_id: propertyId, action: "DELETE" }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setProperties((prev) => prev.filter((p) => p.id !== propertyId));
+        alert("✅ Inmueble eliminado con éxito.");
+      } else {
+        alert(data.error || "No se pudo eliminar el inmueble.");
+      }
+    } catch (err) {
+      alert("Error al intentar eliminar el inmueble.");
     }
   };
 
@@ -323,18 +347,30 @@ export default function AppPropietarioPage() {
                         </div>
 
                         {/* CAMBIO DE ESTADO EN VIVO POR EL PROPIETARIO */}
-                        <div className="pt-2 flex flex-wrap items-center gap-3">
-                          <span className="text-xs font-bold text-slate-300">Estado Actual:</span>
-                          <select
-                            value={prop.status || "DISPONIBLE"}
-                            onChange={(e) => handleUpdateStatus(prop.id, e.target.value)}
-                            className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-xs font-bold text-white focus:outline-none focus:border-rose-500"
+                        <div className="pt-2 flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-300">Estado Actual:</span>
+                            <select
+                              value={prop.status || "DISPONIBLE"}
+                              onChange={(e) => handleUpdateStatus(prop.id, e.target.value)}
+                              className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-xs font-bold text-white focus:outline-none focus:border-rose-500"
+                            >
+                              <option value="DISPONIBLE">🟢 DISPONIBLE (Libre para alquilar)</option>
+                              <option value="OCUPADO">🔴 OCUPADO (Reservado)</option>
+                              <option value="EN_REPARACION">🔧 EN REPARACIÓN (Mantenimiento)</option>
+                              <option value="EN_PREPARACION">🧹 EN PREPARACIÓN (Limpieza)</option>
+                            </select>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteProperty(prop.id, prop.title)}
+                            className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-slate-950 border border-rose-500/30 text-xs font-bold flex items-center gap-1.5 transition-all shadow cursor-pointer"
+                            title="Eliminar esta publicación"
                           >
-                            <option value="DISPONIBLE">🟢 DISPONIBLE (Libre para alquilar)</option>
-                            <option value="OCUPADO">🔴 OCUPADO (Reservado)</option>
-                            <option value="EN_REPARACION">🔧 EN REPARACIÓN (Mantenimiento)</option>
-                            <option value="EN_PREPARACION">🧹 EN PREPARACIÓN (Limpieza)</option>
-                          </select>
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Eliminar Publicación</span>
+                          </button>
                         </div>
                       </div>
                     </div>
