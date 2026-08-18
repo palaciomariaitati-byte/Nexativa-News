@@ -52,6 +52,7 @@ import jsQR from "jsqr";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { exportNoraCleanWord, exportNoraCleanPdf, exportNoraCleanPptx } from "@/lib/exportUtils";
+import { FunctionPlotter } from "@/components/Nora/FunctionPlotter";
 
 interface AttachedFile {
   name: string;
@@ -1582,6 +1583,13 @@ export default function NoraItuApp() {
             code: ({ node, inline, className, children, ...props }: any) => {
               const match = /language-(\w+)/.exec(className || "");
               const codeContent = String(children).replace(/\n$/, "");
+              const lang = (match ? match[1] : "").toLowerCase();
+
+              // 📊 RENDERIZADO INTERACTIVO DE FUNCIONES MATEMÁTICAS (FASE 11)
+              if (!inline && (lang === "plot" || lang === "graph" || lang === "function-plot" || lang === "math-plot")) {
+                return <FunctionPlotter expression={codeContent} />;
+              }
+
               if (!inline && (match || codeContent.includes("\n"))) {
                 const codeBlockId = `code_${msgIndex}_${Math.random().toString(36).substring(2, 7)}`;
                 return (

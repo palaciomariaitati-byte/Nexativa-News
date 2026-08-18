@@ -6,6 +6,7 @@ import { resolveAdaptiveEducationalContext } from "@/lib/nora/educationalRouter"
 import { NORA_CONSTITUTIONAL_AXIOMS, sanitizeAndInspectPrompt } from "@/lib/nora/constitutionalShield";
 import { fetchUserContinuousMemory } from "@/lib/nora/userMemory";
 import { dispatchSovereignInference } from "@/lib/nora/sovereignRouter";
+import { fetchHybridRAGDocuments } from "@/lib/nora/hybridRag";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -268,28 +269,20 @@ async function fetchSemanticArticlesRAG(supabase: any, userQuery: string): Promi
   if (!isRegionalQuery && userQuery.trim().length < 5) return "";
 
   try {
-    // 1. Obtener artículos publicados de Nexativa News en Supabase
-    let query = supabase
-      .from("articles")
-      .select("title, excerpt, content, category, created_at, external_url")
-      .order("created_at", { ascending: false })
-      .limit(6);
-
-    const [dbResult, webResult] = await Promise.all([
-      query,
+    const [hybridResults, webResult] = await Promise.all([
+      fetchHybridRAGDocuments(supabase, userQuery, null, 6),
       fetchLiveWebSearch(userQuery)
     ]);
 
-    const { data: recentArticles } = dbResult;
     let combinedContext = "";
 
-    if (recentArticles && recentArticles.length > 0) {
-      const formattedDB = recentArticles
+    if (hybridResults && hybridResults.length > 0) {
+      const formattedDB = hybridResults
         .map((a: any, i: number) => {
           const dateStr = a.created_at ? new Date(a.created_at).toLocaleDateString("es-AR") : "Agosto 2026";
           const cat = (a.category || "ACTUALIDAD").toUpperCase();
-          const resume = a.excerpt || a.content?.slice(0, 220) || "Sin resumen disponible.";
-          const link = a.external_url || "https://www.nexativanews.com.ar";
+          const resume = a.content?.slice(0, 220) || "Sin resumen disponible.";
+          const link = a.source_url || "https://www.nexativanews.com.ar";
           return `[Noticia ${i + 1} - ${cat} | ${dateStr}]:\n• Titular: "${a.title}"\n• Síntesis: ${resume}\n• Fuente/Enlace: ${link}`;
         })
         .join("\n\n");
