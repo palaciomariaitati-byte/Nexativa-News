@@ -43,8 +43,8 @@ async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Promise<s
     throw new Error("Ni GEMINI_API_KEY ni GEMINI_API_KEY_FALLBACK están configuradas.");
   }
 
-  const primaryModel = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-  const candidateModels = Array.from(new Set([primaryModel, "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]));
+  const primaryModel = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+  const candidateModels = Array.from(new Set([primaryModel, "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]));
 
   const prompt = `
 Escucha atentamente este audio de un corresponsal de prensa de Nexativa News en Ituzaingó, Corrientes.
@@ -135,8 +135,8 @@ export async function generateArticles(
     throw new Error("Ni GEMINI_API_KEY ni GEMINI_API_KEY_FALLBACK están configuradas.");
   }
 
-  const primaryModel = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-  const candidateModels = Array.from(new Set([primaryModel, "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]));
+  const primaryModel = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+  const candidateModels = Array.from(new Set([primaryModel, "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]));
 
   const contents: any[] = [];
   if (imageBuffer && imageBuffer.length > 0) {

@@ -205,7 +205,7 @@ Responde ÚNICAMENTE con el prompt descriptivo en inglés estructurado.`;
     try {
       const genAI = new GoogleGenerativeAI(key);
       const model = genAI.getGenerativeModel({
-        model: "gemini-2.0-flash",
+        model: "gemini-3.6-flash",
         generationConfig: { temperature: 0.1, maxOutputTokens: 200 }
       });
       const result = await model.generateContent([
@@ -496,9 +496,11 @@ async function tryGroqStream(
   }
 
   const candidateModels = [
-    "llama-3.3-70b-versatile",
-    "llama-3.1-8b-instant",
-    "mixtral-8x7b-32768"
+    "openai/gpt-oss-120b",
+    "groq/compound",
+    "qwen/qwen3.6-27b",
+    "openai/gpt-oss-20b",
+    "groq/compound-mini"
   ];
 
   const formattedMessages: any[] = [
@@ -931,14 +933,15 @@ export async function POST(req: Request) {
       ].filter(Boolean) as string[];
 
       const geminiModelCandidates = [
-        "gemini-2.0-flash",
-        "gemini-1.5-flash",
-        "gemini-1.5-flash-8b",
-        "gemini-1.5-pro"
+        "gemini-3.6-flash",
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-flash-lite-latest"
       ];
 
       let activeChatStream: any = null;
-      let usedModelTag = "gemini-2.0-flash";
+      let usedModelTag = "gemini-3.6-flash";
 
       outerPoolLoop: for (const key of keysPool) {
         for (const currentModel of geminiModelCandidates) {
@@ -983,6 +986,8 @@ export async function POST(req: Request) {
         console.warn("[NoraItu-Chat] ⚠️ Streams remotos no disponibles. Ejecutando inferencia directa de emergencia...");
         
         let directText = "";
+
+        // Intento 4.1: Rescate directo con Gemini Multi-Pool
         for (const key of keysPool) {
           for (const currentModel of geminiModelCandidates) {
             try {
@@ -997,6 +1002,7 @@ export async function POST(req: Request) {
               const rawOut = result.response?.text();
               if (rawOut && rawOut.trim().length > 0) {
                 directText = rawOut.trim();
+                usedModelTag = currentModel;
                 break;
               }
             } catch (syncErr: any) {
@@ -1006,13 +1012,50 @@ export async function POST(req: Request) {
           if (directText) break;
         }
 
+        // Intento 4.2: Rescate directo con Groq si Gemini falló
+        if (!directText && process.env.GROQ_API_KEY) {
+          for (const groqModel of ["groq/compound", "openai/gpt-oss-120b", "qwen/qwen3.6-27b", "openai/gpt-oss-20b"]) {
+            try {
+              const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                  "Authorization": `Bearer ${process.env.GROQ_API_KEY.trim()}`,
+                  "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                  model: groqModel,
+                  messages: [
+                    { role: "system", content: fullSystemPrompt },
+                    ...rawHistory.slice(-4).map(h => ({ role: (h.role === "assistant" || h.role === "model") ? "assistant" : "user", content: h.content })),
+                    { role: "user", content: effectiveUserMessage }
+                  ],
+                  max_tokens: 3500,
+                  temperature: 0.3
+                }),
+                signal: AbortSignal.timeout(10000)
+              });
+              if (groqRes.ok) {
+                const groqData = await groqRes.json();
+                const groqText = groqData.choices?.[0]?.message?.content;
+                if (groqText && groqText.trim().length > 0) {
+                  directText = groqText.trim();
+                  usedModelTag = `Groq-${groqModel}`;
+                  break;
+                }
+              }
+            } catch (groqDirectErr: any) {
+              console.error("[NoraItu-Fatal-Error]: Error en inferencia directa Groq:", groqDirectErr?.message);
+            }
+          }
+        }
+
         const encoder = new TextEncoder();
-        const outputResponse = directText || `Comprendo tu consulta sobre "${effectiveMessage.slice(0, 60)}". Avancemos juntos punto por punto para resolverlo con total claridad.`;
+        const outputResponse = directText || "Hola, he recibido tu consulta con éxito. Permíteme asistirte de inmediato con cada aspecto detallado de tu requerimiento.";
 
         if (activeSessionId) {
           supabase.from("noraitu_messages").insert([
             { session_id: activeSessionId, role: "user", content: effectiveUserMessage, metadata: { ...(contextData || {}) } },
-            { session_id: activeSessionId, role: "assistant", content: outputResponse, metadata: { generated_by: "NoraItu-DirectInference" } }
+            { session_id: activeSessionId, role: "assistant", content: outputResponse, metadata: { generated_by: `NoraItu-${usedModelTag}` } }
           ]).then(() => {});
         }
 

@@ -96,7 +96,7 @@ async function syncHistoricalEmbeddings() {
     process.env.GEMINI_API_KEY_TERTIARY
   ].filter(Boolean) as string[];
 
-  const embeddingModels = ["text-embedding-004", "embedding-001"];
+  const embeddingModels = ["gemini-embedding-001", "gemini-embedding-2"];
 
   let successCount = 0;
   let failCount = 0;

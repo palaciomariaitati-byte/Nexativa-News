@@ -18,16 +18,20 @@ export async function generateTextEmbedding(text: string): Promise<number[] | nu
 
   const cleanText = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().substring(0, 8000);
 
+  const embeddingModels = ["gemini-embedding-001", "gemini-embedding-2"];
+
   for (const apiKey of keysPool) {
-    try {
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "text-embedding-004" });
-      const result = await model.embedContent(cleanText);
-      if (result.embedding && result.embedding.values) {
-        return result.embedding.values;
+    for (const em of embeddingModels) {
+      try {
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: em });
+        const result = await model.embedContent(cleanText);
+        if (result.embedding && result.embedding.values) {
+          return result.embedding.values;
+        }
+      } catch (err: any) {
+        console.warn(`[Embedding Fallback Warning] Error con key (${apiKey.substring(0, 6)}...) y modelo (${em}):`, err.message);
       }
-    } catch (err: any) {
-      console.warn(`[Embedding Fallback Warning] Error con key (${apiKey.substring(0, 6)}...):`, err.message);
     }
   }
 

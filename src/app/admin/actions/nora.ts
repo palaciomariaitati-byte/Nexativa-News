@@ -45,7 +45,7 @@ async function dispatchToNoraAI(
     process.env.GEMINI_API_KEY_TERTIARY,
   ].filter(Boolean) as string[];
 
-  const validModels = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash", "gemini-flash-latest"];
+  const validModels = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-flash-lite-latest"];
   const fullPrompt = systemPromptText ? `SISTEMA: ${systemPromptText}\n\nMENSAJE: ${userPromptText}` : userPromptText;
 
   // 1. Intento con el enjambre de llaves Gemini

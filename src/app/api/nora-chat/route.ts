@@ -127,14 +127,14 @@ export async function POST(req: Request) {
       ["demanda", "abogados", "denuncia", "estafa", "juicio", "defensa del consumidor", "reclamo legal"].some(k => userMsgLower.includes(k));
 
     const ollamaReasoningModel = process.env.OLLAMA_REASONING_MODEL || "deepseek-r1:1.5b";
-    const geminiReasoningModel = process.env.GEMINI_REASONING_MODEL || "gemini-1.5-pro";
+    const geminiReasoningModel = process.env.GEMINI_REASONING_MODEL || "gemini-3.6-flash";
 
-    const standardModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"];
+    const standardModels = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-flash-lite-latest"];
     const envModel = process.env.GEMINI_MODEL_NAME || process.env.GEMINI_MODEL;
     
-    // Si es una tarea de razonamiento complejo, priorizar modelos de alta capacidad (DeepSeek / Gemini 1.5 Pro)
+    // Si es una tarea de razonamiento complejo, priorizar modelos de alta capacidad
     const validModels = isComplaintOrReasoning
-      ? [geminiReasoningModel, "gemini-2.0-flash", ...standardModels.filter(m => m !== geminiReasoningModel)]
+      ? [geminiReasoningModel, ...standardModels.filter(m => m !== geminiReasoningModel)]
       : (envModel && standardModels.includes(envModel))
         ? [envModel, ...standardModels.filter(m => m !== envModel)]
         : standardModels;

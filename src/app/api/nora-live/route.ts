@@ -137,8 +137,8 @@ ${message || "(No envió mensaje de texto, revisa las imágenes, audios o videos
       process.env.GEMINI_API_KEY_TERTIARY
     ].filter(Boolean))) as string[];
 
-    const primaryModel = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-    const candidateModels = Array.from(new Set([primaryModel, "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]));
+    const primaryModel = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+    const candidateModels = Array.from(new Set([primaryModel, "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]));
 
     let text = "";
     let lastError: any = null;
