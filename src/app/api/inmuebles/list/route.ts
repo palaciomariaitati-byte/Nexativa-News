@@ -67,7 +67,8 @@ export async function GET(req: Request) {
     const check_in = searchParams.get("check_in");
     const check_out = searchParams.get("check_out");
     const property_type = searchParams.get("property_type");
-    const isAdmin = searchParams.get("is_admin") === "true" || searchParams.get("include_all") === "true";
+    const owner_dni = searchParams.get("owner_dni");
+    const isAdmin = searchParams.get("is_admin") === "true" || searchParams.get("include_all") === "true" || Boolean(owner_dni);
 
     let query = supabaseAdmin
       .from("properties_for_rent")
@@ -75,8 +76,12 @@ export async function GET(req: Request) {
       .order("created_at", { ascending: false });
 
     // Si es consulta pública normal, no mostrar propiedades baneadas
-    if (!isAdmin) {
+    if (!isAdmin && !owner_dni) {
       query = query.not("status", "in", '("BAN_PERMANENT","SUSPENDED_NEGLIGENT")');
+    }
+
+    if (owner_dni) {
+      query = query.eq("owner_dni", owner_dni.trim());
     }
 
     if (property_type && property_type !== "TODOS") {

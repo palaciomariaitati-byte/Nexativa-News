@@ -61,14 +61,10 @@ export default function AppPropietarioPage() {
   const fetchOwnerProperties = async (dni: string) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/inmuebles/list`);
+      const res = await fetch(`/api/inmuebles/list?owner_dni=${encodeURIComponent(dni)}&include_all=true`);
       const data = await res.json();
-      if (data.success && data.properties) {
-        // Filtrar por DNI del propietario
-        const myProperties = data.properties.filter(
-          (p: any) => p.owner_dni === dni || p.owner_dni?.replace(/\D/g, "") === dni.replace(/\D/g, "")
-        );
-        setProperties(myProperties.length > 0 ? myProperties : data.properties); // Fallback responsivo
+      if (data.success && Array.isArray(data.properties)) {
+        setProperties(data.properties);
       }
     } catch (err) {
       console.error("Error al cargar propiedades del propietario:", err);
@@ -119,31 +115,39 @@ export default function AppPropietarioPage() {
     }
   };
 
-  const handleUpdateDates = async (propertyId: string, fromDate: string, toDate: string) => {
+  const handleUpdateDates = async (propertyId: string, fromDate: string, toDate: string, price?: number) => {
     try {
-      const res = await fetch("/api/inmuebles/registro", {
+      const res = await fetch("/api/admin/inmuebles/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...editingProp,
-          id: propertyId,
+          property_id: propertyId,
           available_from: fromDate,
           available_to: toDate,
-          anti_fraud_accepted: true,
+          price_per_night: price,
         }),
       });
       const data = await res.json();
       if (data.success) {
         setProperties((prev) =>
           prev.map((p) =>
-            p.id === propertyId ? { ...p, available_from: fromDate, available_to: toDate } : p
+            p.id === propertyId
+              ? {
+                  ...p,
+                  available_from: fromDate,
+                  available_to: toDate,
+                  ...(price ? { price_per_night: price } : {}),
+                }
+              : p
           )
         );
-        alert("🗓️ Calendario de fechas actualizado correctamente.");
+        alert("🗓️ Datos del inmueble actualizados correctamente.");
         setEditingProp(null);
+      } else {
+        alert(data.error || "No se pudo actualizar.");
       }
     } catch (err) {
-      alert("Error actualizando fechas.");
+      alert("Error actualizando datos.");
     }
   };
 
@@ -388,7 +392,17 @@ export default function AppPropietarioPage() {
 
                   <div className="space-y-3">
                     <div>
-                      <label className="block text-xs font-bold text-amber-300 mb-1">Disponible Desde</label>
+                      <label className="block text-xs font-bold text-amber-300 mb-1">Precio por Noche ($ ARS)</label>
+                      <input
+                        type="number"
+                        defaultValue={editingProp.price_per_night}
+                        id="editPrice"
+                        placeholder="Ej: 50000"
+                        className="w-full p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-amber-400 font-bold text-xs font-mono focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1">Disponible Desde</label>
                       <input
                         type="date"
                         defaultValue={editingProp.available_from}
@@ -397,7 +411,7 @@ export default function AppPropietarioPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-amber-300 mb-1">Disponible Hasta</label>
+                      <label className="block text-xs font-bold text-slate-300 mb-1">Disponible Hasta</label>
                       <input
                         type="date"
                         defaultValue={editingProp.available_to}
@@ -420,11 +434,12 @@ export default function AppPropietarioPage() {
                       onClick={() => {
                         const from = (document.getElementById("editFrom") as HTMLInputElement).value;
                         const to = (document.getElementById("editTo") as HTMLInputElement).value;
-                        handleUpdateDates(editingProp.id, from, to);
+                        const price = Number((document.getElementById("editPrice") as HTMLInputElement).value);
+                        handleUpdateDates(editingProp.id, from, to, price);
                       }}
                       className="flex-1 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black"
                     >
-                      Guardar Fechas
+                      Guardar Cambios
                     </button>
                   </div>
                 </div>
