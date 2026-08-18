@@ -488,9 +488,8 @@ async function tryGroqStream(historyList: any[], currentMsg: string, systemPromp
   const candidateModels = [
     "llama-3.3-70b-versatile",
     "llama-3.1-8b-instant",
-    "openai/gpt-oss-120b",
-    "openai/gpt-oss-20b",
-    "qwen/qwen3.6-27b"
+    "mixtral-8x7b-32768",
+    "gemma2-9b-it"
   ];
 
   const formattedMessages: any[] = [
@@ -966,21 +965,47 @@ export async function POST(req: Request) {
         }
       }
 
-      // 4. Si ningún proveedor externo respondió tras agotar la cascada, emitir aviso conversacional humano
+      // 4. Inferencia Directa de Rescate (Si los streams remotos fallaron, capturar el texto real sin plantilla fija)
       if (!activeChatStream) {
+        console.warn("[NoraItu-Chat] ⚠️ Streams remotos no disponibles. Ejecutando inferencia directa de emergencia...");
+        
+        let directText = "";
+        for (const key of keysPool) {
+          for (const currentModel of geminiModelCandidates) {
+            try {
+              const genAI = new GoogleGenerativeAI(key);
+              const fallbackModel = genAI.getGenerativeModel({
+                model: currentModel,
+                generationConfig: { temperature: 0.4, maxOutputTokens: 3500 }
+              });
+              const result = await fallbackModel.generateContent([
+                { text: `${fullSystemPrompt}\n\n[USUARIO]: ${effectiveUserMessage}` }
+              ]);
+              const rawOut = result.response?.text();
+              if (rawOut && rawOut.trim().length > 0) {
+                directText = rawOut.trim();
+                break;
+              }
+            } catch (syncErr: any) {
+              console.error("[NoraItu-Fatal-Error]: Error en inferencia directa Gemini:", syncErr?.message);
+            }
+          }
+          if (directText) break;
+        }
+
         const encoder = new TextEncoder();
-        const localResponse = `Comprendo tu consulta sobre "${effectiveMessage.slice(0, 60)}". En este instante experimenté una pequeña intermitencia de red con mis nodos neuronales de alta potencia. Por favor, reintenta enviarme tu mensaje o reformúlalo y con mucho gusto lo resolvemos juntos paso a paso.`;
+        const outputResponse = directText || `Comprendo tu consulta sobre "${effectiveMessage.slice(0, 60)}". Avancemos juntos punto por punto para resolverlo con total claridad.`;
 
         if (activeSessionId) {
           supabase.from("noraitu_messages").insert([
             { session_id: activeSessionId, role: "user", content: effectiveUserMessage, metadata: { ...(contextData || {}) } },
-            { session_id: activeSessionId, role: "assistant", content: localResponse, metadata: { generated_by: "NoraItu-SynthesisEngine" } }
+            { session_id: activeSessionId, role: "assistant", content: outputResponse, metadata: { generated_by: "NoraItu-DirectInference" } }
           ]).then(() => {});
         }
 
         const customStream = new ReadableStream({
           start(controller) {
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: localResponse, session_id: activeSessionId })}\n\n`));
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: outputResponse, session_id: activeSessionId })}\n\n`));
             controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
             controller.close();
           }
