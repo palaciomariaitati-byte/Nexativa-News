@@ -110,7 +110,6 @@ export default function PropertyMultiGalleryUploader({
 
     setUploading(true);
     const newPhotos: GalleryPhoto[] = [...photos];
-    const supabase = getSupabaseBrowserClient();
 
     try {
       for (let i = 0; i < files.length; i++) {
@@ -118,39 +117,34 @@ export default function PropertyMultiGalleryUploader({
         setUploadProgress(`Optimizando y subiendo foto ${i + 1} de ${files.length}...`);
 
         const compressedBlob = await compressImage(file);
-        const fileExt = "webp";
-        const fileName = `prop_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
-        const filePath = `inmuebles/${fileName}`;
-
         let finalUrl = "";
 
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from("uploads")
-          .upload(filePath, compressedBlob, {
-            contentType: "image/webp",
-            cacheControl: "3600",
-            upsert: true,
+        // 1. Subir a través del endpoint seguro del servidor (/api/inmuebles/upload)
+        try {
+          const formData = new FormData();
+          formData.append("file", compressedBlob, file.name.replace(/\.[^/.]+$/, ".webp"));
+          const uploadRes = await fetch("/api/inmuebles/upload", {
+            method: "POST",
+            body: formData,
           });
 
-        if (!uploadError && uploadData) {
-          const { data: publicData } = supabase.storage.from("uploads").getPublicUrl(filePath);
-          finalUrl = publicData.publicUrl;
-        } else {
-          // Fallback a bucket media
-          const { data: mediaData, error: mediaError } = await supabase.storage
-            .from("media")
-            .upload(filePath, compressedBlob, { contentType: "image/webp", upsert: true });
-          if (!mediaError && mediaData) {
-            const { data: publicData } = supabase.storage.from("media").getPublicUrl(filePath);
-            finalUrl = publicData.publicUrl;
-          } else {
-            // Fallback a base64
-            finalUrl = await new Promise<string>((res) => {
-              const r = new FileReader();
-              r.onload = (ev) => res(ev.target?.result as string);
-              r.readAsDataURL(compressedBlob);
-            });
+          if (uploadRes.ok) {
+            const uploadData = await uploadRes.json();
+            if (uploadData.success && uploadData.url) {
+              finalUrl = uploadData.url;
+            }
           }
+        } catch (uploadErr) {
+          console.warn("[Upload via API Warning]:", uploadErr);
+        }
+
+        // 2. Fallback de emergencia a base64 si el upload falló
+        if (!finalUrl) {
+          finalUrl = await new Promise<string>((res) => {
+            const r = new FileReader();
+            r.onload = (ev) => res(ev.target?.result as string);
+            r.readAsDataURL(compressedBlob);
+          });
         }
 
         const autoRoom = ROOM_SUGGESTIONS[newPhotos.length % ROOM_SUGGESTIONS.length] || "Espacio del Inmueble";

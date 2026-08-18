@@ -1,6 +1,16 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+/**
+ * ========================================================================
+ * 🛡️ ALTA DE INMUEBLES & CALENDARIO ANTI-ESTAFAS (BLINDADO)
+ * Ubicación: /src/app/api/inmuebles/registro/route.ts
+ * ========================================================================
+ */
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -28,8 +38,14 @@ export async function POST(req: Request) {
       maps_url = "",
     } = body;
 
-    // Si viene galería de imágenes y no image_url, tomar la portada
-    const primaryImage = image_url.trim() || (Array.isArray(gallery_images) && gallery_images.length > 0 ? gallery_images[0].url : "");
+    // Determinar la foto de portada principal
+    let primaryImage = image_url ? image_url.trim() : "";
+    if (!primaryImage && Array.isArray(gallery_images) && gallery_images.length > 0) {
+      primaryImage = gallery_images[0].url || "";
+    }
+    if (!primaryImage) {
+      primaryImage = "https://images.unsplash.com/photo-1587061949409-02df41d5e562?auto=format&fit=crop&w=800&q=80";
+    }
 
     // 1. Validaciones de presencia de campos obligatorios
     if (!title || !property_type || !address || !price_per_night) {
@@ -66,16 +82,9 @@ export async function POST(req: Request) {
       );
     }
 
-    if (fromDate < today) {
-      return NextResponse.json(
-        { success: false, error: "La fecha de inicio de disponibilidad no puede ser una fecha pasada." },
-        { status: 400 }
-      );
-    }
-
     if (toDate < fromDate) {
       return NextResponse.json(
-        { success: false, error: "Inconsistencia de fechas: La fecha final de disponibilidad debe ser posterior a la fecha inicial." },
+        { success: false, error: "Inconsistencia de fechas: La fecha final de disponibilidad debe ser posterior o igual a la fecha inicial." },
         { status: 400 }
       );
     }
@@ -85,14 +94,25 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          error: "Es requisito legal innegociable aceptar la Declaración Jurada y las Políticas de Sanción por Inconsistencia/Multa para registrar un inmueble.",
+          error: "Es requisito legal innegociable aceptar la Declaración Jurada y las Políticas de Sanción para registrar un inmueble.",
         },
         { status: 400 }
       );
     }
 
-    // 4. Inserción en Base de Datos Supabase
-    const payload = {
+    // 4. Empaquetar galería completa y metadatos GPS dentro de la descripción para máxima compatibilidad
+    let enrichedDescription = description ? description.trim() : "";
+    
+    // Inyectar tags de galería y geo si existen
+    if (Array.isArray(gallery_images) && gallery_images.length > 0) {
+      enrichedDescription += `\n\n<!-- GALLERY_DATA:${JSON.stringify(gallery_images)} -->`;
+    }
+    if (latitude || longitude || maps_url) {
+      enrichedDescription += `\n\n<!-- GEO_DATA:${JSON.stringify({ latitude, longitude, maps_url })} -->`;
+    }
+
+    // 5. Inserción garantizada en Base de Datos Supabase (Postgres)
+    const basePayload: any = {
       title: title.trim(),
       property_type: property_type.trim(),
       address: address.trim(),
@@ -100,8 +120,8 @@ export async function POST(req: Request) {
       province: province.trim(),
       capacity_guests: Number(capacity_guests) || 2,
       price_per_night: Number(price_per_night),
-      currency: currency.trim(),
-      description: description.trim(),
+      currency: currency.trim() || "ARS",
+      description: enrichedDescription,
       owner_name: owner_name.trim(),
       owner_dni: owner_dni.trim(),
       owner_phone: owner_phone.trim(),
@@ -110,44 +130,43 @@ export async function POST(req: Request) {
       available_to,
       anti_fraud_accepted: true,
       status: "ACTIVE",
-      image_url: primaryImage || null,
-      gallery_images: Array.isArray(gallery_images) ? gallery_images : [],
-      latitude: latitude ? Number(latitude) : null,
-      longitude: longitude ? Number(longitude) : null,
-      maps_url: maps_url ? maps_url.trim() : null,
-      created_at: new Date().toISOString(),
+      image_url: primaryImage,
       updated_at: new Date().toISOString(),
     };
 
-    const { data, error } = await supabaseAdmin
+    // Intentar primero inserción en properties_for_rent
+    const { data: insertedData, error: insertError } = await supabaseAdmin
       .from("properties_for_rent")
-      .insert([payload])
+      .insert([basePayload])
       .select()
       .single();
 
-    if (error) {
-      console.warn("Supabase insert error on properties_for_rent:", error.message);
-      // Fallback responsivo estructurado si la tabla aún no fue migrada en producción
-      const fallbackProperty = {
-        id: `INM-${Date.now()}`,
-        ...payload,
-      };
+    if (insertError) {
+      console.error("[CRITICAL: Supabase insert error on properties_for_rent]:", insertError);
       return NextResponse.json({
-        success: true,
-        property: fallbackProperty,
-        message: "Inmueble registrado correctamente con Blindaje Anti-Estafas (Modo Local/Fallback).",
-      });
+        success: false,
+        error: `Error al guardar en base de datos: ${insertError.message}`,
+      }, { status: 500 });
     }
+
+    console.log(`[Inmuebles] 🏠 Propiedad publicada exitosamente en Supabase: ID=${insertedData.id} - ${insertedData.title}`);
 
     return NextResponse.json({
       success: true,
-      property: data,
-      message: "¡Inmueble registrado con éxito! El calendario de disponibilidad y la declaración jurada han sido verificados.",
+      property: {
+        ...insertedData,
+        gallery_images: Array.isArray(gallery_images) && gallery_images.length > 0 ? gallery_images : [{ url: primaryImage, roomTag: "Fachada", caption: title }],
+        latitude,
+        longitude,
+        maps_url,
+      },
+      message: "¡Inmueble registrado con éxito! Tu publicación ya se encuentra activa y visible en el portal y panel de control.",
     });
+
   } catch (err: any) {
     console.error("Error en POST /api/inmuebles/registro:", err);
     return NextResponse.json(
-      { success: false, error: err.message || "Error interno del servidor al procesar la alta del inmueble." },
+      { success: false, error: err.message || "Error interno del servidor al procesar el alta del inmueble." },
       { status: 500 }
     );
   }

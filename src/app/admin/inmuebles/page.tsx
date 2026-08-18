@@ -27,8 +27,8 @@ export default function AdminInmueblesPage() {
   const fetchProperties = async () => {
     setLoading(true);
     try {
-      // Usamos el endpoint público o consulta directa para cargar todas las propiedades para administración
-      const res = await fetch("/api/inmuebles/list");
+      // Usamos el endpoint con is_admin=true para cargar todas las propiedades para administración
+      const res = await fetch("/api/inmuebles/list?is_admin=true");
       const data = await res.json();
       if (data.success && data.properties) {
         setProperties(data.properties);
