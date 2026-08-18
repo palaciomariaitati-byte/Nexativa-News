@@ -48,6 +48,8 @@ import {
   Radio
 } from "lucide-react";
 import jsQR from "jsqr";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { exportNoraCleanWord, exportNoraCleanPdf } from "@/lib/exportUtils";
 
 interface AttachedFile {
@@ -488,18 +490,24 @@ export default function NoraItuApp() {
 
     stopSpeaking();
 
-    // Limpiar Markdown, emojis y corregir fonética para habla humana y natural
+    // Limpiar Markdown, tablas, plecas, URLs, emojis y corregir fonética para habla humana y natural
     const cleanText = text
-      .replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '')
+      // Eliminar URLs directas y formatos de imagen/enlaces
+      .replace(/https?:\/\/\S+/gi, '')
       .replace(/!\[.*?\]\(.*?\)/g, '')
+      .replace(/\[(.*?)\]\([^\s)]+\)/g, '$1')
+      // Eliminar bloques de código
       .replace(/```[\s\S]*?```/g, " Bloque de código. ")
       .replace(/`([^`]+)`/g, "$1")
-      .replace(/###/g, "")
-      .replace(/##/g, "")
-      .replace(/#/g, "")
-      .replace(/\*\*(.*?)\*\*/g, "$1")
-      .replace(/\[(.*?)\]\([^\s)]+\)/g, "$1")
-      .replace(/[-*]\s+/g, "")
+      // Eliminar separadores de tablas y plecas (| Col 1 | Col 2 | y |--|--|)
+      .replace(/\|+/g, ' ')
+      .replace(/^[-\s:|+]{3,}$/gm, ' ')
+      // Eliminar emojis
+      .replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '')
+      // Eliminar encabezados, asteriscos, guiones bajos, tildes de tachado
+      .replace(/#{1,6}\s+/g, '')
+      .replace(/[*_~`]/g, '')
+      .replace(/[-*]\s+/g, '')
       // Fonética y unidades en español natural
       .replace(/(\d+)\s*°\s*C/gi, "$1 grados centígrados")
       .replace(/(\d+)\s*°/g, "$1 grados")
@@ -511,6 +519,8 @@ export default function NoraItuApp() {
       .replace(/\bIVA\b/gi, " iva ")
       .replace(/\bRAE\b/gi, " rae ")
       .replace(/\bTEA\b/gi, " tea ")
+      // Colapsar espacios múltiples y saltos de línea repetidos
+      .replace(/\s+/g, ' ')
       .trim();
 
     if (!cleanText) return;
@@ -1304,123 +1314,165 @@ export default function NoraItuApp() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // Helper de formateo de Markdown y enlaces de compra ecommerce
-  const formatMarkdownText = (str: string) => {
-    return str
-      .replace(/\*\*(.*?)\*\*/g, '<strong class="text-sky-300 font-semibold">$1</strong>')
-      .replace(/\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-sky-400 hover:text-sky-300 underline font-medium hover:scale-[1.02] transition-transform">$1 ↗</a>');
-  };
-
-  // Renderizador de Markdown con soporte de imágenes IA generadas, links de compra y código
+  // Renderizador de Markdown Robusto con soporte de Tablas GFM, Imágenes IA y Enlaces
   const renderMessageContent = (content: string, msgIndex: number) => {
-    const imageRegex = /!\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g;
-    const parts = content.split(/(```[\s\S]*?```)/g);
-
     return (
-      <div className="space-y-3 leading-relaxed text-sm md:text-[15px]">
-        {parts.map((part, idx) => {
-          if (part.startsWith("```") && part.endsWith("```")) {
-            const codeLines = part.slice(3, -3).trim().split("\n");
-            const lang = codeLines[0].trim();
-            const code = (lang ? codeLines.slice(1) : codeLines).join("\n");
-            const codeBlockId = `code_${msgIndex}_${idx}`;
-
-            return (
-              <div key={idx} className="my-3 rounded-xl overflow-hidden border border-slate-800 bg-[#070a12] shadow-2xl">
-                <div className="flex items-center justify-between px-4 py-2 bg-slate-900/90 border-b border-slate-800/80 text-xs text-slate-400 font-mono">
-                  <span>{lang || "código"}</span>
-                  <button
-                    onClick={() => handleCopy(code, codeBlockId)}
-                    className="flex items-center gap-1.5 hover:text-sky-400 transition-colors"
-                  >
-                    {copiedId === codeBlockId ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-                    <span>{copiedId === codeBlockId ? "Copiado" : "Copiar"}</span>
-                  </button>
-                </div>
-                <pre className="p-4 overflow-x-auto text-xs md:text-sm font-mono text-emerald-300/95 leading-snug">
-                  <code>{code}</code>
-                </pre>
+      <div className="space-y-3 leading-relaxed text-sm md:text-[15px] prose-invert max-w-none">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            p: ({ node, children, ...props }) => (
+              <p className="my-1.5 text-slate-200 leading-relaxed" {...props}>
+                {children}
+              </p>
+            ),
+            h1: ({ node, children, ...props }) => (
+              <h1 className="text-lg md:text-xl font-bold text-white mt-4 mb-2 pb-1 border-b border-slate-800" {...props}>
+                {children}
+              </h1>
+            ),
+            h2: ({ node, children, ...props }) => (
+              <h2 className="text-base md:text-lg font-bold text-sky-200 mt-3 mb-1.5" {...props}>
+                {children}
+              </h2>
+            ),
+            h3: ({ node, children, ...props }) => (
+              <h3 className="text-sm md:text-base font-semibold text-sky-300 mt-2.5 mb-1" {...props}>
+                {children}
+              </h3>
+            ),
+            ul: ({ node, children, ...props }) => (
+              <ul className="list-disc pl-5 space-y-1 my-2 text-slate-200" {...props}>
+                {children}
+              </ul>
+            ),
+            ol: ({ node, children, ...props }) => (
+              <ol className="list-decimal pl-5 space-y-1 my-2 text-slate-200" {...props}>
+                {children}
+              </ol>
+            ),
+            li: ({ node, children, ...props }) => (
+              <li className="leading-snug" {...props}>
+                {children}
+              </li>
+            ),
+            strong: ({ node, children, ...props }) => (
+              <strong className="text-sky-300 font-semibold" {...props}>
+                {children}
+              </strong>
+            ),
+            blockquote: ({ node, children, ...props }) => (
+              <blockquote className="border-l-4 border-sky-500/60 pl-3 my-2 text-slate-300 italic bg-sky-950/20 py-1 rounded-r-lg" {...props}>
+                {children}
+              </blockquote>
+            ),
+            table: ({ node, children, ...props }) => (
+              <div className="my-4 overflow-x-auto rounded-xl border border-slate-700/80 bg-slate-900/80 shadow-2xl">
+                <table className="w-full text-left text-xs md:text-sm border-collapse" {...props}>
+                  {children}
+                </table>
               </div>
-            );
-          }
-
-          return (
-            <div key={idx} className="space-y-2">
-              {part.split("\n\n").map((paragraph, pIdx) => {
-                // Detectar si el párrafo contiene una imagen generada por IA
-                const imgMatch = [...paragraph.matchAll(imageRegex)];
-                if (imgMatch.length > 0) {
-                  return (
-                    <div key={pIdx} className="my-3 space-y-3">
-                      {imgMatch.map((m, mIdx) => {
-                        const caption = m[1] || "Imagen Generada por NoraItu";
-                        const imgUrl = m[2];
-                        return (
-                          <div key={mIdx} className="rounded-2xl overflow-hidden border border-sky-500/40 bg-slate-950/90 p-2.5 shadow-2xl space-y-2.5">
-                            <div className="relative group rounded-xl overflow-hidden bg-black/50">
-                              <img 
-                                src={imgUrl} 
-                                alt={caption} 
-                                className="w-full max-h-96 object-contain rounded-xl mx-auto transition-transform duration-300 group-hover:scale-[1.01]"
-                                loading="lazy" 
-                              />
-                            </div>
-                            <div className="flex items-center justify-between px-2 py-1 text-xs">
-                              <span className="font-medium text-slate-300 truncate max-w-[60%]">{caption}</span>
-                              <a
-                                href={imgUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                download="noraitu_arte_ia.jpg"
-                                className="px-3 py-1.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white rounded-lg font-semibold flex items-center gap-1.5 shadow-md shadow-sky-500/20 active:scale-95 transition-all text-xs"
-                              >
-                                <Download size={13} />
-                                <span>Descargar HD</span>
-                              </a>
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {paragraph.replace(imageRegex, "").trim() && (
-                        <p 
-                          className="text-slate-200"
-                          dangerouslySetInnerHTML={{
-                            __html: formatMarkdownText(paragraph.replace(imageRegex, "").trim())
-                          }}
-                        />
-                      )}
-                    </div>
-                  );
-                }
-
-                if (paragraph.trim().startsWith("- ") || paragraph.trim().startsWith("* ")) {
-                  const items = paragraph.split("\n");
-                  return (
-                    <ul key={pIdx} className="list-disc pl-5 space-y-1.5 my-2 text-slate-200">
-                      {items.map((item, iIdx) => (
-                        <li key={iIdx}>
-                          <span dangerouslySetInnerHTML={{
-                            __html: formatMarkdownText(item.replace(/^[-*]\s+/, ""))
-                          }} />
-                        </li>
-                      ))}
-                    </ul>
-                  );
-                }
-
+            ),
+            thead: ({ node, children, ...props }) => (
+              <thead className="bg-slate-800/90 border-b border-slate-700 text-sky-300 font-semibold uppercase tracking-wider text-[11px]" {...props}>
+                {children}
+              </thead>
+            ),
+            th: ({ node, children, ...props }) => (
+              <th className="px-4 py-3 border-r border-slate-700/60 last:border-r-0 font-semibold" {...props}>
+                {children}
+              </th>
+            ),
+            tbody: ({ node, children, ...props }) => (
+              <tbody className="divide-y divide-slate-800/80 text-slate-200" {...props}>
+                {children}
+              </tbody>
+            ),
+            tr: ({ node, children, ...props }) => (
+              <tr className="hover:bg-slate-800/40 transition-colors" {...props}>
+                {children}
+              </tr>
+            ),
+            td: ({ node, children, ...props }) => (
+              <td className="px-4 py-2.5 border-r border-slate-800/40 last:border-r-0 align-top" {...props}>
+                {children}
+              </td>
+            ),
+            a: ({ node, href, children, ...props }) => (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sky-400 hover:text-sky-300 underline font-medium hover:scale-[1.01] transition-transform"
+                {...props}
+              >
+                {children} ↗
+              </a>
+            ),
+            img: ({ node, src, alt, ...props }: any) => {
+              if (!src) return null;
+              const imageSrc = typeof src === "string" ? src : "";
+              return (
+                <div className="my-3 rounded-2xl overflow-hidden border border-sky-500/40 bg-slate-950/90 p-2.5 shadow-2xl space-y-2.5">
+                  <div className="relative group rounded-xl overflow-hidden bg-black/50">
+                    <img 
+                      src={imageSrc} 
+                      alt={alt || "Imagen Generada por NoraItu"} 
+                      className="w-full max-h-96 object-contain rounded-xl mx-auto transition-transform duration-300 group-hover:scale-[1.01]"
+                      loading="lazy" 
+                    />
+                  </div>
+                  <div className="flex items-center justify-between px-2 py-1 text-xs">
+                    <span className="font-medium text-slate-300 truncate max-w-[60%]">{alt || "Imagen Generada por NoraItu"}</span>
+                    {imageSrc && (
+                      <a
+                        href={imageSrc}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        download="noraitu_arte_ia.jpg"
+                        className="px-3 py-1.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white rounded-lg font-semibold flex items-center gap-1.5 shadow-md shadow-sky-500/20 active:scale-95 transition-all text-xs"
+                      >
+                        <Download size={13} />
+                        <span>Descargar HD</span>
+                      </a>
+                    )}
+                  </div>
+                </div>
+              );
+            },
+            code: ({ node, inline, className, children, ...props }: any) => {
+              const match = /language-(\w+)/.exec(className || "");
+              const codeContent = String(children).replace(/\n$/, "");
+              if (!inline && (match || codeContent.includes("\n"))) {
+                const codeBlockId = `code_${msgIndex}_${Math.random().toString(36).substring(2, 7)}`;
                 return (
-                  <p 
-                    key={pIdx} 
-                    className="text-slate-200"
-                    dangerouslySetInnerHTML={{
-                      __html: formatMarkdownText(paragraph)
-                    }}
-                  />
+                  <div className="my-3 rounded-xl overflow-hidden border border-slate-800 bg-[#070a12] shadow-2xl">
+                    <div className="flex items-center justify-between px-4 py-2 bg-slate-900/90 border-b border-slate-800/80 text-xs text-slate-400 font-mono">
+                      <span>{match ? match[1] : "código"}</span>
+                      <button
+                        onClick={() => handleCopy(codeContent, codeBlockId)}
+                        className="flex items-center gap-1.5 hover:text-sky-400 transition-colors"
+                      >
+                        {copiedId === codeBlockId ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                        <span>{copiedId === codeBlockId ? "Copiado" : "Copiar"}</span>
+                      </button>
+                    </div>
+                    <pre className="p-4 overflow-x-auto text-xs md:text-sm font-mono text-emerald-300/95 leading-snug">
+                      <code>{codeContent}</code>
+                    </pre>
+                  </div>
                 );
-              })}
-            </div>
-          );
-        })}
+              }
+              return (
+                <code className="px-1.5 py-0.5 rounded bg-slate-800/90 text-sky-300 font-mono text-xs" {...props}>
+                  {children}
+                </code>
+              );
+            }
+          }}
+        >
+          {content}
+        </ReactMarkdown>
       </div>
     );
   };
