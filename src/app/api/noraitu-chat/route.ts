@@ -481,15 +481,24 @@ async function fetchDirectoryBusinessesRAG(supabase: any, userQuery: string): Pr
   }
 }
 
-async function tryGroqStream(historyList: any[], currentMsg: string, systemPrompt: string, fileObj?: any): Promise<ReadableStream | null> {
+async function tryGroqStream(
+  historyList: any[],
+  currentMsg: string,
+  systemPrompt: string,
+  fileObj?: any
+): Promise<ReadableStream | null> {
   const groqKey = process.env.GROQ_API_KEY;
   if (!groqKey) return null;
+
+  // Si hay imagen adjunta, dejar que la capa multimodal de Gemini procese la visión
+  if (fileObj && fileObj.mimeType?.startsWith("image/")) {
+    return null;
+  }
 
   const candidateModels = [
     "llama-3.3-70b-versatile",
     "llama-3.1-8b-instant",
-    "mixtral-8x7b-32768",
-    "gemma2-9b-it"
+    "mixtral-8x7b-32768"
   ];
 
   const formattedMessages: any[] = [
@@ -497,20 +506,17 @@ async function tryGroqStream(historyList: any[], currentMsg: string, systemPromp
   ];
 
   for (const msg of historyList) {
+    if (!msg.content || !msg.content.trim()) continue;
+    const role = (msg.role === "assistant" || msg.role === "model") ? "assistant" : "user";
     formattedMessages.push({
-      role: msg.role === "assistant" || msg.role === "model" ? "assistant" : "user",
+      role,
       content: msg.content
     });
   }
 
   let finalUserText = currentMsg;
-  if (fileObj) {
-    const isImage = fileObj.mimeType?.startsWith("image/");
-    if (isImage) {
-      finalUserText = `[ARCHIVO DE IMAGEN ADJUNTO: "${fileObj.name || 'foto.jpg'}"]\n${currentMsg || "Por favor analiza esta foto, aplica las mejoras solicitadas y genera la versión profesional optimizada en 8k."}`;
-    } else if (fileObj.textContent) {
-      finalUserText = `[DOCUMENTO ADJUNTO: "${fileObj.name || 'documento'}"]:\n${fileObj.textContent.slice(0, 10000)}\n\n[CONSULTA]:\n${currentMsg || "Analiza el documento adjunto."}`;
-    }
+  if (fileObj && fileObj.textContent) {
+    finalUserText = `[DOCUMENTO ADJUNTO: "${fileObj.name || 'documento'}"]:\n${fileObj.textContent.slice(0, 10000)}\n\n[CONSULTA]:\n${currentMsg || "Analiza el documento adjunto."}`;
   }
 
   formattedMessages.push({ role: "user", content: finalUserText });
@@ -535,9 +541,12 @@ async function tryGroqStream(historyList: any[], currentMsg: string, systemPromp
 
       if (res.ok && res.body) {
         return res.body;
+      } else {
+        const errText = await res.text();
+        console.error(`[NoraItu-Fatal-Error]: Groq (${modelName}) HTTP ${res.status}:`, errText);
       }
-    } catch (err) {
-      console.warn(`[Groq Failover Warn - ${modelName}]:`, err);
+    } catch (err: any) {
+      console.error(`[NoraItu-Fatal-Error]: Groq (${modelName}) Exception:`, err?.message);
     }
   }
 
@@ -874,11 +883,25 @@ export async function POST(req: Request) {
       console.log("[NoraItu-Chat] 🚀 Capa 3: Invocando Google Gemini Multi-Pool Fallback...");
 
       const geminiContents: any[] = [];
+      let lastGeminiRole: string | null = null;
+
       for (const h of rawHistory) {
-        geminiContents.push({
-          role: h.role === "assistant" || h.role === "model" ? "model" : "user",
-          parts: [{ text: h.content }]
-        });
+        if (!h.content || !h.content.trim()) continue;
+        const mappedRole = (h.role === "assistant" || h.role === "model") ? "model" : "user";
+        if (mappedRole === lastGeminiRole && geminiContents.length > 0) {
+          geminiContents[geminiContents.length - 1].parts[0].text += `\n\n${h.content}`;
+        } else {
+          geminiContents.push({
+            role: mappedRole,
+            parts: [{ text: h.content }]
+          });
+          lastGeminiRole = mappedRole;
+        }
+      }
+
+      // Si el historial comienza con 'model', anteponer un saludo de usuario para cumplir la alternancia de Gemini
+      if (geminiContents.length > 0 && geminiContents[0].role === "model") {
+        geminiContents.unshift({ role: "user", parts: [{ text: "Hola Nora" }] });
       }
 
       const currentTurnParts: any[] = [];
@@ -889,26 +912,16 @@ export async function POST(req: Request) {
           currentTurnParts.push({
             inlineData: { data: cleanB64, mimeType: cleanMime }
           });
-        } else if (effectiveFile.storage_url || effectiveFile.url) {
-          try {
-            const targetUrl = effectiveFile.storage_url || effectiveFile.url;
-            const fetched = await fetch(targetUrl, { signal: AbortSignal.timeout(6000) });
-            if (fetched.ok) {
-              const arrayBuf = await fetched.arrayBuffer();
-              const b64 = Buffer.from(arrayBuf).toString("base64");
-              const mime = effectiveFile.mimeType || fetched.headers.get("content-type") || "application/octet-stream";
-              currentTurnParts.push({
-                inlineData: { data: b64, mimeType: mime.split(";")[0].trim() }
-              });
-            }
-          } catch (fetchErr) {
-            console.warn("[File Storage Fetch Warning]:", fetchErr);
-          }
         }
       }
 
       currentTurnParts.push({ text: effectiveUserMessage || "Hola Nora, continuemos." });
-      geminiContents.push({ role: "user", parts: currentTurnParts });
+
+      if (geminiContents.length > 0 && geminiContents[geminiContents.length - 1].role === "user") {
+        geminiContents[geminiContents.length - 1].parts.push(...currentTurnParts);
+      } else {
+        geminiContents.push({ role: "user", parts: currentTurnParts });
+      }
 
       const keysPool = [
         process.env.GEMINI_API_KEY,
@@ -942,7 +955,7 @@ export async function POST(req: Request) {
               break outerPoolLoop;
             }
           } catch (err: any) {
-            console.warn(`[Gemini Failover Warn - ${currentModel}]:`, err?.message);
+            console.error(`[NoraItu-Fatal-Error]: Gemini Stream Failover (${currentModel}):`, err?.message);
             // Fallback secundario pasando el system prompt dentro de contents si el modelo no soporta systemInstruction
             try {
               const genAI = new GoogleGenerativeAI(key);
@@ -959,7 +972,7 @@ export async function POST(req: Request) {
                 break outerPoolLoop;
               }
             } catch (innerErr: any) {
-              console.warn(`[Gemini Content Fallback Warn - ${currentModel}]:`, innerErr?.message);
+              console.error(`[NoraItu-Fatal-Error]: Gemini Secondary Stream Failover (${currentModel}):`, innerErr?.message);
             }
           }
         }
@@ -978,9 +991,9 @@ export async function POST(req: Request) {
                 model: currentModel,
                 generationConfig: { temperature: 0.4, maxOutputTokens: 3500 }
               });
-              const result = await fallbackModel.generateContent([
-                { text: `${fullSystemPrompt}\n\n[USUARIO]: ${effectiveUserMessage}` }
-              ]);
+              const result = await fallbackModel.generateContent(
+                `${fullSystemPrompt}\n\n[HISTORIAL RECIENTE]:\n${rawHistory.slice(-4).map(h => `${h.role}: ${h.content}`).join("\n")}\n\n[USUARIO]: ${effectiveUserMessage}`
+              );
               const rawOut = result.response?.text();
               if (rawOut && rawOut.trim().length > 0) {
                 directText = rawOut.trim();
