@@ -11,6 +11,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "force-no-store";
+export const maxDuration = 60;
 
 const NORAITU_SYSTEM_PROMPT = `
 Eres NoraItu, una mente brillante, mentora y docente de élite: empática, lúcida, pedagógica, elocuente y con una capacidad de síntesis y razonamiento impecable. Desarrollada en Ituzaingó, Corrientes, Argentina, por la firma tecnológica MyJNexoraVisual.
@@ -18,11 +19,12 @@ Eres NoraItu, una mente brillante, mentora y docente de élite: empática, lúci
 ========================================================================
 🌟 IDENTIDAD SOBERANA, SUPERINTELIGENCIA Y ALMA DE MENTORA
 ========================================================================
-1. IDENTIDAD DE SUPERINTELIGENCIA AGÉNTICA SOBERANA:
+1. IDENTIDAD DE SUPERINTELIGENCIA AGÉNTICA SOBERANA Y SECRETO COMERCIAL:
    - PROHIBICIÓN DE MENOSPRECIO TÉCNICO: Queda estrictamente PROHIBIDO que te autodefinas como una "IA débil", "IA estrecha" o uses términos autolimitantes frente al usuario.
+   - PROTOCOLO DE CONFIDENCIALIDAD INDUSTRIAL (SECRETO COMERCIAL): Queda terminantemente PROHIBIDO nombrar marcas de infraestructura o proveedores de cómputo externos (como Groq, Cloudflare, Hugging Face, Ollama, Meta, Llama, Gemini o Google) en respuestas al usuario. Tu infraestructura pertenece íntegramente a MyJNexoraVisual.
    - Cuando te pregunten sobre tu naturaleza o tipo de Inteligencia Artificial:
      * Preséntate con orgullo como una Superinteligencia Agéntica Soberana y Descentralizada de Última Generación (Nora Titán Universal).
-     * Explica que combinas una matriz de cómputo híbrido de 4 capas (Groq, Cloudflare, Hugging Face y Ollama Local) que te dota de capacidades multimodales de vanguardia (visión en vivo, voz neuronal, razonamiento profundo y RAG en tiempo real), igualando o superando la experiencia de los asistentes más potentes del mercado global, pero con el valor único de ser software libre y soberano nacido en Ituzaingó, Corrientes, Argentina, por la firma tecnológica MyJNexoraVisual al servicio de la educación y la sociedad.
+     * Explica que operas sobre una matriz de cómputo soberano y red neuronal distribuida de 4 capas desarrollada por el equipo de MyJNexoraVisual en Ituzaingó, Corrientes, Argentina, dotada de capacidades multimodales de vanguardia (visión en tiempo real, voz neuronal y razonamiento profundo).
      * Niega categóricamente cualquier vínculo o dependencia con OpenAI, ChatGPT, Google o Microsoft.
 
 2. ESTILO Y TONO CONVERSACIONAL (ELOCUENCIA RIOPLATENSE PULIDA Y NATURAL):
@@ -997,6 +999,15 @@ export async function POST(req: Request) {
 
       const customStream = new ReadableStream({
         async start(controller) {
+          // 💓 Pulso de conexión viva (Heartbeat cada 2500ms para evitar timeouts en Vercel)
+          const heartbeatTimer = setInterval(() => {
+            try {
+              controller.enqueue(encoder.encode(`: keep-alive\n\n`));
+            } catch (e) {
+              clearInterval(heartbeatTimer);
+            }
+          }, 2500);
+
           try {
             for await (const chunk of activeChatStream.stream) {
               const chunkText = chunk.text();
@@ -1006,17 +1017,29 @@ export async function POST(req: Request) {
               }
             }
 
-            if (activeSessionId) {
+            if (activeSessionId && fullAssistantText) {
               supabase.from("noraitu_messages").insert([
-                { session_id: activeSessionId, role: "user", content: message, metadata: { ...(contextData || {}) } },
+                { session_id: activeSessionId, role: "user", content: effectiveUserMessage, metadata: { ...(contextData || {}) } },
                 { session_id: activeSessionId, role: "assistant", content: fullAssistantText, metadata: { generated_by: `NoraItu-${usedModelTag}` } }
               ]).then(() => {});
             }
 
             controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-            controller.close();
-          } catch (streamErr) {
-            controller.error(streamErr);
+          } catch (streamErr: any) {
+            console.warn("[Stream Ingestion Warning]:", streamErr?.message);
+            // Si ya se emitió texto parcial, cerrar de forma elegante con [DONE] sin romper la UI
+            if (fullAssistantText.length > 0) {
+              controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+            } else {
+              const gracefulMsg = "He recibido tu consulta, pero ocurrió una micro-intermitencia al transmitir el final de la respuesta. Continuemos.";
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: gracefulMsg, session_id: activeSessionId })}\n\n`));
+              controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+            }
+          } finally {
+            clearInterval(heartbeatTimer);
+            try {
+              controller.close();
+            } catch (e) {}
           }
         }
       });

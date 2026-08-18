@@ -158,6 +158,7 @@ export default function NoraItuApp() {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const lastLiveAnalysisRef = useRef<number>(0);
+  const isSubmittingRef = useRef<boolean>(false);
 
   // 1. Inicializar UUID de usuario, Sincronización Multi-dispositivo, Voz y PWA Prompt
   useEffect(() => {
@@ -1005,6 +1006,8 @@ export default function NoraItuApp() {
 
   // 11. Enviar Mensaje de Audio Directo con Streaming (Atómico: Audio + Foto)
   const handleSendAudioMessage = async (audioFile: AttachedFile) => {
+    if (isSubmittingRef.current || isLoading) return;
+    isSubmittingRef.current = true;
     stopSpeaking();
     const currentAttached = attachedFile;
     const userPromptText = inputMessage.trim();
@@ -1137,6 +1140,7 @@ export default function NoraItuApp() {
         }
       ]);
     } finally {
+      isSubmittingRef.current = false;
       setIsLoading(false);
     }
   };
@@ -1148,38 +1152,34 @@ export default function NoraItuApp() {
       reader.onload = (e) => {
         const img = new Image();
         img.onload = () => {
-          const canvas = document.createElement("canvas");
-          let width = img.width;
-          let height = img.height;
           const maxDim = 640;
-          if (width > height) {
-            if (width > maxDim) {
-              height = Math.round((height * maxDim) / width);
-              width = maxDim;
-            }
-          } else {
-            if (height > maxDim) {
-              width = Math.round((width * maxDim) / height);
-              height = maxDim;
+          let w = img.width;
+          let h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            } else {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
             }
           }
-          canvas.width = width;
-          canvas.height = height;
+          const canvas = document.createElement("canvas");
+          canvas.width = w;
+          canvas.height = h;
           const ctx = canvas.getContext("2d");
           if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height);
-            const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.5);
-            const base64Data = compressedDataUrl.split(",")[1];
-            const approxBytes = Math.round((base64Data.length * 3) / 4);
-            resolve({ base64: base64Data, previewUrl: compressedDataUrl, size: approxBytes });
-            return;
+            ctx.drawImage(img, 0, 0, w, h);
+            const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.50);
+            resolve({
+              base64: compressedDataUrl.split(",")[1],
+              previewUrl: compressedDataUrl,
+              size: Math.round((compressedDataUrl.length * 3) / 4)
+            });
+          } else {
+            const raw = e.target?.result as string;
+            resolve({ base64: raw.split(",")[1] || "", previewUrl: raw, size: file.size });
           }
-          const raw = (e.target?.result as string) || "";
-          resolve({ base64: raw.split(",")[1] || "", previewUrl: raw, size: file.size });
-        };
-        img.onerror = () => {
-          const raw = (e.target?.result as string) || "";
-          resolve({ base64: raw.split(",")[1] || "", previewUrl: raw, size: file.size });
         };
         img.src = e.target?.result as string;
       };
@@ -1187,15 +1187,10 @@ export default function NoraItuApp() {
     });
   };
 
-  // 12. Procesar archivos y fotos seleccionados con compresión ligera automática
+  // 12. Manejar Selección de Archivo/Foto con Compresión Automática Ligera
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    if (file.size > 25 * 1024 * 1024) {
-      alert("El archivo supera el límite de 25MB.");
-      return;
-    }
 
     if (file.type.startsWith("image/")) {
       const compressed = await compressImageForUpload(file);
@@ -1206,6 +1201,18 @@ export default function NoraItuApp() {
         base64: compressed.base64,
         previewUrl: compressed.previewUrl
       });
+    } else if (file.type.startsWith("audio/")) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64Audio = (reader.result as string).split(",")[1];
+        setAttachedFile({
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          base64: base64Audio
+        });
+      };
+      reader.readAsDataURL(file);
     } else if (file.type === "application/pdf") {
       const reader = new FileReader();
       reader.onload = () => {
@@ -1237,9 +1244,12 @@ export default function NoraItuApp() {
 
   // 13. Enviar Mensaje a NoraItu con Streaming en Tiempo Real
   const handleSendMessage = async (customPrompt?: string) => {
-    stopSpeaking();
+    if (isSubmittingRef.current || isLoading) return;
     const textToSend = customPrompt || inputMessage;
-    if ((!textToSend.trim() && !attachedFile) || isLoading) return;
+    if (!textToSend.trim() && !attachedFile) return;
+
+    isSubmittingRef.current = true;
+    stopSpeaking();
 
     const currentFile = attachedFile;
     const tempUserMsg: Message = {
@@ -1294,6 +1304,7 @@ export default function NoraItuApp() {
           created_at: new Date().toISOString()
         }]);
         setIsLoading(false);
+        isSubmittingRef.current = false;
         return;
       }
 
@@ -1303,7 +1314,6 @@ export default function NoraItuApp() {
         content: "",
         created_at: new Date().toISOString()
       }]);
-      setIsLoading(false);
 
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
@@ -1354,12 +1364,10 @@ export default function NoraItuApp() {
         fetchSessions(userId);
       }
 
-      // Si la voz automática está activa, hablar
       if (autoVoice && accumulatedText) {
         speakText(accumulatedText, messages.length + 1);
       }
 
-      // Notificación en segundo plano
       if (document.hidden && Notification.permission === "granted" && accumulatedText) {
         new Notification("NoraItu AI", {
           body: accumulatedText.slice(0, 100) + "...",
@@ -1377,6 +1385,7 @@ export default function NoraItuApp() {
         }
       ]);
     } finally {
+      isSubmittingRef.current = false;
       setIsLoading(false);
       setTimeout(() => {
         if (textareaRef.current) textareaRef.current.focus();
