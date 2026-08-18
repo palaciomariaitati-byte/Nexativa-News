@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import PropertyMultiGalleryUploader, { GalleryPhoto } from "@/components/Inmuebles/PropertyMultiGalleryUploader";
 import {
@@ -21,6 +21,12 @@ import {
   Compass,
   Check,
   Loader2,
+  Smartphone,
+  Download,
+  Share2,
+  Copy,
+  MessageCircle,
+  KeyRound,
 } from "lucide-react";
 
 export default function RegistroInmueblePage() {
@@ -29,6 +35,17 @@ export default function RegistroInmueblePage() {
   const [ownerDni, setOwnerDni] = useState("");
   const [ownerPhone, setOwnerPhone] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+  }, []);
 
   // Datos del Inmueble
   const [title, setTitle] = useState("");
@@ -168,12 +185,42 @@ export default function RegistroInmueblePage() {
       } else {
         setSuccess(true);
         setRegisteredProperty(data.property);
+        // Persistir sesión de propietario para autogestión inmediata
+        try {
+          localStorage.setItem(
+            "propietario_session",
+            JSON.stringify({
+              dni: data.property.owner_dni || ownerDni,
+              phone: data.property.owner_phone || ownerPhone,
+              name: data.property.owner_name || ownerName,
+            })
+          );
+        } catch (e) {}
       }
     } catch (err: any) {
       setErrorMessage("Error de conexión al servidor. Intentá nuevamente.");
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleInstallApp = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === "accepted") {
+        setDeferredPrompt(null);
+      }
+    } else {
+      alert("📱 Para instalar en tu celular:\n\n• En Android: Toca el menú de 3 puntos (⋮) de Chrome y presiona 'Instalar aplicación' o 'Agregar a pantalla principal'.\n\n• En iPhone (Safari): Toca el botón Compartir (cuadrado con flecha) y selecciona 'Agregar a inicio'.");
+    }
+  };
+
+  const handleCopyLink = () => {
+    const url = `${window.location.origin}/guia/inmuebles/propietario`;
+    navigator.clipboard.writeText(url);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 3000);
   };
 
   return (
@@ -194,12 +241,13 @@ export default function RegistroInmueblePage() {
           </p>
         </div>
 
-        {/* Estado de Éxito al Registrar */}
+        {/* Estado de Éxito al Registrar con Panel de Autogestión y App para Celular */}
         {success && registeredProperty ? (
-          <div className="bg-emerald-950/80 border border-emerald-500/50 rounded-2xl p-6 sm:p-8 text-center text-emerald-200 space-y-5 animate-in fade-in duration-300">
+          <div className="bg-emerald-950/80 border border-emerald-500/50 rounded-2xl p-6 sm:p-8 text-center text-emerald-200 space-y-6 animate-in fade-in duration-300">
             <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto text-emerald-400">
               <CheckCircle2 className="w-10 h-10" />
             </div>
+            
             <div className="space-y-2">
               <h2 className="text-2xl font-black text-white">¡Inmueble Registrado y Blindado!</h2>
               <p className="text-sm text-emerald-300">
@@ -209,18 +257,80 @@ export default function RegistroInmueblePage() {
               </p>
             </div>
 
+            {/* Ficha Resumen */}
             <div className="bg-slate-950 p-4 rounded-xl border border-emerald-500/30 text-left text-xs font-mono space-y-1.5 text-slate-300">
               <p>🔑 <strong className="text-emerald-400">ID Ficha:</strong> {registeredProperty.id}</p>
               <p>👤 <strong className="text-emerald-400">Titular Verificado:</strong> {registeredProperty.owner_name} (DNI: {registeredProperty.owner_dni})</p>
               <p>🛡️ <strong className="text-emerald-400">Estado de Protección:</strong> ACTIVO • BLINDAJE JURÍDICO ACEPTADO</p>
             </div>
 
+            {/* SECCIÓN DESTACADA: APP DE PROPIETARIO & PANEL DE AUTOGESTIÓN */}
+            <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 border-2 border-cyan-500/50 rounded-2xl p-5 text-left space-y-4 shadow-xl">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-300 font-bold text-lg">
+                  📱
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-white">Tu Panel de Autogestión Vinculado</h3>
+                  <p className="text-[11px] text-slate-300">
+                    Tu cuenta ya quedó conectada con tu DNI ({registeredProperty.owner_dni}). Podés cambiar precios, pausar o modificar fechas cuando quieras.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                {/* Botón 1: Abrir App / Panel */}
+                <Link
+                  href="/guia/inmuebles/propietario"
+                  className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black px-4 py-3 rounded-xl text-xs transition-all shadow-md"
+                >
+                  <KeyRound className="w-4 h-4 text-slate-950" />
+                  <span>Abrir Mi Panel Propietario</span>
+                </Link>
+
+                {/* Botón 2: Instalar en Celular */}
+                <button
+                  type="button"
+                  onClick={handleInstallApp}
+                  className="inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/40 font-bold px-4 py-3 rounded-xl text-xs transition-colors"
+                >
+                  <Smartphone className="w-4 h-4 text-cyan-400" />
+                  <span>📲 Instalar App en Celular</span>
+                </button>
+              </div>
+
+              {/* Guardar enlace en WhatsApp o Copiar */}
+              <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                <a
+                  href={`https://wa.me/549${registeredProperty.owner_phone}?text=${encodeURIComponent(
+                    `*Nexativa News - Mi Panel de Propietario*\n\nHola ${registeredProperty.owner_name}, aquí tenés tu acceso directo para gestionar tu alquiler "${registeredProperty.title}":\n👉 https://www.nexativanews.com.ar/guia/inmuebles/propietario\n\n(Ingresás con tu DNI: ${registeredProperty.owner_dni})`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 font-bold"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>Guardar enlace en mi WhatsApp</span>
+                </a>
+
+                <button
+                  type="button"
+                  onClick={handleCopyLink}
+                  className="inline-flex items-center gap-1 text-slate-400 hover:text-white"
+                >
+                  {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedLink ? "¡Enlace copiado!" : "Copiar enlace del panel"}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Acciones Generales */}
             <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
               <Link
                 href="/guia/inmuebles"
-                className="inline-flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-6 py-3.5 rounded-xl text-sm transition-all shadow-lg shadow-emerald-500/20"
+                className="inline-flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-6 py-3.5 rounded-xl text-xs transition-all shadow-lg shadow-emerald-500/20"
               >
-                <span>🌐 Ver Portal de Alquileres Verificados</span>
+                <span>🌐 Ver Mi Inmueble en el Portal Público</span>
                 <ExternalLink className="w-4 h-4" />
               </Link>
               <button
@@ -231,7 +341,7 @@ export default function RegistroInmueblePage() {
                 }}
                 className="px-5 py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition-colors"
               >
-                ➕ Registrar Otro Inmueble
+                ➕ Publicar Otro Inmueble
               </button>
             </div>
           </div>
