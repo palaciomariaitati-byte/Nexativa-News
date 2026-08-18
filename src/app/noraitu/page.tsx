@@ -865,14 +865,51 @@ export default function NoraItuApp() {
           userPrompt: customPrompt || liveCustomPrompt || "Describe qué estás observando en esta toma en vivo.",
           mode: activeMode
         }),
-        signal: AbortSignal.timeout(3000)
+        signal: AbortSignal.timeout(12000)
       });
 
       if (res.ok) {
-        const data = await res.json();
-        if (data.text) {
-          setLiveSubtitles(data.text);
-          speakText(data.text, -99);
+        const contentType = res.headers.get("content-type") || "";
+        if (contentType.includes("text/event-stream") && res.body) {
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let sseBuffer = "";
+          let fullLiveText = "";
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            sseBuffer += decoder.decode(value, { stream: true });
+            const lines = sseBuffer.split("\n");
+            sseBuffer = lines.pop() || "";
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (trimmed.startsWith("data: ")) {
+                const dataContent = trimmed.slice(6).trim();
+                if (dataContent === "[DONE]") break;
+                try {
+                  const parsed = JSON.parse(dataContent);
+                  if (parsed.text) {
+                    fullLiveText += parsed.text;
+                    setLiveSubtitles(fullLiveText);
+                  }
+                } catch {
+                  if (dataContent) {
+                    fullLiveText += dataContent;
+                    setLiveSubtitles(fullLiveText);
+                  }
+                }
+              }
+            }
+          }
+          if (fullLiveText.trim()) {
+            speakText(fullLiveText.trim(), -99);
+          }
+        } else {
+          const data = await res.json();
+          if (data.text) {
+            setLiveSubtitles(data.text);
+            speakText(data.text, -99);
+          }
         }
       }
     } catch (err) {
