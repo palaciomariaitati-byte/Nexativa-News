@@ -752,7 +752,7 @@ export async function POST(req: Request) {
     ]);
 
     const activeMode = contextData?.mode || "general";
-    const adaptivePedagogicalDirectives = resolveAdaptiveEducationalContext(activeMode, effectiveMessage);
+    const adaptivePedagogicalDirectives = resolveAdaptiveEducationalContext(effectiveMessage, contextData);
 
     let fullSystemPrompt = `${NORA_CONSTITUTIONAL_AXIOMS}\n\n${NORAITU_SYSTEM_PROMPT}`;
     if (adaptivePedagogicalDirectives) fullSystemPrompt += adaptivePedagogicalDirectives;
@@ -797,7 +797,23 @@ export async function POST(req: Request) {
     }
 
     if (stream) {
-      console.log(`[NoraItu-Chat] 🚀 Capa 1: Evaluando Groq LLaMA 3.3 (GROQ_API_KEY presente: ${!!process.env.GROQ_API_KEY})...`);
+      // 🏛️ CAPA 1 PRIMARIA: SovereignRouter (Ollama Local Bridge / Cloudflare / HuggingFace / OpenRouter)
+      console.log("[NoraItu-Chat] 🚀 Capa 1 Primaria: Invocando SovereignRouter Soberano (Ollama Local / Cloudflare / Hugging Face / OpenRouter)...");
+      const sovereignResponse = await dispatchSovereignInference({
+        history: rawHistory,
+        userMessage: effectiveUserMessage,
+        systemPrompt: fullSystemPrompt,
+        file: effectiveFile,
+        sessionId: activeSessionId
+      });
+
+      if (sovereignResponse) {
+        console.log("✓ [NoraItu-Chat] Inferencia 100% soberana exitosa en Capa 1.");
+        return sovereignResponse;
+      }
+
+      // ⚡ CAPA 2 (Respaldo en Nube Abierta de Alta Velocidad): Groq Inference
+      console.log(`[NoraItu-Chat] 🚀 Capa 2 (Respaldo): Evaluando Groq Inference (GROQ_API_KEY presente: ${!!process.env.GROQ_API_KEY})...`);
       if (process.env.GROQ_API_KEY) {
         const groqStream = await tryGroqStream(rawHistory, effectiveUserMessage, fullSystemPrompt, effectiveFile);
         if (groqStream) {
@@ -868,21 +884,8 @@ export async function POST(req: Request) {
         }
       }
 
-      console.log("[NoraItu-Chat] 🚀 Capa 2: Invocando SovereignRouter (Cloudflare / HuggingFace / OpenRouter / Ollama)...");
-      const sovereignResponse = await dispatchSovereignInference({
-        history: rawHistory,
-        userMessage: effectiveUserMessage,
-        systemPrompt: fullSystemPrompt,
-        file: effectiveFile,
-        sessionId: activeSessionId
-      });
-
-      if (sovereignResponse) {
-        console.log("✓ [NoraItu-Chat] Inferencia exitosa en SovereignRouter.");
-        return sovereignResponse;
-      }
-
-      console.log("[NoraItu-Chat] 🚀 Capa 3: Invocando Google Gemini Multi-Pool Fallback...");
+      // 🛡️ CAPA 3 (Respaldo Multi-Pool Gemini)
+      console.log("[NoraItu-Chat] 🚀 Capa 3 (Respaldo): Invocando Google Gemini Multi-Pool Fallback...");
 
       const geminiContents: any[] = [];
       let lastGeminiRole: string | null = null;

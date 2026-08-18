@@ -4,14 +4,15 @@
  * Ubicación: /src/lib/nora/sovereignRouter.ts
  * 
  * Conectores de Código Abierto y Pesos Libres (Open Weights) a Costo $0:
- *   1. Capa 1: Cloudflare Workers AI (@cf/meta/llama-3.2-11b-vision-instruct / llama-3.3-70b)
- *   2. Capa 2: Hugging Face Serverless (Qwen/Qwen2.5-VL-7B-Instruct / DeepSeek-R1 Distill)
- *   3. Capa 3: OpenRouter Free Open Mesh (Modelos con sufijo :free exclusivos)
- *   4. Capa 4: Ollama Local / VPS Bridge (Inferencia local offline 100% soberana)
+ *   1. Capa 1: Ollama Local / VPS Bridge (Inferencia local offline 100% soberana)
+ *   2. Capa 2: Cloudflare Workers AI (@cf/meta/llama-3.2-11b-vision-instruct / llama-3.3-70b)
+ *   3. Capa 3: Hugging Face Serverless (Qwen/Qwen2.5-VL-7B-Instruct / DeepSeek-R1 Distill)
+ *   4. Capa 4: OpenRouter Free Open Mesh (Modelos con sufijo :free exclusivos)
  * ========================================================================
  */
 
 import { NORA_CONSTITUTIONAL_AXIOMS } from "@/lib/nora/constitutionalShield";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export interface SovereignMessage {
   role: "system" | "user" | "assistant";
@@ -112,38 +113,42 @@ function assembleMessages(
 }
 
 /**
- * CAPA 4: Ollama Local / VPS Bridge (Servidor Propio Offline)
- * Inmune a cortes de internet y caídas de proveedores de nube.
+/**
+ * CAPA 1 PRIMARIA: Ollama Local / VPS Bridge (Servidor Propio Offline Soberano)
+ * Inmune a cortes de internet, cambios de políticas y caídas de proveedores de nube.
  */
 async function tryOllamaLocal(messages: SovereignMessage[], isVision: boolean): Promise<ReadableStream | null> {
-  const ollamaHost = process.env.LOCAL_OLLAMA_URL || process.env.OLLAMA_HOST;
-  if (!ollamaHost) return null;
+  const ollamaHost = process.env.LOCAL_OLLAMA_URL || process.env.OLLAMA_HOST || "http://127.0.0.1:11434";
+
+  const candidateModels = isVision
+    ? [process.env.OLLAMA_VISION_MODEL || "llava", "qwen2.5-vl", "llama3.2-vision"]
+    : [process.env.OLLAMA_TEXT_MODEL || "llama3.3", "qwen2.5", "deepseek-r1", "mistral", "llama3.2", "llama3.1", "llama3"];
 
   const endpoint = `${ollamaHost.replace(/\/+$/, "")}/v1/chat/completions`;
-  const preferredModel = isVision
-    ? (process.env.OLLAMA_VISION_MODEL || "qwen2.5-vl")
-    : (process.env.OLLAMA_TEXT_MODEL || "llama3.3");
 
-  try {
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: preferredModel,
-        messages,
-        stream: true,
-        temperature: 0.3
-      }),
-      signal: AbortSignal.timeout(8000)
-    });
+  for (const preferredModel of candidateModels) {
+    try {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: preferredModel,
+          messages,
+          stream: true,
+          temperature: 0.3
+        }),
+        signal: AbortSignal.timeout(3000)
+      });
 
-    if (res.ok && res.body) {
-      console.log(`[Sovereign Router - Capa 4]: Inferencia exitosa en Nodo Local (${preferredModel})`);
-      return res.body;
+      if (res.ok && res.body) {
+        console.log(`[Sovereign Router - Capa 1 Primaria]: Inferencia 100% Soberana en Nodo Local (${preferredModel})`);
+        return res.body;
+      }
+    } catch (err: any) {
+      // Conmutar al siguiente modelo local
     }
-  } catch (err) {
-    console.warn("[Sovereign Router - Capa 4 Ollama]: Desconectado o tiempo excedido, conmutando...");
   }
+
   return null;
 }
 
@@ -317,26 +322,30 @@ export async function dispatchSovereignInference(params: SovereignRouterParams):
 
   console.log(`[SovereignRouter] 📥 Invocando Router Soberano (Vision: ${isVision}, Historial: ${history.length} msgs)...`);
 
-  // 1. Intentar Capa 4: Nodo Local / VPS Propio si está configurado
-  console.log("[SovereignRouter] 🔍 Capa 4: Evaluando Ollama Local / VPS Bridge...");
+  // 1. Intentar Capa 1: Nodo Local Ollama / VPS Propio
+  console.log("[SovereignRouter] 🔍 Capa 1: Evaluando Ollama Local / VPS Bridge...");
   let stream = await tryOllamaLocal(messages, isVision);
+  let usedSovereignTag = "Ollama-Local";
 
-  // 2. Intentar Capa 1: Cloudflare Workers AI
+  // 2. Intentar Capa 2: Cloudflare Workers AI
   if (!stream) {
-    console.log(`[SovereignRouter] 🔍 Capa 1: Evaluando Cloudflare Workers AI (Configurado: ${!!process.env.CLOUDFLARE_ACCOUNT_ID && !!process.env.CLOUDFLARE_API_TOKEN})...`);
+    console.log(`[SovereignRouter] 🔍 Capa 2: Evaluando Cloudflare Workers AI (Configurado: ${!!process.env.CLOUDFLARE_ACCOUNT_ID && !!process.env.CLOUDFLARE_API_TOKEN})...`);
     stream = await tryCloudflareWorkersAI(messages, isVision);
+    usedSovereignTag = "Cloudflare-Workers-AI";
   }
 
-  // 3. Intentar Capa 2: Hugging Face Serverless
+  // 3. Intentar Capa 3: Hugging Face Serverless
   if (!stream) {
-    console.log(`[SovereignRouter] 🔍 Capa 2: Evaluando Hugging Face Serverless (Token: ${!!(process.env.HF_ACCESS_TOKEN || process.env.HUGGINGFACE_API_KEY || process.env.HF_TOKEN)})...`);
+    console.log(`[SovereignRouter] 🔍 Capa 3: Evaluando Hugging Face Serverless (Token: ${!!(process.env.HF_ACCESS_TOKEN || process.env.HUGGINGFACE_API_KEY || process.env.HF_TOKEN)})...`);
     stream = await tryHuggingFaceInference(messages, isVision);
+    usedSovereignTag = "HuggingFace-Serverless";
   }
 
-  // 4. Intentar Capa 3: OpenRouter Free Mesh
+  // 4. Intentar Capa 4: OpenRouter Free Mesh
   if (!stream) {
-    console.log(`[SovereignRouter] 🔍 Capa 3: Evaluando OpenRouter Free Mesh (Configurado: ${!!process.env.OPENROUTER_API_KEY})...`);
+    console.log(`[SovereignRouter] 🔍 Capa 4: Evaluando OpenRouter Free Mesh (Configurado: ${!!process.env.OPENROUTER_API_KEY})...`);
     stream = await tryOpenRouterFree(messages, isVision);
+    usedSovereignTag = "OpenRouter-Free-Mesh";
   }
 
   if (!stream) {
@@ -352,6 +361,7 @@ export async function dispatchSovereignInference(params: SovereignRouterParams):
     async start(controller) {
       const reader = stream!.getReader();
       let buffer = "";
+      let fullText = "";
 
       try {
         while (true) {
@@ -371,6 +381,7 @@ export async function dispatchSovereignInference(params: SovereignRouterParams):
                 const parsed = JSON.parse(dataContent);
                 const deltaText = parsed.choices?.[0]?.delta?.content || parsed.response;
                 if (deltaText) {
+                  fullText += deltaText;
                   controller.enqueue(
                     encoder.encode(`data: ${JSON.stringify({ text: deltaText, session_id: sessionId })}\n\n`)
                   );
@@ -378,6 +389,14 @@ export async function dispatchSovereignInference(params: SovereignRouterParams):
               } catch {}
             }
           }
+        }
+
+        if (sessionId && fullText) {
+          const supabase = createServerSupabaseClient();
+          supabase.from("noraitu_messages").insert([
+            { session_id: sessionId, role: "user", content: userMessage },
+            { session_id: sessionId, role: "assistant", content: fullText, metadata: { generated_by: `NoraItu-${usedSovereignTag}` } }
+          ]).then(() => {});
         }
 
         controller.enqueue(encoder.encode(`data: [DONE]\n\n`));

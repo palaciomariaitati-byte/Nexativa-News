@@ -3,13 +3,16 @@
  * Permite adaptar dinámicamente el estilo y metodología de NoraItu a Costo $0 y Latencia <2ms.
  */
 
-export function resolveAdaptiveEducationalContext(userMessage: string, contextData?: any): string {
-  const lower = (userMessage || "").toLowerCase();
-  const explicitMode = contextData?.mode?.toLowerCase();
+export function resolveAdaptiveEducationalContext(arg1: any, arg2?: any): string {
+  const userMessage = typeof arg1 === "string" ? arg1 : (typeof arg2 === "string" ? arg2 : "");
+  const contextData = typeof arg1 === "object" ? arg1 : (typeof arg2 === "object" ? arg2 : {});
 
-  // 1. MODO INCLUSIÓN Y ACCESIBILIDAD COGNITIVA (TEA / Asperger / Neurodivergencias)
+  const lower = (userMessage || "").toLowerCase();
+  const explicitMode = contextData?.mode?.toLowerCase() || "";
+
+  // 1. MODO INCLUSIÓN Y ACCESIBILIDAD COGNITIVA (TEA / Asperger / Neurodivergencias / Explicación Literal)
   const isInclusion = explicitMode === "inclusion" || 
-    ["autismo", "asperger", "tea", "neurodivergente", "literal", "sin metaforas", "paso a paso literal", "sobrecarga sensorial", "lenguaje literal", "anticipacion", "apoyo visual"].some(w => lower.includes(w));
+    ["autismo", "asperger", "tea", "neurodivergente", "literal", "sin metaforas", "sin metáforas", "paso a paso literal", "pasos secuenciales", "sin ambigüedades", "sin ambiguedades", "sobrecarga sensorial", "lenguaje literal", "anticipacion", "apoyo visual", "concreto"].some(w => lower.includes(w));
 
   if (isInclusion) {
     return `
