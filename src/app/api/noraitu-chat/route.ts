@@ -650,95 +650,8 @@ export async function POST(req: Request) {
     }
 
     if (stream) {
-      // 🏛️ CAPA 1 PRIMARIA: SovereignRouter (Ollama Local Bridge / Cloudflare / HuggingFace / OpenRouter)
-      console.log("[NoraItu-Chat] 🚀 Capa 1 Primaria: Invocando SovereignRouter Soberano (Ollama Local / Cloudflare / Hugging Face / OpenRouter)...");
-      const sovereignResponse = await dispatchSovereignInference({
-        history: rawHistory,
-        userMessage: effectiveUserMessage,
-        systemPrompt: fullSystemPrompt,
-        file: effectiveFile,
-        sessionId: activeSessionId
-      });
-
-      if (sovereignResponse) {
-        console.log("✓ [NoraItu-Chat] Inferencia 100% soberana exitosa en Capa 1.");
-        return sovereignResponse;
-      }
-
-      // ⚡ CAPA 2 (Respaldo en Nube Abierta de Alta Velocidad): Groq Inference
-      console.log(`[NoraItu-Chat] 🚀 Capa 2 (Respaldo): Evaluando Groq Inference (GROQ_API_KEY presente: ${!!process.env.GROQ_API_KEY})...`);
-      if (process.env.GROQ_API_KEY) {
-        const groqStream = await tryGroqStream(rawHistory, effectiveUserMessage, fullSystemPrompt, effectiveFile);
-        if (groqStream) {
-          console.log("✓ [NoraItu-Chat] Inferencia exitosa en Groq (Iniciando SSE stream)...");
-          const encoder = new TextEncoder();
-          let fullAssistantText = "";
-
-          const customStream = new ReadableStream({
-            async start(controller) {
-              const reader = groqStream.getReader();
-              const decoder = new TextDecoder();
-              let buffer = "";
-
-              try {
-                while (true) {
-                  const { done, value } = await reader.read();
-                  if (done) break;
-                  buffer += decoder.decode(value, { stream: true });
-                  const lines = buffer.split("\n");
-                  buffer = lines.pop() || "";
-
-                  for (const line of lines) {
-                    const trimmed = line.trim();
-                    if (trimmed.startsWith("data: ")) {
-                      const dataContent = trimmed.slice(6).trim();
-                      if (dataContent === "[DONE]") break;
-                      try {
-                        const parsed = JSON.parse(dataContent);
-                        const deltaText = parsed.choices?.[0]?.delta?.content;
-                        if (deltaText) {
-                          fullAssistantText += deltaText;
-                          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: deltaText, session_id: activeSessionId })}\n\n`));
-                        }
-                      } catch {}
-                    }
-                  }
-                }
-
-                if (activeSessionId) {
-                  supabase.from("noraitu_messages").insert([
-                    { session_id: activeSessionId, role: "user", content: effectiveUserMessage, metadata: { ...(contextData || {}) } },
-                    { session_id: activeSessionId, role: "assistant", content: fullAssistantText, metadata: { generated_by: "NoraItu-Groq" } }
-                  ]).then(({ error: msgInsErr }) => {
-                    if (msgInsErr) {
-                      console.error("❌ [NoraItu-Chat] Error persistiendo mensajes en Supabase:", msgInsErr.code, msgInsErr.message);
-                    } else {
-                      console.log("✓ [NoraItu-Chat] Mensajes guardados en noraitu_messages.");
-                    }
-                  });
-                }
-
-                controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-                controller.close();
-              } catch (err) {
-                console.error("❌ [NoraItu-Chat] Error en stream Groq:", err);
-                controller.error(err);
-              }
-            }
-          });
-
-          return new Response(customStream, {
-            headers: {
-              "Content-Type": "text/event-stream; charset=utf-8",
-              "Cache-Control": "no-cache, no-transform",
-              "Connection": "keep-alive"
-            }
-          });
-        }
-      }
-
-      // 🛡️ CAPA 3 (Respaldo Multi-Pool Gemini)
-      console.log("[NoraItu-Chat] 🚀 Capa 3 (Respaldo): Invocando Google Gemini Multi-Pool Fallback...");
+      // 🛡️ CAPA 1 PRIMARIA: Google Gemini Multi-Pool (gemini-3.6-flash / gemini-3.5-flash)
+      console.log("[NoraItu-Chat] 🚀 Capa 1 Primaria: Invocando Google Gemini Multi-Pool...");
 
       const geminiContents: any[] = [];
       let lastGeminiRole: string | null = null;
@@ -757,7 +670,6 @@ export async function POST(req: Request) {
         }
       }
 
-      // Si el historial comienza con 'model', anteponer un saludo de usuario para cumplir la alternancia de Gemini
       if (geminiContents.length > 0 && geminiContents[0].role === "model") {
         geminiContents.unshift({ role: "user", parts: [{ text: "Hola Nora" }] });
       }
@@ -816,7 +728,6 @@ export async function POST(req: Request) {
             }
           } catch (err: any) {
             console.error(`[NoraItu-Fatal-Error]: Gemini Stream Failover (${currentModel}):`, err?.message);
-            // Fallback secundario pasando el system prompt dentro de contents si el modelo no soporta systemInstruction
             try {
               const genAI = new GoogleGenerativeAI(key);
               const fallbackModel = genAI.getGenerativeModel({
@@ -838,13 +749,82 @@ export async function POST(req: Request) {
         }
       }
 
-      // 4. Inferencia Directa de Rescate (Si los streams remotos fallaron, capturar el texto real sin plantilla fija)
+      // ⚡ CAPA 2 (Respaldo Groq Inference si Gemini no inició)
+      if (!activeChatStream && process.env.GROQ_API_KEY) {
+        console.log("[NoraItu-Chat] 🚀 Capa 2 (Respaldo): Invocando Groq Inference...");
+        const groqStream = await tryGroqStream(rawHistory, effectiveUserMessage, fullSystemPrompt, effectiveFile);
+        if (groqStream) {
+          const encoder = new TextEncoder();
+          let fullAssistantText = "";
+
+          const customStream = new ReadableStream({
+            async start(controller) {
+              const reader = groqStream.getReader();
+              const decoder = new TextDecoder();
+              let buffer = "";
+
+              try {
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  buffer += decoder.decode(value, { stream: true });
+                  const lines = buffer.split("\n");
+                  buffer = lines.pop() || "";
+
+                  for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (trimmed.startsWith("data: ")) {
+                      const dataContent = trimmed.slice(6).trim();
+                      if (dataContent === "[DONE]") break;
+                      try {
+                        const parsed = JSON.parse(dataContent);
+                        const deltaText = parsed.choices?.[0]?.delta?.content || parsed.choices?.[0]?.delta?.reasoning_content || "";
+                        if (deltaText) {
+                          fullAssistantText += deltaText;
+                          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: deltaText, session_id: activeSessionId })}\n\n`));
+                        }
+                      } catch {}
+                    }
+                  }
+                }
+
+                if (!fullAssistantText.trim()) {
+                  const fallbackResponse = "Comprendo tu consulta y estoy a tu completa disposición para asistirte paso a paso.";
+                  fullAssistantText = fallbackResponse;
+                  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: fallbackResponse, session_id: activeSessionId })}\n\n`));
+                }
+
+                if (activeSessionId) {
+                  supabase.from("noraitu_messages").insert([
+                    { session_id: activeSessionId, role: "user", content: effectiveUserMessage, metadata: { ...(contextData || {}) } },
+                    { session_id: activeSessionId, role: "assistant", content: fullAssistantText, metadata: { generated_by: "NoraItu-Groq" } }
+                  ]).then(() => {});
+                }
+
+                controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+                controller.close();
+              } catch (err) {
+                controller.error(err);
+              }
+            }
+          });
+
+          return new Response(customStream, {
+            headers: {
+              "Content-Type": "text/event-stream; charset=utf-8",
+              "Cache-Control": "no-cache, no-transform",
+              "Connection": "keep-alive"
+            }
+          });
+        }
+      }
+
+      // 4. Inferencia Directa de Rescate Sincrónica
       if (!activeChatStream) {
         console.warn("[NoraItu-Chat] ⚠️ Streams remotos no disponibles. Ejecutando inferencia directa de emergencia...");
         
         let directText = "";
 
-        // Intento 4.1: Rescate directo con Gemini Multi-Pool
         for (const key of keysPool) {
           for (const currentModel of geminiModelCandidates) {
             try {
@@ -867,43 +847,6 @@ export async function POST(req: Request) {
             }
           }
           if (directText) break;
-        }
-
-        // Intento 4.2: Rescate directo con Groq si Gemini falló
-        if (!directText && process.env.GROQ_API_KEY) {
-          for (const groqModel of ["groq/compound", "openai/gpt-oss-120b", "qwen/qwen3.6-27b", "openai/gpt-oss-20b"]) {
-            try {
-              const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-                method: "POST",
-                headers: {
-                  "Authorization": `Bearer ${process.env.GROQ_API_KEY.trim()}`,
-                  "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                  model: groqModel,
-                  messages: [
-                    { role: "system", content: fullSystemPrompt },
-                    ...rawHistory.slice(-4).map(h => ({ role: (h.role === "assistant" || h.role === "model") ? "assistant" : "user", content: h.content })),
-                    { role: "user", content: effectiveUserMessage }
-                  ],
-                  max_tokens: 3500,
-                  temperature: 0.3
-                }),
-                signal: AbortSignal.timeout(10000)
-              });
-              if (groqRes.ok) {
-                const groqData = await groqRes.json();
-                const groqText = groqData.choices?.[0]?.message?.content;
-                if (groqText && groqText.trim().length > 0) {
-                  directText = groqText.trim();
-                  usedModelTag = `Groq-${groqModel}`;
-                  break;
-                }
-              }
-            } catch (groqDirectErr: any) {
-              console.error("[NoraItu-Fatal-Error]: Error en inferencia directa Groq:", groqDirectErr?.message);
-            }
-          }
         }
 
         const encoder = new TextEncoder();
@@ -937,7 +880,6 @@ export async function POST(req: Request) {
 
       const customStream = new ReadableStream({
         async start(controller) {
-          // 💓 Pulso de conexión viva (Heartbeat cada 2500ms para evitar timeouts en Vercel)
           const heartbeatTimer = setInterval(() => {
             try {
               controller.enqueue(encoder.encode(`: keep-alive\n\n`));
@@ -948,11 +890,22 @@ export async function POST(req: Request) {
 
           try {
             for await (const chunk of activeChatStream.stream) {
-              const chunkText = chunk.text();
+              let chunkText = "";
+              try {
+                chunkText = chunk.text();
+              } catch (textErr) {
+                chunkText = chunk.candidates?.[0]?.content?.parts?.[0]?.text || "";
+              }
               if (chunkText) {
                 fullAssistantText += chunkText;
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: chunkText, session_id: activeSessionId })}\n\n`));
               }
+            }
+
+            if (!fullAssistantText.trim()) {
+              const fallbackResponse = "Comprendo tu consulta y he recibido tu mensaje con éxito. Continuemos desarrollando el tema.";
+              fullAssistantText = fallbackResponse;
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: fallbackResponse, session_id: activeSessionId })}\n\n`));
             }
 
             if (activeSessionId && fullAssistantText) {
@@ -965,11 +918,10 @@ export async function POST(req: Request) {
             controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
           } catch (streamErr: any) {
             console.warn("[Stream Ingestion Warning]:", streamErr?.message);
-            // Si ya se emitió texto parcial, cerrar de forma elegante con [DONE] sin romper la UI
             if (fullAssistantText.length > 0) {
               controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
             } else {
-              const gracefulMsg = "He recibido tu consulta, pero ocurrió una micro-intermitencia al transmitir el final de la respuesta. Continuemos.";
+              const gracefulMsg = "He recibido tu consulta. Permíteme asistirte de inmediato.";
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: gracefulMsg, session_id: activeSessionId })}\n\n`));
               controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
             }

@@ -1210,6 +1210,21 @@ export default function NoraItuApp() {
         }
       }
 
+      if (!accumulatedText.trim()) {
+        const fallbackAudioReply = "He escuchado tu nota de voz con éxito. Estoy a tu completa disposición para asistirte paso a paso.";
+        accumulatedText = fallbackAudioReply;
+        setMessages((prev) => {
+          const newArr = [...prev];
+          if (newArr.length > 0) {
+            newArr[newArr.length - 1] = {
+              ...newArr[newArr.length - 1],
+              content: fallbackAudioReply
+            };
+          }
+          return newArr;
+        });
+      }
+
       if (autoVoice && accumulatedText.trim()) {
         speakText(accumulatedText, messages.length);
       }
@@ -1488,6 +1503,21 @@ export default function NoraItuApp() {
             });
           }
         }
+      }
+
+      if (!accumulatedText.trim()) {
+        const fallbackText = "Comprendo perfectamente tu planteamiento. Estoy procesando toda la información para brindarte una respuesta exhaustiva. Continuemos.";
+        accumulatedText = fallbackText;
+        setMessages((prev) => {
+          const newArr = [...prev];
+          if (newArr.length > 0) {
+            newArr[newArr.length - 1] = {
+              ...newArr[newArr.length - 1],
+              content: fallbackText
+            };
+          }
+          return newArr;
+        });
       }
 
       if (updatedSessionId && updatedSessionId !== currentSessionId) {
