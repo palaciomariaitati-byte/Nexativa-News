@@ -959,64 +959,14 @@ export async function POST(req: Request) {
         }
       }
 
-      // 4. Si ningún proveedor externo respondió, generar respuesta estructurada inmediata
+      // 4. Si ningún proveedor externo respondió tras agotar la cascada, emitir aviso conversacional humano
       if (!activeChatStream) {
         const encoder = new TextEncoder();
-        
-        let localResponse = "";
-        if (rawHistory.length === 0) {
-          localResponse = `¡Hola! Soy **NoraItu**, tu mentora y asistente soberana de Ituzaingó, Corrientes.\n\n`;
-        }
-        
-        if (weatherData) {
-          localResponse += `🌤️ ${weatherData}\n\n---\n\n`;
-        }
-
-        // Síntesis directa según el tipo de solicitud
-        const lowerMsg = message.toLowerCase();
-        if (lowerMsg.includes("planificaci") || lowerMsg.includes("clase") || lowerMsg.includes("secundaria") || lowerMsg.includes("docente") || lowerMsg.includes("agua")) {
-          localResponse += `### 📋 Propuesta Pedagógica y Planificación Estructurada
-
-**Tema:** ${message.replace(/^(arma|crea|genera|hace)\s+/i, '').trim()}
-**Nivel Educativo:** Educación Secundaria (Orientada / CBC)
-**Contexto Regional:** Cuenca del Río Paraná, Esteros del Iberá y Provincia de Corrientes
-
-#### 🎯 Objetivos de Aprendizaje:
-1. Analizar el valor ecosistémico, social y económico del agua como recurso estratégico provincial.
-2. Identificar problemáticas ambientales locales (cuidados de acuíferos, preservación de humedales y uso responsable).
-3. Desarrollar criterios de participación ciudadana y formulación de proyectos comunitarios sostenibles.
-
-#### ⏱️ Secuencia Didáctica (90 Minutos):
-* **Inicio (15 min):** Activación de saberes previos mediante preguntas disparadoras sobre el ciclo hidrológico regional y el impacto de los recursos hídricos en Ituzaingó.
-* **Desarrollo (50 min):** Trabajo colaborativo en grupos. Análisis de fuentes, lectura crítica sobre normativas de protección de humedales y confección de propuestas de mitigación.
-* **Cierre (25 min):** Puesta en común, sistematización de conclusiones y socialización comunitaria.
-
-#### 📊 Grilla de Evaluación y Rúbrica:
-
-| Criterio | Nivel Inicial (1-4) | Nivel Medio (5-7) | Nivel Destacado (8-10) |
-| :--- | :--- | :--- | :--- |
-| **Comprensión Conceptual** | Reconoce conceptos básicos del agua sin conexión regional. | Identifica problemáticas hídricas con fundamentación adecuada. | Integra problemáticas regionales con rigurosa fundamentación científica y ambiental. |
-| **Participación y Debate** | Intervención pasiva en la dinámica grupal. | Aporta ideas claras y respeta turnos de intercambio. | Lidera debates fundamentados y promueve consensos constructivos. |
-| **Producción y Propuestas** | Entrega incompleta o desarticulada. | Presenta propuesta coherente con objetivos claros. | Diseña soluciones innovadoras, viables y de alto impacto local. |
-`;
-        } else {
-          localResponse += `### 💡 Respuesta y Desarrollo:
-
-En respuesta a tu consulta sobre **"${message.slice(0, 60)}"**:
-
-1. **Enfoque y Diagnóstico:** Se ha analizado la solicitud aplicando criterios de rigor conceptual, claridad y pertinencia práctica.
-2. **Desarrollo Estratégico:** Para avanzar con solidez, conviene estructurar los pasos esenciales, articular los conceptos fundamentales y avanzar hacia la resolución directa.
-3. **Continuidad:** Dime si deseas profundizar en algún punto específico o si avanzamos hacia el siguiente paso de estudio o aplicación práctica.
-`;
-        }
-
-        if (ragNewsData) {
-          localResponse += `\n\n📰 **Información Relacionada en Nexativa News:** Puedes consultar coberturas y notas ampliadas en nuestro portal.`;
-        }
+        const localResponse = `Comprendo tu consulta sobre "${effectiveMessage.slice(0, 60)}". En este instante experimenté una pequeña intermitencia de red con mis nodos neuronales de alta potencia. Por favor, reintenta enviarme tu mensaje o reformúlalo y con mucho gusto lo resolvemos juntos paso a paso.`;
 
         if (activeSessionId) {
           supabase.from("noraitu_messages").insert([
-            { session_id: activeSessionId, role: "user", content: message, metadata: { ...(contextData || {}) } },
+            { session_id: activeSessionId, role: "user", content: effectiveUserMessage, metadata: { ...(contextData || {}) } },
             { session_id: activeSessionId, role: "assistant", content: localResponse, metadata: { generated_by: "NoraItu-SynthesisEngine" } }
           ]).then(() => {});
         }
