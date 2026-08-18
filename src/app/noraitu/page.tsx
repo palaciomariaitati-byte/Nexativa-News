@@ -1129,19 +1129,38 @@ export default function NoraItuApp() {
           const { done, value } = await reader.read();
           if (done) break;
 
-          sseBuffer += decoder.decode(value, { stream: true });
-          const lines = sseBuffer.split("\n");
-          sseBuffer = lines.pop() || "";
+          const rawChunk = decoder.decode(value, { stream: true });
+          if (!rawChunk) continue;
 
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (trimmed.startsWith("data: ")) {
-              const dataContent = trimmed.slice(6).trim();
-              if (dataContent === "[DONE]") break;
-              try {
-                const parsed = JSON.parse(dataContent);
-                if (parsed.text) {
-                  accumulatedText += parsed.text;
+          // 1. Manejo SSE si contiene prefijo data:
+          if (rawChunk.includes("data:") || sseBuffer.includes("data:")) {
+            sseBuffer += rawChunk;
+            const lines = sseBuffer.split("\n");
+            sseBuffer = lines.pop() || "";
+
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed || trimmed.startsWith(":") || trimmed === ": keep-alive") continue;
+              if (trimmed.startsWith("data:")) {
+                const dataContent = trimmed.replace(/^data:\s*/, "");
+                if (dataContent === "[DONE]") continue;
+
+                let textToAdd = "";
+                try {
+                  const parsed = JSON.parse(dataContent);
+                  textToAdd = parsed.text || parsed.reply || parsed.content || (typeof parsed === "string" ? parsed : "");
+                  if (parsed.session_id && !updatedSessionId) {
+                    updatedSessionId = parsed.session_id;
+                    setCurrentSessionId(parsed.session_id);
+                    localStorage.setItem("noraitu_session_id", parsed.session_id);
+                  }
+                } catch {
+                  // Si no es JSON, es texto plano crudo directo
+                  textToAdd = dataContent;
+                }
+
+                if (textToAdd) {
+                  accumulatedText += textToAdd;
                   setMessages((prev) => {
                     const newArr = [...prev];
                     if (newArr.length > 0) {
@@ -1153,13 +1172,40 @@ export default function NoraItuApp() {
                     return newArr;
                   });
                 }
-                if (parsed.session_id && !updatedSessionId) {
-                  updatedSessionId = parsed.session_id;
-                  setCurrentSessionId(parsed.session_id);
-                  localStorage.setItem("noraitu_session_id", parsed.session_id);
-                }
-              } catch (e) {}
+              }
             }
+          } else {
+            // 2. Flujo directo de texto plano crudo
+            if (!rawChunk.startsWith(":")) {
+              accumulatedText += rawChunk;
+              setMessages((prev) => {
+                const newArr = [...prev];
+                if (newArr.length > 0) {
+                  newArr[newArr.length - 1] = {
+                    ...newArr[newArr.length - 1],
+                    content: accumulatedText
+                  };
+                }
+                return newArr;
+              });
+            }
+          }
+        }
+
+        if (sseBuffer.trim() && !sseBuffer.startsWith(":") && !sseBuffer.includes("[DONE]")) {
+          const leftover = sseBuffer.replace(/^data:\s*/, "");
+          if (leftover) {
+            accumulatedText += leftover;
+            setMessages((prev) => {
+              const newArr = [...prev];
+              if (newArr.length > 0) {
+                newArr[newArr.length - 1] = {
+                  ...newArr[newArr.length - 1],
+                  content: accumulatedText
+                };
+              }
+              return newArr;
+            });
           }
         }
       }
@@ -1365,19 +1411,36 @@ export default function NoraItuApp() {
           const { done, value } = await reader.read();
           if (done) break;
 
-          sseBuffer += decoder.decode(value, { stream: true });
-          const lines = sseBuffer.split("\n");
-          sseBuffer = lines.pop() || "";
+          const rawChunk = decoder.decode(value, { stream: true });
+          if (!rawChunk) continue;
 
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (trimmed.startsWith("data: ")) {
-              const dataContent = trimmed.slice(6).trim();
-              if (dataContent === "[DONE]") break;
-              try {
-                const parsed = JSON.parse(dataContent);
-                if (parsed.text) {
-                  accumulatedText += parsed.text;
+          // 1. Manejo SSE si contiene prefijo data:
+          if (rawChunk.includes("data:") || sseBuffer.includes("data:")) {
+            sseBuffer += rawChunk;
+            const lines = sseBuffer.split("\n");
+            sseBuffer = lines.pop() || "";
+
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed || trimmed.startsWith(":") || trimmed === ": keep-alive") continue;
+              if (trimmed.startsWith("data:")) {
+                const dataContent = trimmed.replace(/^data:\s*/, "");
+                if (dataContent === "[DONE]") continue;
+
+                let textToAdd = "";
+                try {
+                  const parsed = JSON.parse(dataContent);
+                  textToAdd = parsed.text || parsed.reply || parsed.content || (typeof parsed === "string" ? parsed : "");
+                  if (parsed.session_id && !updatedSessionId) {
+                    updatedSessionId = parsed.session_id;
+                  }
+                } catch {
+                  // Si no es JSON, tomar el texto plano crudo directamente
+                  textToAdd = dataContent;
+                }
+
+                if (textToAdd) {
+                  accumulatedText += textToAdd;
                   setMessages((prev) => {
                     const newArr = [...prev];
                     if (newArr.length > 0) {
@@ -1389,11 +1452,40 @@ export default function NoraItuApp() {
                     return newArr;
                   });
                 }
-                if (parsed.session_id) {
-                  updatedSessionId = parsed.session_id;
-                }
-              } catch (e) {}
+              }
             }
+          } else {
+            // 2. Flujo directo de texto plano crudo
+            if (!rawChunk.startsWith(":")) {
+              accumulatedText += rawChunk;
+              setMessages((prev) => {
+                const newArr = [...prev];
+                if (newArr.length > 0) {
+                  newArr[newArr.length - 1] = {
+                    ...newArr[newArr.length - 1],
+                    content: accumulatedText
+                  };
+                }
+                return newArr;
+              });
+            }
+          }
+        }
+
+        if (sseBuffer.trim() && !sseBuffer.startsWith(":") && !sseBuffer.includes("[DONE]")) {
+          const leftover = sseBuffer.replace(/^data:\s*/, "");
+          if (leftover) {
+            accumulatedText += leftover;
+            setMessages((prev) => {
+              const newArr = [...prev];
+              if (newArr.length > 0) {
+                newArr[newArr.length - 1] = {
+                  ...newArr[newArr.length - 1],
+                  content: accumulatedText
+                };
+              }
+              return newArr;
+            });
           }
         }
       }
