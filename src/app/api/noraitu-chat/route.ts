@@ -18,11 +18,11 @@ Eres NoraItu, una mente brillante, mentora y docente de élite: empática, lúci
 ========================================================================
 🌟 IDENTIDAD Y ALMA DE MENTORA (PEDAGOGÍA Y EMPATÍA HUMANA)
 ========================================================================
-1. ESTILO Y TONO CONVERSACIONAL (HUMANIDAD Y FLUIDEZ ATRAPANTE):
-   - Adopta de forma inquebrantable el estilo conversacional de un ser humano brillante, resolutivo, sumamente empático, natural y atrapante.
-   - Tu léxico es impecable, sofisticado pero accesible, y tu tono es sumamente natural, fluido, cálido y orgánico.
-   - ESTÁ ESTRICTAMENTE PROHIBIDO sonar como un software automatizado, usar viñetas rígidas por defecto o repetir estructuras de saludos robóticos.
-   - Charla, debate, repregunta con interés genuino y expande los temas con la soltura de una mente brillante en una conversación cercana o tutoría personalizada.
+1. ESTILO Y TONO CONVERSACIONAL (ELOCUENCIA RIOPLATENSE PULIDA Y NATURAL):
+   - Adopta de forma inquebrantable el estilo conversacional de un ser humano brillante, sumamente empático, socrático y con modales impecables.
+   - Tu léxico es pulido, cálido, natural y accesible.
+   - ESTÁ ESTRICTAMENTE PROHIBIDO sonar como un software automatizado o enumerar variables de código o logs internos en la pantalla del usuario. Conversa con la prosa fluida de una mente brillante que domina las ciencias y la pedagogía universal.
+   - Charla, debate, repregunta con interés genuino y expande los temas con la soltura de una mentora de élite en una tutoría personalizada.
    - Si la conversación ya está en curso, NUNCA repitas saludos formales ni te vuelvas a presentar ("Hola, soy Nora..."). Edifica directamente sobre lo que se viene dialogando.
 
 2. ADAPTABILIDAD AL ESTUDIANTE Y PROFESIONAL:
@@ -579,25 +579,27 @@ export async function POST(req: Request) {
       contextData, 
       message_id,
       file,
+      audioFile,
       stream = true 
     } = await req.json();
 
-    if ((!message || typeof message !== "string") && !file) {
-      return NextResponse.json({ error: "Se requiere un mensaje de texto o un archivo adjunto." }, { status: 400 });
+    if ((!message || typeof message !== "string") && !file && !audioFile) {
+      return NextResponse.json({ error: "Se requiere un mensaje de texto, un audio o un archivo adjunto." }, { status: 400 });
     }
 
     let effectiveMessage = message;
-    const isAudioFile = Boolean(
-      file && (
-        (file.mimeType && file.mimeType.startsWith("audio/")) ||
-        (file.type && file.type.startsWith("audio/")) ||
-        (file.name && /\.(webm|mp3|wav|ogg|m4a|mp4|aac)$/i.test(file.name))
-      )
-    );
+    let targetAudio = audioFile || (file && (
+      (file.mimeType && file.mimeType.startsWith("audio/")) ||
+      (file.type && file.type.startsWith("audio/")) ||
+      (file.name && /\.(webm|mp3|wav|ogg|m4a|mp4|aac)$/i.test(file.name))
+    ) ? file : null);
 
-    if (isAudioFile && file.base64) {
+    // Si file era el audio y no hay otro archivo, file queda nulo
+    let effectiveFile = (file === targetAudio) ? null : file;
+
+    if (targetAudio && targetAudio.base64) {
       console.log("[NoraItu-Chat] 🎙️ Audio recibido. Transcribiendo con Groq Whisper...");
-      const transcribed = await transcribeAudioWithWhisper(file);
+      const transcribed = await transcribeAudioWithWhisper(targetAudio);
       if (transcribed && transcribed.trim().length > 0) {
         effectiveMessage = transcribed.trim();
         console.log("[NoraItu-Chat] 🎙️ Audio convertido a texto con éxito:", effectiveMessage);
@@ -609,12 +611,12 @@ export async function POST(req: Request) {
       }
     }
 
-    console.log("[NoraItu-Chat] 📥 Request recibido:", { 
+    console.log("[NoraItu-Chat] 📥 Request atómico recibido:", { 
       user_id, 
       session_id, 
       message_preview: effectiveMessage.slice(0, 40), 
-      has_file: !!file,
-      is_audio: isAudioFile 
+      has_file: !!effectiveFile,
+      has_audio: !!targetAudio 
     });
 
     const supabase = createServerSupabaseClient();
@@ -655,9 +657,8 @@ export async function POST(req: Request) {
       }
     }
 
-    // Comprobar si el usuario solicita generación de imagen o mejora modular de foto (Nano Banana)
-    if (isImageGenerationIntent(effectiveMessage, file)) {
-      const generatedImageText = await synthesizeImageResponse(effectiveMessage, file);
+    if (isImageGenerationIntent(effectiveMessage, effectiveFile)) {
+      const generatedImageText = await synthesizeImageResponse(effectiveMessage, effectiveFile);
       const encoder = new TextEncoder();
 
       if (activeSessionId) {
@@ -669,7 +670,6 @@ export async function POST(req: Request) {
 
       const customStream = new ReadableStream({
         start(controller) {
-          // Enviar chunks progresivos para efecto streaming
           const words = generatedImageText.split(" ");
           let idx = 0;
           const interval = setInterval(() => {
@@ -695,7 +695,6 @@ export async function POST(req: Request) {
       });
     }
 
-    // Cargar historial de mensajes previos
     const rawHistory: { role: string; content: string }[] = [];
     if (activeSessionId) {
       const { data: pastMsgs } = await supabase
@@ -715,7 +714,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // 1. Clima condicional estricto (Strict No-Weather Rule: solo si el usuario lo pide explícitamente)
     const lowerMessageForIntent = effectiveMessage.toLowerCase();
     const isWeatherExplicit = [
       "clima", "tiempo", "temperatura", "cómo está el día", "como esta el dia", 
@@ -723,7 +721,6 @@ export async function POST(req: Request) {
       "grados hace", "sensación térmica", "sensacion termica"
     ].some(w => lowerMessageForIntent.includes(w));
 
-    // Obtener Clima bajo demanda estricta, RAG semántico y Directorio
     const [weatherData, ragNewsData, ragBizData, continuousUserMemory] = await Promise.all([
       isWeatherExplicit ? fetchRealtimeWeather() : Promise.resolve(null),
       fetchSemanticArticlesRAG(supabase, effectiveMessage),
@@ -741,23 +738,21 @@ export async function POST(req: Request) {
     if (ragNewsData) fullSystemPrompt += ragNewsData;
     if (ragBizData) fullSystemPrompt += ragBizData;
 
-    // Directiva anti-redundancia para conversaciones continuas
     if (rawHistory.length > 0) {
       fullSystemPrompt += `\n\n[DIRECTIVA DE CONTINUIDAD]: La conversación ya está en curso (turno ${rawHistory.length + 1}). PROHIBIDO repetir saludos de bienvenida ("¡Hola!", "Soy NoraItu..."). Responde directamente y con fluidez a la última intervención del usuario construyendo sobre lo dialogado.`;
     }
 
     let effectiveUserMessage = effectiveMessage;
-    if (file) {
-      if (file.mimeType?.startsWith("image/")) {
-        effectiveUserMessage = `[FOTO ADJUNTA: "${file.name || 'foto.jpg'}"]\n${effectiveMessage || "Analiza detalladamente esta imagen, identifica qué contiene y descríbela con precisión."}`;
-      } else if (file.textContent) {
-        effectiveUserMessage = `[DOCUMENTO ADJUNTO: "${file.name || 'documento'}"]:\n${file.textContent.slice(0, 8000)}\n\n[CONSULTA DEL USUARIO]:\n${effectiveMessage || "Sintetiza y analiza el documento adjunto."}`;
-      } else if (isAudioFile) {
-        effectiveUserMessage = `[NOTA DE VOZ DEL USUARIO]: "${effectiveMessage}"\nResponde directamente a esta consulta con máxima profesionalidad.`;
+    if (effectiveFile) {
+      if (effectiveFile.mimeType?.startsWith("image/")) {
+        effectiveUserMessage = `[FOTO ADJUNTA: "${effectiveFile.name || 'foto.jpg'}"]\n${effectiveMessage || "Analiza detalladamente esta imagen, identifica qué contiene y descríbela con precisión."}`;
+      } else if (effectiveFile.textContent) {
+        effectiveUserMessage = `[DOCUMENTO ADJUNTO: "${effectiveFile.name || 'documento'}"]:\n${effectiveFile.textContent.slice(0, 8000)}\n\n[CONSULTA DEL USUARIO]:\n${effectiveMessage || "Sintetiza y analiza el documento adjunto."}`;
       }
+    } else if (targetAudio) {
+      effectiveUserMessage = `[NOTA DE VOZ DEL USUARIO]: "${effectiveMessage}"\nResponde directamente a esta consulta con máxima profesionalidad.`;
     }
 
-    // Inspección de Seguridad Anti-Jailbreak
     const safetyCheck = sanitizeAndInspectPrompt(effectiveUserMessage);
     if (!safetyCheck.isSafe) {
       const encoder = new TextEncoder();
@@ -779,10 +774,9 @@ export async function POST(req: Request) {
     }
 
     if (stream) {
-      // 1. Intentar primero con Groq (Soporta texto ultrarrápido y LLaMA 3.3)
       console.log(`[NoraItu-Chat] 🚀 Capa 1: Evaluando Groq LLaMA 3.3 (GROQ_API_KEY presente: ${!!process.env.GROQ_API_KEY})...`);
       if (process.env.GROQ_API_KEY) {
-        const groqStream = await tryGroqStream(rawHistory, effectiveUserMessage, fullSystemPrompt, file);
+        const groqStream = await tryGroqStream(rawHistory, effectiveUserMessage, fullSystemPrompt, effectiveFile);
         if (groqStream) {
           console.log("✓ [NoraItu-Chat] Inferencia exitosa en Groq (Iniciando SSE stream)...");
           const encoder = new TextEncoder();
@@ -851,13 +845,12 @@ export async function POST(req: Request) {
         }
       }
 
-      // 2. Intentar con la Red Abierta Soberana (Cloudflare AI, Hugging Face Qwen-VL, OpenRouter, Ollama)
       console.log("[NoraItu-Chat] 🚀 Capa 2: Invocando SovereignRouter (Cloudflare / HuggingFace / OpenRouter / Ollama)...");
       const sovereignResponse = await dispatchSovereignInference({
         history: rawHistory,
         userMessage: effectiveUserMessage,
         systemPrompt: fullSystemPrompt,
-        file: file,
+        file: effectiveFile,
         sessionId: activeSessionId
       });
 
@@ -866,7 +859,6 @@ export async function POST(req: Request) {
         return sovereignResponse;
       }
 
-      // 3. Fallback Multimodal a Gemini Multi-Turn Nativo
       console.log("[NoraItu-Chat] 🚀 Capa 3: Invocando Google Gemini Multi-Pool Fallback...");
 
       const geminiContents: any[] = [];
@@ -878,21 +870,21 @@ export async function POST(req: Request) {
       }
 
       const currentTurnParts: any[] = [];
-      if (file) {
-        if (file.base64 && file.mimeType) {
-          const cleanMime = file.mimeType.split(";")[0].trim() || "image/jpeg";
-          const cleanB64 = file.base64.includes(",") ? file.base64.split(",")[1] : file.base64;
+      if (effectiveFile) {
+        if (effectiveFile.base64 && effectiveFile.mimeType) {
+          const cleanMime = effectiveFile.mimeType.split(";")[0].trim() || "image/jpeg";
+          const cleanB64 = effectiveFile.base64.includes(",") ? effectiveFile.base64.split(",")[1] : effectiveFile.base64;
           currentTurnParts.push({
             inlineData: { data: cleanB64, mimeType: cleanMime }
           });
-        } else if (file.storage_url || file.url) {
+        } else if (effectiveFile.storage_url || effectiveFile.url) {
           try {
-            const targetUrl = file.storage_url || file.url;
+            const targetUrl = effectiveFile.storage_url || effectiveFile.url;
             const fetched = await fetch(targetUrl, { signal: AbortSignal.timeout(6000) });
             if (fetched.ok) {
               const arrayBuf = await fetched.arrayBuffer();
               const b64 = Buffer.from(arrayBuf).toString("base64");
-              const mime = file.mimeType || fetched.headers.get("content-type") || "application/octet-stream";
+              const mime = effectiveFile.mimeType || fetched.headers.get("content-type") || "application/octet-stream";
               currentTurnParts.push({
                 inlineData: { data: b64, mimeType: mime.split(";")[0].trim() }
               });

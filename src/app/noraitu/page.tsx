@@ -992,13 +992,22 @@ export default function NoraItuApp() {
     }
   };
 
-  // 11. Enviar Mensaje de Audio Directo con Streaming
+  // 11. Enviar Mensaje de Audio Directo con Streaming (Atómico: Audio + Foto)
   const handleSendAudioMessage = async (audioFile: AttachedFile) => {
     stopSpeaking();
+    const currentAttached = attachedFile;
+    const userPromptText = inputMessage.trim();
+
     const tempUserMsg: Message = {
       role: "user",
-      content: `🎙️ [Nota de voz enviada]`,
-      file: {
+      content: currentAttached
+        ? (userPromptText ? `${userPromptText} 🎙️ [Audio y Foto adjunta]` : `🎙️ [Audio y Foto adjunta]`)
+        : `🎙️ [Nota de voz enviada]`,
+      file: currentAttached ? {
+        name: currentAttached.name,
+        type: currentAttached.type,
+        previewUrl: currentAttached.previewUrl
+      } : {
         name: audioFile.name,
         type: audioFile.type
       },
@@ -1006,6 +1015,8 @@ export default function NoraItuApp() {
     };
 
     setMessages((prev) => [...prev, tempUserMsg]);
+    setInputMessage("");
+    setAttachedFile(null);
     setIsLoading(true);
 
     try {
@@ -1017,13 +1028,19 @@ export default function NoraItuApp() {
           "x-message-id": msgId
         },
         body: JSON.stringify({
-          message: "Escucha este audio del usuario y respóndele detalladamente.",
+          message: userPromptText || "Escucha este audio del usuario y respóndele detalladamente considerando cualquier imagen adjunta.",
           session_id: currentSessionId,
           user_id: userId,
           message_id: msgId,
           contextData: { mode: activeMode },
           stream: true,
-          file: {
+          file: currentAttached ? {
+            name: currentAttached.name,
+            mimeType: currentAttached.type,
+            base64: currentAttached.base64,
+            textContent: currentAttached.textContent
+          } : undefined,
+          audioFile: {
             name: audioFile.name,
             mimeType: audioFile.type,
             base64: audioFile.base64
@@ -1042,13 +1059,11 @@ export default function NoraItuApp() {
         return;
       }
 
-      // Preparar burbuja de respuesta para streaming
       setMessages((prev) => [...prev, {
         role: "assistant",
         content: "",
         created_at: new Date().toISOString()
       }]);
-      setIsLoading(false);
 
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
@@ -1085,8 +1100,10 @@ export default function NoraItuApp() {
                     return newArr;
                   });
                 }
-                if (parsed.session_id) {
+                if (parsed.session_id && !updatedSessionId) {
                   updatedSessionId = parsed.session_id;
+                  setCurrentSessionId(parsed.session_id);
+                  localStorage.setItem("noraitu_session_id", parsed.session_id);
                 }
               } catch (e) {}
             }
@@ -1094,25 +1111,12 @@ export default function NoraItuApp() {
         }
       }
 
-      if (updatedSessionId && updatedSessionId !== currentSessionId) {
-        setCurrentSessionId(updatedSessionId);
-        fetchSessions(userId);
-      }
-
-      // Reproducir voz al terminar el stream si autoVoice está activo
-      if (autoVoice && accumulatedText) {
-        speakText(accumulatedText, messages.length + 1);
-      }
-
-      // Notificación si la ventana está oculta
-      if (document.hidden && Notification.permission === "granted" && accumulatedText) {
-        new Notification("NoraItu AI", {
-          body: accumulatedText.slice(0, 100) + "...",
-          icon: "/icons/main-icon.png"
-        });
+      if (autoVoice && accumulatedText.trim()) {
+        speakText(accumulatedText, messages.length);
       }
 
     } catch (err) {
+      console.error("Error enviando audio:", err);
       setMessages((prev) => [
         ...prev,
         {
@@ -1121,36 +1125,91 @@ export default function NoraItuApp() {
           created_at: new Date().toISOString()
         }
       ]);
+    } finally {
       setIsLoading(false);
     }
   };
 
-  // 12. Procesar archivos y fotos seleccionados
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Función de compresión ultra-rápida en el cliente (640x480, JPEG 50%) para erradicar timeouts
+  const compressImageForUpload = (file: File): Promise<{ base64: string; previewUrl: string; size: number }> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          let width = img.width;
+          let height = img.height;
+          const maxDim = 640;
+          if (width > height) {
+            if (width > maxDim) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            }
+          } else {
+            if (height > maxDim) {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.5);
+            const base64Data = compressedDataUrl.split(",")[1];
+            const approxBytes = Math.round((base64Data.length * 3) / 4);
+            resolve({ base64: base64Data, previewUrl: compressedDataUrl, size: approxBytes });
+            return;
+          }
+          const raw = (e.target?.result as string) || "";
+          resolve({ base64: raw.split(",")[1] || "", previewUrl: raw, size: file.size });
+        };
+        img.onerror = () => {
+          const raw = (e.target?.result as string) || "";
+          resolve({ base64: raw.split(",")[1] || "", previewUrl: raw, size: file.size });
+        };
+        img.src = e.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // 12. Procesar archivos y fotos seleccionados con compresión ligera automática
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 15 * 1024 * 1024) {
-      alert("El archivo supera el límite de 15MB.");
+    if (file.size > 25 * 1024 * 1024) {
+      alert("El archivo supera el límite de 25MB.");
       return;
     }
 
-    const reader = new FileReader();
-
-    if (file.type.startsWith("image/") || file.type === "application/pdf") {
+    if (file.type.startsWith("image/")) {
+      const compressed = await compressImageForUpload(file);
+      setAttachedFile({
+        name: file.name,
+        type: "image/jpeg",
+        size: compressed.size,
+        base64: compressed.base64,
+        previewUrl: compressed.previewUrl
+      });
+    } else if (file.type === "application/pdf") {
+      const reader = new FileReader();
       reader.onload = () => {
         const result = reader.result as string;
-        const base64Data = result.split(",")[1];
         setAttachedFile({
           name: file.name,
           type: file.type,
           size: file.size,
-          base64: base64Data,
-          previewUrl: file.type.startsWith("image/") ? result : undefined
+          base64: result.split(",")[1],
+          previewUrl: undefined
         });
       };
       reader.readAsDataURL(file);
     } else {
+      const reader = new FileReader();
       reader.onload = () => {
         setAttachedFile({
           name: file.name,
@@ -2228,7 +2287,7 @@ export default function NoraItuApp() {
                   <Mic size={18} />
                 </button>
 
-                {/* Textarea Auto-expandible */}
+                {/* Textarea Auto-expandible con Escucha Activa */}
                 <textarea
                   ref={textareaRef}
                   rows={1}
@@ -2236,7 +2295,6 @@ export default function NoraItuApp() {
                   onChange={handleTextareaChange}
                   onKeyDown={handleKeyDown}
                   placeholder={attachedFile ? "Escribe qué deseas analizar de este archivo..." : "Escribe o graba un audio para NoraItu..."}
-                  disabled={isLoading}
                   className="flex-1 max-h-40 bg-transparent text-slate-100 placeholder-slate-500 text-sm md:text-[15px] resize-none focus:outline-hidden py-2 px-1 leading-relaxed"
                 />
 
