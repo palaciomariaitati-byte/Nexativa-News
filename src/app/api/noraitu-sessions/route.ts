@@ -10,7 +10,7 @@ export async function GET(req: Request) {
 
     const supabase = createServerSupabaseClient();
 
-    // 1. Si se solicita una sesión específica: Devolver sus mensajes cronológicos
+    // 1. Si se solicita una sesión específica: Devolver sus mensajes cronológicos limpios
     if (sessionId) {
       const { data: messages, error: msgError } = await supabase
         .from("noraitu_messages")
@@ -22,7 +22,11 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: msgError.message }, { status: 500 });
       }
 
-      return NextResponse.json({ messages: messages || [] });
+      const cleanMessages = (messages || []).filter(
+        (m: any) => m.content && typeof m.content === "string" && m.content.trim().length > 0
+      );
+
+      return NextResponse.json({ messages: cleanMessages });
     }
 
     // 2. Si se solicita por user_id: Devolver el listado de sesiones

@@ -653,27 +653,6 @@ export async function POST(req: Request) {
       // 🛡️ CAPA 1 PRIMARIA: Google Gemini Multi-Pool (gemini-3.6-flash / gemini-3.5-flash)
       console.log("[NoraItu-Chat] 🚀 Capa 1 Primaria: Invocando Google Gemini Multi-Pool...");
 
-      const geminiContents: any[] = [];
-      let lastGeminiRole: string | null = null;
-
-      for (const h of rawHistory) {
-        if (!h.content || !h.content.trim()) continue;
-        const mappedRole = (h.role === "assistant" || h.role === "model") ? "model" : "user";
-        if (mappedRole === lastGeminiRole && geminiContents.length > 0) {
-          geminiContents[geminiContents.length - 1].parts[0].text += `\n\n${h.content}`;
-        } else {
-          geminiContents.push({
-            role: mappedRole,
-            parts: [{ text: h.content }]
-          });
-          lastGeminiRole = mappedRole;
-        }
-      }
-
-      if (geminiContents.length > 0 && geminiContents[0].role === "model") {
-        geminiContents.unshift({ role: "user", parts: [{ text: "Hola Nora" }] });
-      }
-
       const currentTurnParts: any[] = [];
       if (effectiveFile) {
         if (effectiveFile.base64 && effectiveFile.mimeType) {
@@ -687,11 +666,28 @@ export async function POST(req: Request) {
 
       currentTurnParts.push({ text: effectiveUserMessage || "Hola Nora, continuemos." });
 
-      if (geminiContents.length > 0 && geminiContents[geminiContents.length - 1].role === "user") {
-        geminiContents[geminiContents.length - 1].parts.push(...currentTurnParts);
-      } else {
-        geminiContents.push({ role: "user", parts: currentTurnParts });
+      const geminiContents: { role: string; parts: any[] }[] = [];
+      for (const item of rawHistory) {
+        if (!item.content || !item.content.trim()) continue;
+        const mappedRole = item.role === "assistant" || item.role === "model" ? "model" : "user";
+        
+        if (geminiContents.length === 0 && mappedRole === "model") {
+          geminiContents.push({ role: "user", parts: [{ text: "Hola Nora" }] });
+        }
+
+        if (geminiContents.length > 0 && geminiContents[geminiContents.length - 1].role === mappedRole) {
+          const prevText = geminiContents[geminiContents.length - 1].parts[0]?.text || "";
+          geminiContents[geminiContents.length - 1].parts = [{ text: `${prevText}\n\n${item.content}` }];
+        } else {
+          geminiContents.push({ role: mappedRole, parts: [{ text: item.content }] });
+        }
       }
+
+      if (geminiContents.length > 0 && geminiContents[geminiContents.length - 1].role === "user") {
+        geminiContents.push({ role: "model", parts: [{ text: "Comprendo. Continuemos." }] });
+      }
+
+      geminiContents.push({ role: "user", parts: currentTurnParts });
 
       const keysPool = [
         process.env.GEMINI_API_KEY,
