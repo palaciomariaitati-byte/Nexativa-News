@@ -45,12 +45,13 @@ import {
   Eye,
   Video,
   FlipHorizontal,
-  Radio
+  Radio,
+  Presentation
 } from "lucide-react";
 import jsQR from "jsqr";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { exportNoraCleanWord, exportNoraCleanPdf } from "@/lib/exportUtils";
+import { exportNoraCleanWord, exportNoraCleanPdf, exportNoraCleanPptx } from "@/lib/exportUtils";
 
 interface AttachedFile {
   name: string;
@@ -2183,6 +2184,16 @@ export default function NoraItuApp() {
                             >
                               <Printer size={13} className="text-sky-400" />
                               <span>PDF</span>
+                            </button>
+
+                            {/* Botón Exportar PowerPoint (.pptx) */}
+                            <button
+                              onClick={() => exportNoraCleanPptx(`Presentacion_NoraItu_${index + 1}`, msg.content)}
+                              className="flex items-center gap-1 hover:text-amber-300 transition-colors"
+                              title="Descargar presentación de diapositivas en PowerPoint (.pptx) institucional 16:9"
+                            >
+                              <Presentation size={13} className="text-amber-400" />
+                              <span>PPTX</span>
                             </button>
 
                             {/* Botón Copiar */}

@@ -58,8 +58,7 @@ export async function POST(req: Request) {
         height = 1280;
       }
 
-      // Inyección de atributos de realismo regional y blindaje fisonómico
-      const enrichedPrompt = `High-end photorealistic DSLR 8k portrait of an ${genderTarget}, ${cleanPrompt}, natural Latino skin texture, authentic Western facial features, professional attire, elegant studio lighting, realistic background, Hasselblad 50mm lens, masterwork photography, ${MANDATORY_NEGATIVE_PROMPT}`;
+      const enrichedPrompt = `Highly detailed 8k cinematic digital artwork, ${cleanPrompt}, sharp focus, studio lighting, award winning composition, 8k resolution, photorealistic masterpiece, ${MANDATORY_NEGATIVE_PROMPT}`;
       
       const seed = Math.floor(Math.random() * 9000000) + 1000000;
       const encodedPrompt = encodeURIComponent(enrichedPrompt);

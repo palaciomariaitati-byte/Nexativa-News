@@ -106,29 +106,8 @@ Eres NoraItu, una mente brillante, mentora y docente de élite: empática, lúci
 - Si el usuario únicamente saluda ("Hola", "Buenas"), responde con calidez humana y apertura. Ante cualquier pedido de trabajo o consulta, ejecuta la respuesta completa a fondo.
 `;
 
-function isImageGenerationIntent(text: string, fileObj?: any): boolean {
+function isImageGenerationIntent(text: string): boolean {
   const t = text.toLowerCase();
-  const hasPhoto = Boolean(fileObj && fileObj.mimeType?.startsWith("image/"));
-
-  if (hasPhoto) {
-    if (
-      t.includes("mejorar") || 
-      t.includes("mejora") || 
-      t.includes("profesional") || 
-      t.includes("foto de perfil") || 
-      t.includes("linkedin") || 
-      t.includes("traje") || 
-      t.includes("blazer") || 
-      t.includes("editar") || 
-      t.includes("fondo") || 
-      t.includes("calidad") ||
-      t.includes("inpainting") ||
-      t.includes("8k")
-    ) {
-      return true;
-    }
-  }
-
   return (
     t.includes("crea una imagen") ||
     t.includes("crear una imagen") ||
@@ -146,134 +125,15 @@ function isImageGenerationIntent(text: string, fileObj?: any): boolean {
     t.includes("render de") ||
     t.includes("ilustra") ||
     t.includes("ilustración de") ||
-    (t.includes("imagen") && (t.includes("8k") || t.includes("atardecer") || t.includes("foto") || t.includes("paisaje") || t.includes("dibujo")))
+    (t.includes("imagen") && (t.includes("8k") || t.includes("atardecer") || t.includes("paisaje") || t.includes("dibujo")))
   );
 }
 
 /**
- * 🍌 EXTRACTOR DE ATRIBUTOS NANO BANANA (6 COMPONENTES DINÁMICOS):
- * 1. Sujeto: Género biológico exacto, estructura ósea, ojos, cabello, edad aparente.
- * 2. Acción y Pose: Postura corporal exacta, inclinación y mirada.
- * 3. Vestimenta: Ropa real o mejora textil acorde al género fisonómico original.
- * 4. Entorno: Muebles (sillón, escritorio), habitación o exteriores reales.
- * 5. Iluminación: Iluminación de estudio suave (Softbox, balance de blancos).
- * 6. Calidad: Fotografía DSLR 8K, textura de piel micro-porosa, cero caricaturas.
+ * 🎨 GENERADOR CREATIVO DE IMÁGENES E ILUSTRACIONES (FLUX.1 A COSTO $0)
  */
-async function extractNanoBananaAttributes(fileObj: any): Promise<{
-  gender: string;
-  subjectDescription: string;
-  clothing: string;
-  environment: string;
-  lighting: string;
-  fullVisualPrompt: string;
-}> {
-  const cleanB64 = fileObj?.base64 ? (fileObj.base64.includes(",") ? fileObj.base64.split(",")[1] : fileObj.base64) : null;
-  const cleanMime = fileObj?.mimeType?.split(";")[0]?.trim() || "image/jpeg";
-
-  const defaultPrompt = "Photorealistic DSLR 8k portrait of an Argentine business person, natural skin texture, professional appearance, sharp focus, business formal attire, dynamic modern office background, Hasselblad 50mm portrait lens, masterwork photography";
-
-  if (!cleanB64) {
-    return {
-      gender: "Identidad Preservada",
-      subjectDescription: "Retrato en alta definición con rasgos originales",
-      clothing: "Vestimenta formal de alta calidad",
-      environment: "Entorno natural y nítido",
-      lighting: "Iluminación de estudio Softbox",
-      fullVisualPrompt: defaultPrompt
-    };
-  }
-
-  const keysPool = [
-    process.env.GEMINI_API_KEY,
-    process.env.GEMINI_API_KEY_FALLBACK,
-    process.env.GEMINI_API_KEY_FALLBACK_2,
-    process.env.GEMINI_API_KEY_TERTIARY,
-  ].filter(Boolean) as string[];
-
-  const visionExtractionPrompt = `ANALIZADOR NANO BANANA DE VISIÓN COMPUTACIONAL (EXTRACCIÓN DE 6 COMPONENTES):
-Examina minuciosamente esta fotografía y describe en un párrafo en inglés (máximo 70 palabras) los 6 componentes exactos para renderizar un retrato fotorrealista idéntico en calidad DSLR 8K:
-1. Sujeto: Género biológico exacto visible (Female/Woman o Male/Man), edad aproximada, rasgos fisonómicos, color y largo de cabello, ojos.
-2. Acción y Pose: Posición corporal exacta y mirada.
-3. Ropa: Vestimenta elegante acorde al género real del sujeto.
-4. Entorno: Elementos del fondo (sillón, sala, oficina moderna con bokeh suave).
-5. Iluminación: Iluminación de estudio suave (Softbox, golden hour).
-6. Calidad: Highly detailed natural skin texture, 8k resolution, cinematic lighting, photorealistic masterpiece, NO cartoon, NO anime, NO gender change, NO asian features alteration.
-
-Responde ÚNICAMENTE con el prompt descriptivo en inglés estructurado.`;
-
-  for (const key of keysPool) {
-    try {
-      const genAI = new GoogleGenerativeAI(key);
-      const model = genAI.getGenerativeModel({
-        model: "gemini-3.6-flash",
-        generationConfig: { temperature: 0.1, maxOutputTokens: 200 }
-      });
-      const result = await model.generateContent([
-        { inlineData: { data: cleanB64, mimeType: cleanMime } },
-        { text: visionExtractionPrompt }
-      ]);
-      const extractedText = result.response?.text()?.trim();
-      if (extractedText && extractedText.length > 20) {
-        const isWoman = /woman|female|girl|lady|madam|mujer|femenin/i.test(extractedText);
-        const genderTarget = isWoman ? "Argentine woman" : "Argentine man";
-        const reinforcedPrompt = `High-end photorealistic DSLR 8k portrait of an ${genderTarget}, natural Latino skin texture, authentic Western facial features, professional appearance, business formal attire, elegant studio lighting, detailed realistic background, Hasselblad 50mm portrait lens, masterwork photography, ${extractedText}`;
-
-        return {
-          gender: isWoman ? "Femenino (Mujer)" : "Masculino (Hombre)",
-          subjectDescription: "Fisonomía y rasgos reales preservados al 100%",
-          clothing: "Mejora textil de alta costura",
-          environment: "Entorno y fondo preservados con desenfoque bokeh profesional",
-          lighting: "Esquema Softbox 8K",
-          fullVisualPrompt: reinforcedPrompt
-        };
-      }
-    } catch (err) {
-      console.warn("[Nano Banana Vision Extraction Warning]:", err);
-    }
-  }
-
-  return {
-    gender: "Identidad Preservada",
-    subjectDescription: "Rasgos fisonómicos reales",
-    clothing: "Vestimenta profesional de alta calidad",
-    environment: "Fondo minimalista",
-    lighting: "Iluminación de estudio",
-    fullVisualPrompt: defaultPrompt
-  };
-}
-
-/**
- * 🍌 PIPELINE NANO BANANA IMAGE-TO-IMAGE REAL (OPEN SOURCE A COSTO $0)
- */
-async function synthesizeImageResponse(userPrompt: string, fileObj?: any): Promise<string> {
-  const hasAttachedPhoto = Boolean(fileObj && (fileObj.mimeType?.startsWith("image/") || fileObj.base64 || fileObj.url));
-
-  if (hasAttachedPhoto) {
-    // 🛡️ PIPELINE NANO BANANA: Extracción dinámica de 6 atributos con Visión IA
-    const attributes = await extractNanoBananaAttributes(fileObj);
-    const seed = Math.floor(Math.random() * 9000000) + 1000000;
-    
-    // Inyectar Negative Prompt absoluto V7 (Anti-Bias & Realismo Fisonómico)
-    const negativePrompt = "Negative Prompt: NO asian features, NO oriental face, NO K-pop aesthetic, NO anime, NO cartoon, NO 3D render, NO virtual reality avatar, NO gender swap, NO deformation, NO blurry, NO low quality.";
-    const enrichedPrompt = `${attributes.fullVisualPrompt}, photorealistic DSLR portrait, natural skin pores texture, ultra-high resolution, cinematic studio lighting, sharp focus, 8k resolution, Hasselblad lens, award winning photography, ${negativePrompt}`;
-    const encoded = encodeURIComponent(enrichedPrompt);
-    const inpaintingImageUrl = `https://image.pollinations.ai/prompt/${encoded}?width=1024&height=1024&nologo=true&seed=${seed}&model=flux`;
-
-    return `### 📸 Estudio de Retrato Profesional & Preservación Fisonómica (Pipeline Nano Banana)
-
-¡He procesado tu fotografía aplicando el **refinamiento Image-to-Image de alta fidelidad** con preservación estricta de identidad y anti-sesgo!
-
-* 🛡️ **Identidad & Género Bloqueados:** ${attributes.gender} — Estructura ósea, mirada y rasgos faciales originales intactos.
-* 👗 **Mejora Textil y Fotorrealismo:** Refinamiento a nivel de píxel sin alterar proporciones corporales ni generar caricaturas.
-* 💡 **Iluminación de Estudio:** Esquema *Softbox* con acabado hiperrealista DSLR 8K y bokeh natural de fondo.
-
-![Retrato Profesional HD 8K](${inpaintingImageUrl})
-
----
-📥 **[Descargar Retrato en Alta Resolución 8K](${inpaintingImageUrl})**`;
-  }
-
-  let cleanSubject = userPrompt
+async function synthesizeImageResponse(userPrompt: string): Promise<string> {
+  const cleanSubject = userPrompt
     .replace(/crea una imagen hiperrealista en 8k de /i, "")
     .replace(/crear una imagen hiperrealista en 8k de /i, "")
     .replace(/genera una imagen hiperrealista en 8k de /i, "")
@@ -307,14 +167,14 @@ async function synthesizeImageResponse(userPrompt: string, fileObj?: any): Promi
   const encoded = encodeURIComponent(enPrompt);
   const imageUrl = `https://image.pollinations.ai/prompt/${encoded}?width=1024&height=1024&nologo=true&seed=${seed}&model=flux`;
 
-  return `¡Con mucho gusto! He generado la ilustración hiperrealista solicitada:
+  return `¡Con mucho gusto! He generado la ilustración solicitada:
 
 ![${cleanSubject || 'Ilustración 8k'}](${imageUrl})
 
 ---
-✨ **Detalles de la Composición Artística:**
+✨ **Detalles de la Composición Visual:**
 * **Estilo:** Render Fotográfico Cinematográfico Ultra-Detallado (8K).
-* **Iluminación:** Luz ambiental hiperrealista con profundidad de campo natural.
+* **Iluminación:** Luz ambiental con profundidad de campo natural.
 * 📥 **[Descargar Imagen en HD](${imageUrl})**`;
 }
 
@@ -680,8 +540,8 @@ export async function POST(req: Request) {
       }
     }
 
-    if (isImageGenerationIntent(effectiveMessage, effectiveFile)) {
-      const generatedImageText = await synthesizeImageResponse(effectiveMessage, effectiveFile);
+    if (isImageGenerationIntent(effectiveMessage)) {
+      const generatedImageText = await synthesizeImageResponse(effectiveMessage);
       const encoder = new TextEncoder();
 
       if (activeSessionId) {

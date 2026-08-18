@@ -431,3 +431,237 @@ export function exportNoraCleanPdf(title: string, markdownContent: string) {
   `);
   printWindow.document.close();
 }
+
+/**
+ * ========================================================================
+ * 📊 EXPORTADOR INSTITUCIONAL A PRESENTACIONES POWERPOINT (.PPTX)
+ * ========================================================================
+ * Parsea bloques de markdown estructurados, títulos, viñetas y tablas,
+ * generando un archivo .pptx nativo widescreen 16:9 con diseño corporativo elegante a Costo $0.
+ */
+export async function exportNoraCleanPptx(title: string, markdownContent: string) {
+  if (!markdownContent) return;
+
+  const pptxModule = await import("pptxgenjs");
+  const pptxgen = pptxModule.default || pptxModule;
+  const pptx = new pptxgen();
+  pptx.layout = "LAYOUT_16x9";
+  pptx.author = "NoraItu AI - MyJNexoraVisual";
+  pptx.company = "MyJNexoraVisual";
+
+  // Paleta corporativa institucional
+  const COLOR_BG = "0F172A";       // Slate 900
+  const COLOR_CARD = "1E293B";     // Slate 800
+  const COLOR_PRIMARY = "38BDF8";  // Sky 400
+  const COLOR_ACCENT = "818CF8";   // Indigo 400
+  const COLOR_TEXT = "F8FAFC";     // Slate 50
+  const COLOR_MUTED = "64748B";    // Slate 500
+
+  // Limpiar texto base
+  const rawText = markdownContent
+    .replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '')
+    .replace(/!\[.*?\]\(.*?\)/g, '')
+    .replace(/\[(.*?)\]\(https?:\/\/[^\s)]+\)/g, '$1')
+    .replace(/```[\s\S]*?```/g, '')
+    .trim();
+
+  const cleanTitle = (title || "Presentación NoraItu")
+    .replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '')
+    .replace(/[#*`_]/g, '')
+    .trim() || "Presentación NoraItu";
+
+  // 1. DIAPOSITIVA DE PORTADA (SLIDE 1)
+  const coverSlide = pptx.addSlide();
+  coverSlide.background = { color: COLOR_BG };
+
+  // Barra decorativa superior
+  coverSlide.addShape(pptx.ShapeType.rect, {
+    x: 0.8,
+    y: 0.8,
+    w: 1.2,
+    h: 0.08,
+    fill: { color: COLOR_PRIMARY },
+    line: { color: COLOR_PRIMARY }
+  });
+
+  // Título de Portada
+  coverSlide.addText(cleanTitle, {
+    x: 0.8,
+    y: 1.4,
+    w: 11.5,
+    h: 2.2,
+    fontSize: 28,
+    fontFace: "Arial",
+    color: COLOR_TEXT,
+    bold: true,
+    valign: "top"
+  });
+
+  // Subtítulo
+  coverSlide.addText("Estructura Ejecutiva & Pedagógica generada por NoraItu AI", {
+    x: 0.8,
+    y: 4.2,
+    w: 11.5,
+    h: 0.6,
+    fontSize: 14,
+    fontFace: "Arial",
+    color: COLOR_ACCENT,
+    bold: true
+  });
+
+  // Metadatos inferiores
+  coverSlide.addText(`MyJNexoraVisual • Ituzaingó, Corrientes | ${new Date().toLocaleDateString('es-AR', { year: 'numeric', month: 'long', day: 'numeric' })}`, {
+    x: 0.8,
+    y: 6.0,
+    w: 11.5,
+    h: 0.4,
+    fontSize: 11,
+    fontFace: "Arial",
+    color: COLOR_MUTED
+  });
+
+  // 2. PARSEO DE SECCIONES PARA DIAPOSITIVAS DE CONTENIDO
+  const rawSections: { title: string; bullets: string[] }[] = [];
+  const lines = rawText.split("\n");
+
+  let currentSectionTitle = "Resumen Ejecutivo";
+  let currentBullets: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+
+    const isH1 = line.startsWith("# ");
+    const isH2 = line.startsWith("## ");
+    const isH3 = line.startsWith("### ");
+    const isNumberedHeader = /^\*{0,2}\d+[\.\)]\s+([^\*]+)\*{0,2}/.test(line) && line.length < 90;
+
+    if (isH1 || isH2 || isH3 || isNumberedHeader) {
+      if (currentBullets.length > 0) {
+        rawSections.push({ title: currentSectionTitle, bullets: currentBullets });
+        currentBullets = [];
+      }
+      currentSectionTitle = line
+        .replace(/^#{1,3}\s+/, '')
+        .replace(/^\*{0,2}\d+[\.\)]\s+/, '')
+        .replace(/[\*\_`]/g, '')
+        .trim();
+    } else {
+      const cleanBullet = line
+        .replace(/^[\-\*\•]\s+/, '')
+        .replace(/^\d+[\.\)]\s+/, '')
+        .replace(/[\*\_`]/g, '')
+        .trim();
+
+      if (cleanBullet.length > 0) {
+        if (cleanBullet.length > 280) {
+          const sentences = cleanBullet.split(/(?<=[.?!])\s+/);
+          sentences.forEach(s => {
+            if (s.trim().length > 5) currentBullets.push(s.trim());
+          });
+        } else {
+          currentBullets.push(cleanBullet);
+        }
+      }
+    }
+  }
+
+  if (currentBullets.length > 0) {
+    rawSections.push({ title: currentSectionTitle, bullets: currentBullets });
+  }
+
+  if (rawSections.length === 0) {
+    rawSections.push({
+      title: "Desarrollo del Contenido",
+      bullets: [cleanTitle]
+    });
+  }
+
+  // 3. GENERAR CADA DIAPOSITIVA DE CONTENIDO
+  let slideCounter = 2;
+  rawSections.forEach((section) => {
+    const chunkSize = 5;
+    for (let c = 0; c < section.bullets.length; c += chunkSize) {
+      const bulletChunk = section.bullets.slice(c, c + chunkSize);
+      const partSuffix = section.bullets.length > chunkSize ? ` (Parte ${Math.floor(c / chunkSize) + 1})` : "";
+      
+      const slide = pptx.addSlide();
+      slide.background = { color: COLOR_BG };
+
+      // Encabezado
+      slide.addText((section.title + partSuffix).slice(0, 75), {
+        x: 0.8,
+        y: 0.6,
+        w: 11.5,
+        h: 0.8,
+        fontSize: 20,
+        fontFace: "Arial",
+        color: COLOR_PRIMARY,
+        bold: true,
+        valign: "middle"
+      });
+
+      // Línea divisoria decorativa
+      slide.addShape(pptx.ShapeType.line, {
+        x: 0.8,
+        y: 1.45,
+        w: 11.5,
+        h: 0,
+        line: { color: "334155", width: 1 }
+      });
+
+      // Tarjeta contenedora de contenido
+      slide.addShape(pptx.ShapeType.roundRect, {
+        x: 0.8,
+        y: 1.7,
+        w: 11.5,
+        h: 4.8,
+        fill: { color: COLOR_CARD },
+        line: { color: "334155", width: 1 },
+        rectRadius: 0.1
+      });
+
+      // Viñetas de texto
+      const textObjects = bulletChunk.map(b => ({
+        text: b,
+        options: {
+          fontSize: 13,
+          fontFace: "Arial",
+          color: COLOR_TEXT,
+          bullet: true,
+          paraSpaceAfter: 12,
+          lineSpacingMultiple: 1.2
+        }
+      }));
+
+      slide.addText(textObjects, {
+        x: 1.2,
+        y: 2.0,
+        w: 10.7,
+        h: 4.2,
+        valign: "top"
+      });
+
+      // Pie de página institucional
+      slide.addText(`NoraItu AI • MyJNexoraVisual | Diapositiva ${slideCounter}`, {
+        x: 0.8,
+        y: 6.75,
+        w: 11.5,
+        h: 0.35,
+        fontSize: 9,
+        fontFace: "Arial",
+        color: COLOR_MUTED,
+        align: "right"
+      });
+
+      slideCounter++;
+    }
+  });
+
+  // 4. Descargar archivo .pptx
+  const safeFilename = `${cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 40)}_presentacion.pptx`;
+  await pptx.writeFile({ fileName: safeFilename });
+}
+
+export const exportToPowerPoint = exportNoraCleanPptx;
+
