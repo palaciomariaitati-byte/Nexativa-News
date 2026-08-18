@@ -853,7 +853,7 @@ export default function NoraItuApp() {
           userPrompt: customPrompt || liveCustomPrompt || "Describe qué estás observando en esta toma en vivo.",
           mode: activeMode
         }),
-        signal: AbortSignal.timeout(6000)
+        signal: AbortSignal.timeout(3000)
       });
 
       if (res.ok) {
@@ -867,6 +867,7 @@ export default function NoraItuApp() {
       console.warn("Error analizando frame en vivo:", err);
     } finally {
       setIsAnalyzingFrame(false);
+      setIsLoading(false);
     }
   };
 

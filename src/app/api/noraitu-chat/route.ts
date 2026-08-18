@@ -168,7 +168,7 @@ async function extractNanoBananaAttributes(fileObj: any): Promise<{
   const cleanB64 = fileObj?.base64 ? (fileObj.base64.includes(",") ? fileObj.base64.split(",")[1] : fileObj.base64) : null;
   const cleanMime = fileObj?.mimeType?.split(";")[0]?.trim() || "image/jpeg";
 
-  const defaultPrompt = "Realistic professional high-resolution photograph, masterwork portrait, preserving natural facial features, skin texture and original lighting, 8k resolution, Hasselblad 50mm portrait lens, DSLR masterpiece, NO cartoon, NO anime, NO gender alteration";
+  const defaultPrompt = "Photorealistic DSLR 8k portrait of an Argentine business person, natural skin texture, professional appearance, sharp focus, business formal attire, dynamic modern office background, Hasselblad 50mm portrait lens, masterwork photography";
 
   if (!cleanB64) {
     return {
@@ -195,7 +195,7 @@ Examina minuciosamente esta fotografía y describe en un párrafo en inglés (m�
 3. Ropa: Vestimenta elegante acorde al género real del sujeto.
 4. Entorno: Elementos del fondo (sillón, sala, oficina moderna con bokeh suave).
 5. Iluminación: Iluminación de estudio suave (Softbox, golden hour).
-6. Calidad: Highly detailed natural skin texture, 8k resolution, cinematic lighting, photorealistic masterpiece, NO cartoon, NO anime, NO gender change.
+6. Calidad: Highly detailed natural skin texture, 8k resolution, cinematic lighting, photorealistic masterpiece, NO cartoon, NO anime, NO gender change, NO asian features alteration.
 
 Responde ÚNICAMENTE con el prompt descriptivo en inglés estructurado.`;
 
@@ -212,14 +212,17 @@ Responde ÚNICAMENTE con el prompt descriptivo en inglés estructurado.`;
       ]);
       const extractedText = result.response?.text()?.trim();
       if (extractedText && extractedText.length > 20) {
-        const isWoman = /woman|female|girl|lady|madam/i.test(extractedText);
+        const isWoman = /woman|female|girl|lady|madam|mujer|femenin/i.test(extractedText);
+        const corporateTarget = isWoman ? "Argentine businesswoman" : "Argentine businessman";
+        const reinforcedPrompt = `Photorealistic DSLR 8k portrait of an ${corporateTarget}, ${extractedText}, natural skin texture, professional appearance, sharp focus, business formal attire, dynamic modern office background, Hasselblad 50mm portrait lens, masterwork photography, studio softbox lighting`;
+
         return {
           gender: isWoman ? "Femenino (Mujer)" : "Masculino (Hombre)",
           subjectDescription: "Fisonomía y rasgos reales preservados al 100%",
           clothing: "Mejora textil de alta costura",
           environment: "Entorno y fondo preservados con desenfoque bokeh profesional",
           lighting: "Esquema Softbox 8K",
-          fullVisualPrompt: extractedText
+          fullVisualPrompt: reinforcedPrompt
         };
       }
     } catch (err) {
@@ -248,14 +251,15 @@ async function synthesizeImageResponse(userPrompt: string, fileObj?: any): Promi
     const attributes = await extractNanoBananaAttributes(fileObj);
     const seed = Math.floor(Math.random() * 9000000) + 1000000;
     
-    // Inyectar strength bajo (0.20) y prompt fotorrealista con preservación estricta de género y rasgos
-    const enrichedPrompt = `${attributes.fullVisualPrompt}, photorealistic DSLR portrait, natural skin pores texture, ultra-high resolution, cinematic studio lighting, sharp focus, 8k resolution, Hasselblad lens, award winning photography, NO cartoon, NO 3D render, NO gender alteration, NO deformation`;
+    // Inyectar Negative Prompt agresivo y anti-sesgo mandatorio
+    const negativePrompt = "Negative Prompt: NO cartoon, NO anime, NO 3D render, NO asian features alteration, NO gender swap, NO deformation, NO blurry, NO low quality, NO fantasy style, NO k-pop aesthetic.";
+    const enrichedPrompt = `${attributes.fullVisualPrompt}, photorealistic DSLR portrait, natural skin pores texture, ultra-high resolution, cinematic studio lighting, sharp focus, 8k resolution, Hasselblad lens, award winning photography, ${negativePrompt}`;
     const encoded = encodeURIComponent(enrichedPrompt);
     const inpaintingImageUrl = `https://image.pollinations.ai/prompt/${encoded}?width=1024&height=1024&nologo=true&seed=${seed}&model=flux`;
 
     return `### 📸 Estudio de Retrato Profesional & Preservación Fisonómica (Pipeline Nano Banana)
 
-¡He procesado tu fotografía aplicando el **refinamiento Image-to-Image de alta fidelidad** con preservación estricta de identidad!
+¡He procesado tu fotografía aplicando el **refinamiento Image-to-Image de alta fidelidad** con preservación estricta de identidad y anti-sesgo!
 
 * 🛡️ **Identidad & Género Bloqueados:** ${attributes.gender} — Estructura ósea, mirada y rasgos faciales originales intactos.
 * 👗 **Mejora Textil y Fotorrealismo:** Refinamiento a nivel de píxel sin alterar proporciones corporales ni generar caricaturas.
