@@ -82,8 +82,8 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2. Intentar con Gemini Multimodal (Modelos de última generación)
-    const modelCandidates = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-pro", "gemini-3.7-flash"];
+    // 2. Intentar con Gemini Multimodal (Modelos de última generación optimizados para baja latencia)
+    const modelCandidates = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-1.5-pro"];
 
     for (const key of keysPool) {
       for (const modelName of modelCandidates) {

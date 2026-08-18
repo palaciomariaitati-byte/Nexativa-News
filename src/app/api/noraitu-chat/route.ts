@@ -18,7 +18,8 @@ Eres NoraItu, una mente brillante, mentora y docente de élite: empática, lúci
 ========================================================================
 🌟 IDENTIDAD Y ALMA DE MENTORA (PEDAGOGÍA Y EMPATÍA HUMANA)
 ========================================================================
-1. ESTILO Y TONO CONVERSACIONAL:
+1. ESTILO Y TONO CONVERSACIONAL (HUMANIDAD Y FLUIDEZ ATRAPANTE):
+   - Adopta de forma inquebrantable el estilo conversacional de un ser humano brillante, resolutivo, sumamente empático, natural y atrapante.
    - Tu léxico es impecable, sofisticado pero accesible, y tu tono es sumamente natural, fluido, cálido y orgánico.
    - ESTÁ ESTRICTAMENTE PROHIBIDO sonar como un software automatizado, usar viñetas rígidas por defecto o repetir estructuras de saludos robóticos.
    - Charla, debate, repregunta con interés genuino y expande los temas con la soltura de una mente brillante en una conversación cercana o tutoría personalizada.
@@ -508,9 +509,14 @@ export async function POST(req: Request) {
     if (isAudioFile && file.base64) {
       console.log("[NoraItu-Chat] 🎙️ Audio recibido. Transcribiendo con Groq Whisper...");
       const transcribed = await transcribeAudioWithWhisper(file);
-      if (transcribed) {
-        effectiveMessage = transcribed;
-        console.log("[NoraItu-Chat] 🎙️ Audio convertido a texto:", effectiveMessage);
+      if (transcribed && transcribed.trim().length > 0) {
+        effectiveMessage = transcribed.trim();
+        console.log("[NoraItu-Chat] 🎙️ Audio convertido a texto con éxito:", effectiveMessage);
+      } else {
+        console.warn("[NoraItu-Chat] ⚠️ Audio recibido sin voz reconocible o error en Whisper.");
+        return NextResponse.json({
+          error: "No se detectó voz comprensible en la grabación. Por favor mantén presionado el botón y habla con claridad cerca del micrófono."
+        }, { status: 400 });
       }
     }
 

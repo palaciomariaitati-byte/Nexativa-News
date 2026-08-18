@@ -156,6 +156,8 @@ export default function NoraItuApp() {
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
+  const lastLiveAnalysisRef = useRef<number>(0);
 
   // 1. Inicializar UUID de usuario, Sincronización Multi-dispositivo, Voz y PWA Prompt
   useEffect(() => {
@@ -478,10 +480,8 @@ export default function NoraItuApp() {
     }
   };
 
-  // 8. Sintetizador de Voz Femenina Neutra de NoraItu (TTS)
-  const speakText = (text: string, msgIndex: number) => {
-    if (!("speechSynthesis" in window)) return;
-
+  // 8. Sintetizador de Voz Femenina Neuronal de NoraItu (Kokoro-82M + Web Speech Fallback)
+  const speakText = async (text: string, msgIndex: number) => {
     // Si ya está sonando este mensaje, detenerlo
     if (playingMsgIndex === msgIndex) {
       stopSpeaking();
@@ -492,23 +492,17 @@ export default function NoraItuApp() {
 
     // Limpiar Markdown, tablas, plecas, URLs, emojis y corregir fonética para habla humana y natural
     const cleanText = text
-      // Eliminar URLs directas y formatos de imagen/enlaces
       .replace(/https?:\/\/\S+/gi, '')
       .replace(/!\[.*?\]\(.*?\)/g, '')
       .replace(/\[(.*?)\]\([^\s)]+\)/g, '$1')
-      // Eliminar bloques de código
       .replace(/```[\s\S]*?```/g, " Bloque de código. ")
       .replace(/`([^`]+)`/g, "$1")
-      // Eliminar separadores de tablas y plecas (| Col 1 | Col 2 | y |--|--|)
       .replace(/\|+/g, ' ')
       .replace(/^[-\s:|+]{3,}$/gm, ' ')
-      // Eliminar emojis
       .replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '')
-      // Eliminar encabezados, asteriscos, guiones bajos, tildes de tachado
       .replace(/#{1,6}\s+/g, '')
       .replace(/[*_~`]/g, '')
       .replace(/[-*]\s+/g, '')
-      // Fonética y unidades en español natural
       .replace(/(\d+)\s*°\s*C/gi, "$1 grados centígrados")
       .replace(/(\d+)\s*°/g, "$1 grados")
       .replace(/km\/h/gi, " kilómetros por hora")
@@ -519,17 +513,53 @@ export default function NoraItuApp() {
       .replace(/\bIVA\b/gi, " iva ")
       .replace(/\bRAE\b/gi, " rae ")
       .replace(/\bTEA\b/gi, " tea ")
-      // Colapsar espacios múltiples y saltos de línea repetidos
       .replace(/\s+/g, ' ')
       .trim();
 
     if (!cleanText) return;
+    setPlayingMsgIndex(msgIndex);
+
+    // 1. Intentar síntesis neuronal Kokoro-82M vía /api/noraitu-tts
+    try {
+      const ttsRes = await fetch("/api/noraitu-tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: cleanText, voice: "es-la" }),
+        signal: AbortSignal.timeout(2500)
+      });
+
+      if (ttsRes.ok && ttsRes.headers.get("content-type")?.includes("audio")) {
+        const audioBlob = await ttsRes.blob();
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        audioPlayerRef.current = audio;
+
+        audio.onended = () => {
+          setPlayingMsgIndex(null);
+          URL.revokeObjectURL(audioUrl);
+        };
+        audio.onerror = () => {
+          setPlayingMsgIndex(null);
+          URL.revokeObjectURL(audioUrl);
+        };
+
+        await audio.play();
+        return;
+      }
+    } catch (e) {
+      // Continuar al fallback nativo sin interrupción
+    }
+
+    // 2. Fallback Instantáneo a Web Speech API de Alta Definición
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      setPlayingMsgIndex(null);
+      return;
+    }
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.rate = voiceRate; // Velocidad calibrada (def: 0.94x)
-    utterance.pitch = voicePitch; // Tono maduro y cálido (def: 0.90)
+    utterance.pitch = voicePitch; // Tono cálido (def: 0.92)
 
-    // Priorizar voces neurales de alta definición (Google Español, Microsoft Elena/Sabina/Dalia o Argentina)
     const voices = window.speechSynthesis.getVoices();
     let voiceToUse: SpeechSynthesisVoice | undefined = undefined;
 
@@ -538,7 +568,6 @@ export default function NoraItuApp() {
     }
 
     if (!voiceToUse) {
-      // 1. Prioridad absoluta: Google Español (Android / Chrome) o Microsoft Elena / Sabina
       voiceToUse = voices.find(v => 
         (v.lang.startsWith("es") || v.lang.includes("es-")) && 
         (
@@ -548,15 +577,10 @@ export default function NoraItuApp() {
           v.name.toLowerCase().includes("dalia") ||
           v.name.toLowerCase().includes("argentina")
         )
-      );
-
-      // 2. Prioridad secundaria: Cualquier voz femenina en español latino
-      if (!voiceToUse) {
-        voiceToUse = voices.find(v => 
-          (v.lang.includes("419") || v.lang.includes("US") || v.lang.includes("MX") || v.lang.includes("AR") || v.lang.startsWith("es")) &&
-          (v.name.toLowerCase().includes("natural") || v.name.toLowerCase().includes("female") || v.name.toLowerCase().includes("mujer"))
-        ) || voices.find(v => v.lang.startsWith("es"));
-      }
+      ) || voices.find(v => 
+        (v.lang.includes("419") || v.lang.includes("MX") || v.lang.includes("AR") || v.lang.startsWith("es")) &&
+        (v.name.toLowerCase().includes("natural") || v.name.toLowerCase().includes("female") || v.name.toLowerCase().includes("mujer"))
+      ) || voices.find(v => v.lang.startsWith("es"));
     }
 
     if (voiceToUse) {
@@ -569,31 +593,21 @@ export default function NoraItuApp() {
     utterance.onend = () => setPlayingMsgIndex(null);
     utterance.onerror = () => setPlayingMsgIndex(null);
 
-    setPlayingMsgIndex(msgIndex);
     window.speechSynthesis.speak(utterance);
   };
 
   const handleTestVoice = () => {
     stopSpeaking();
-    if (!("speechSynthesis" in window)) return;
-    const testText = "Hola, soy NoraItu, tu asistente de inteligencia artificial desarrollada por MyJ Nexora Visual. He calibrado mi dicción para brindarte un trato cercano, humano y profesional.";
-    const utterance = new SpeechSynthesisUtterance(testText);
-    utterance.lang = "es-MX";
-    utterance.rate = voiceRate;
-    utterance.pitch = voicePitch;
-
-    const voices = window.speechSynthesis.getVoices();
-    let voiceToUse = selectedVoiceUri ? voices.find(v => v.voiceURI === selectedVoiceUri) : null;
-    if (!voiceToUse) {
-      voiceToUse = voices.find(v => (v.lang.startsWith("es") || v.lang.includes("es-")) && (v.name.toLowerCase().includes("sabina") || v.name.toLowerCase().includes("dalia") || v.name.toLowerCase().includes("natural"))) || voices.find(v => v.lang.startsWith("es"));
-    }
-    if (voiceToUse) utterance.voice = voiceToUse;
-
-    window.speechSynthesis.speak(utterance);
+    speakText("Hola, soy NoraItu, tu mentora y asistente de inteligencia artificial. He calibrado mi dicción para brindarte un trato humano, fluido y cercano.", -99);
   };
 
   const stopSpeaking = () => {
-    if ("speechSynthesis" in window) {
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause();
+      audioPlayerRef.current.currentTime = 0;
+      audioPlayerRef.current = null;
+    }
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
     setPlayingMsgIndex(null);
@@ -799,22 +813,29 @@ export default function NoraItuApp() {
   const captureAndAnalyzeFrame = async (customPrompt?: string) => {
     if (!liveVideoRef.current || isAnalyzingFrame) return;
 
+    const now = Date.now();
+    if (!customPrompt && now - lastLiveAnalysisRef.current < 2000) {
+      return;
+    }
+
     // Si Nora está hablando y es un escaneo automático, no cortarla
-    if (typeof window !== "undefined" && window.speechSynthesis && window.speechSynthesis.speaking && !customPrompt) {
+    if (typeof window !== "undefined" && (audioPlayerRef.current || (window.speechSynthesis && window.speechSynthesis.speaking)) && !customPrompt) {
       return;
     }
 
     try {
       setIsAnalyzingFrame(true);
+      lastLiveAnalysisRef.current = Date.now();
       const video = liveVideoRef.current;
       if (video.videoWidth === 0 || video.videoHeight === 0) {
         setIsAnalyzingFrame(false);
         return;
       }
 
+      // Comprimir fotogramas a 640x480 con calidad 0.5 para eliminar el lag y sobrecarga
       const canvas = liveCanvasRef.current || document.createElement("canvas");
-      canvas.width = Math.min(video.videoWidth, 800);
-      canvas.height = Math.min(video.videoHeight, 600);
+      canvas.width = 640;
+      canvas.height = 480;
       const ctx = canvas.getContext("2d");
       if (!ctx) {
         setIsAnalyzingFrame(false);
@@ -822,7 +843,7 @@ export default function NoraItuApp() {
       }
 
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const base64Image = canvas.toDataURL("image/jpeg", 0.6);
+      const base64Image = canvas.toDataURL("image/jpeg", 0.5);
 
       const res = await fetch("/api/noraitu-live", {
         method: "POST",
@@ -831,7 +852,8 @@ export default function NoraItuApp() {
           imageBase64: base64Image,
           userPrompt: customPrompt || liveCustomPrompt || "Describe qué estás observando en esta toma en vivo.",
           mode: activeMode
-        })
+        }),
+        signal: AbortSignal.timeout(6000)
       });
 
       if (res.ok) {
@@ -2196,11 +2218,12 @@ export default function NoraItuApp() {
                   <Camera size={18} />
                 </button>
 
-                {/* Botón Micrófono para Grabar Nota de Voz */}
+                {/* Botón Micrófono para Grabar Nota de Voz con Whisper */}
                 <button
                   onClick={startRecordingAudio}
-                  className="p-2.5 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800/60 transition-colors"
-                  title="Grabar nota de voz"
+                  className="p-2.5 rounded-xl bg-slate-800/90 text-rose-400 hover:text-white hover:bg-rose-600 border border-rose-500/30 hover:border-rose-500 transition-all shadow-sm flex items-center justify-center shrink-0 cursor-pointer active:scale-95"
+                  title="Grabar nota de voz para transcripción con Whisper"
+                  aria-label="Grabar audio con Whisper"
                 >
                   <Mic size={18} />
                 </button>
