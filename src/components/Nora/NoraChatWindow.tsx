@@ -397,8 +397,8 @@ export default function NoraChatWindow({ isOpen, onClose, contextData }: NoraCha
             <Send className="w-4 h-4 ml-0.5" />
           </button>
         </form>
-        <div className="text-center mt-2 flex items-center justify-center gap-1 text-[9px] text-gray-600 uppercase tracking-widest">
-          <Sparkles className="w-3 h-3" /> Asistente de Ventas
+        <div className="text-center mt-2 flex items-center justify-center gap-1 text-[9px] text-gray-400 uppercase tracking-widest font-semibold">
+          <Sparkles className="w-3 h-3 text-purple-400" /> Anfitriona & Guía Digital
         </div>
       </div>
 

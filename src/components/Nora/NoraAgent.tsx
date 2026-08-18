@@ -1,120 +1,109 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
+import { MessageCircle, X, Sparkles, HelpCircle } from "lucide-react";
 import NoraChatWindow from "./NoraChatWindow";
+
+/**
+ * ========================================================================
+ * 🤖 NORA AGENT - SOLAPITA AMIGABLE DE ASISTENCIA (CERO INTRUSIÓN)
+ * Ubicación: /src/components/Nora/NoraAgent.tsx
+ * ========================================================================
+ * Elimina los pop-ups automáticos intrusivos y presenta una solapa estética
+ * y discreta para que el usuario consulte voluntariamente cuando lo desee.
+ */
 
 export default function NoraAgent() {
   const pathname = usePathname();
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [contextData, setContextData] = useState<any>(null);
-  const hoverTimer = useRef<NodeJS.Timeout | null>(null);
-  const currentHoveredContext = useRef<string | null>(null);
-  const hasTriggeredBottom = useRef<boolean>(false);
+  const [showPill, setShowPill] = useState(true);
 
-  // Excluir únicamente páginas administrativas internas (Admin / Dashboard)
-  const isAdminPage = pathname?.startsWith("/admin") || pathname?.startsWith("/dashboard");
+  // Excluir páginas de administración o el propio chat fullscreen de NoraItu
+  const isExcludedPage = 
+    pathname?.startsWith("/admin") || 
+    pathname?.startsWith("/dashboard") || 
+    pathname === "/noraitu";
 
-  if (isAdminPage) {
+  useEffect(() => {
+    // Si el usuario ya cerró la solapita en esta sesión, respetar su decisión
+    const dismissed = sessionStorage.getItem("nora_pill_dismissed");
+    if (dismissed === "true") {
+      setShowPill(false);
+    }
+  }, []);
+
+  const handleDismissPill = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowPill(false);
+    sessionStorage.setItem("nora_pill_dismissed", "true");
+  };
+
+  if (isExcludedPage) {
     return null;
   }
 
-  useEffect(() => {
-    const handleMouseOver = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      const contextElement = target.closest('[data-nora-context]') as HTMLElement;
-      
-      if (contextElement) {
-        const contextRaw = contextElement.getAttribute('data-nora-context');
-        if (contextRaw && contextRaw !== currentHoveredContext.current) {
-          currentHoveredContext.current = contextRaw;
-          try {
-            const parsedData = JSON.parse(contextRaw);
-            setContextData(parsedData);
-            
-            if (hoverTimer.current) clearTimeout(hoverTimer.current);
-            
-            hoverTimer.current = setTimeout(() => {
-              setIsChatOpen((prev) => {
-                if (!prev) return true;
-                return prev;
-              });
-            }, 6000);
-          } catch(err) {
-            console.error("Error parsing nora context", err);
-          }
-        }
-      }
-    };
-
-    const handleMouseOut = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      const relatedTarget = (e.relatedTarget as HTMLElement)?.closest?.('[data-nora-context]');
-      const contextElement = target.closest('[data-nora-context]');
-      
-      if (contextElement && relatedTarget !== contextElement) {
-        currentHoveredContext.current = null;
-        if (hoverTimer.current) {
-          clearTimeout(hoverTimer.current);
-          hoverTimer.current = null;
-        }
-      }
-    };
-
-    const handleScroll = () => {
-      // Trigger at the bottom of the page
-      if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 200) {
-        if (!hasTriggeredBottom.current) {
-          hasTriggeredBottom.current = true;
-          setContextData({ type: 'b2b', trigger: 'end_of_page' });
-          setIsChatOpen(true);
-        }
-      } else {
-        // Reset if they scroll back up so it can trigger again later if needed
-        if (window.innerHeight + window.scrollY < document.body.offsetHeight - 1000) {
-          hasTriggeredBottom.current = false;
-        }
-      }
-    };
-
-    document.addEventListener("mouseover", handleMouseOver);
-    document.addEventListener("mouseout", handleMouseOut);
-    window.addEventListener("scroll", handleScroll, { passive: true });
-
-    return () => {
-      document.removeEventListener("mouseover", handleMouseOver);
-      document.removeEventListener("mouseout", handleMouseOut);
-      window.removeEventListener("scroll", handleScroll);
-      if (hoverTimer.current) clearTimeout(hoverTimer.current);
-    };
-  }, []);
-
   return (
     <>
+      {/* Ventana de Chat de Nora (Solo se abre por clic explícito) */}
       <NoraChatWindow 
         isOpen={isChatOpen} 
         onClose={() => setIsChatOpen(false)} 
-        contextData={contextData}
+        contextData={{ mode: "asistencia_amigable", pathname }}
       />
+
+      {/* Solapita Flotante Discreta y Elegante */}
       {!isChatOpen && (
-        <button
-          onClick={() => setIsChatOpen(true)}
-          className="fixed bottom-20 left-4 sm:bottom-6 sm:left-6 w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-r from-purple-600 to-pink-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-purple-500/30 hover:scale-110 active:scale-95 transition-all z-40 overflow-hidden border-2 border-white/30 group"
-          title="Nora — Recepcionista Virtual"
-        >
-          <img 
-            src="/nora-avatar.jpg?v=2" 
-            alt="Nora" 
-            className="w-full h-full object-cover relative z-10" 
-            onError={(e) => { e.currentTarget.style.opacity = '0'; }} 
-          />
-          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-tr from-purple-700 to-indigo-500">
-            <svg className="w-6 h-6 sm:w-7 sm:h-7 text-white animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-4l-4 4z" />
-            </svg>
-          </div>
-          <span className="sr-only">Abrir Chat con Nora</span>
-        </button>
+        <div className="fixed bottom-20 left-4 sm:bottom-6 sm:left-6 z-40 flex items-center gap-2.5 group">
+          
+          {/* Botón Circular con Avatar */}
+          <button
+            onClick={() => setIsChatOpen(true)}
+            className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full p-0.5 bg-gradient-to-tr from-purple-600 via-indigo-600 to-pink-500 shadow-xl shadow-purple-500/25 hover:scale-105 active:scale-95 transition-all flex items-center justify-center overflow-hidden border-2 border-white/40 cursor-pointer shrink-0"
+            title="¿Necesitás ayuda? Hablá con Nora"
+            aria-label="Abrir asistente Nora"
+          >
+            <img 
+              src="/nora-avatar.jpg?v=2" 
+              alt="Nora" 
+              className="w-full h-full object-cover rounded-full" 
+              onError={(e) => { 
+                e.currentTarget.style.display = 'none'; 
+              }} 
+            />
+            {/* Punto verde de disponible */}
+            <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-500 border-2 border-slate-950 rounded-full"></span>
+          </button>
+
+          {/* Solapa / Píldora de Anuncio Cordial (No Intrusiva) */}
+          {showPill && (
+            <div 
+              onClick={() => setIsChatOpen(true)}
+              className="hidden sm:flex items-center gap-2.5 bg-slate-950/90 hover:bg-slate-900 border border-purple-500/40 hover:border-purple-400 py-2 px-3.5 rounded-2xl shadow-2xl backdrop-blur-md cursor-pointer transition-all animate-in fade-in slide-in-from-left-4 duration-300 max-w-xs"
+            >
+              <div className="flex flex-col text-left">
+                <span className="text-[11px] font-black text-purple-300 flex items-center gap-1 leading-tight">
+                  <Sparkles size={11} className="text-pink-400" />
+                  <span>Hola, soy Nora 👋</span>
+                </span>
+                <span className="text-xs text-slate-200 font-medium leading-tight mt-0.5">
+                  ¿Buscás algo o necesitás ayuda? Estoy acá si me precisás.
+                </span>
+              </div>
+
+              {/* Botón X para ocultar la solapa y dejar solo el icono */}
+              <button
+                type="button"
+                onClick={handleDismissPill}
+                className="text-slate-500 hover:text-slate-300 p-1 rounded-full hover:bg-slate-800 transition-colors ml-1"
+                title="Ocultar mensaje"
+                aria-label="Cerrar solapa"
+              >
+                <X size={13} />
+              </button>
+            </div>
+          )}
+        </div>
       )}
     </>
   );
