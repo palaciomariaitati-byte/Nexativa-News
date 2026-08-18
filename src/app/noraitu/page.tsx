@@ -386,10 +386,20 @@ export default function NoraItuApp() {
 
   // 7.1. Generar Código QR Efímero de Sincronización (PC ↔ Celular)
   const handleOpenSyncModal = async () => {
+    // Apagar explícitamente cualquier stream de cámara previo activo
+    stopLiveVision();
     setShowSyncModal(true);
-    setIsGeneratingSyncQr(true);
     setSyncSuccessMsg("");
 
+    const isMobileDevice = typeof window !== 'undefined' && (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 768);
+
+    if (isMobileDevice) {
+      setIsGeneratingSyncQr(false);
+      setSyncInputId("");
+      return;
+    }
+
+    setIsGeneratingSyncQr(true);
     if (syncPollTimerRef.current) clearInterval(syncPollTimerRef.current);
 
     try {
@@ -420,7 +430,7 @@ export default function NoraItuApp() {
                 if (checkData.session_id) {
                   selectSession(checkData.session_id);
                 }
-                setSyncSuccessMsg("¡Celular emparejado con éxito! Tus conversaciones se han transferido.");
+                setSyncSuccessMsg("🎉 ¡Celular emparejado con éxito! Tus conversaciones se han transferido.");
                 setTimeout(() => {
                   setShowSyncModal(false);
                   setSyncSuccessMsg("");
@@ -2405,77 +2415,14 @@ export default function NoraItuApp() {
               Comparte tus conversaciones entre tu computadora y tu celular al instante.
             </p>
 
-            {/* Selector de Pestañas: Generar Código (PC) vs Ingresar PIN (Móvil) */}
-            <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-950/80 rounded-2xl border border-slate-800 mb-4">
-              <button
-                onClick={() => setSyncInputId("")}
-                className={`py-2 px-3 rounded-xl text-xs font-semibold transition-all ${
-                  !syncInputId ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30" : "text-slate-400 hover:text-white"
-                }`}
-              >
-                🖥️ Estoy en la PC
-              </button>
-              <button
-                onClick={() => setSyncInputId(syncInputId || " ")}
-                className={`py-2 px-3 rounded-xl text-xs font-semibold transition-all ${
-                  syncInputId ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30" : "text-slate-400 hover:text-white"
-                }`}
-              >
-                📱 Estoy en el Celular
-              </button>
-            </div>
-
-            {!syncInputId ? (
-              /* VISTA 1: GENERAR CÓDIGO QR Y PIN (PARA MOSTRAR EN PC) */
-              <div>
-                <div className="bg-white p-3.5 rounded-2xl inline-block mb-3 shadow-xl relative min-w-[180px] min-h-[180px] flex items-center justify-center">
-                  {isGeneratingSyncQr ? (
-                    <div className="flex flex-col items-center gap-2 p-6">
-                      <div className="w-8 h-8 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
-                      <span className="text-xs font-mono text-slate-800">Generando QR...</span>
-                    </div>
-                  ) : syncQrUrl ? (
-                    <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(syncQrUrl)}`}
-                      alt="QR Sincronización Efímero"
-                      className="w-40 h-40 mx-auto rounded-lg"
-                    />
-                  ) : (
-                    <span className="text-xs text-slate-600">Error al cargar QR</span>
-                  )}
-                </div>
-
-                {syncPinCode && (
-                  <div className="mb-3 p-3 rounded-2xl bg-indigo-950/80 border border-indigo-500/50 flex flex-col items-center justify-center">
-                    <span className="text-[11px] font-mono text-indigo-300 uppercase tracking-wider">PIN de 6 Dígitos para tu celular:</span>
-                    <span className="text-3xl font-extrabold font-mono tracking-widest text-emerald-400 mt-1">{syncPinCode}</span>
-                  </div>
-                )}
-
-                <div className="flex items-center justify-center gap-2 text-[11px] font-mono text-indigo-300 bg-indigo-950/60 py-1.5 px-3 rounded-xl border border-indigo-800/60 mb-3">
-                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                  <span>Esperando escaneo o PIN desde tu celular...</span>
-                </div>
-
-                <button
-                  onClick={() => {
-                    if (syncQrUrl) {
-                      navigator.clipboard.writeText(syncQrUrl);
-                      setSyncSuccessMsg("¡Enlace copiado! Pégalo en tu celular.");
-                      setTimeout(() => setSyncSuccessMsg(""), 3000);
-                    }
-                  }}
-                  className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-md shadow-indigo-600/30 cursor-pointer"
-                >
-                  <Copy size={14} />
-                  <span>Copiar Enlace Directo</span>
-                </button>
-              </div>
-            ) : (
-              /* VISTA 2: INGRESAR PIN O ESCANEAR DESDE EL CELULAR */
+            {/* Modal Adaptativo Inteligente por Tipo de Dispositivo */}
+            {typeof window !== 'undefined' && (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 768) ? (
+              /* ========================================================= */
+              /* 📱 VISTA CELULAR: INGRESAR PIN DE FORMA DIRECTA Y LIMPIA */
+              /* ========================================================= */
               <div className="space-y-3 text-left">
-                <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800">
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800">
+                  <label className="block text-xs font-semibold text-slate-200 mb-2">
                     Ingresa el PIN de 6 dígitos que ves en tu PC:
                   </label>
                   <div className="flex gap-2">
@@ -2485,7 +2432,7 @@ export default function NoraItuApp() {
                       value={syncInputId.trim()}
                       onChange={(e) => setSyncInputId(e.target.value.replace(/\D/g, ''))}
                       placeholder="Ej: 849201"
-                      className="flex-1 px-4 py-3 rounded-xl bg-slate-900 border border-indigo-500/60 text-lg font-mono tracking-widest text-center text-emerald-400 placeholder-slate-600 focus:outline-hidden focus:border-indigo-400"
+                      className="flex-1 px-4 py-3 rounded-xl bg-slate-900 border border-indigo-500/60 text-xl font-mono tracking-widest text-center text-emerald-400 placeholder-slate-600 focus:outline-hidden focus:border-indigo-400"
                     />
                     <button
                       onClick={() => {
@@ -2512,7 +2459,7 @@ export default function NoraItuApp() {
                           setSyncSuccessMsg("⚠️ Escribe los 6 dígitos del PIN.");
                         }
                       }}
-                      className="px-5 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-xs font-bold text-white shadow-lg shadow-emerald-500/20 cursor-pointer"
+                      className="px-5 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-xs font-bold text-white shadow-lg shadow-emerald-500/20 cursor-pointer active:scale-95"
                     >
                       Vincular
                     </button>
@@ -2531,6 +2478,55 @@ export default function NoraItuApp() {
                     <span>O Escanear el QR con la Cámara de Titán Live</span>
                   </button>
                 </div>
+              </div>
+            ) : (
+              /* ========================================================= */
+              /* 🖥️ VISTA PC: MOSTRAR DIRECTAMENTE EL CÓDIGO QR Y EL PIN  */
+              /* ========================================================= */
+              <div>
+                <div className="bg-white p-3.5 rounded-2xl inline-block mb-3 shadow-xl relative min-w-[180px] min-h-[180px] flex items-center justify-center">
+                  {isGeneratingSyncQr ? (
+                    <div className="flex flex-col items-center gap-2 p-6">
+                      <div className="w-8 h-8 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
+                      <span className="text-xs font-mono text-slate-800">Generando QR...</span>
+                    </div>
+                  ) : syncQrUrl ? (
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(syncQrUrl)}`}
+                      alt="QR Sincronización Efímero"
+                      className="w-40 h-40 mx-auto rounded-lg"
+                    />
+                  ) : (
+                    <span className="text-xs text-slate-600">Error al cargar QR</span>
+                  )}
+                </div>
+
+                {syncPinCode && (
+                  <div className="mb-3 p-3.5 rounded-2xl bg-indigo-950/90 border border-indigo-500/60 flex flex-col items-center justify-center shadow-inner">
+                    <span className="text-[11px] font-mono text-indigo-300 uppercase tracking-wider">Tu PIN de vinculación:</span>
+                    <span className="text-3xl font-extrabold font-mono tracking-widest text-emerald-400 mt-1">{syncPinCode}</span>
+                    <span className="text-[10px] text-slate-400 mt-1">Abre NoraItu en tu celular e ingresa este PIN o escanea el QR</span>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-center gap-2 text-[11px] font-mono text-indigo-300 bg-indigo-950/60 py-1.5 px-3 rounded-xl border border-indigo-800/60 mb-3">
+                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                  <span>Esperando enlace desde tu celular...</span>
+                </div>
+
+                <button
+                  onClick={() => {
+                    if (syncQrUrl) {
+                      navigator.clipboard.writeText(syncQrUrl);
+                      setSyncSuccessMsg("¡Enlace copiado! Pégalo en tu celular.");
+                      setTimeout(() => setSyncSuccessMsg(""), 3000);
+                    }
+                  }}
+                  className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-md shadow-indigo-600/30 cursor-pointer"
+                >
+                  <Copy size={14} />
+                  <span>Copiar Enlace Directo</span>
+                </button>
               </div>
             )}
 

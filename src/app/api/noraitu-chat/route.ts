@@ -213,8 +213,8 @@ Responde ÚNICAMENTE con el prompt descriptivo en inglés estructurado.`;
       const extractedText = result.response?.text()?.trim();
       if (extractedText && extractedText.length > 20) {
         const isWoman = /woman|female|girl|lady|madam|mujer|femenin/i.test(extractedText);
-        const corporateTarget = isWoman ? "Argentine businesswoman" : "Argentine businessman";
-        const reinforcedPrompt = `Photorealistic DSLR 8k portrait of an ${corporateTarget}, ${extractedText}, natural skin texture, professional appearance, sharp focus, business formal attire, dynamic modern office background, Hasselblad 50mm portrait lens, masterwork photography, studio softbox lighting`;
+        const genderTarget = isWoman ? "Argentine woman" : "Argentine man";
+        const reinforcedPrompt = `High-end photorealistic DSLR 8k portrait of an ${genderTarget}, natural Latino skin texture, authentic Western facial features, professional appearance, business formal attire, elegant studio lighting, detailed realistic background, Hasselblad 50mm portrait lens, masterwork photography, ${extractedText}`;
 
         return {
           gender: isWoman ? "Femenino (Mujer)" : "Masculino (Hombre)",
@@ -251,8 +251,8 @@ async function synthesizeImageResponse(userPrompt: string, fileObj?: any): Promi
     const attributes = await extractNanoBananaAttributes(fileObj);
     const seed = Math.floor(Math.random() * 9000000) + 1000000;
     
-    // Inyectar Negative Prompt agresivo y anti-sesgo mandatorio
-    const negativePrompt = "Negative Prompt: NO cartoon, NO anime, NO 3D render, NO asian features alteration, NO gender swap, NO deformation, NO blurry, NO low quality, NO fantasy style, NO k-pop aesthetic.";
+    // Inyectar Negative Prompt absoluto V7 (Anti-Bias & Realismo Fisonómico)
+    const negativePrompt = "Negative Prompt: NO asian features, NO oriental face, NO K-pop aesthetic, NO anime, NO cartoon, NO 3D render, NO virtual reality avatar, NO gender swap, NO deformation, NO blurry, NO low quality.";
     const enrichedPrompt = `${attributes.fullVisualPrompt}, photorealistic DSLR portrait, natural skin pores texture, ultra-high resolution, cinematic studio lighting, sharp focus, 8k resolution, Hasselblad lens, award winning photography, ${negativePrompt}`;
     const encoded = encodeURIComponent(enrichedPrompt);
     const inpaintingImageUrl = `https://image.pollinations.ai/prompt/${encoded}?width=1024&height=1024&nologo=true&seed=${seed}&model=flux`;
