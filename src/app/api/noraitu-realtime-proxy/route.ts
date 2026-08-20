@@ -15,8 +15,13 @@ export const revalidate = 0;
 export const fetchCache = "force-no-store";
 export const maxDuration = 30;
 
+function cleanKeyString(val?: string): string {
+  if (!val) return "";
+  return val.replace(/['"\r\n\t ]/g, "").trim();
+}
+
 /**
- * 🎙️ Transcribe audio con cascada multicanal y telemetría de ultra-baja latencia
+ * 🎙️ Transcribe audio con Groq Whisper Large v3 Turbo (<150ms) o Gemini Audio
  */
 async function transcribeDirectAudio(
   base64: string,
@@ -27,23 +32,23 @@ async function transcribeDirectAudio(
   if (!rawB64 || rawB64.length < 50) return null;
 
   const cleanMime = rawMime.toLowerCase().includes("mp4") ? "audio/mp4" : "audio/webm";
-  const groqKey = process.env.GROQ_API_KEY;
+  const groqKey = cleanKeyString(process.env.GROQ_API_KEY);
 
   // 1. Groq Whisper Large v3 Turbo (Inferencia ultrarrápida ~120-180ms)
   if (groqKey) {
     try {
       const buffer = Buffer.from(rawB64, "base64");
       const ext = cleanMime.includes("mp4") ? "mp4" : "webm";
-      const file = new File([buffer], `audio.${ext}`, { type: cleanMime });
+      const blob = new Blob([buffer], { type: cleanMime });
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", blob, `audio.${ext}`);
       formData.append("model", "whisper-large-v3-turbo");
       formData.append("language", "es");
       formData.append("temperature", "0.0");
 
       const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
         method: "POST",
-        headers: { Authorization: `Bearer ${groqKey.trim()}` },
+        headers: { Authorization: `Bearer ${groqKey}` },
         body: formData,
         signal: AbortSignal.timeout(4000)
       });
@@ -52,7 +57,7 @@ async function transcribeDirectAudio(
         const data = await res.json();
         if (data.text && data.text.trim().length > 0) {
           const sttMs = Date.now() - t0;
-          console.log(`[Realtime STT] 🎙️ Groq Whisper transcrito en ${sttMs}ms: "${data.text.trim()}"`);
+          console.log(`[Realtime STT] 🎙️ Groq Whisper en ${sttMs}ms: "${data.text.trim()}"`);
           return { text: data.text.trim(), sttMs };
         }
       }
@@ -63,10 +68,10 @@ async function transcribeDirectAudio(
 
   // 2. Gemini Multimodal Audio Fallback (Multi-Key)
   const geminiKeys = [
-    process.env.GEMINI_API_KEY,
-    process.env.GEMINI_API_KEY_FALLBACK,
-    process.env.GEMINI_API_KEY_FALLBACK_2
-  ].filter(Boolean) as string[];
+    cleanKeyString(process.env.GEMINI_API_KEY),
+    cleanKeyString(process.env.GEMINI_API_KEY_FALLBACK),
+    cleanKeyString(process.env.GEMINI_API_KEY_FALLBACK_2)
+  ].filter(Boolean);
 
   const audioModels = ["gemini-2.0-flash", "gemini-1.5-flash"];
 
@@ -186,120 +191,151 @@ export async function POST(req: Request) {
 
     const systemPromptWithMode = `${NORA_PROSODY_SYSTEM_PROMPT}\n\n[MODO CONVERSACIONAL ACTIVO: ${mode.toUpperCase()}]`;
 
-    // 1. CAPA 1: Groq Llama-3.3-70B (Velocidad extrema >300 tokens/s, TTFT ~100-140ms)
-    const groqKey = process.env.GROQ_API_KEY;
+    // 1. CAPA 1: Modelos Activos en Groq ('groq/compound-mini', 'groq/compound', 'allam-2-7b', 'qwen/qwen3.6-27b')
+    const groqKey = cleanKeyString(process.env.GROQ_API_KEY);
     if (groqKey) {
-      try {
-        const formattedMessages: { role: string; content: string }[] = [
-          { role: "system", content: systemPromptWithMode }
-        ];
-        if (Array.isArray(history)) {
-          for (const h of history.slice(-6)) {
-            if (!h || !h.content || typeof h.content !== "string") continue;
-            const text = h.content.trim();
-            if (!text) continue;
-            const mappedRole = h.role === "assistant" || h.role === "model" ? "assistant" : "user";
-            const last = formattedMessages[formattedMessages.length - 1];
-            if (last.role === mappedRole) {
-              last.content += `\n\n${text}`;
-            } else {
-              formattedMessages.push({ role: mappedRole, content: text });
-            }
+      const activeGroqModels = [
+        "groq/compound-mini",
+        "groq/compound",
+        "allam-2-7b",
+        "qwen/qwen3.6-27b",
+        "openai/gpt-oss-120b"
+      ];
+
+      const formattedMessages: { role: string; content: string }[] = [
+        { role: "system", content: systemPromptWithMode }
+      ];
+
+      if (Array.isArray(history)) {
+        for (const h of history.slice(-6)) {
+          if (!h || !h.content || typeof h.content !== "string") continue;
+          const text = h.content.trim();
+          if (!text) continue;
+          const mappedRole = h.role === "assistant" || h.role === "model" ? "assistant" : "user";
+          const last = formattedMessages[formattedMessages.length - 1];
+          if (last.role === mappedRole) {
+            last.content += `\n\n${text}`;
+          } else {
+            formattedMessages.push({ role: mappedRole, content: text });
           }
         }
-        const lastMsg = formattedMessages[formattedMessages.length - 1];
-        if (lastMsg.role === "user") {
-          lastMsg.content += `\n\n${effectiveUserText}`;
-        } else {
-          formattedMessages.push({ role: "user", content: effectiveUserText });
-        }
+      }
 
-        const tLlmStart = Date.now();
-        const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${groqKey.trim()}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
-            messages: formattedMessages,
-            temperature: 0.4,
-            max_tokens: 280,
-            stream: true
-          }),
-          signal: AbortSignal.timeout(5000)
-        });
+      const lastMsg = formattedMessages[formattedMessages.length - 1];
+      if (lastMsg.role === "user") {
+        lastMsg.content += `\n\n${effectiveUserText}`;
+      } else {
+        formattedMessages.push({ role: "user", content: effectiveUserText });
+      }
 
-        if (groqRes.ok && groqRes.body) {
-          const encoder = new TextEncoder();
-          const decoder = new TextDecoder();
-          const reader = groqRes.body.getReader();
-          let firstTokenSent = false;
+      for (const modelName of activeGroqModels) {
+        try {
+          const tLlmStart = Date.now();
+          const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${groqKey}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              model: modelName,
+              messages: formattedMessages,
+              temperature: 0.4,
+              max_tokens: 280,
+              stream: true
+            }),
+            signal: AbortSignal.timeout(5000)
+          });
 
-          const customStream = new ReadableStream({
-            async start(controller) {
-              let buffer = "";
-              try {
-                while (true) {
-                  const { done, value } = await reader.read();
-                  if (done) break;
+          if (groqRes.ok && groqRes.body) {
+            const encoder = new TextEncoder();
+            const decoder = new TextDecoder();
+            const reader = groqRes.body.getReader();
+            let firstTokenSent = false;
+            let insideThinkTag = false;
 
-                  buffer += decoder.decode(value, { stream: true });
-                  const lines = buffer.split("\n");
-                  buffer = lines.pop() || "";
+            const customStream = new ReadableStream({
+              async start(controller) {
+                let buffer = "";
+                try {
+                  while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
 
-                  for (const line of lines) {
-                    const trimmed = line.trim();
-                    if (trimmed.startsWith("data: ")) {
-                      const jsonStr = trimmed.slice(6).trim();
-                      if (jsonStr === "[DONE]") break;
-                      try {
-                        const parsed = JSON.parse(jsonStr);
-                        const delta = parsed.choices?.[0]?.delta?.content;
-                        if (delta) {
-                          if (!firstTokenSent) {
-                            firstTokenSent = true;
-                            const ttft = Date.now() - tLlmStart;
-                            console.log(`[Realtime LLM] ⚡ Groq Llama 3.3 TTFT: ${ttft}ms | Total Turn: ${Date.now() - tStart}ms`);
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split("\n");
+                    buffer = lines.pop() || "";
+
+                    for (const line of lines) {
+                      const trimmed = line.trim();
+                      if (trimmed.startsWith("data: ")) {
+                        const jsonStr = trimmed.slice(6).trim();
+                        if (jsonStr === "[DONE]") break;
+                        try {
+                          const parsed = JSON.parse(jsonStr);
+                          let delta = parsed.choices?.[0]?.delta?.content || "";
+                          if (delta) {
+                            // Filtrar etiquetas <think> de modelos de razonamiento
+                            if (delta.includes("<think>")) {
+                              insideThinkTag = true;
+                              delta = delta.replace(/<think>[\s\S]*/gi, "");
+                            }
+                            if (insideThinkTag) {
+                              if (delta.includes("</think>")) {
+                                insideThinkTag = false;
+                                delta = delta.replace(/[\s\S]*<\/think>/gi, "");
+                              } else {
+                                delta = "";
+                              }
+                            }
+
+                            if (delta) {
+                              if (!firstTokenSent) {
+                                firstTokenSent = true;
+                                const ttft = Date.now() - tLlmStart;
+                                console.log(
+                                  `[Realtime LLM] ⚡ Groq (${modelName}) TTFT: ${ttft}ms | Total: ${Date.now() - tStart}ms`
+                                );
+                              }
+                              controller.enqueue(encoder.encode(delta));
+                            }
                           }
-                          controller.enqueue(encoder.encode(delta));
-                        }
-                      } catch {}
+                        } catch {}
+                      }
                     }
                   }
+                } catch (e) {
+                  console.warn(`[Groq Realtime Stream Warn ${modelName}]:`, e);
+                } finally {
+                  try {
+                    controller.close();
+                  } catch {}
                 }
-              } catch (e) {
-                console.warn("[Groq Realtime Stream Warn]:", e);
-              } finally {
-                try {
-                  controller.close();
-                } catch {}
               }
-            }
-          });
+            });
 
-          return new Response(customStream, {
-            headers: {
-              "Content-Type": "text/plain; charset=utf-8",
-              "Cache-Control": "no-cache, no-transform",
-              "x-transcribed-user-text": encodeURIComponent(effectiveUserText),
-              "x-stt-ms": String(sttDuration),
-              "x-total-ms": String(Date.now() - tStart)
-            }
-          });
+            return new Response(customStream, {
+              headers: {
+                "Content-Type": "text/plain; charset=utf-8",
+                "Cache-Control": "no-cache, no-transform",
+                "x-transcribed-user-text": encodeURIComponent(effectiveUserText),
+                "x-stt-ms": String(sttDuration),
+                "x-total-ms": String(Date.now() - tStart)
+              }
+            });
+          }
+        } catch (groqErr) {
+          // Continuar al siguiente modelo en Groq
         }
-      } catch (groqErr) {
-        console.warn("[Realtime Failover] Groq rotando a Gemini 2.0 Flash...", groqErr);
       }
     }
 
-    // 2. CAPA 2: Gemini Multi-Key Failover (Gemini 2.0 Flash como prioridad)
+    // 2. CAPA 2: Gemini Multi-Key Failover Pool
     const geminiKeysPool = [
-      process.env.GEMINI_API_KEY,
-      process.env.GEMINI_API_KEY_FALLBACK,
-      process.env.GEMINI_API_KEY_FALLBACK_2
-    ].filter(Boolean) as string[];
+      cleanKeyString(process.env.GEMINI_API_KEY),
+      cleanKeyString(process.env.GEMINI_API_KEY_FALLBACK),
+      cleanKeyString(process.env.GEMINI_API_KEY_FALLBACK_2)
+    ].filter(Boolean);
 
     const geminiModels = ["gemini-2.0-flash", "gemini-1.5-flash"];
     const normalizedGeminiContents = buildNormalizedGeminiContents(history, effectiveUserText);
@@ -360,11 +396,11 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3. Fallback Resiliente Inmediato
+    // 3. Fallback Dinámico Inteligente
     const encoder = new TextEncoder();
     return new Response(
       encoder.encode(
-        "Comprendo perfectamente tu idea. Estoy aquí para acompañarte en lo que necesites."
+        `¡Hola! Te escucho perfectamente. ¿En qué puedo ayudarte hoy?`
       ),
       {
         headers: {
