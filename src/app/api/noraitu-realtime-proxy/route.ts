@@ -119,7 +119,12 @@ function buildNormalizedGeminiContents(
     for (const item of history.slice(-6)) {
       if (!item || !item.content || typeof item.content !== "string") continue;
       const text = item.content.trim();
-      if (!text) continue;
+      if (!text || text.length < 2) continue;
+
+      // Filtrar mensajes de contingencia pasados para no sesgar el contexto
+      if (text.includes("acompañarte en lo que necesites") || text.includes("sigamos profundizando")) {
+        continue;
+      }
 
       const role = item.role === "assistant" || item.role === "model" ? "model" : "user";
 
@@ -210,7 +215,13 @@ export async function POST(req: Request) {
         for (const h of history.slice(-6)) {
           if (!h || !h.content || typeof h.content !== "string") continue;
           const text = h.content.trim();
-          if (!text) continue;
+          if (!text || text.length < 2) continue;
+
+          // Filtrar mensajes de contingencia pasados para no sesgar el contexto
+          if (text.includes("acompañarte en lo que necesites") || text.includes("sigamos profundizando")) {
+            continue;
+          }
+
           const mappedRole = h.role === "assistant" || h.role === "model" ? "assistant" : "user";
           const last = formattedMessages[formattedMessages.length - 1];
           if (last.role === mappedRole) {
