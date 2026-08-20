@@ -1,7 +1,7 @@
-"use client";
-
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { PhoneOff, Sparkles, Volume2, VolumeX, Mic, Hand, Radio } from "lucide-react";
+import { PhoneOff, Sparkles, Volume2, VolumeX, Mic, Hand, Radio, AlertTriangle } from "lucide-react";
+import { useNoraOfflineGPS } from "@/hooks/useNoraOfflineGPS";
+import { dispatchSOS } from "@/lib/nora/protocols/sosDispatcher";
 
 interface NoraRealtimeCallModalProps {
   isOpen: boolean;
@@ -18,6 +18,8 @@ export default function NoraRealtimeCallModal({
   activeMode = "general",
   onMessageLogged
 }: NoraRealtimeCallModalProps) {
+  const { isOnline, coords, gpsError } = useNoraOfflineGPS();
+  const [isTriggeringSOS, setIsTriggeringSOS] = useState<boolean>(false);
   const [callState, setCallState] = useState<"connecting" | "listening" | "thinking" | "speaking">("connecting");
   const [userTranscript, setUserTranscript] = useState<string>("");
   const [assistantText, setAssistantText] = useState<string>("");
@@ -281,6 +283,41 @@ export default function NoraRealtimeCallModal({
     [isMuted, playNextSentence, resumeListening, stopNoraSpeech]
   );
 
+  // 6.5. Protocolo de Emergencia SOS Lazarillo Híbrido (Online / Offline SMS)
+  const handleExecuteSOS = useCallback(
+    async (customNote?: string) => {
+      setIsTriggeringSOS(true);
+      setAccessibleAnnouncement("Activando protocolo de auxilio y geolocalización SOS...");
+      try {
+        const result = await dispatchSOS({
+          lat: coords?.lat,
+          lng: coords?.lng,
+          isOnline,
+          customNote
+        });
+
+        if (result.method === "SMS" && result.smsUri) {
+          speakNoraResponse(
+            "Activando protocolo de emergencia por mensaje de texto con tus coordenadas satelitales a tu contacto de auxilio."
+          );
+          setTimeout(() => {
+            window.location.href = result.smsUri!;
+          }, 1600);
+        } else {
+          speakNoraResponse(
+            "Alerta SOS transmitida con éxito con tu ubicación satelital a tu contacto de auxilio en Ituzaingó."
+          );
+        }
+      } catch (err: any) {
+        console.warn("[SOS Trigger Warning]:", err);
+        window.location.href = "tel:911";
+      } finally {
+        setIsTriggeringSOS(false);
+      }
+    },
+    [coords, isOnline, speakNoraResponse]
+  );
+
   // 7. Enviar audio directo de alta fidelidad al proxy conversacional
   const sendVoiceAudioTurn = useCallback(
     async (audioBlob: Blob, mimeType: string) => {
@@ -326,6 +363,11 @@ export default function NoraRealtimeCallModal({
           if (userText && !userText.startsWith("⚠️")) {
             setUserTranscript(`"${userText}"`);
             historyRef.current.push({ role: "user", content: userText });
+
+            if (/\b(emergencia|auxilio|socorro|me caí|me perdi|me perdí|ayuda urgente)\b/i.test(userText)) {
+              handleExecuteSOS(userText);
+              return;
+            }
           }
 
           if (!res.ok || !res.body) {
@@ -826,28 +868,17 @@ export default function NoraRealtimeCallModal({
             {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
           </button>
 
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-[11px] text-slate-300 font-mono">
-            <div
-              className={`w-2 h-2 rounded-full ${
-                callState === "speaking"
-                  ? "bg-cyan-400 animate-pulse"
-                  : callState === "thinking"
-                  ? "bg-purple-400 animate-pulse"
-                  : isSpeakingRef.current || isPushTalking
-                  ? "bg-emerald-400 animate-ping"
-                  : "bg-slate-500"
-              }`}
-            />
-            <span>
-              {callState === "speaking"
-                ? "Hablando"
-                : callState === "thinking"
-                ? "Pensando"
-                : isSpeakingRef.current || isPushTalking
-                ? "Escuchando"
-                : "Lista"}
-            </span>
-          </div>
+          {/* Botón SOS Lazarillo Inmediato */}
+          <button
+            onClick={() => handleExecuteSOS("Solicitud manual de auxilio")}
+            disabled={isTriggeringSOS}
+            aria-label="Botón de emergencia SOS Lazarillo"
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-extrabold text-xs shadow-lg shadow-rose-600/40 border border-rose-400/40 cursor-pointer transition-all animate-pulse"
+            title="Activar Protocolo SOS Lazarillo"
+          >
+            <AlertTriangle size={14} />
+            <span>{isTriggeringSOS ? "Enviando SOS..." : "SOS AUXILIO"}</span>
+          </button>
 
           <button
             onClick={onClose}
