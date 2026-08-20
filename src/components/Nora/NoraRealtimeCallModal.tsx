@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { PhoneOff, Sparkles, Volume2, VolumeX, Mic, Hand, Radio, AlertTriangle } from "lucide-react";
 import { useNoraOfflineGPS } from "@/hooks/useNoraOfflineGPS";
 import { dispatchSOS } from "@/lib/nora/protocols/sosDispatcher";
+import { useNoraLazarilloHaptics } from "@/hooks/useNoraLazarilloHaptics";
 
 interface NoraRealtimeCallModalProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ export default function NoraRealtimeCallModal({
   onMessageLogged
 }: NoraRealtimeCallModalProps) {
   const { isOnline, coords, gpsError } = useNoraOfflineGPS();
+  const { emitSinglePulse, startDangerAlertLoop, clearHapticAlerts } = useNoraLazarilloHaptics();
   const [isTriggeringSOS, setIsTriggeringSOS] = useState<boolean>(false);
   const [callState, setCallState] = useState<"connecting" | "listening" | "thinking" | "speaking">("connecting");
   const [userTranscript, setUserTranscript] = useState<string>("");
@@ -287,6 +289,7 @@ export default function NoraRealtimeCallModal({
   const handleExecuteSOS = useCallback(
     async (customNote?: string) => {
       setIsTriggeringSOS(true);
+      startDangerAlertLoop();
       setAccessibleAnnouncement("Activando protocolo de auxilio y geolocalización SOS...");
       try {
         const result = await dispatchSOS({
@@ -315,7 +318,7 @@ export default function NoraRealtimeCallModal({
         setIsTriggeringSOS(false);
       }
     },
-    [coords, isOnline, speakNoraResponse]
+    [coords, isOnline, speakNoraResponse, startDangerAlertLoop]
   );
 
   // 7. Enviar audio directo de alta fidelidad al proxy conversacional
