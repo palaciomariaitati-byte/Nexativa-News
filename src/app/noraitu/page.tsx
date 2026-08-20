@@ -535,7 +535,6 @@ export default function NoraItuApp() {
     if (!cleanText) return;
     setPlayingMsgIndex(msgIndex);
 
-    // 1. Reproducción directa y limpia con Web Speech API en cliente
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
       setPlayingMsgIndex(null);
       return;
@@ -545,44 +544,70 @@ export default function NoraItuApp() {
       window.speechSynthesis.cancel();
       window.speechSynthesis.resume();
 
-      const utterance = new SpeechSynthesisUtterance(cleanText);
-      utterance.rate = voiceRate; // Velocidad calibrada (def: 0.94x)
-      utterance.pitch = voicePitch; // Tono cálido (def: 0.92)
+      const rawSentences = cleanText.match(/[^.!?;\n]+[.!?;\n]*/g) || [cleanText];
+      const sentenceQueue = rawSentences.map((s) => s.trim()).filter((s) => s.length > 0);
 
       const voices = window.speechSynthesis.getVoices();
       let voiceToUse: SpeechSynthesisVoice | undefined = undefined;
 
       if (selectedVoiceUri) {
-        voiceToUse = voices.find(v => v.voiceURI === selectedVoiceUri);
+        voiceToUse = voices.find((v) => v.voiceURI === selectedVoiceUri);
       }
 
       if (!voiceToUse) {
-        voiceToUse = voices.find(v => 
-          (v.lang.startsWith("es") || v.lang.includes("es-")) && 
-          (
-            v.name.toLowerCase().includes("google español") || 
-            v.name.toLowerCase().includes("elena") || 
-            v.name.toLowerCase().includes("sabina") ||
-            v.name.toLowerCase().includes("dalia") ||
-            v.name.toLowerCase().includes("argentina")
-          )
-        ) || voices.find(v => 
-          (v.lang.includes("419") || v.lang.includes("MX") || v.lang.includes("AR") || v.lang.startsWith("es")) &&
-          (v.name.toLowerCase().includes("natural") || v.name.toLowerCase().includes("female") || v.name.toLowerCase().includes("mujer"))
-        ) || voices.find(v => v.lang.startsWith("es"));
+        voiceToUse =
+          voices.find(
+            (v) =>
+              (v.lang.startsWith("es") || v.lang.includes("es-")) &&
+              (
+                v.name.toLowerCase().includes("google español") ||
+                v.name.toLowerCase().includes("elena") ||
+                v.name.toLowerCase().includes("sabina") ||
+                v.name.toLowerCase().includes("dalia") ||
+                v.name.toLowerCase().includes("argentina")
+              )
+          ) ||
+          voices.find(
+            (v) =>
+              (v.lang.includes("419") || v.lang.includes("MX") || v.lang.includes("AR") || v.lang.startsWith("es")) &&
+              (v.name.toLowerCase().includes("natural") || v.name.toLowerCase().includes("female") || v.name.toLowerCase().includes("mujer"))
+          ) ||
+          voices.find((v) => v.lang.startsWith("es"));
       }
 
-      if (voiceToUse) {
-        utterance.voice = voiceToUse;
-        utterance.lang = voiceToUse.lang || "es-AR";
-      } else {
-        utterance.lang = "es-AR";
-      }
+      const playNextChunk = () => {
+        if (sentenceQueue.length === 0) {
+          setPlayingMsgIndex(null);
+          return;
+        }
 
-      utterance.onend = () => setPlayingMsgIndex(null);
-      utterance.onerror = () => setPlayingMsgIndex(null);
+        const nextChunk = sentenceQueue.shift()!;
+        if (!nextChunk.trim()) {
+          playNextChunk();
+          return;
+        }
 
-      window.speechSynthesis.speak(utterance);
+        window.speechSynthesis.resume();
+        const utterance = new SpeechSynthesisUtterance(nextChunk.trim());
+        utterance.rate = voiceRate || 0.98;
+        utterance.pitch = voicePitch || 1.0;
+
+        if (voiceToUse) {
+          utterance.voice = voiceToUse;
+          utterance.lang = voiceToUse.lang || "es-AR";
+        } else {
+          utterance.lang = "es-AR";
+        }
+
+        utterance.onend = () => playNextChunk();
+        utterance.onerror = () => playNextChunk();
+
+        // Evitar el corte por Garbage Collection de Chrome
+        (window as any).__noraPageActiveUtterance = utterance;
+        window.speechSynthesis.speak(utterance);
+      };
+
+      playNextChunk();
     } catch (e) {
       console.warn("[Speak Error]:", e);
       setPlayingMsgIndex(null);

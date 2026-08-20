@@ -454,33 +454,37 @@ async function transcribeAudioWithWhisper(fileObj: any): Promise<string | null> 
     process.env.GEMINI_API_KEY_FALLBACK_2
   ].filter(Boolean) as string[];
 
+  const audioModels = ["gemini-2.0-flash", "gemini-1.5-flash"];
+
   for (const gKey of geminiKeys) {
-    try {
-      const genAI = new GoogleGenerativeAI(gKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-      const result = await model.generateContent({
-        contents: [
-          {
-            role: "user",
-            parts: [
-              {
-                inlineData: {
-                  mimeType: mime.includes("mp4") ? "audio/mp4" : "audio/webm",
-                  data: rawB64
-                }
-              },
-              { text: "Transcribe exactamente en texto plano en español todo lo que dice este audio. No agregues introducciones ni comentarios, solo el texto transcripto fielmente." }
-            ]
-          }
-        ]
-      });
-      const transcribedText = result.response.text();
-      if (transcribedText && transcribedText.trim().length > 0) {
-        console.log("[Gemini Audio Fallback] 🎙️ Audio transcripto:", transcribedText.trim());
-        return transcribedText.trim();
+    for (const modelName of audioModels) {
+      try {
+        const genAI = new GoogleGenerativeAI(gKey);
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent({
+          contents: [
+            {
+              role: "user",
+              parts: [
+                {
+                  inlineData: {
+                    mimeType: mime.includes("mp4") ? "audio/mp4" : "audio/webm",
+                    data: rawB64
+                  }
+                },
+                { text: "Transcribe exactamente en texto plano en español todo lo que dice este audio. No agregues introducciones ni comentarios, solo el texto transcripto fielmente." }
+              ]
+            }
+          ]
+        });
+        const transcribedText = result.response.text();
+        if (transcribedText && transcribedText.trim().length > 0) {
+          console.log(`[Gemini Audio Fallback (${modelName})] 🎙️ Audio transcripto:`, transcribedText.trim());
+          return transcribedText.trim();
+        }
+      } catch (gErr) {
+        // Continuar siguiente modelo/clave
       }
-    } catch (gErr) {
-      console.warn("[Gemini Audio Transcription Fallback Warn]:", gErr);
     }
   }
 
