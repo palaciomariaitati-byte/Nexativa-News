@@ -174,15 +174,29 @@ export async function POST(req: Request) {
     const groqKey = process.env.GROQ_API_KEY;
     if (groqKey) {
       try {
-        const formattedMessages: any[] = [{ role: "system", content: systemPromptWithMode }];
+        const formattedMessages: { role: string; content: string }[] = [
+          { role: "system", content: systemPromptWithMode }
+        ];
         if (Array.isArray(history)) {
           for (const h of history.slice(-8)) {
-            if (!h || !h.content) continue;
+            if (!h || !h.content || typeof h.content !== "string") continue;
+            const text = h.content.trim();
+            if (!text) continue;
             const mappedRole = h.role === "assistant" || h.role === "model" ? "assistant" : "user";
-            formattedMessages.push({ role: mappedRole, content: h.content });
+            const last = formattedMessages[formattedMessages.length - 1];
+            if (last.role === mappedRole) {
+              last.content += `\n\n${text}`;
+            } else {
+              formattedMessages.push({ role: mappedRole, content: text });
+            }
           }
         }
-        formattedMessages.push({ role: "user", content: effectiveUserText });
+        const lastMsg = formattedMessages[formattedMessages.length - 1];
+        if (lastMsg.role === "user") {
+          lastMsg.content += `\n\n${effectiveUserText}`;
+        } else {
+          formattedMessages.push({ role: "user", content: effectiveUserText });
+        }
 
         const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { PhoneOff, Sparkles, Volume2, VolumeX, Mic, MicOff, Hand, Radio } from "lucide-react";
+import { PhoneOff, Sparkles, Volume2, VolumeX, Mic, Hand, Radio } from "lucide-react";
 
 interface NoraRealtimeCallModalProps {
   isOpen: boolean;
@@ -26,35 +26,35 @@ export default function NoraRealtimeCallModal({
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [currentVoice, setCurrentVoice] = useState<string>(selectedVoiceUri || "");
   
-  // Accesibilidad y Modos de Interacción
+  // Modos de interacción y accesibilidad
   const [interactionMode, setInteractionMode] = useState<"hands_free" | "push_to_talk">("hands_free");
   const [isPushTalking, setIsPushTalking] = useState<boolean>(false);
-  const [accessibleAnnouncement, setAccessibleAnnouncement] = useState<string>("Iniciando conexión con Nora...");
+  const [accessibleAnnouncement, setAccessibleAnnouncement] = useState<string>("Iniciando llamada con Nora...");
 
-  // Refs de audio y procesamiento
+  // Refs de estado y control de turnos
+  const isNoraSpeakingRef = useRef<boolean>(false);
+  const isProcessingRef = useRef<boolean>(false);
+  const historyRef = useRef<{ role: string; content: string }[]>([]);
+  const activeModeRef = useRef<string>(activeMode);
+  const currentSentenceQueueRef = useRef<string[]>([]);
+  const activeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Refs de captura de audio y STT
+  const recognitionRef = useRef<any>(null);
+  const speechAccumulatorRef = useRef<string>("");
+  const speechSilenceTimerRef = useRef<any>(null);
+  const isSpeechRecognitionSupportedRef = useRef<boolean>(false);
+  const micStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
-  const micStreamRef = useRef<MediaStream | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
   const animFrameRef = useRef<number | null>(null);
-  const recognitionRef = useRef<any>(null);
-
-  // Estados de control de turno VAD y Blindaje Acústico
-  const isSpeakingRef = useRef<boolean>(false); // Usuario hablando
-  const silenceStartRef = useRef<number | null>(null);
-  const isProcessingRef = useRef<boolean>(false);
-  const isNoraSpeakingRef = useRef<boolean>(false);
-  const historyRef = useRef<{ role: string; content: string }[]>([]);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const activeModeRef = useRef<string>(activeMode);
-  const noiseFloorRef = useRef<number>(14); // Piso de ruido ambiental dinámico
 
   useEffect(() => {
     activeModeRef.current = activeMode;
   }, [activeMode]);
 
-  // 🔔 Tono auditivo suave para personas no videntes (Web Audio API)
+  // 🔔 Tono auditivo suave para personas no videntes
   const playAccessibleChime = useCallback((type: "start" | "end" | "connected") => {
     if (typeof window === "undefined") return;
     try {
@@ -67,40 +67,37 @@ export default function NoraRealtimeCallModal({
       const now = ctx.currentTime;
 
       if (type === "start") {
-        // Tono ascendente suave
         osc.frequency.setValueAtTime(440, now);
-        osc.frequency.exponentialRampToValueAtTime(660, now + 0.15);
-        gain.gain.setValueAtTime(0.08, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(now);
-        osc.stop(now + 0.15);
-      } else if (type === "end") {
-        // Tono descendente sutil
-        osc.frequency.setValueAtTime(580, now);
-        osc.frequency.exponentialRampToValueAtTime(390, now + 0.15);
+        osc.frequency.exponentialRampToValueAtTime(660, now + 0.12);
         gain.gain.setValueAtTime(0.06, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.start(now);
-        osc.stop(now + 0.15);
+        osc.stop(now + 0.12);
+      } else if (type === "end") {
+        osc.frequency.setValueAtTime(580, now);
+        osc.frequency.exponentialRampToValueAtTime(390, now + 0.12);
+        gain.gain.setValueAtTime(0.05, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.12);
       } else if (type === "connected") {
-        // Doble campana cálida
-        osc.frequency.setValueAtTime(523.25, now); // Do
-        osc.frequency.setValueAtTime(659.25, now + 0.1); // Mi
-        gain.gain.setValueAtTime(0.07, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+        osc.frequency.setValueAtTime(523.25, now);
+        osc.frequency.setValueAtTime(659.25, now + 0.1);
+        gain.gain.setValueAtTime(0.06, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.start(now);
-        osc.stop(now + 0.25);
+        osc.stop(now + 0.22);
       }
     } catch {}
   }, []);
 
-  // 1. Cargar voces latinas y rioplatenses de alta naturalidad
+  // 1. Cargar voces en español / rioplatense
   useEffect(() => {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       const loadVoices = () => {
@@ -127,8 +124,8 @@ export default function NoraRealtimeCallModal({
             (v) =>
               v.name.toLowerCase().includes("sabina") ||
               v.name.toLowerCase().includes("dalia") ||
-              v.name.toLowerCase().includes("natural") ||
-              v.name.toLowerCase().includes("google español")
+              v.name.toLowerCase().includes("google español") ||
+              v.name.toLowerCase().includes("natural")
           ) ||
           finalVoices.find((v) => !v.lang.includes("ES")) ||
           finalVoices[0];
@@ -155,9 +152,11 @@ export default function NoraRealtimeCallModal({
     };
   }, [isOpen]);
 
-  // Detener habla de Nora de forma segura
+  // 3. Detener habla de Nora de forma absoluta
   const stopNoraSpeech = useCallback(() => {
     isNoraSpeakingRef.current = false;
+    currentSentenceQueueRef.current = [];
+    activeUtteranceRef.current = null;
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       try { window.speechSynthesis.cancel(); } catch {}
     }
@@ -167,131 +166,149 @@ export default function NoraRealtimeCallModal({
     }
   }, []);
 
-  // 🗣️ Sintetizador de voz continuo de Nora con dicción cálida y anti-cortes
+  // 4. Reanudar escucha limpia tras terminar Nora
+  const resumeListening = useCallback(() => {
+    if (isNoraSpeakingRef.current || isProcessingRef.current) return;
+    setCallState("listening");
+    setAccessibleAnnouncement("Nora te escucha.");
+    speechAccumulatorRef.current = "";
+
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.start();
+      } catch {}
+    }
+  }, []);
+
+  // 5. Reproducción secuencial por oraciones (Elimina cortes de Chromium / Web Speech)
+  const playNextSentence = useCallback(() => {
+    if (currentSentenceQueueRef.current.length === 0) {
+      isNoraSpeakingRef.current = false;
+      activeUtteranceRef.current = null;
+      setTimeout(() => {
+        resumeListening();
+        playAccessibleChime("start");
+      }, 350);
+      return;
+    }
+
+    const nextSentence = currentSentenceQueueRef.current.shift()!;
+    if (!nextSentence.trim()) {
+      playNextSentence();
+      return;
+    }
+
+    if (typeof window === "undefined" || !("speechSynthesis" in window) || isMuted) {
+      isNoraSpeakingRef.current = false;
+      resumeListening();
+      return;
+    }
+
+    try {
+      window.speechSynthesis.resume();
+      const utterance = new SpeechSynthesisUtterance(nextSentence.trim());
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+
+      const voices = window.speechSynthesis.getVoices();
+      let voiceToUse = currentVoice ? voices.find((v) => v.voiceURI === currentVoice) : undefined;
+      if (!voiceToUse) {
+        voiceToUse =
+          voices.find((v) => (v.lang.includes("AR") || v.lang.includes("419")) && !v.lang.includes("ES")) ||
+          voices.find((v) => v.lang.startsWith("es"));
+      }
+
+      if (voiceToUse) {
+        utterance.voice = voiceToUse;
+        utterance.lang = voiceToUse.lang || "es-AR";
+      } else {
+        utterance.lang = "es-AR";
+      }
+
+      utterance.onstart = () => {
+        isNoraSpeakingRef.current = true;
+        setCallState("speaking");
+      };
+
+      utterance.onend = () => {
+        activeUtteranceRef.current = null;
+        playNextSentence();
+      };
+
+      utterance.onerror = () => {
+        activeUtteranceRef.current = null;
+        playNextSentence();
+      };
+
+      // Proteger la referencia en memoria para evitar el bug de Garbage Collection de Chrome
+      activeUtteranceRef.current = utterance;
+      (window as any).__noraActiveUtterance = utterance;
+
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.warn("[TTS Sentence Error]:", e);
+      playNextSentence();
+    }
+  }, [currentVoice, isMuted, playAccessibleChime, resumeListening]);
+
+  // 6. Dividir respuesta completa en oraciones limpias y encolar
   const speakNoraResponse = useCallback(
-    (text: string) => {
-      if (isMuted || !text.trim() || typeof window === "undefined" || !("speechSynthesis" in window)) {
+    (fullText: string) => {
+      if (isMuted || !fullText.trim()) {
         isNoraSpeakingRef.current = false;
-        setCallState("listening");
-        setAccessibleAnnouncement("Nora terminó de hablar. Te escucha.");
+        resumeListening();
         return;
       }
 
-      // Limpieza de caracteres que puedan trabar el motor fonético
-      const cleanText = text
+      // Detener escucha del micrófono mientras Nora habla
+      if (recognitionRef.current) {
+        try { recognitionRef.current.abort(); } catch {}
+      }
+
+      stopNoraSpeech();
+      isNoraSpeakingRef.current = true;
+      setCallState("speaking");
+      setAccessibleAnnouncement("Nora está respondiendo.");
+
+      const cleanText = fullText
         .replace(/[*#_~`>]/g, "")
         .replace(/\|+/g, " ")
         .replace(/\s+/g, " ")
         .trim();
 
-      if (!cleanText) {
-        isNoraSpeakingRef.current = false;
-        setCallState("listening");
-        return;
-      }
+      // Segmentación inteligente por oraciones completas
+      const rawSentences = cleanText.match(/[^.!?;\n]+[.!?;\n]*/g) || [cleanText];
+      const validSentences = rawSentences
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
 
-      try {
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.resume();
-
-        const utterance = new SpeechSynthesisUtterance(cleanText);
-        utterance.rate = 1.0; // Velocidad cálida y pausada para personas con TEA / adultos mayores
-        utterance.pitch = 1.0;
-
-        const voices = window.speechSynthesis.getVoices();
-        let voiceToUse: SpeechSynthesisVoice | undefined = undefined;
-
-        if (currentVoice) {
-          voiceToUse = voices.find((v) => v.voiceURI === currentVoice);
-        }
-
-        if (!voiceToUse) {
-          voiceToUse =
-            voices.find(
-              (v) =>
-                (v.lang.includes("AR") || v.lang.includes("419") || v.lang.includes("MX")) &&
-                !v.lang.includes("ES")
-            ) ||
-            voices.find(
-              (v) =>
-                v.name.toLowerCase().includes("sabina") ||
-                v.name.toLowerCase().includes("dalia") ||
-                v.name.toLowerCase().includes("google español") ||
-                v.name.toLowerCase().includes("natural")
-            ) ||
-            voices.find((v) => v.lang.startsWith("es"));
-        }
-
-        if (voiceToUse) {
-          utterance.voice = voiceToUse;
-          utterance.lang = voiceToUse.lang || "es-AR";
-        } else {
-          utterance.lang = "es-AR";
-        }
-
-        utterance.onstart = () => {
-          isNoraSpeakingRef.current = true;
-          setCallState("speaking");
-          setAccessibleAnnouncement("Nora está respondiendo.");
-        };
-
-        utterance.onend = () => {
-          isNoraSpeakingRef.current = false;
-          // Reactivar escucha paciente tras terminar de hablar Nora
-          setTimeout(() => {
-            if (!isNoraSpeakingRef.current && !isProcessingRef.current) {
-              setCallState("listening");
-              setAccessibleAnnouncement("Nora te escucha.");
-              playAccessibleChime("start");
-            }
-          }, 350);
-        };
-
-        utterance.onerror = () => {
-          isNoraSpeakingRef.current = false;
-          setCallState("listening");
-        };
-
-        window.speechSynthesis.speak(utterance);
-      } catch (err) {
-        console.warn("[Speak Error]:", err);
-        isNoraSpeakingRef.current = false;
-        setCallState("listening");
-      }
+      currentSentenceQueueRef.current = validSentences;
+      playNextSentence();
     },
-    [currentVoice, isMuted, playAccessibleChime]
+    [isMuted, playNextSentence, resumeListening, stopNoraSpeech]
   );
 
-  // 🚀 Enviar turno conversacional al backend multicanal
-  const sendVoiceTurn = useCallback(
-    async (payload: { message?: string; audioBlob?: Blob; mimeType?: string }) => {
-      if (isProcessingRef.current) return;
-
-      const hasText = payload.message && payload.message.trim().length > 0;
-      const hasAudio = payload.audioBlob && payload.audioBlob.size > 800;
-
-      if (!hasText && !hasAudio) {
-        setCallState("listening");
+  // 7. Enviar consulta completa y única al servidor (Cero duplicados)
+  const dispatchUserTurn = useCallback(
+    async (finalText: string) => {
+      const cleanInput = finalText.trim();
+      if (!cleanInput || cleanInput.length < 2 || isProcessingRef.current) {
         return;
+      }
+
+      // Pausar reconocimiento
+      if (recognitionRef.current) {
+        try { recognitionRef.current.abort(); } catch {}
       }
 
       stopNoraSpeech();
       isProcessingRef.current = true;
       setCallState("thinking");
-      setAccessibleAnnouncement("Nora está reflexionando sobre tu consulta...");
+      setAccessibleAnnouncement("Nora está pensando su respuesta...");
       playAccessibleChime("end");
 
-      let audioB64: string | undefined = undefined;
-      if (hasAudio && payload.audioBlob) {
-        audioB64 = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const res = (reader.result as string) || "";
-            resolve(res.includes(",") ? res.split(",")[1] : res);
-          };
-          reader.readAsDataURL(payload.audioBlob!);
-        });
-      }
+      setUserTranscript(`"${cleanInput}"`);
+      historyRef.current.push({ role: "user", content: cleanInput });
 
       try {
         const controller = new AbortController();
@@ -301,26 +318,16 @@ export default function NoraRealtimeCallModal({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            message: payload.message || "",
-            audioBase64: audioB64,
-            mimeType: payload.mimeType || "audio/webm",
-            history: historyRef.current.slice(-10),
+            message: cleanInput,
+            history: historyRef.current.slice(-8),
             mode: activeModeRef.current
           }),
           signal: controller.signal
         });
 
-        const transcribedHeader = res.headers.get("x-transcribed-user-text");
-        const transcribedText = transcribedHeader ? decodeURIComponent(transcribedHeader) : payload.message || "";
-
-        if (transcribedText) {
-          setUserTranscript(`"${transcribedText}"`);
-          historyRef.current.push({ role: "user", content: transcribedText });
-        }
-
         if (!res.ok || !res.body) {
           isProcessingRef.current = false;
-          setCallState("listening");
+          resumeListening();
           return;
         }
 
@@ -336,36 +343,39 @@ export default function NoraRealtimeCallModal({
           setAssistantText(fullAnswer);
         }
 
-        if (fullAnswer.trim()) {
-          historyRef.current.push({ role: "assistant", content: fullAnswer.trim() });
-          if (historyRef.current.length > 16) {
-            historyRef.current = historyRef.current.slice(-16);
+        const trimmedAnswer = fullAnswer.trim();
+        if (trimmedAnswer) {
+          historyRef.current.push({ role: "assistant", content: trimmedAnswer });
+          if (historyRef.current.length > 14) {
+            historyRef.current = historyRef.current.slice(-14);
           }
           if (onMessageLogged) {
-            onMessageLogged(transcribedText || "🎙️ [Voz]", fullAnswer.trim());
+            onMessageLogged(cleanInput, trimmedAnswer);
           }
-          speakNoraResponse(fullAnswer.trim());
+          speakNoraResponse(trimmedAnswer);
         } else {
-          setCallState("listening");
+          resumeListening();
         }
       } catch (err: any) {
         if (err.name !== "AbortError") {
           console.error("[Realtime Voice Error]:", err);
         }
-        setCallState("listening");
+        resumeListening();
       } finally {
         isProcessingRef.current = false;
       }
     },
-    [onMessageLogged, playAccessibleChime, speakNoraResponse, stopNoraSpeech]
+    [onMessageLogged, playAccessibleChime, resumeListening, speakNoraResponse, stopNoraSpeech]
   );
 
-  // 🎙️ Configuración de Web Speech Recognition Nativo (AEC + Latencia 0)
+  // 8. Inicialización del Motor de Reconocimiento de Voz Unificado (Zero Concurrencia)
   useEffect(() => {
     if (!isOpen || typeof window === "undefined") return;
 
     const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
     if (SpeechRec) {
+      isSpeechRecognitionSupportedRef.current = true;
       try {
         const recognition = new SpeechRec();
         recognition.continuous = true;
@@ -373,26 +383,35 @@ export default function NoraRealtimeCallModal({
         recognition.lang = "es-AR";
 
         recognition.onresult = (event: any) => {
-          // Si Nora está hablando, no capturar para inmunidad al eco
           if (isNoraSpeakingRef.current || isProcessingRef.current) return;
 
           let interim = "";
-          let final = "";
+          let finalTranscript = "";
 
           for (let i = event.resultIndex; i < event.results.length; ++i) {
             const transcript = event.results[i][0]?.transcript || "";
             if (event.results[i].isFinal) {
-              final += transcript;
+              finalTranscript += transcript;
             } else {
               interim += transcript;
             }
           }
 
-          const activeText = (final || interim).trim();
-          if (activeText) {
-            setUserTranscript(`"${activeText}"`);
-            if (final && final.trim().length > 1) {
-              sendVoiceTurn({ message: final.trim() });
+          const currentWords = (finalTranscript || interim).trim();
+          if (currentWords) {
+            speechAccumulatorRef.current = (speechAccumulatorRef.current + " " + currentWords).trim();
+            setUserTranscript(`"${speechAccumulatorRef.current}"`);
+
+            // Si está en modo manos libres, esperar pausa natural de 1250ms antes de disparar el turno
+            if (interactionMode === "hands_free") {
+              if (speechSilenceTimerRef.current) clearTimeout(speechSilenceTimerRef.current);
+              speechSilenceTimerRef.current = setTimeout(() => {
+                const completeSentence = speechAccumulatorRef.current.trim();
+                speechAccumulatorRef.current = "";
+                if (completeSentence && !isNoraSpeakingRef.current && !isProcessingRef.current) {
+                  dispatchUserTurn(completeSentence);
+                }
+              }, 1250);
             }
           }
         };
@@ -400,6 +419,19 @@ export default function NoraRealtimeCallModal({
         recognition.onerror = (e: any) => {
           if (e.error !== "no-speech") {
             console.warn("[SpeechRecognition Note]:", e.error);
+          }
+        };
+
+        recognition.onend = () => {
+          // Auto-reinicio suave solo si no está hablando Nora ni pensando
+          if (!isNoraSpeakingRef.current && !isProcessingRef.current && isOpen) {
+            setTimeout(() => {
+              try {
+                if (!isNoraSpeakingRef.current && !isProcessingRef.current) {
+                  recognition.start();
+                }
+              } catch {}
+            }, 300);
           }
         };
 
@@ -413,14 +445,15 @@ export default function NoraRealtimeCallModal({
     }
 
     return () => {
+      if (speechSilenceTimerRef.current) clearTimeout(speechSilenceTimerRef.current);
       if (recognitionRef.current) {
-        try { recognitionRef.current.stop(); } catch {}
+        try { recognitionRef.current.abort(); } catch {}
         recognitionRef.current = null;
       }
     };
-  }, [isOpen, sendVoiceTurn]);
+  }, [dispatchUserTurn, interactionMode, isOpen]);
 
-  // 🎛️ Pipeline de Aislamiento Acústico en 4 Capas (BiquadFilter + VAD Paciente)
+  // 9. Medidor Visual de Audio y Filtros DSP Web Audio
   useEffect(() => {
     if (!isOpen) {
       stopNoraSpeech();
@@ -440,9 +473,8 @@ export default function NoraRealtimeCallModal({
 
     let isMounted = true;
 
-    async function startAcousticPipeline() {
+    async function startVisualAudioMeter() {
       try {
-        // Capa 1: Filtros DSP del Hardware (AEC, ANS, AGC)
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
             echoCancellation: true,
@@ -465,7 +497,7 @@ export default function NoraRealtimeCallModal({
 
         const source = audioCtx.createMediaStreamSource(stream);
 
-        // Capa 2: Filtro Pasa-Banda Vocal (Corta <85Hz y >3400Hz)
+        // Filtro pasa-banda vocal para aislar ruidos ambientales
         const highpass = audioCtx.createBiquadFilter();
         highpass.type = "highpass";
         highpass.frequency.value = 85;
@@ -475,56 +507,20 @@ export default function NoraRealtimeCallModal({
         lowpass.frequency.value = 3400;
 
         const analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 512;
-        analyser.smoothingTimeConstant = 0.25;
+        analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0.3;
 
         source.connect(highpass);
         highpass.connect(lowpass);
         lowpass.connect(analyser);
         analyserRef.current = analyser;
 
-        const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-          ? "audio/webm;codecs=opus"
-          : MediaRecorder.isTypeSupported("audio/webm")
-          ? "audio/webm"
-          : "audio/mp4";
-
-        let recorder: MediaRecorder | null = null;
-
-        const createAndStartRecorder = () => {
-          audioChunksRef.current = [];
-          recorder = new MediaRecorder(stream, { mimeType });
-
-          recorder.ondataavailable = (e) => {
-            if (e.data && e.data.size > 0) {
-              audioChunksRef.current.push(e.data);
-            }
-          };
-
-          recorder.onstop = () => {
-            const blob = new Blob(audioChunksRef.current, { type: mimeType });
-            if (blob.size > 800) {
-              sendVoiceTurn({ audioBlob: blob, mimeType });
-            } else {
-              setCallState("listening");
-            }
-          };
-
-          recorder.start(100);
-          mediaRecorderRef.current = recorder;
-        };
-
         const dataArray = new Uint8Array(analyser.frequencyBinCount);
-        const PATIENT_SILENCE_DURATION_MS = 1400; // 1.4s de silencio comprensivo para personas con TEA / pausas reflexivas
-
         setCallState("listening");
         playAccessibleChime("connected");
         setAccessibleAnnouncement("Conectado con Nora. Lista para escucharte.");
 
-        let baselineSamples = 0;
-        let baselineSum = 0;
-
-        const monitorAudio = () => {
+        const monitorMeter = () => {
           if (!isMounted) return;
 
           analyser.getByteFrequencyData(dataArray);
@@ -536,61 +532,16 @@ export default function NoraRealtimeCallModal({
           const currentAvg = sum / dataArray.length;
           setAudioLevel(Math.min(100, Math.round(currentAvg * 2.2)));
 
-          // Calibración de ruido base de la habitación
-          if (baselineSamples < 30) {
-            baselineSum += currentAvg;
-            baselineSamples++;
-            noiseFloorRef.current = Math.max(12, Math.round(baselineSum / baselineSamples));
-          }
-
-          // 🛡️ Capa 4: INMUNIDAD AL ECO - Si Nora está hablando, silenciar detector
-          if (isNoraSpeakingRef.current || isProcessingRef.current) {
-            animFrameRef.current = requestAnimationFrame(monitorAudio);
-            return;
-          }
-
-          // Si estamos en modo "Pulsar para hablar", no auto-disparar VAD
-          if (interactionMode === "push_to_talk") {
-            animFrameRef.current = requestAnimationFrame(monitorAudio);
-            return;
-          }
-
-          const dynamicThreshold = noiseFloorRef.current + 14;
-          const now = Date.now();
-
-          if (currentAvg > dynamicThreshold) {
-            silenceStartRef.current = null;
-            if (!isSpeakingRef.current) {
-              isSpeakingRef.current = true;
-              createAndStartRecorder();
-              setCallState("listening");
-            }
-          } else {
-            if (isSpeakingRef.current) {
-              if (silenceStartRef.current === null) {
-                silenceStartRef.current = now;
-              } else if (now - silenceStartRef.current > PATIENT_SILENCE_DURATION_MS) {
-                isSpeakingRef.current = false;
-                silenceStartRef.current = null;
-                if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-                  mediaRecorderRef.current.stop();
-                }
-              }
-            }
-          }
-
-          animFrameRef.current = requestAnimationFrame(monitorAudio);
+          animFrameRef.current = requestAnimationFrame(monitorMeter);
         };
 
-        monitorAudio();
+        monitorMeter();
       } catch (err) {
-        console.error("[Microphone Init Error]:", err);
-        alert("Por favor permite el acceso al micrófono para conversar con Nora.");
-        onClose();
+        console.warn("[Meter Init Note]:", err);
       }
     }
 
-    startAcousticPipeline();
+    startVisualAudioMeter();
 
     return () => {
       isMounted = false;
@@ -602,7 +553,30 @@ export default function NoraRealtimeCallModal({
         audioContextRef.current.close();
       }
     };
-  }, [interactionMode, isOpen, onClose, playAccessibleChime, sendVoiceTurn, stopNoraSpeech]);
+  }, [isOpen, playAccessibleChime, stopNoraSpeech]);
+
+  // 10. Control Push-to-Talk (Pulsar para hablar)
+  const handlePushTalkStart = () => {
+    setIsPushTalking(true);
+    speechAccumulatorRef.current = "";
+    if (callState === "speaking") {
+      stopNoraSpeech();
+    }
+    if (recognitionRef.current) {
+      try { recognitionRef.current.start(); } catch {}
+    }
+  };
+
+  const handlePushTalkEnd = () => {
+    setIsPushTalking(false);
+    setTimeout(() => {
+      const textToSend = speechAccumulatorRef.current.trim();
+      speechAccumulatorRef.current = "";
+      if (textToSend) {
+        dispatchUserTurn(textToSend);
+      }
+    }, 200);
+  };
 
   // ⌨️ Accesibilidad por Teclado (Espacio para hablar, Esc para cerrar)
   useEffect(() => {
@@ -611,7 +585,9 @@ export default function NoraRealtimeCallModal({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === "Space" && e.target === document.body) {
         e.preventDefault();
-        if (callState === "speaking") {
+        if (interactionMode === "push_to_talk" && !isPushTalking) {
+          handlePushTalkStart();
+        } else if (callState === "speaking") {
           stopNoraSpeech();
         }
       } else if (e.code === "Escape") {
@@ -619,9 +595,20 @@ export default function NoraRealtimeCallModal({
       }
     };
 
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "Space" && interactionMode === "push_to_talk" && isPushTalking) {
+        e.preventDefault();
+        handlePushTalkEnd();
+      }
+    };
+
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, callState, onClose, stopNoraSpeech]);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, [isOpen, callState, interactionMode, isPushTalking, onClose, stopNoraSpeech]);
 
   if (!isOpen) return null;
 
@@ -638,7 +625,6 @@ export default function NoraRealtimeCallModal({
       aria-label="Llamada de voz con Nora"
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/90 backdrop-blur-2xl animate-fade-in select-none"
     >
-      {/* Región ARIA accesible para lectores de pantalla */}
       <div role="status" aria-live="polite" className="sr-only">
         {accessibleAnnouncement}
       </div>
@@ -655,7 +641,7 @@ export default function NoraRealtimeCallModal({
             </div>
             <div>
               <h3 className="text-white font-bold text-sm tracking-wide flex items-center gap-2">
-                Nora Conversación Noble
+                Nora Voz Continua
                 <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30 uppercase">
                   {interactionMode === "hands_free" ? "Manos Libres" : "Pulsar para hablar"}
                 </span>
@@ -676,7 +662,7 @@ export default function NoraRealtimeCallModal({
           </button>
         </div>
 
-        {/* Selector Accesible de Modo de Interacción */}
+        {/* Selector de Modo de Interacción */}
         <div className="w-full flex items-center justify-center gap-2 mt-2">
           <button
             onClick={() => setInteractionMode("hands_free")}
@@ -702,12 +688,10 @@ export default function NoraRealtimeCallModal({
           </button>
         </div>
 
-        {/* Aura Dinámica Fluida y Serena (Apta TEA y Sensibilidad Sensorial) */}
+        {/* Aura Dinámica Fluida y Serena */}
         <div className="my-auto flex flex-col items-center justify-center w-full py-4 text-center">
           
           <div className="relative flex items-center justify-center w-44 h-44">
-            
-            {/* Ondas suaves de presencia vocal */}
             <div
               className="absolute rounded-full bg-gradient-to-tr from-cyan-500/20 via-teal-500/20 to-emerald-500/20 transition-transform duration-200 ease-out"
               style={{
@@ -732,7 +716,7 @@ export default function NoraRealtimeCallModal({
                   ? "bg-gradient-to-tr from-cyan-400 via-teal-300 to-emerald-400 shadow-cyan-400/40 scale-105"
                   : callState === "thinking"
                   ? "bg-gradient-to-tr from-purple-600 via-indigo-500 to-cyan-500 shadow-purple-500/40 scale-95"
-                  : isSpeakingRef.current || isPushTalking || audioLevel > 18
+                  : isPushTalking || audioLevel > 18
                   ? "bg-gradient-to-tr from-emerald-500 via-teal-400 to-cyan-400 shadow-emerald-400/40 scale-105"
                   : "bg-gradient-to-tr from-cyan-900/80 via-slate-800 to-teal-950 shadow-cyan-900/30 border border-cyan-500/30"
               }`}
@@ -743,7 +727,7 @@ export default function NoraRealtimeCallModal({
                     ? "🗣️"
                     : callState === "thinking"
                     ? "⚡"
-                    : isSpeakingRef.current || isPushTalking
+                    : isPushTalking || audioLevel > 18
                     ? "🎙️"
                     : "✨"}
                 </span>
@@ -751,7 +735,7 @@ export default function NoraRealtimeCallModal({
             </div>
           </div>
 
-          {/* Subtítulos Conversacionales de Alto Contraste y Accesibilidad */}
+          {/* Subtítulos Conversacionales Claros */}
           <div className="w-full mt-4 px-3 min-h-[85px] flex flex-col items-center justify-center">
             {callState === "thinking" ? (
               <p className="text-xs text-purple-300 font-medium animate-pulse">
@@ -771,27 +755,27 @@ export default function NoraRealtimeCallModal({
               <div className="space-y-1">
                 <p className="text-xs text-slate-300 font-medium">
                   {interactionMode === "hands_free"
-                    ? "Te escucho con atención y paciencia"
+                    ? "Te escucho atentamente y sin cortes"
                     : "Mantené presionado el botón o Espacio para hablar"}
                 </p>
                 <p className="text-[11px] text-slate-400">
                   {interactionMode === "hands_free"
-                    ? "Hablá con libertad. El filtro inteligente aísla los ruidos del entorno."
-                    : "Pulsá cuando quieras formular tu idea."}
+                    ? "Hablá con libertad. Nora escucha tu idea completa antes de responder."
+                    : "Pulsá cuando quieras formular tu consulta."}
                 </p>
               </div>
             )}
           </div>
         </div>
 
-        {/* Modo Pulsar para Hablar: Botón Táctil Central */}
+        {/* Modo Pulsar para Hablar */}
         {interactionMode === "push_to_talk" && (
           <div className="w-full flex justify-center py-2">
             <button
-              onMouseDown={() => setIsPushTalking(true)}
-              onMouseUp={() => setIsPushTalking(false)}
-              onTouchStart={() => setIsPushTalking(true)}
-              onTouchEnd={() => setIsPushTalking(false)}
+              onMouseDown={handlePushTalkStart}
+              onMouseUp={handlePushTalkEnd}
+              onTouchStart={handlePushTalkStart}
+              onTouchEnd={handlePushTalkEnd}
               className={`w-full py-3 rounded-2xl font-semibold text-sm transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer ${
                 isPushTalking
                   ? "bg-emerald-500 text-slate-950 scale-98 shadow-emerald-500/30"
@@ -804,9 +788,8 @@ export default function NoraRealtimeCallModal({
           </div>
         )}
 
-        {/* Barra Inferior: Controles de Audio y Cortar */}
+        {/* Barra Inferior: Controles y Colgar */}
         <div className="w-full flex items-center justify-between pt-4 border-t border-slate-800/60">
-          {/* Mute toggle */}
           <button
             onClick={() => {
               if (isMuted) {
@@ -827,7 +810,6 @@ export default function NoraRealtimeCallModal({
             {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
           </button>
 
-          {/* Indicador de Estado Accesible */}
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-[11px] text-slate-300 font-mono">
             <div
               className={`w-2 h-2 rounded-full ${
@@ -835,7 +817,7 @@ export default function NoraRealtimeCallModal({
                   ? "bg-cyan-400 animate-pulse"
                   : callState === "thinking"
                   ? "bg-purple-400 animate-pulse"
-                  : isSpeakingRef.current || isPushTalking
+                  : isPushTalking
                   ? "bg-emerald-400 animate-ping"
                   : "bg-slate-500"
               }`}
@@ -845,13 +827,12 @@ export default function NoraRealtimeCallModal({
                 ? "Hablando"
                 : callState === "thinking"
                 ? "Pensando"
-                : isSpeakingRef.current || isPushTalking
+                : isPushTalking
                 ? "Escuchando"
                 : "Lista"}
             </span>
           </div>
 
-          {/* Botón Rojo Colgar Llamada */}
           <button
             onClick={onClose}
             aria-label="Finalizar llamada"
