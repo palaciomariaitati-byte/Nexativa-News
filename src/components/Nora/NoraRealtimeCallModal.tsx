@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { NoraRealtimeOrchestrator, manejarStreamingNora } from "@/lib/nora/realtime/speechPipeline";
+import { Mic, MicOff, PhoneOff, Send, Volume2, Sparkles } from "lucide-react";
 
 interface NoraRealtimeCallModalProps {
   isOpen: boolean;
@@ -18,20 +18,23 @@ export default function NoraRealtimeCallModal({
   activeMode = "general",
   onMessageLogged
 }: NoraRealtimeCallModalProps) {
-  const [callState, setCallState] = useState<"connecting" | "listening" | "thinking" | "speaking" | "interrupted">("connecting");
+  const [callState, setCallState] = useState<"idle" | "recording" | "thinking" | "speaking">("idle");
   const [userTranscript, setUserTranscript] = useState<string>("");
-  const [assistantResponse, setAssistantResponse] = useState<string>("");
+  const [assistantText, setAssistantText] = useState<string>("");
   const [manualText, setManualText] = useState<string>("");
-  const [isMuted, setIsMuted] = useState<boolean>(false);
   const [callDuration, setCallDuration] = useState<number>(0);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [currentVoice, setCurrentVoice] = useState<string>(selectedVoiceUri || "");
+  const [isMuted, setIsMuted] = useState<boolean>(false);
 
-  const orchestratorRef = useRef<NoraRealtimeOrchestrator | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const currentUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const historyRef = useRef<{ role: string; content: string }[]>([]);
   const isProcessingRef = useRef<boolean>(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  // 1. Desbloquear audio y cargar voces
+  // 1. Cargar voces del navegador y desbloquear audio
   useEffect(() => {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       try {
@@ -70,80 +73,276 @@ export default function NoraRealtimeCallModal({
     };
   }, [isOpen]);
 
-  // Función para procesar y responder al usuario
-  const processUserSpeech = useCallback(async (text: string) => {
-    const clean = text.trim();
-    if (!clean || isProcessingRef.current) return;
-
-    isProcessingRef.current = true;
-    setCallState("thinking");
-    setUserTranscript(clean);
-
-    historyRef.current.push({ role: "user", content: clean });
-
-    if (orchestratorRef.current) {
-      setAssistantResponse("");
-      const responseText = await manejarStreamingNora(
-        clean,
-        orchestratorRef.current,
-        historyRef.current.slice(-6),
-        activeMode
-      );
-
-      if (responseText.trim()) {
-        historyRef.current.push({ role: "assistant", content: responseText.trim() });
-        setAssistantResponse(responseText.trim());
-        if (onMessageLogged) {
-          onMessageLogged(clean, responseText.trim());
-        }
-      }
+  // Detener voz de Nora
+  const stopAssistantSpeech = useCallback(() => {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch {}
     }
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    currentUtteranceRef.current = null;
+    setCallState("idle");
+  }, []);
 
-    isProcessingRef.current = false;
-  }, [activeMode, onMessageLogged]);
+  // Sintetizar voz de Nora en oraciones fluidas
+  const speakSentence = useCallback((text: string) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window) || isMuted) return;
 
-  // 3. Inicializar y desmontar el orquestador
-  useEffect(() => {
-    if (!isOpen) {
-      if (orchestratorRef.current) {
-        orchestratorRef.current.stop();
-        orchestratorRef.current = null;
+    const cleanText = text
+      .replace(/[*#_~`>]/g, "")
+      .replace(/\|+/g, " ")
+      .trim();
+
+    if (!cleanText) return;
+
+    try {
+      window.speechSynthesis.resume();
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.lang = "es-AR";
+
+      if (currentVoice) {
+        const voices = window.speechSynthesis.getVoices();
+        const selected = voices.find((v) => v.voiceURI === currentVoice);
+        if (selected) utterance.voice = selected;
       }
+
+      utterance.rate = 1.05;
+      utterance.pitch = 1.0;
+
+      utterance.onstart = () => {
+        setCallState("speaking");
+      };
+
+      utterance.onend = () => {
+        setCallState("idle");
+      };
+
+      utterance.onerror = () => {
+        setCallState("idle");
+      };
+
+      currentUtteranceRef.current = utterance;
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.warn("[TTS Speak Warn]:", e);
+      setCallState("idle");
+    }
+  }, [currentVoice, isMuted]);
+
+  // Enviar audio grabado al backend de Nora (con transcripción Whisper LPU en ~150ms)
+  const processRecordedAudio = useCallback(async (audioBlob: Blob, mimeType: string) => {
+    if (isProcessingRef.current || audioBlob.size < 400) {
+      setCallState("idle");
       return;
     }
 
-    const orchestrator = new NoraRealtimeOrchestrator({
-      voiceUri: currentVoice || selectedVoiceUri,
-      lang: "es-AR",
-      onTranscript: (text, isFinal) => {
-        setUserTranscript(text);
-        if (isFinal && text.trim().length > 1) {
-          processUserSpeech(text);
+    isProcessingRef.current = true;
+    setCallState("thinking");
+    setUserTranscript("Transcribiendo tu voz con Whisper LPU...");
+
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const result = reader.result as string;
+      const base64Data = result.split(",")[1];
+
+      try {
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
+
+        const res = await fetch("/api/noraitu-chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: "Escucha este audio del usuario en la llamada en vivo y respóndele conversacionalmente con oraciones directas, cálidas y concisas sin markdown.",
+            history: historyRef.current.slice(-6),
+            contextData: { mode: activeMode, is_realtime_call: true },
+            stream: true,
+            audioFile: {
+              name: `call_voice.${mimeType.includes("mp4") ? "mp4" : "webm"}`,
+              type: mimeType,
+              base64: base64Data
+            }
+          }),
+          signal: controller.signal
+        });
+
+        if (!res.ok || !res.body) {
+          setUserTranscript("No se pudo procesar el audio.");
+          speakSentence("Disculpame, no pude escucharte bien. ¿Podrías repetir?");
+          isProcessingRef.current = false;
+          return;
         }
-      },
-      onAssistantSpeechStart: () => {
-        setCallState("speaking");
-      },
-      onAssistantSpeechEnd: () => {
-        setCallState("listening");
-        setUserTranscript("");
-      },
-      onUserInterruption: () => {
-        setCallState("interrupted");
-        setTimeout(() => setCallState("listening"), 300);
+
+        const bodyReader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let accumulatedFull = "";
+        let sentenceBuffer = "";
+        let userSaidExtracted = "";
+
+        while (true) {
+          const { done, value } = await bodyReader.read();
+          if (done) break;
+
+          const rawChunk = decoder.decode(value, { stream: true });
+          accumulatedFull += rawChunk;
+          sentenceBuffer += rawChunk;
+
+          // Detección de oraciones para hablar en tiempo real
+          const match = sentenceBuffer.match(/(.*?[.?!;\n])\s*(.*)/s);
+          if (match && match[1]) {
+            const readySentence = match[1].replace(/data:\s*\[DONE\]/g, "").replace(/data:\s*/g, "");
+            if (readySentence.trim()) {
+              speakSentence(readySentence);
+            }
+            sentenceBuffer = match[2] || "";
+          }
+        }
+
+        if (sentenceBuffer.trim()) {
+          const leftover = sentenceBuffer.replace(/data:\s*\[DONE\]/g, "").replace(/data:\s*/g, "");
+          if (leftover.trim()) {
+            speakSentence(leftover);
+          }
+        }
+
+        // Limpiar respuesta para la UI
+        const cleanResponse = accumulatedFull
+          .replace(/data:\s*\[DONE\]/g, "")
+          .replace(/data:\s*\{.*?\"text\":\s*\"(.*?)\".*?\}/g, "$1")
+          .trim();
+
+        setAssistantText(cleanResponse || "Te escucho.");
+        setUserTranscript("Voz recibida");
+
+        if (cleanResponse) {
+          historyRef.current.push({ role: "user", content: "🎙️ [Mensaje de voz]" });
+          historyRef.current.push({ role: "assistant", content: cleanResponse });
+          if (onMessageLogged) {
+            onMessageLogged("🎙️ [Mensaje de voz]", cleanResponse);
+          }
+        }
+
+      } catch (err: any) {
+        if (err.name !== "AbortError") {
+          console.error("[Realtime Call Audio Error]:", err);
+          speakSentence("A ver, continuemos con lo que hablábamos.");
+        }
+      } finally {
+        isProcessingRef.current = false;
       }
-    });
-
-    orchestratorRef.current = orchestrator;
-    orchestrator.start().then(() => {
-      setCallState("listening");
-    });
-
-    return () => {
-      orchestrator.stop();
-      orchestratorRef.current = null;
     };
-  }, [isOpen, currentVoice, processUserSpeech, selectedVoiceUri]);
+
+    reader.readAsDataURL(audioBlob);
+  }, [activeMode, onMessageLogged, speakSentence]);
+
+  // Iniciar grabación de voz nativa del micrófono (MediaRecorder)
+  const startRecording = useCallback(async () => {
+    stopAssistantSpeech();
+    audioChunksRef.current = [];
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : "audio/mp4";
+
+      const recorder = new MediaRecorder(stream, { mimeType });
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        processRecordedAudio(audioBlob, mimeType);
+      };
+
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setCallState("recording");
+      setUserTranscript("Escuchándote... Hablá con libertad.");
+    } catch (err) {
+      console.error("[Microphone Access Error]:", err);
+      alert("Por favor permite el acceso al micrófono para hablar con Nora.");
+      setCallState("idle");
+    }
+  }, [processRecordedAudio, stopAssistantSpeech]);
+
+  // Detener grabación y enviar a Nora
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && callState === "recording") {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current = null;
+    }
+  }, [callState]);
+
+  // Procesar texto escrito manualmente en la llamada
+  const handleManualSubmit = useCallback(async () => {
+    const text = manualText.trim();
+    if (!text || isProcessingRef.current) return;
+
+    stopAssistantSpeech();
+    setManualText("");
+    setUserTranscript(`"${text}"`);
+    setCallState("thinking");
+    isProcessingRef.current = true;
+
+    try {
+      const res = await fetch("/api/noraitu-realtime-proxy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: text,
+          history: historyRef.current.slice(-6),
+          mode: activeMode
+        })
+      });
+
+      if (res.ok && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let full = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          full += decoder.decode(value, { stream: true });
+        }
+
+        if (full.trim()) {
+          setAssistantText(full.trim());
+          speakSentence(full.trim());
+          historyRef.current.push({ role: "user", content: text });
+          historyRef.current.push({ role: "assistant", content: full.trim() });
+          if (onMessageLogged) onMessageLogged(text, full.trim());
+        }
+      }
+    } catch (e) {
+      console.error("[Manual Submit Warn]:", e);
+    } finally {
+      isProcessingRef.current = false;
+    }
+  }, [activeMode, manualText, onMessageLogged, speakSentence, stopAssistantSpeech]);
+
+  // Cleanup al cerrar
+  useEffect(() => {
+    if (!isOpen) {
+      stopAssistantSpeech();
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.stop();
+        mediaRecorderRef.current = null;
+      }
+    }
+  }, [isOpen, stopAssistantSpeech]);
 
   if (!isOpen) return null;
 
@@ -153,51 +352,26 @@ export default function NoraRealtimeCallModal({
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const handleToggleMute = () => {
-    if (orchestratorRef.current) {
-      if (isMuted) {
-        orchestratorRef.current.start();
-        setIsMuted(false);
-      } else {
-        orchestratorRef.current.stop();
-        setIsMuted(true);
-      }
-    }
-  };
-
-  const handleInterruptNow = () => {
-    if (orchestratorRef.current) {
-      orchestratorRef.current.interruptAssistant();
-    }
-  };
-
-  const handleManualSend = () => {
-    if (manualText.trim()) {
-      processUserSpeech(manualText.trim());
-      setManualText("");
-    }
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-xl animate-fade-in">
-      <div className="relative w-full max-w-lg overflow-hidden bg-gradient-to-b from-slate-900 via-slate-900/95 to-slate-950 border border-cyan-500/30 rounded-3xl shadow-2xl shadow-cyan-500/10 p-5 sm:p-6 flex flex-col items-center justify-between min-h-[560px]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-xl animate-fade-in">
+      <div className="relative w-full max-w-md overflow-hidden bg-gradient-to-b from-slate-900 via-[#0a0f1d] to-slate-950 border border-cyan-500/40 rounded-3xl shadow-2xl shadow-cyan-500/10 p-5 flex flex-col items-center justify-between min-h-[550px]">
         
         {/* Cabecera de la llamada */}
-        <div className="w-full flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="relative flex items-center justify-center w-10 h-10 rounded-full bg-cyan-500/20 border border-cyan-400/40">
-              <span className="text-xl">✨</span>
+        <div className="w-full flex items-center justify-between border-b border-slate-800/80 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="relative flex items-center justify-center w-9 h-9 rounded-full bg-cyan-500/20 border border-cyan-400/40">
+              <Sparkles size={16} className="text-cyan-300" />
               <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
               <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500" />
             </div>
             <div>
-              <h3 className="text-white font-bold text-sm sm:text-base tracking-wide flex items-center gap-2">
-                NoraItu Realtime
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-semibold border border-cyan-500/30">
-                  En Vivo
+              <h3 className="text-white font-bold text-sm tracking-wide flex items-center gap-1.5">
+                NoraItu Llamada en Vivo
+                <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30">
+                  Whisper LPU
                 </span>
               </h3>
-              <p className="text-xs text-slate-400 font-mono">
+              <p className="text-[11px] text-slate-400 font-mono">
                 {formatDuration(callDuration)} • {activeMode.toUpperCase()}
               </p>
             </div>
@@ -206,117 +380,121 @@ export default function NoraRealtimeCallModal({
           <button
             onClick={onClose}
             className="w-8 h-8 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
-            title="Cerrar ventana"
+            title="Cerrar llamada"
           >
             ✕
           </button>
         </div>
 
-        {/* Orbe Central */}
-        <div className="my-auto flex flex-col items-center justify-center relative w-full py-4">
+        {/* Orbe Central Interactivo */}
+        <div className="my-auto flex flex-col items-center justify-center w-full py-4 text-center">
           
-          {/* Orbe Pulsante Central */}
+          {/* Botón / Orbe Pulsante de Voz */}
           <div
-            onClick={callState === "speaking" ? handleInterruptNow : undefined}
-            className={`relative flex items-center justify-center w-32 h-32 sm:w-36 sm:h-36 rounded-full cursor-pointer transition-all duration-500 shadow-2xl ${
-              callState === "speaking"
-                ? "bg-gradient-to-tr from-cyan-600 via-teal-500 to-indigo-600 shadow-cyan-500/50 scale-105 animate-pulse"
+            onClick={() => {
+              if (callState === "recording") {
+                stopRecording();
+              } else if (callState === "speaking") {
+                stopAssistantSpeech();
+              } else {
+                startRecording();
+              }
+            }}
+            className={`relative flex items-center justify-center w-36 h-36 rounded-full cursor-pointer transition-all duration-300 shadow-2xl ${
+              callState === "recording"
+                ? "bg-gradient-to-tr from-rose-600 via-pink-500 to-amber-500 shadow-rose-500/50 scale-110 animate-pulse"
                 : callState === "thinking"
-                ? "bg-gradient-to-tr from-purple-600 via-indigo-500 to-cyan-500 shadow-purple-500/40 animate-pulse scale-95"
-                : callState === "interrupted"
-                ? "bg-gradient-to-tr from-amber-600 via-orange-500 to-red-500 shadow-amber-500/50 scale-90"
-                : "bg-gradient-to-tr from-cyan-900 via-slate-800 to-cyan-800 shadow-cyan-900/30 hover:scale-105"
+                ? "bg-gradient-to-tr from-purple-600 via-indigo-500 to-cyan-500 shadow-purple-500/50 scale-100 animate-spin"
+                : callState === "speaking"
+                ? "bg-gradient-to-tr from-cyan-500 via-teal-400 to-emerald-500 shadow-cyan-500/50 scale-105 animate-pulse"
+                : "bg-gradient-to-tr from-cyan-900 via-slate-800 to-teal-900 shadow-cyan-900/40 hover:scale-105 border border-cyan-500/30"
             }`}
           >
-            <div className="absolute inset-1 rounded-full bg-slate-950/40 backdrop-blur-sm flex flex-col items-center justify-center text-center p-2">
+            <div className="absolute inset-1.5 rounded-full bg-slate-950/50 backdrop-blur-sm flex flex-col items-center justify-center p-2 text-center">
               <span className="text-3xl mb-1">
-                {callState === "speaking"
-                  ? "🗣️"
+                {callState === "recording"
+                  ? "🎙️"
                   : callState === "thinking"
-                  ? "🧠"
-                  : callState === "interrupted"
-                  ? "✋"
-                  : isMuted
-                  ? "🔇"
-                  : "🎙️"}
+                  ? "⚡"
+                  : callState === "speaking"
+                  ? "🗣️"
+                  : "🎤"}
               </span>
-              <span className="text-[11px] font-semibold text-cyan-200 tracking-wider uppercase">
-                {callState === "speaking"
-                  ? "Hablando"
+              <span className="text-[11px] font-bold text-white tracking-wider uppercase">
+                {callState === "recording"
+                  ? "Tocá al terminar"
                   : callState === "thinking"
                   ? "Pensando..."
-                  : callState === "interrupted"
-                  ? "Interrumpido"
-                  : isMuted
-                  ? "Silenciado"
-                  : "Escuchando"}
+                  : callState === "speaking"
+                  ? "Nora Hablando"
+                  : "Tocá para Hablar"}
               </span>
             </div>
           </div>
 
-          {/* Subtítulos y Transcripción en Vivo */}
-          <div className="w-full mt-5 px-4 text-center min-h-[56px] flex flex-col items-center justify-center">
-            {userTranscript ? (
-              <div className="flex flex-col items-center gap-1.5 animate-fade-in">
-                <p className="text-xs text-cyan-300 font-medium italic line-clamp-2 max-w-sm">
-                  "{userTranscript}"
-                </p>
-                {callState === "listening" && (
-                  <button
-                    onClick={() => processUserSpeech(userTranscript)}
-                    className="text-[10px] px-2.5 py-0.5 rounded-full bg-cyan-500/30 hover:bg-cyan-500/50 text-cyan-200 border border-cyan-400/40 cursor-pointer transition-all"
-                  >
-                    Enviar ahora ➔
-                  </button>
-                )}
-              </div>
+          {/* Subtítulos / Estado */}
+          <div className="w-full mt-5 px-3 min-h-[50px] flex flex-col items-center justify-center">
+            {callState === "recording" ? (
+              <p className="text-xs text-rose-300 font-semibold animate-pulse">
+                🔴 Grabando... Hablale a Nora y tocá el botón cuando termines.
+              </p>
+            ) : callState === "thinking" ? (
+              <p className="text-xs text-purple-300 font-medium animate-pulse">
+                🧠 Nora está procesando tu consulta...
+              </p>
+            ) : callState === "speaking" ? (
+              <p className="text-xs text-emerald-300 font-medium line-clamp-2 max-w-xs">
+                "{assistantText || "Respondiendo..."}"
+              </p>
+            ) : userTranscript ? (
+              <p className="text-xs text-cyan-300/90 italic line-clamp-2 max-w-xs">
+                {userTranscript}
+              </p>
             ) : (
               <p className="text-xs text-slate-400 font-light">
-                Hablá con libertad. Nora te escucha y responderá al pausar.
+                Tocá el orbe central para hablarle a Nora directamente.
               </p>
             )}
           </div>
         </div>
 
-        {/* Barra de Entrada Manual Rápida & Selector de Voz */}
+        {/* Input Manual y Selector de Voz */}
         <div className="w-full flex flex-col items-center gap-3">
           
-          {/* Input de respaldo para escribir durante la llamada */}
-          <div className="w-full flex items-center gap-2">
+          {/* Campo de texto alternativo */}
+          <div className="w-full flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 rounded-2xl p-1">
             <input
               type="text"
               value={manualText}
               onChange={(e) => setManualText(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && manualText.trim()) {
-                  handleManualSend();
+                  handleManualSubmit();
                 }
               }}
-              placeholder="O escribile algo a Nora acá..."
-              className="flex-1 px-3.5 py-2 rounded-xl bg-slate-800/60 border border-slate-700/60 text-xs text-white placeholder-slate-400 focus:outline-hidden focus:border-cyan-500"
+              placeholder="O escribí tu pregunta acá..."
+              className="flex-1 px-3 py-2 text-xs text-white bg-transparent placeholder-slate-500 focus:outline-hidden"
             />
-            {manualText.trim() && (
-              <button
-                onClick={handleManualSend}
-                className="px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs cursor-pointer shadow-md transition-all"
-              >
-                Enviar
-              </button>
-            )}
+            <button
+              onClick={handleManualSubmit}
+              disabled={!manualText.trim()}
+              className="px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-30 text-white font-semibold text-xs flex items-center gap-1 transition-all cursor-pointer"
+            >
+              <Send size={12} />
+              <span>Enviar</span>
+            </button>
           </div>
 
+          {/* Selector de Voz */}
           {availableVoices.length > 0 && (
-            <div className="w-full flex items-center justify-between px-3 py-1.5 rounded-xl bg-slate-800/40 border border-slate-700/50 text-[11px]">
+            <div className="w-full flex items-center justify-between px-3 py-1.5 rounded-xl bg-slate-900/60 border border-slate-800 text-[11px]">
               <span className="text-slate-400 flex items-center gap-1">
-                <span>🔊</span> Voz:
+                <Volume2 size={12} className="text-cyan-400" /> Voz:
               </span>
               <select
                 value={currentVoice}
-                onChange={(e) => {
-                  setCurrentVoice(e.target.value);
-                  orchestratorRef.current?.updateVoice(e.target.value);
-                }}
-                className="bg-transparent text-cyan-300 font-medium outline-none text-right cursor-pointer max-w-[220px] truncate"
+                onChange={(e) => setCurrentVoice(e.target.value)}
+                className="bg-transparent text-cyan-300 font-medium outline-none text-right cursor-pointer max-w-[200px] truncate"
               >
                 {availableVoices.map((v) => (
                   <option key={v.voiceURI} value={v.voiceURI} className="bg-slate-900 text-white">
@@ -327,42 +505,35 @@ export default function NoraRealtimeCallModal({
             </div>
           )}
 
-          {/* Barra de botones de llamada */}
+          {/* Botones de Control de Llamada */}
           <div className="flex items-center justify-center gap-6 w-full pt-1">
-            {/* Silenciar micrófono */}
+            {/* Silenciar Voz de Nora */}
             <button
-              onClick={handleToggleMute}
+              onClick={() => {
+                if (isMuted) {
+                  setIsMuted(false);
+                } else {
+                  stopAssistantSpeech();
+                  setIsMuted(true);
+                }
+              }}
               className={`w-11 h-11 rounded-full flex items-center justify-center transition-all cursor-pointer ${
                 isMuted
                   ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
-                  : "bg-slate-800 hover:bg-slate-700 text-white border border-slate-600"
+                  : "bg-slate-800 hover:bg-slate-700 text-white border border-slate-700"
               }`}
-              title={isMuted ? "Reanudar micrófono" : "Silenciar micrófono"}
+              title={isMuted ? "Reanudar voz" : "Silenciar voz de Nora"}
             >
-              {isMuted ? "🔇" : "🎤"}
+              {isMuted ? <MicOff size={16} /> : <Mic size={16} />}
             </button>
 
             {/* Colgar llamada */}
             <button
               onClick={onClose}
-              className="px-6 h-11 rounded-full bg-red-600 hover:bg-red-500 text-white font-bold text-sm tracking-wide shadow-lg shadow-red-600/30 flex items-center gap-2 transition-transform active:scale-95 cursor-pointer"
+              className="px-6 h-11 rounded-full bg-red-600 hover:bg-red-500 text-white font-bold text-xs tracking-wider uppercase shadow-lg shadow-red-600/30 flex items-center gap-1.5 transition-transform active:scale-95 cursor-pointer"
             >
-              <span>📞</span>
-              <span>Finalizar</span>
-            </button>
-
-            {/* Interrumpir manualmente */}
-            <button
-              onClick={handleInterruptNow}
-              disabled={callState !== "speaking"}
-              className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${
-                callState === "speaking"
-                  ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/30 cursor-pointer"
-                  : "bg-slate-800/40 text-slate-600 border border-slate-800 cursor-not-allowed"
-              }`}
-              title="Interrumpir a Nora"
-            >
-              ✋
+              <PhoneOff size={14} />
+              <span>Colgar</span>
             </button>
           </div>
         </div>
