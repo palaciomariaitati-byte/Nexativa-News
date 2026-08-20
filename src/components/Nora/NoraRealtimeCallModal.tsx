@@ -319,9 +319,15 @@ export default function NoraRealtimeCallModal({
         if (err.name !== "AbortError") {
           console.error("[Realtime Call Audio Error]:", err);
           speakText("A ver, continuemos con lo que me decías.");
+        } else {
+          setCallState("idle");
         }
       } finally {
         isProcessingRef.current = false;
+        // Si no está reproduciendo voz tras 1s, regresar a idle
+        setTimeout(() => {
+          setCallState((st) => (st === "thinking" ? "idle" : st));
+        }, 1000);
       }
     };
 

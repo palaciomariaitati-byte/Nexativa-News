@@ -411,40 +411,79 @@ async function tryGroqStream(
 }
 
 async function transcribeAudioWithWhisper(fileObj: any): Promise<string | null> {
+  if (!fileObj?.base64) return null;
+
+  const rawB64 = fileObj.base64.includes(",") ? fileObj.base64.split(",")[1] : fileObj.base64;
+  const mime = fileObj.mimeType || fileObj.type || "audio/webm";
+  const ext = mime.includes("mp4") ? "mp4" : mime.includes("wav") ? "wav" : "webm";
+
+  // 1. Intentar con Groq Whisper Large v3 Turbo
   const groqKey = process.env.GROQ_API_KEY;
-  if (!groqKey || !fileObj?.base64) return null;
+  if (groqKey) {
+    try {
+      const buffer = Buffer.from(rawB64, "base64");
+      const formData = new FormData();
+      const blob = new Blob([buffer], { type: mime });
+      formData.append("file", blob, `audio.${ext}`);
+      formData.append("model", "whisper-large-v3-turbo");
+      formData.append("language", "es");
 
-  try {
-    const rawB64 = fileObj.base64.includes(",") ? fileObj.base64.split(",")[1] : fileObj.base64;
-    const buffer = Buffer.from(rawB64, "base64");
-    const mime = fileObj.mimeType || fileObj.type || "audio/webm";
-    const ext = mime.includes("mp4") ? "mp4" : mime.includes("wav") ? "wav" : "webm";
+      const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${groqKey.trim()}` },
+        body: formData,
+        signal: AbortSignal.timeout(8000)
+      });
 
-    const formData = new FormData();
-    const blob = new Blob([buffer], { type: mime });
-    formData.append("file", blob, `audio.${ext}`);
-    formData.append("model", "whisper-large-v3-turbo");
-    formData.append("language", "es");
-
-    const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${groqKey.trim()}`
-      },
-      body: formData,
-      signal: AbortSignal.timeout(10000)
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      if (data.text && data.text.trim().length > 0) {
-        console.log("[Groq Whisper Transcription] 🎙️ Audio transcrito con éxito:", data.text);
-        return data.text.trim();
+      if (res.ok) {
+        const data = await res.json();
+        if (data.text && data.text.trim().length > 0) {
+          console.log("[Groq Whisper Transcription] 🎙️ Audio transcrito:", data.text);
+          return data.text.trim();
+        }
       }
+    } catch (err) {
+      console.warn("[Groq Whisper Warning]:", err);
     }
-  } catch (err) {
-    console.warn("[Groq Whisper Warning]:", err);
   }
+
+  // 2. Fallback a Gemini Audio Multimodal
+  const geminiKeys = [
+    process.env.GEMINI_API_KEY,
+    process.env.GEMINI_API_KEY_FALLBACK,
+    process.env.GEMINI_API_KEY_FALLBACK_2
+  ].filter(Boolean) as string[];
+
+  for (const gKey of geminiKeys) {
+    try {
+      const genAI = new GoogleGenerativeAI(gKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const result = await model.generateContent({
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                inlineData: {
+                  mimeType: mime.includes("mp4") ? "audio/mp4" : "audio/webm",
+                  data: rawB64
+                }
+              },
+              { text: "Transcribe exactamente en texto plano en español todo lo que dice este audio. No agregues introducciones ni comentarios, solo el texto transcripto fielmente." }
+            ]
+          }
+        ]
+      });
+      const transcribedText = result.response.text();
+      if (transcribedText && transcribedText.trim().length > 0) {
+        console.log("[Gemini Audio Fallback] 🎙️ Audio transcripto:", transcribedText.trim());
+        return transcribedText.trim();
+      }
+    } catch (gErr) {
+      console.warn("[Gemini Audio Transcription Fallback Warn]:", gErr);
+    }
+  }
+
   return null;
 }
 
