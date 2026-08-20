@@ -63,9 +63,9 @@ export async function POST(req: Request) {
       ["demanda", "abogados", "denuncia", "estafa", "juicio", "defensa del consumidor", "reclamo legal"].some(k => userMsgLower.includes(k));
 
     const ollamaReasoningModel = process.env.OLLAMA_REASONING_MODEL || "deepseek-r1:1.5b";
-    const geminiReasoningModel = process.env.GEMINI_REASONING_MODEL || "gemini-3.6-flash";
+    const geminiReasoningModel = process.env.GEMINI_REASONING_MODEL || "gemini-flash-latest";
 
-    const standardModels = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-flash-lite-latest"];
+    const standardModels = ["gemini-flash-latest", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.1-pro-preview"];
     const envModel = process.env.GEMINI_MODEL_NAME || process.env.GEMINI_MODEL;
     
     // Si es una tarea de razonamiento complejo, priorizar modelos de alta capacidad

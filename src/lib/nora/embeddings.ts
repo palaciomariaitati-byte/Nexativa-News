@@ -9,6 +9,7 @@ export async function generateTextEmbedding(text: string): Promise<number[] | nu
     process.env.GEMINI_API_KEY,
     process.env.GEMINI_API_KEY_FALLBACK,
     process.env.GEMINI_API_KEY_FALLBACK_2,
+    process.env.GEMINI_API_KEY_TERTIARY,
   ].filter(Boolean) as string[];
 
   if (keysPool.length === 0) {

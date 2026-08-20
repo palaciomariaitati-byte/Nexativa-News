@@ -46,13 +46,15 @@ import {
   Video,
   FlipHorizontal,
   Radio,
-  Presentation
+  Presentation,
+  PhoneCall
 } from "lucide-react";
 import jsQR from "jsqr";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { exportNoraCleanWord, exportNoraCleanPdf, exportNoraCleanPptx } from "@/lib/exportUtils";
 import { FunctionPlotter } from "@/components/Nora/FunctionPlotter";
+import NoraRealtimeCallModal from "@/components/Nora/NoraRealtimeCallModal";
 
 interface AttachedFile {
   name: string;
@@ -138,7 +140,8 @@ export default function NoraItuApp() {
   const [voiceRate, setVoiceRate] = useState<number>(0.94);
   const [showVoiceModal, setShowVoiceModal] = useState(false);
 
-  // Estados de Nora Titán Live Vision (Cámara y Audio en Vivo Full-Duplex)
+  // Estados de Nora Titán Live Vision y Realtime Voice Call
+  const [showRealtimeCallModal, setShowRealtimeCallModal] = useState(false);
   const [showLiveVisionModal, setShowLiveVisionModal] = useState(false);
   const [isLiveStreaming, setIsLiveStreaming] = useState(false);
   const [liveFacingMode, setLiveFacingMode] = useState<"user" | "environment">("environment");
@@ -1067,6 +1070,14 @@ export default function NoraItuApp() {
       created_at: new Date().toISOString()
     };
 
+    const historyPayload = messages
+      .filter((m) => m.content && typeof m.content === "string" && m.content.trim().length > 0)
+      .slice(-30)
+      .map((m) => ({
+        role: (m.role === "assistant" || m.role === "model") ? "assistant" : "user",
+        content: m.content
+      }));
+
     setMessages((prev) => [...prev, tempUserMsg]);
     setInputMessage("");
     setAttachedFile(null);
@@ -1085,6 +1096,7 @@ export default function NoraItuApp() {
           session_id: currentSessionId,
           user_id: userId,
           message_id: msgId,
+          history: historyPayload,
           contextData: { mode: activeMode },
           stream: true,
           file: currentAttached ? {
@@ -1292,6 +1304,8 @@ export default function NoraItuApp() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+
     if (file.type.startsWith("image/")) {
       const compressed = await compressImageForUpload(file);
       setAttachedFile({
@@ -1313,13 +1327,18 @@ export default function NoraItuApp() {
         });
       };
       reader.readAsDataURL(file);
-    } else if (file.type === "application/pdf") {
+    } else if (isPdf) {
+      if (file.size > 15 * 1024 * 1024) {
+        alert("El archivo PDF supera los 15 MB. Por favor sube un documento de menor peso o compártelo en secciones.");
+        e.target.value = "";
+        return;
+      }
       const reader = new FileReader();
       reader.onload = () => {
         const result = reader.result as string;
         setAttachedFile({
           name: file.name,
-          type: file.type,
+          type: "application/pdf",
           size: file.size,
           base64: result.split(",")[1],
           previewUrl: undefined
@@ -1331,7 +1350,7 @@ export default function NoraItuApp() {
       reader.onload = () => {
         setAttachedFile({
           name: file.name,
-          type: file.type,
+          type: file.type || "text/plain",
           size: file.size,
           textContent: reader.result as string
         });
@@ -1363,6 +1382,14 @@ export default function NoraItuApp() {
       created_at: new Date().toISOString()
     };
 
+    const historyPayload = messages
+      .filter((m) => m.content && typeof m.content === "string" && m.content.trim().length > 0)
+      .slice(-30)
+      .map((m) => ({
+        role: (m.role === "assistant" || m.role === "model") ? "assistant" : "user",
+        content: m.content
+      }));
+
     setMessages((prev) => [...prev, tempUserMsg]);
     setInputMessage("");
     setAttachedFile(null);
@@ -1385,6 +1412,7 @@ export default function NoraItuApp() {
           session_id: currentSessionId,
           user_id: userId,
           message_id: msgId,
+          history: historyPayload,
           contextData: { mode: activeMode },
           stream: true,
           file: currentFile ? {
@@ -2065,6 +2093,16 @@ export default function NoraItuApp() {
           </div>
           
           <div className="flex items-center gap-1 sm:gap-2">
+            {/* Botón NoraItu Realtime Voice Call (0ms) */}
+            <button
+              onClick={() => setShowRealtimeCallModal(true)}
+              className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold bg-gradient-to-r from-cyan-600 via-teal-500 to-emerald-600 hover:from-cyan-500 hover:to-emerald-500 text-white transition-all shadow-md shadow-cyan-500/20 active:scale-95 cursor-pointer shrink-0"
+              title="Iniciar Llamada de Voz en Vivo con Nora (0ms Full Duplex)"
+            >
+              <PhoneCall size={13} className="text-white shrink-0 animate-bounce" />
+              <span className="font-extrabold tracking-wide">Llamada en Vivo</span>
+            </button>
+
             {/* Botón Nora Titán Live Vision */}
             <button
               onClick={() => {
@@ -3095,6 +3133,21 @@ export default function NoraItuApp() {
 
         </div>
       )}
+
+      {/* Modal de Llamada de Voz en Vivo en Tiempo Real (Full-Duplex Costo $0) */}
+      <NoraRealtimeCallModal
+        isOpen={showRealtimeCallModal}
+        onClose={() => setShowRealtimeCallModal(false)}
+        selectedVoiceUri={selectedVoiceUri}
+        activeMode={activeMode}
+        onMessageLogged={(userText, assistantText) => {
+          setMessages((prev) => [
+            ...prev,
+            { role: "user", content: userText, created_at: new Date().toISOString() },
+            { role: "assistant", content: assistantText, created_at: new Date().toISOString() }
+          ]);
+        }}
+      />
     </div>
   );
 }

@@ -54,7 +54,7 @@ REGLAS DE EVALUACIÓN:
   for (const key of keysPool) {
     try {
       const genAI = new GoogleGenerativeAI(key);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
       const promptText = `ANALIZAR NOTICIA:\nTítulo: ${title}\nContenido: ${content.substring(0, 1500)}\nFuente declarada: ${sourceUrl || "Agencia / Exteriores"}`;
 

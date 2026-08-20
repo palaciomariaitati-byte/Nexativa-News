@@ -43,8 +43,8 @@ async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Promise<s
     throw new Error("Ni GEMINI_API_KEY ni GEMINI_API_KEY_FALLBACK están configuradas.");
   }
 
-  const primaryModel = process.env.GEMINI_MODEL || "gemini-3.6-flash";
-  const candidateModels = Array.from(new Set([primaryModel, "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]));
+  const primaryModel = process.env.GEMINI_MODEL || "gemini-flash-latest";
+  const candidateModels = Array.from(new Set([primaryModel, "gemini-flash-latest", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.1-pro-preview"]));
 
   const prompt = `
 Escucha atentamente este audio de un corresponsal de prensa de Nexativa News en Ituzaingó, Corrientes.

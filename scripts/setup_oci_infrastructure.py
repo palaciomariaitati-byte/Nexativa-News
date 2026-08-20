@@ -269,6 +269,7 @@ def run_auto_provisioner():
                         if vnics:
                             vnic = network_client.get_vnic(vnics[0].vnic_id).data
                             print(f"\n🌟 IP PÚBLICA DEL SERVIDOR: {vnic.public_ip}")
+                            os.makedirs("D:/Proyectos/claves-nora", exist_ok=True)
                             with open("D:/Proyectos/claves-nora/server_ip.txt", "w") as f_ip:
                                 f_ip.write(vnic.public_ip)
                         break

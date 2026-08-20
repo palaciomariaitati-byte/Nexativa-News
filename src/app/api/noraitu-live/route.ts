@@ -219,7 +219,7 @@ export async function POST(req: Request) {
       process.env.GEMINI_API_KEY_FALLBACK,
     ].filter(Boolean) as string[];
 
-    const geminiVisionModels = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"];
+    const geminiVisionModels = ["gemini-flash-latest", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.1-pro-preview"];
 
     for (const key of keysPool) {
       for (const modelName of geminiVisionModels) {

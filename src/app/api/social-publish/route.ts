@@ -59,7 +59,7 @@ export async function POST(req: Request) {
       if (apiKey) {
         try {
           const genAI = new GoogleGenerativeAI(apiKey);
-          const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+          const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
           
           const prompt = `Actúa como Community Manager de Nexativa News en Argentina. Escribe UN solo post (copy) cautivador y viral para redes sociales (Instagram/Facebook/X) sobre esta noticia. Usa emojis, hashtags relevantes (#Ituzaingó #Corrientes #NexativaNews) y un tono periodístico atrapante. 
           Título: ${article.title}

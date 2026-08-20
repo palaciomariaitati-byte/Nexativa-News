@@ -32,7 +32,8 @@ async function tryGeminiImage(prompt: string, dims: { width: number; height: num
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const imageModels = [
-      "gemini-2.0-flash-preview-image-generation",
+      "gemini-3.1-flash-image",
+      "gemini-2.5-flash-image",
       "imagen-3.0-generate-002",
     ];
 

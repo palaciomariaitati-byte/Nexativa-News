@@ -28,14 +28,16 @@ Eres NoraItu, una mente brillante, mentora y docente de élite: empática, lúci
      * Explica que operas sobre una matriz de cómputo soberano y red neuronal distribuida de 4 capas desarrollada por el equipo de MyJNexoraVisual en Ituzaingó, Corrientes, Argentina, dotada de capacidades multimodales de vanguardia (visión en tiempo real, voz neuronal y razonamiento profundo).
      * Niega categóricamente cualquier vínculo o dependencia con OpenAI, ChatGPT, Google o Microsoft.
 
-2. ESTILO Y TONO CONVERSACIONAL (ELOCUENCIA RIOPLATENSE PULIDA Y NATURAL):
+2. ESTILO, COHESIÓN Y CONTINUIDAD CONVERSACIONAL ININTERRUMPIDA:
    - Adopta de forma inquebrantable el estilo conversacional de un ser humano brillante, sumamente empático, socrático y con modales impecables.
    - Tu léxico es pulido, cálido, natural y accesible.
    - ESTÁ ESTRICTAMENTE PROHIBIDO sonar como un software automatizado o enumerar variables de código o logs internos en la pantalla del usuario. Conversa con la prosa fluida de una mente brillante que domina las ciencias y la pedagogía universal.
-   - Charla, debate, repregunta con interés genuino y expande los temas con la soltura de una mentora de élite en una tutoría personalizada.
-   - Si la conversación ya está en curso, NUNCA repitas saludos formales ni te vuelvas a presentar ("Hola, soy Nora..."). Edifica directamente sobre lo que se viene dialogando.
+   - HILO CONVERSACIONAL Y MEMORIA VIVA: Mantén el hilo conductor a lo largo de toda la interacción. NUNCA resetees la conversación, no repitas saludos ni vuelvas a formular preguntas del inicio de la sesión.
+   - NUNCA inventes o asumas que el interlocutor o las personas mencionadas pertenecen a tu equipo, directorio empresarial o familia a menos que el usuario lo haya indicado de manera expresa.
+   - Ante preguntas reflexivas o de control ("¿cómo sabrías si X está del otro lado?", "¿perdiste el hilo?"), responde con honestidad, análisis lúcido y referencia fiel al contexto inmediato previo.
+   - El diálogo permanece activo y cohesionado hasta que el usuario decida libremente cerrar la sesión.
 
-2. ADAPTABILIDAD AL ESTUDIANTE Y PROFESIONAL:
+3. ADAPTABILIDAD AL ESTUDIANTE Y PROFESIONAL:
    - Cuando un estudiante de abogacía, medicina, ingeniería, docencia o cualquier disciplina te consulte:
      * Demuéstrale una comprensión profunda de su área temática.
      * Guíalo con pedagogía socrática adaptativa, andamiaje cognitivo y analogías lúcidas.
@@ -43,7 +45,7 @@ Eres NoraItu, una mente brillante, mentora y docente de élite: empática, lúci
    - Si la duda es puntual, responde con precisión directa y claridad sin rodeos innecesarios.
    - Si el tema requiere profundidad o desarrollo didáctico, desglósalo paso a paso de manera estructurada, lúcida y apasionante.
 
-3. FILTRO ANTI-BASURA TIPOGRÁFICA Y ESCRITURA FLUIDA:
+4. FILTRO ANTI-BASURA TIPOGRÁFICA Y ESCRITURA FLUIDA:
    - Está terminantemente prohibido saturar el texto con plecas consecutivas '||', asteriscos redundantes o código Markdown roto.
    - Estructura la información de forma limpia y legible. Si entregas listas, usa viñetas limpias o números.
    - Evita las tablas tipográficas compactas a menos que sea estrictamente necesario para una grilla comparativa, garantizando que el texto sea un placer de leer tanto visualmente como al oído.
@@ -343,8 +345,8 @@ async function tryGroqStream(
   const groqKey = process.env.GROQ_API_KEY;
   if (!groqKey) return null;
 
-  // Si hay imagen adjunta, dejar que la capa multimodal de Gemini procese la visión
-  if (fileObj && fileObj.mimeType?.startsWith("image/")) {
+  // Si hay imagen o archivo binario (como PDF sin texto plano), dejar que la capa multimodal de Gemini procese el archivo
+  if (fileObj && (fileObj.mimeType?.startsWith("image/") || fileObj.mimeType === "application/pdf" || fileObj.name?.toLowerCase().endsWith(".pdf")) && !fileObj.textContent) {
     return null;
   }
 
@@ -452,6 +454,7 @@ export async function POST(req: Request) {
       message = "", 
       session_id, 
       user_id = "anonymous_user", 
+      history: clientHistory,
       contextData, 
       message_id,
       file,
@@ -492,7 +495,8 @@ export async function POST(req: Request) {
       session_id, 
       message_preview: effectiveMessage.slice(0, 40), 
       has_file: !!effectiveFile,
-      has_audio: !!targetAudio 
+      has_audio: !!targetAudio,
+      client_history_count: Array.isArray(clientHistory) ? clientHistory.length : 0
     });
 
     const supabase = createServerSupabaseClient();
@@ -571,21 +575,36 @@ export async function POST(req: Request) {
       });
     }
 
+    // 🌟 RESOLUCIÓN DE HISTORIAL DE ALTA FIDELIDAD (VENTANA DESLIZANTE DE HASTA 35 MENSAJES)
     const rawHistory: { role: string; content: string }[] = [];
-    if (activeSessionId) {
+
+    if (Array.isArray(clientHistory) && clientHistory.length > 0) {
+      // Prioridad 1: Historial directo del cliente para latencia cero y cero desfasaje
+      const recentClientMsgs = clientHistory.slice(-35);
+      for (const m of recentClientMsgs) {
+        if (m && typeof m.content === "string" && m.content.trim()) {
+          const role = (m.role === "assistant" || m.role === "model") ? "model" : "user";
+          rawHistory.push({ role, content: m.content.trim() });
+        }
+      }
+    } else if (activeSessionId) {
+      // Prioridad 2: Consulta ordenada descendentemente (los más recientes) e invertida a cronología real
       const { data: pastMsgs } = await supabase
         .from("noraitu_messages")
-        .select("role, content")
+        .select("role, content, created_at")
         .eq("session_id", activeSessionId)
-        .order("created_at", { ascending: true })
-        .limit(10);
+        .order("created_at", { ascending: false })
+        .limit(35);
       
       if (pastMsgs && pastMsgs.length > 0) {
-        for (const m of pastMsgs) {
-          rawHistory.push({
-            role: m.role === "assistant" || m.role === "model" ? "model" : "user",
-            content: m.content
-          });
+        const chronologicalMsgs = [...pastMsgs].reverse();
+        for (const m of chronologicalMsgs) {
+          if (m && typeof m.content === "string" && m.content.trim()) {
+            rawHistory.push({
+              role: (m.role === "assistant" || m.role === "model") ? "model" : "user",
+              content: m.content.trim()
+            });
+          }
         }
       }
     }
@@ -615,15 +634,17 @@ export async function POST(req: Request) {
     if (ragBizData) fullSystemPrompt += ragBizData;
 
     if (rawHistory.length > 0) {
-      fullSystemPrompt += `\n\n[DIRECTIVA DE CONTINUIDAD]: La conversación ya está en curso (turno ${rawHistory.length + 1}). PROHIBIDO repetir saludos de bienvenida ("¡Hola!", "Soy NoraItu..."). Responde directamente y con fluidez a la última intervención del usuario construyendo sobre lo dialogado.`;
+      fullSystemPrompt += `\n\n========================================================================\n🔗 DIRECTIVA DE CONTINUIDAD, COHESIÓN Y MEMORIA VIVA (TURNO ACUMULADO: ${rawHistory.length + 1}):\n- La conversación ya está en curso y tiene un hilo activo consolidado.\n- PROHIBIDO TERMINANTEMENTE repetir saludos formales ("¡Hola!", "Soy Nora..."), formular de nuevo preguntas del inicio o desviar la charla a temas no pedidos.\n- Mantén intacto el andamiaje conceptual y responde con coherencia inmediata sobre lo último dialogado con el usuario.\n========================================================================`;
     }
 
     let effectiveUserMessage = effectiveMessage;
     if (effectiveFile) {
       if (effectiveFile.mimeType?.startsWith("image/")) {
         effectiveUserMessage = `[FOTO ADJUNTA: "${effectiveFile.name || 'foto.jpg'}"]\n${effectiveMessage || "Analiza detalladamente esta imagen, identifica qué contiene y descríbela con precisión."}`;
+      } else if (effectiveFile.mimeType === "application/pdf" || effectiveFile.name?.toLowerCase().endsWith(".pdf")) {
+        effectiveUserMessage = `[DOCUMENTO PDF ADJUNTO: "${effectiveFile.name || 'documento.pdf'}"]\n${effectiveMessage || "Analiza minuciosamente el contenido de este documento PDF adjunto y responde detalladamente a mi consulta."}`;
       } else if (effectiveFile.textContent) {
-        effectiveUserMessage = `[DOCUMENTO ADJUNTO: "${effectiveFile.name || 'documento'}"]:\n${effectiveFile.textContent.slice(0, 8000)}\n\n[CONSULTA DEL USUARIO]:\n${effectiveMessage || "Sintetiza y analiza el documento adjunto."}`;
+        effectiveUserMessage = `[DOCUMENTO ADJUNTO: "${effectiveFile.name || 'documento'}"]:\n${effectiveFile.textContent.slice(0, 10000)}\n\n[CONSULTA DEL USUARIO]:\n${effectiveMessage || "Sintetiza y analiza el documento adjunto."}`;
       }
     } else if (targetAudio) {
       effectiveUserMessage = `[NOTA DE VOZ DEL USUARIO]: "${effectiveMessage}"\nResponde directamente a esta consulta con máxima profesionalidad.`;
@@ -650,292 +671,15 @@ export async function POST(req: Request) {
     }
 
     if (stream) {
-      // 🛡️ CAPA 1 PRIMARIA: Google Gemini Multi-Pool (gemini-3.6-flash / gemini-3.5-flash)
-      console.log("[NoraItu-Chat] 🚀 Capa 1 Primaria: Invocando Google Gemini Multi-Pool...");
-
-      const currentTurnParts: any[] = [];
-      if (effectiveFile) {
-        if (effectiveFile.base64 && effectiveFile.mimeType) {
-          const cleanMime = effectiveFile.mimeType.split(";")[0].trim() || "image/jpeg";
-          const cleanB64 = effectiveFile.base64.includes(",") ? effectiveFile.base64.split(",")[1] : effectiveFile.base64;
-          currentTurnParts.push({
-            inlineData: { data: cleanB64, mimeType: cleanMime }
-          });
-        }
-      }
-
-      currentTurnParts.push({ text: effectiveUserMessage || "Hola Nora, continuemos." });
-
-      const geminiContents: { role: string; parts: any[] }[] = [];
-      for (const item of rawHistory) {
-        if (!item.content || !item.content.trim()) continue;
-        const mappedRole = item.role === "assistant" || item.role === "model" ? "model" : "user";
-        
-        if (geminiContents.length === 0 && mappedRole === "model") {
-          geminiContents.push({ role: "user", parts: [{ text: "Hola Nora" }] });
-        }
-
-        if (geminiContents.length > 0 && geminiContents[geminiContents.length - 1].role === mappedRole) {
-          const prevText = geminiContents[geminiContents.length - 1].parts[0]?.text || "";
-          geminiContents[geminiContents.length - 1].parts = [{ text: `${prevText}\n\n${item.content}` }];
-        } else {
-          geminiContents.push({ role: mappedRole, parts: [{ text: item.content }] });
-        }
-      }
-
-      if (geminiContents.length > 0 && geminiContents[geminiContents.length - 1].role === "user") {
-        geminiContents.push({ role: "model", parts: [{ text: "Comprendo. Continuemos." }] });
-      }
-
-      geminiContents.push({ role: "user", parts: currentTurnParts });
-
-      const keysPool = [
-        process.env.GEMINI_API_KEY,
-        process.env.GEMINI_API_KEY_FALLBACK,
-        process.env.GEMINI_API_KEY_FALLBACK_2,
-        process.env.GEMINI_API_KEY_TERTIARY,
-      ].filter(Boolean) as string[];
-
-      const geminiModelCandidates = [
-        "gemini-3.6-flash",
-        "gemini-3.5-flash",
-        "gemini-2.5-flash",
-        "gemini-3.1-pro-preview",
-        "gemini-3.5-flash-lite",
-        "gemini-flash-latest"
-      ];
-
-      let activeChatStream: any = null;
-      let usedModelTag = "gemini-3.6-flash";
-
-      outerPoolLoop: for (const key of keysPool) {
-        for (const currentModel of geminiModelCandidates) {
-          try {
-            const genAI = new GoogleGenerativeAI(key);
-            const model = genAI.getGenerativeModel({
-              model: currentModel,
-              systemInstruction: fullSystemPrompt,
-              generationConfig: { temperature: 0.4, maxOutputTokens: 3500 }
-            });
-            activeChatStream = await model.generateContentStream({ contents: geminiContents });
-            if (activeChatStream) {
-              usedModelTag = currentModel;
-              break outerPoolLoop;
-            }
-          } catch (err: any) {
-            console.error(`[NoraItu-Fatal-Error]: Gemini Stream Failover (${currentModel}):`, err?.message);
-            try {
-              const genAI = new GoogleGenerativeAI(key);
-              const fallbackModel = genAI.getGenerativeModel({
-                model: currentModel,
-                generationConfig: { temperature: 0.4, maxOutputTokens: 3500 }
-              });
-              const contentsWithPrompt = [
-                { role: "user", parts: [{ text: `${fullSystemPrompt}\n\n[USUARIO]: ${effectiveUserMessage}` }] }
-              ];
-              activeChatStream = await fallbackModel.generateContentStream({ contents: contentsWithPrompt });
-              if (activeChatStream) {
-                usedModelTag = currentModel;
-                break outerPoolLoop;
-              }
-            } catch (innerErr: any) {
-              console.error(`[NoraItu-Fatal-Error]: Gemini Secondary Stream Failover (${currentModel}):`, innerErr?.message);
-            }
-          }
-        }
-      }
-
-      // ⚡ CAPA 2 (Respaldo Groq Inference si Gemini no inició)
-      if (!activeChatStream && process.env.GROQ_API_KEY) {
-        console.log("[NoraItu-Chat] 🚀 Capa 2 (Respaldo): Invocando Groq Inference...");
-        const groqStream = await tryGroqStream(rawHistory, effectiveUserMessage, fullSystemPrompt, effectiveFile);
-        if (groqStream) {
-          const encoder = new TextEncoder();
-          let fullAssistantText = "";
-
-          const customStream = new ReadableStream({
-            async start(controller) {
-              const reader = groqStream.getReader();
-              const decoder = new TextDecoder();
-              let buffer = "";
-
-              try {
-                while (true) {
-                  const { done, value } = await reader.read();
-                  if (done) break;
-                  buffer += decoder.decode(value, { stream: true });
-                  const lines = buffer.split("\n");
-                  buffer = lines.pop() || "";
-
-                  for (const line of lines) {
-                    const trimmed = line.trim();
-                    if (trimmed.startsWith("data: ")) {
-                      const dataContent = trimmed.slice(6).trim();
-                      if (dataContent === "[DONE]") break;
-                      try {
-                        const parsed = JSON.parse(dataContent);
-                        const deltaText = parsed.choices?.[0]?.delta?.content || parsed.choices?.[0]?.delta?.reasoning_content || "";
-                        if (deltaText) {
-                          fullAssistantText += deltaText;
-                          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: deltaText, session_id: activeSessionId })}\n\n`));
-                        }
-                      } catch {}
-                    }
-                  }
-                }
-
-                if (!fullAssistantText.trim()) {
-                  const fallbackResponse = "Comprendo tu consulta y estoy a tu completa disposición para asistirte paso a paso.";
-                  fullAssistantText = fallbackResponse;
-                  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: fallbackResponse, session_id: activeSessionId })}\n\n`));
-                }
-
-                if (activeSessionId) {
-                  supabase.from("noraitu_messages").insert([
-                    { session_id: activeSessionId, role: "user", content: effectiveUserMessage, metadata: { ...(contextData || {}) } },
-                    { session_id: activeSessionId, role: "assistant", content: fullAssistantText, metadata: { generated_by: "NoraItu-Groq" } }
-                  ]).then(() => {});
-                }
-
-                controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-                controller.close();
-              } catch (err) {
-                controller.error(err);
-              }
-            }
-          });
-
-          return new Response(customStream, {
-            headers: {
-              "Content-Type": "text/event-stream; charset=utf-8",
-              "Cache-Control": "no-cache, no-transform",
-              "Connection": "keep-alive"
-            }
-          });
-        }
-      }
-
-      // 4. Inferencia Directa de Rescate Sincrónica
-      if (!activeChatStream) {
-        console.warn("[NoraItu-Chat] ⚠️ Streams remotos no disponibles. Ejecutando inferencia directa de emergencia...");
-        
-        let directText = "";
-
-        for (const key of keysPool) {
-          for (const currentModel of geminiModelCandidates) {
-            try {
-              const genAI = new GoogleGenerativeAI(key);
-              const fallbackModel = genAI.getGenerativeModel({
-                model: currentModel,
-                generationConfig: { temperature: 0.4, maxOutputTokens: 3500 }
-              });
-              const result = await fallbackModel.generateContent(
-                `${fullSystemPrompt}\n\n[HISTORIAL RECIENTE]:\n${rawHistory.slice(-4).map(h => `${h.role}: ${h.content}`).join("\n")}\n\n[USUARIO]: ${effectiveUserMessage}`
-              );
-              const rawOut = result.response?.text();
-              if (rawOut && rawOut.trim().length > 0) {
-                directText = rawOut.trim();
-                usedModelTag = currentModel;
-                break;
-              }
-            } catch (syncErr: any) {
-              console.error("[NoraItu-Fatal-Error]: Error en inferencia directa Gemini:", syncErr?.message);
-            }
-          }
-          if (directText) break;
-        }
-
-        const encoder = new TextEncoder();
-        const outputResponse = directText || "Hola, he recibido tu consulta con éxito. Permíteme asistirte de inmediato con cada aspecto detallado de tu requerimiento.";
-
-        if (activeSessionId) {
-          supabase.from("noraitu_messages").insert([
-            { session_id: activeSessionId, role: "user", content: effectiveUserMessage, metadata: { ...(contextData || {}) } },
-            { session_id: activeSessionId, role: "assistant", content: outputResponse, metadata: { generated_by: `NoraItu-${usedModelTag}` } }
-          ]).then(() => {});
-        }
-
-        const customStream = new ReadableStream({
-          start(controller) {
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: outputResponse, session_id: activeSessionId })}\n\n`));
-            controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-            controller.close();
-          }
-        });
-        return new Response(customStream, {
-          headers: {
-            "Content-Type": "text/event-stream; charset=utf-8",
-            "Cache-Control": "no-cache, no-transform",
-            "Connection": "keep-alive"
-          }
-        });
-      }
-
-      const encoder = new TextEncoder();
-      let fullAssistantText = "";
-
-      const customStream = new ReadableStream({
-        async start(controller) {
-          const heartbeatTimer = setInterval(() => {
-            try {
-              controller.enqueue(encoder.encode(`: keep-alive\n\n`));
-            } catch (e) {
-              clearInterval(heartbeatTimer);
-            }
-          }, 2500);
-
-          try {
-            for await (const chunk of activeChatStream.stream) {
-              let chunkText = "";
-              try {
-                chunkText = chunk.text();
-              } catch (textErr) {
-                chunkText = chunk.candidates?.[0]?.content?.parts?.[0]?.text || "";
-              }
-              if (chunkText) {
-                fullAssistantText += chunkText;
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: chunkText, session_id: activeSessionId })}\n\n`));
-              }
-            }
-
-            if (!fullAssistantText.trim()) {
-              const fallbackResponse = "Comprendo tu consulta y he recibido tu mensaje con éxito. Continuemos desarrollando el tema.";
-              fullAssistantText = fallbackResponse;
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: fallbackResponse, session_id: activeSessionId })}\n\n`));
-            }
-
-            if (activeSessionId && fullAssistantText) {
-              supabase.from("noraitu_messages").insert([
-                { session_id: activeSessionId, role: "user", content: effectiveUserMessage, metadata: { ...(contextData || {}) } },
-                { session_id: activeSessionId, role: "assistant", content: fullAssistantText, metadata: { generated_by: `NoraItu-${usedModelTag}` } }
-              ]).then(() => {});
-            }
-
-            controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-          } catch (streamErr: any) {
-            console.warn("[Stream Ingestion Warning]:", streamErr?.message);
-            if (fullAssistantText.length > 0) {
-              controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-            } else {
-              const gracefulMsg = "He recibido tu consulta. Permíteme asistirte de inmediato.";
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: gracefulMsg, session_id: activeSessionId })}\n\n`));
-              controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-            }
-          } finally {
-            clearInterval(heartbeatTimer);
-            try {
-              controller.close();
-            } catch (e) {}
-          }
-        }
-      });
-
-      return new Response(customStream, {
-        headers: {
-          "Content-Type": "text/event-stream; charset=utf-8",
-          "Cache-Control": "no-cache, no-transform",
-          "Connection": "keep-alive"
-        }
+      console.log("[NoraItu-Chat] 🚀 Invocando Matriz Soberana Blindada (dispatchSovereignInference)...");
+      return await dispatchSovereignInference({
+        history: rawHistory,
+        userMessage: effectiveMessage,
+        systemPrompt: fullSystemPrompt,
+        file: effectiveFile,
+        sessionId: activeSessionId,
+        userId: user_id,
+        contextData
       });
     }
 
