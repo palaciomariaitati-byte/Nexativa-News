@@ -46,7 +46,7 @@ export default function NoraRealtimeCallModal({
   const activeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Audio Pipeline Refs (Stream Único y Robusto)
+  // Audio Pipeline Refs (Stream Único Permanente)
   const micStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const micGainNodeRef = useRef<GainNode | null>(null);
@@ -61,10 +61,42 @@ export default function NoraRealtimeCallModal({
   const noiseFloorRef = useRef<number>(14);
   const speechStartTimeRef = useRef<number>(0);
   const cooldownTimerRef = useRef<any>(null);
+  const hasUnlockedAudioRef = useRef<boolean>(false);
 
   useEffect(() => {
     activeModeRef.current = activeMode;
   }, [activeMode]);
+
+  // 🔓 DESBLOQUEO EXPLÍCITO DE HARDWARE (User Gesture Policy para iOS/Android)
+  const unlockMobileAudioHardware = useCallback(async () => {
+    if (typeof window === "undefined") return;
+    try {
+      if (audioContextRef.current && audioContextRef.current.state === "suspended") {
+        await audioContextRef.current.resume();
+      }
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const ctx = audioContextRef.current || new AudioCtx();
+      if (ctx.state === "suspended") {
+        await ctx.resume();
+      }
+
+      // Reproducción muda de 1ms para autorizar hardware en iOS/Android
+      const buffer = ctx.createBuffer(1, 1, 22050);
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      src.connect(ctx.destination);
+      src.start(0);
+
+      // Desbloquear SpeechSynthesis con utterance vacía
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.resume();
+        const silentUtterance = new SpeechSynthesisUtterance("");
+        window.speechSynthesis.speak(silentUtterance);
+      }
+
+      hasUnlockedAudioRef.current = true;
+    } catch {}
+  }, []);
 
   // 🔔 Tono auditivo suave para personas no videntes
   const playAccessibleChime = useCallback((type: "start" | "end" | "connected") => {
@@ -308,6 +340,7 @@ export default function NoraRealtimeCallModal({
   // 6. Protocolo SOS Lazarillo Híbrido
   const handleExecuteSOS = useCallback(
     async (customNote?: string) => {
+      unlockMobileAudioHardware();
       setIsTriggeringSOS(true);
       startDangerAlertLoop();
       setAccessibleAnnouncement("Activando protocolo de auxilio y geolocalización SOS...");
@@ -338,7 +371,7 @@ export default function NoraRealtimeCallModal({
         setIsTriggeringSOS(false);
       }
     },
-    [coords, isOnline, speakNoraResponse, startDangerAlertLoop]
+    [coords, isOnline, speakNoraResponse, startDangerAlertLoop, unlockMobileAudioHardware]
   );
 
   // 7. Enviar audio con Telemetría
@@ -575,6 +608,7 @@ export default function NoraRealtimeCallModal({
             return;
           }
 
+          // Si está en modo Pulsar para Hablar, NO activar VAD automático
           if (interactionMode === "push_to_talk") {
             animFrameRef.current = requestAnimationFrame(monitorAudioLoop);
             return;
@@ -631,8 +665,9 @@ export default function NoraRealtimeCallModal({
     };
   }, [emitSinglePulse, interactionMode, isOpen, onClose, playAccessibleChime, sendVoiceAudioTurn, stopNoraSpeech]);
 
-  // 9. Controles Push-to-Talk
-  const handlePushTalkStart = () => {
+  // 9. Controles Push-to-Talk con Desbloqueo Explícito
+  const handlePushTalkStart = async () => {
+    await unlockMobileAudioHardware();
     if (callState === "speaking") stopNoraSpeech();
     setIsPushTalking(true);
     emitSinglePulse("CONFIRM_VOZ");
@@ -722,6 +757,8 @@ export default function NoraRealtimeCallModal({
       role="dialog"
       aria-modal="true"
       aria-label="Llamada de voz con Nora"
+      onClick={unlockMobileAudioHardware}
+      onTouchStart={unlockMobileAudioHardware}
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/90 backdrop-blur-2xl animate-fade-in select-none"
     >
       <div role="status" aria-live="polite" className="sr-only">
@@ -764,7 +801,10 @@ export default function NoraRealtimeCallModal({
         {/* Selector de Modo */}
         <div className="w-full flex items-center justify-center gap-2 mt-2">
           <button
-            onClick={() => setInteractionMode("hands_free")}
+            onClick={() => {
+              unlockMobileAudioHardware();
+              setInteractionMode("hands_free");
+            }}
             className={`px-3 py-1 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
               interactionMode === "hands_free"
                 ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
@@ -775,7 +815,10 @@ export default function NoraRealtimeCallModal({
             <span>Flujo Continuo</span>
           </button>
           <button
-            onClick={() => setInteractionMode("push_to_talk")}
+            onClick={() => {
+              unlockMobileAudioHardware();
+              setInteractionMode("push_to_talk");
+            }}
             className={`px-3 py-1 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
               interactionMode === "push_to_talk"
                 ? "bg-purple-500/20 text-purple-300 border border-purple-500/40"
@@ -890,6 +933,7 @@ export default function NoraRealtimeCallModal({
         <div className="w-full flex items-center justify-between pt-4 border-t border-slate-800/60">
           <button
             onClick={() => {
+              unlockMobileAudioHardware();
               if (isMuted) {
                 setIsMuted(false);
               } else {
