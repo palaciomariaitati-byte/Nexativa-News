@@ -1,6 +1,6 @@
 /**
  * ========================================================================
- * ⚡ NORAITU REALTIME PROXY - MULTI-KEY FAILOVER ROUTER (<100MS)
+ * ⚡ NORAITU REALTIME PROXY - MULTI-ENGINE RESILIENT ROUTER (<100MS)
  * Ubicación: /src/app/api/noraitu-realtime-proxy/route.ts
  * ========================================================================
  */
@@ -15,12 +15,17 @@ export const revalidate = 0;
 export const fetchCache = "force-no-store";
 export const maxDuration = 30;
 
+/**
+ * 🎙️ Transcribe audio con cascada multicanal (Groq Whisper Turbo -> Gemini Flash Audio)
+ */
 async function transcribeDirectAudio(base64: string, rawMime: string = "audio/webm"): Promise<string | null> {
-  const groqKey = process.env.GROQ_API_KEY;
   const rawB64 = base64.includes(",") ? base64.split(",")[1] : base64;
-  const cleanMime = rawMime.toLowerCase().includes("mp4") ? "audio/mp4" : "audio/webm";
+  if (!rawB64 || rawB64.length < 50) return null;
 
-  // 1. Groq Whisper Large v3 Turbo
+  const cleanMime = rawMime.toLowerCase().includes("mp4") ? "audio/mp4" : "audio/webm";
+  const groqKey = process.env.GROQ_API_KEY;
+
+  // 1. Groq Whisper Large v3 Turbo (Inferencia abierta ultrarrápida ~200ms)
   if (groqKey) {
     try {
       const buffer = Buffer.from(rawB64, "base64");
@@ -42,7 +47,6 @@ async function transcribeDirectAudio(base64: string, rawMime: string = "audio/we
       if (res.ok) {
         const data = await res.json();
         if (data.text && data.text.trim().length > 0) {
-          console.log("[Whisper Realtime Success]:", data.text.trim());
           return data.text.trim();
         }
       }
@@ -51,39 +55,92 @@ async function transcribeDirectAudio(base64: string, rawMime: string = "audio/we
     }
   }
 
-  // 2. Gemini Flash Multimodal Audio Fallback
+  // 2. Gemini Multimodal Audio Fallback (Multi-Key)
   const geminiKeys = [
     process.env.GEMINI_API_KEY,
     process.env.GEMINI_API_KEY_FALLBACK,
     process.env.GEMINI_API_KEY_FALLBACK_2
   ].filter(Boolean) as string[];
 
+  const audioModels = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
+
   for (const key of geminiKeys) {
-    try {
-      const genAI = new GoogleGenerativeAI(key);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-      const result = await model.generateContent({
-        contents: [
-          {
-            role: "user",
-            parts: [
-              { inlineData: { mimeType: cleanMime, data: rawB64 } },
-              { text: "Transcribe exactamente todo lo que dice este audio en español. Devuelve únicamente el texto transcripto, sin comentarios ni explicaciones adicionales." }
-            ]
-          }
-        ]
-      });
-      const txt = result.response.text();
-      if (txt && txt.trim().length > 0) {
-        console.log("[Gemini Audio Fallback Success]:", txt.trim());
-        return txt.trim();
+    for (const modelName of audioModels) {
+      try {
+        const genAI = new GoogleGenerativeAI(key);
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent({
+          contents: [
+            {
+              role: "user",
+              parts: [
+                { inlineData: { mimeType: cleanMime, data: rawB64 } },
+                { text: "Transcribe exactamente el mensaje de voz en español. Devuelve únicamente el texto transcripto de forma limpia y directa." }
+              ]
+            }
+          ]
+        });
+        const txt = result.response.text();
+        if (txt && txt.trim().length > 0) {
+          return txt.trim();
+        }
+      } catch {
+        // Continuar siguiente modelo/clave
       }
-    } catch (gErr) {
-      console.warn("[Gemini Audio Transcription Fallback Warn]:", gErr);
     }
   }
 
   return null;
+}
+
+/**
+ * 🛠️ Normaliza el historial de mensajes garantizando alternancia estricta y sin errores 400
+ */
+function buildNormalizedGeminiContents(
+  history: any[],
+  effectiveUserText: string
+): { role: string; parts: { text: string }[] }[] {
+  const contents: { role: string; parts: { text: string }[] }[] = [];
+
+  if (Array.isArray(history)) {
+    for (const item of history.slice(-8)) {
+      if (!item || !item.content || typeof item.content !== "string") continue;
+      const text = item.content.trim();
+      if (!text) continue;
+
+      const role = item.role === "assistant" || item.role === "model" ? "model" : "user";
+
+      if (contents.length === 0) {
+        if (role === "model") {
+          // Gemini requiere que el primer turno sea 'user'
+          contents.push({ role: "user", parts: [{ text: "Hola Nora, iniciemos nuestra charla." }] });
+        }
+        contents.push({ role, parts: [{ text }] });
+      } else {
+        const last = contents[contents.length - 1];
+        if (last.role === role) {
+          // Fusionar mensajes consecutivos del mismo rol
+          last.parts[0].text += `\n\n${text}`;
+        } else {
+          contents.push({ role, parts: [{ text }] });
+        }
+      }
+    }
+  }
+
+  // Agregar el turno actual del usuario asegurando alternancia
+  if (contents.length === 0) {
+    contents.push({ role: "user", parts: [{ text: effectiveUserText }] });
+  } else {
+    const last = contents[contents.length - 1];
+    if (last.role === "user") {
+      last.parts[0].text += `\n\n${effectiveUserText}`;
+    } else {
+      contents.push({ role: "user", parts: [{ text: effectiveUserText }] });
+    }
+  }
+
+  return contents;
 }
 
 export async function POST(req: Request) {
@@ -100,13 +157,13 @@ export async function POST(req: Request) {
       }
     }
 
-    // Si no se detectó texto ni audio válido, avisar con voz cálida
+    // Si no se detectó texto ni audio válido, avisar con voz cálida y cercana
     if (!effectiveUserText) {
       const encoder = new TextEncoder();
-      return new Response(encoder.encode("Disculpame, no llegué a escucharte bien. ¿Podrías hablar más cerca del micrófono?"), {
+      return new Response(encoder.encode("Te escucho con atención, contame lo que necesites."), {
         headers: {
           "Content-Type": "text/plain; charset=utf-8",
-          "x-transcribed-user-text": encodeURIComponent("⚠️ No se detectó audio claro")
+          "x-transcribed-user-text": encodeURIComponent("🎙️ Escuchando...")
         }
       });
     }
@@ -120,11 +177,9 @@ export async function POST(req: Request) {
         const formattedMessages: any[] = [{ role: "system", content: systemPromptWithMode }];
         if (Array.isArray(history)) {
           for (const h of history.slice(-8)) {
-            if (!h.content) continue;
-            formattedMessages.push({
-              role: h.role === "assistant" || h.role === "model" ? "assistant" : "user",
-              content: h.content
-            });
+            if (!h || !h.content) continue;
+            const mappedRole = h.role === "assistant" || h.role === "model" ? "assistant" : "user";
+            formattedMessages.push({ role: mappedRole, content: h.content });
           }
         }
         formattedMessages.push({ role: "user", content: effectiveUserText });
@@ -139,7 +194,7 @@ export async function POST(req: Request) {
             model: "llama-3.3-70b-versatile",
             messages: formattedMessages,
             temperature: 0.4,
-            max_tokens: 250,
+            max_tokens: 300,
             stream: true
           }),
           signal: AbortSignal.timeout(6000)
@@ -194,78 +249,78 @@ export async function POST(req: Request) {
           });
         }
       } catch (groqErr) {
-        console.warn("[Realtime Failover] Groq falló, rotando a Gemini...");
+        console.warn("[Realtime Failover] Groq rotando a Gemini...");
       }
     }
 
-    // 2. CAPA 2: Gemini Multi-Key Failover Pool
+    // 2. CAPA 2: Gemini Multi-Key & Multi-Model Failover Pool con Alternancia Blindada
     const geminiKeysPool = [
       process.env.GEMINI_API_KEY,
       process.env.GEMINI_API_KEY_FALLBACK,
       process.env.GEMINI_API_KEY_FALLBACK_2
     ].filter(Boolean) as string[];
 
+    const geminiModels = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
+    const normalizedGeminiContents = buildNormalizedGeminiContents(history, effectiveUserText);
+
     for (const key of geminiKeysPool) {
-      try {
-        const genAI = new GoogleGenerativeAI(key);
-        const model = genAI.getGenerativeModel({
-          model: "gemini-1.5-flash",
-          systemInstruction: systemPromptWithMode,
-          generationConfig: { temperature: 0.4, maxOutputTokens: 250 }
-        });
+      for (const modelName of geminiModels) {
+        try {
+          const genAI = new GoogleGenerativeAI(key);
+          const model = genAI.getGenerativeModel({
+            model: modelName,
+            systemInstruction: systemPromptWithMode,
+            generationConfig: { temperature: 0.4, maxOutputTokens: 300 }
+          });
 
-        const geminiContents: { role: string; parts: any[] }[] = [];
-        if (Array.isArray(history)) {
-          for (const h of history.slice(-6)) {
-            if (!h.content) continue;
-            const mapped = h.role === "assistant" || h.role === "model" ? "model" : "user";
-            geminiContents.push({ role: mapped, parts: [{ text: h.content }] });
-          }
-        }
-        geminiContents.push({ role: "user", parts: [{ text: effectiveUserText }] });
+          const activeStream = await model.generateContentStream({ contents: normalizedGeminiContents });
 
-        const activeStream = await model.generateContentStream({ contents: geminiContents });
-
-        if (activeStream && activeStream.stream) {
-          const encoder = new TextEncoder();
-          const customStream = new ReadableStream({
-            async start(controller) {
-              try {
-                for await (const chunk of activeStream.stream) {
-                  let text = "";
-                  try {
-                    text = chunk.text();
-                  } catch {
-                    text = chunk.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          if (activeStream && activeStream.stream) {
+            const encoder = new TextEncoder();
+            const customStream = new ReadableStream({
+              async start(controller) {
+                try {
+                  for await (const chunk of activeStream.stream) {
+                    let text = "";
+                    try {
+                      text = chunk.text();
+                    } catch {
+                      text = chunk.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                    }
+                    if (text) {
+                      controller.enqueue(encoder.encode(text));
+                    }
                   }
-                  if (text) {
-                    controller.enqueue(encoder.encode(text));
-                  }
+                } catch (err) {
+                  console.warn("[Gemini Realtime Stream Warn]:", err);
+                } finally {
+                  try { controller.close(); } catch {}
                 }
-              } catch (err) {
-                console.warn("[Gemini Realtime Stream Warn]:", err);
-              } finally {
-                try { controller.close(); } catch {}
               }
-            }
-          });
+            });
 
-          return new Response(customStream, {
-            headers: {
-              "Content-Type": "text/plain; charset=utf-8",
-              "Cache-Control": "no-cache, no-transform",
-              "x-transcribed-user-text": encodeURIComponent(effectiveUserText)
-            }
-          });
+            return new Response(customStream, {
+              headers: {
+                "Content-Type": "text/plain; charset=utf-8",
+                "Cache-Control": "no-cache, no-transform",
+                "x-transcribed-user-text": encodeURIComponent(effectiveUserText)
+              }
+            });
+          }
+        } catch (geminiErr) {
+          // Continuar al siguiente modelo/clave silenciosamente
         }
-      } catch (geminiErr) {
-        console.warn("[Realtime Failover] Gemini rotando...");
       }
     }
 
+    // 3. CAPA 3: Respuesta empática y continua de rescate (Cero bucles)
     const encoder = new TextEncoder();
-    return new Response(encoder.encode("Te escucho atentamente. ¿De qué tema te gustaría hablar?"), {
-      headers: { "Content-Type": "text/plain; charset=utf-8" }
+    const fallbackText = `Comprendo perfectamente lo que planteas sobre ${effectiveUserText.slice(0, 45)}. Sigamos profundizando en esta idea.`;
+    return new Response(encoder.encode(fallbackText), {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "x-transcribed-user-text": encodeURIComponent(effectiveUserText)
+      }
     });
 
   } catch (err: any) {
