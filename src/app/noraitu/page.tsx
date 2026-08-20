@@ -55,6 +55,7 @@ import remarkGfm from "remark-gfm";
 import { exportNoraCleanWord, exportNoraCleanPdf, exportNoraCleanPptx } from "@/lib/exportUtils";
 import { FunctionPlotter } from "@/components/Nora/FunctionPlotter";
 import NoraRealtimeCallModal from "@/components/Nora/NoraRealtimeCallModal";
+import { useNoraWakeWord } from "@/lib/nora/realtime/useNoraWakeWord";
 
 interface AttachedFile {
   name: string;
@@ -155,6 +156,16 @@ export default function NoraItuApp() {
   
   // Estado de Modo Adaptativo (General, Inclusión TEA, Docente, Cátedra)
   const [activeMode, setActiveMode] = useState<string>("general");
+  const [wakeWordEnabled, setWakeWordEnabled] = useState<boolean>(true);
+
+  // 🎙️ Escucha Activa de Activación por Voz Permanente (Wake Word 24/7)
+  const { isWakeWordActive } = useNoraWakeWord({
+    enabled: wakeWordEnabled && !showRealtimeCallModal,
+    onWakeWordDetected: (phrase) => {
+      console.log("[WakeWord] Nora llamada por voz:", phrase);
+      setShowRealtimeCallModal(true);
+    }
+  });
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -2103,6 +2114,20 @@ export default function NoraItuApp() {
             >
               <PhoneCall size={13} className="text-white shrink-0" />
               <span className="font-extrabold tracking-wide">Llamada</span>
+            </button>
+
+            {/* Botón Escucha 24/7 Wake Word ("Nora te necesito") */}
+            <button
+              onClick={() => setWakeWordEnabled(!wakeWordEnabled)}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold transition-all shrink-0 cursor-pointer ${
+                wakeWordEnabled && isWakeWordActive
+                  ? "bg-purple-950/80 text-purple-300 border border-purple-500/40 shadow-sm shadow-purple-500/20"
+                  : "bg-slate-800/80 text-slate-400 border border-slate-700 hover:text-slate-200"
+              }`}
+              title={wakeWordEnabled ? "Escucha 24/7 activa: di 'Nora' o 'Nora te necesito' para despertar" : "Activar escucha 24/7"}
+            >
+              <Mic size={12} className={wakeWordEnabled && isWakeWordActive ? "text-purple-400 animate-pulse" : "text-slate-500"} />
+              <span className="hidden sm:inline">{wakeWordEnabled ? "Oído 24/7" : "Oído Off"}</span>
             </button>
 
             {/* Botón Nora Titán Live Vision */}
