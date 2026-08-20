@@ -2092,15 +2092,15 @@ export default function NoraItuApp() {
             </div>
           </div>
           
-          <div className="flex items-center gap-1 sm:gap-2">
-            {/* Botón NoraItu Realtime Voice Call (0ms) */}
+          <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar py-1">
+            {/* Botón NoraItu Realtime Voice Call */}
             <button
               onClick={() => setShowRealtimeCallModal(true)}
-              className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold bg-gradient-to-r from-cyan-600 via-teal-500 to-emerald-600 hover:from-cyan-500 hover:to-emerald-500 text-white transition-all shadow-md shadow-cyan-500/20 active:scale-95 cursor-pointer shrink-0"
-              title="Iniciar Llamada de Voz en Vivo con Nora (0ms Full Duplex)"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold bg-gradient-to-r from-cyan-600 via-teal-500 to-emerald-600 hover:from-cyan-500 hover:to-emerald-500 text-white transition-all shadow-md shadow-cyan-500/20 active:scale-95 cursor-pointer shrink-0"
+              title="Iniciar Llamada en Vivo con Nora"
             >
-              <PhoneCall size={13} className="text-white shrink-0 animate-bounce" />
-              <span className="font-extrabold tracking-wide">Llamada en Vivo</span>
+              <PhoneCall size={13} className="text-white shrink-0" />
+              <span className="font-extrabold tracking-wide">Llamada</span>
             </button>
 
             {/* Botón Nora Titán Live Vision */}
@@ -2109,37 +2109,47 @@ export default function NoraItuApp() {
                 setShowLiveVisionModal(true);
                 startLiveVision();
               }}
-              className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold bg-gradient-to-r from-rose-600 via-purple-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white transition-all shadow-md shadow-rose-500/20 active:scale-95 cursor-pointer shrink-0"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold bg-gradient-to-r from-rose-600 via-purple-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white transition-all shadow-md shadow-rose-500/20 active:scale-95 cursor-pointer shrink-0"
               title="Abrir Nora Titán Live (Cámara y Visión en Vivo)"
             >
               <Eye size={13} className="text-white shrink-0" />
               <span className="font-extrabold tracking-wide">Titán Live</span>
             </button>
 
+            {/* Botón Calibrar y Afinar Voz de Nora (SIEMPRE VISIBLE EN CELULAR Y PC) */}
+            <button
+              onClick={() => setShowVoiceModal(true)}
+              className="flex items-center gap-1 px-2 py-1.5 sm:px-2.5 rounded-lg text-xs font-medium bg-slate-900/90 hover:bg-slate-800 border border-sky-500/40 text-sky-300 hover:text-white transition-colors shrink-0 shadow-sm"
+              title="Afinar tono, velocidad y elegir voz de Nora"
+            >
+              <Sliders size={13} className="text-sky-400 shrink-0" />
+              <span className="hidden sm:inline">Voz</span>
+            </button>
+
             {/* Botón Sincronizar PC (Visible en tablet/desktop) */}
             <button
               onClick={handleOpenSyncModal}
-              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-700/60 text-indigo-300 transition-colors shrink-0"
+              className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-700/60 text-indigo-300 transition-colors shrink-0"
               title="Sincronizar tus conversaciones en PC o Celular"
             >
               <Laptop size={13} className="text-indigo-400" />
-              <span className="hidden md:inline">Sincronizar</span>
+              <span>Sincronizar</span>
             </button>
 
             {/* Botón Compartir / QR (Visible en tablet/desktop) */}
             <button
               onClick={() => setShowShareModal(true)}
-              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 transition-colors shrink-0"
+              className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 transition-colors shrink-0"
               title="Compartir NoraItu por WhatsApp o Código QR"
             >
               <QrCode size={13} className="text-emerald-400" />
-              <span className="hidden md:inline">Compartir</span>
+              <span>Compartir</span>
             </button>
 
-            {/* Toggle de Voz Femenina Automática (Solo desktop o tablet grande) */}
+            {/* Toggle de Voz Femenina Automática */}
             <button
               onClick={toggleAutoVoice}
-              className={`hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors shrink-0 ${
+              className={`hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors shrink-0 ${
                 autoVoice 
                   ? "bg-sky-950/80 border-sky-700 text-sky-300" 
                   : "bg-slate-900/60 border-slate-800 text-slate-400 hover:text-white"
@@ -2147,17 +2157,7 @@ export default function NoraItuApp() {
               title={autoVoice ? "Desactivar voz automática" : "Activar voz femenina automática"}
             >
               {autoVoice ? <Volume2 size={13} className="text-sky-400" /> : <VolumeX size={13} />}
-              <span className="hidden lg:inline">{autoVoice ? "Voz: On" : "Voz: Off"}</span>
-            </button>
-
-            {/* Botón Calibrar y Afinar Voz de Nora (Dropdown/Modal) */}
-            <button
-              onClick={() => setShowVoiceModal(true)}
-              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-medium bg-slate-900/80 hover:bg-slate-800 border border-slate-700/60 text-slate-300 hover:text-white transition-colors shrink-0"
-              title="Afinar tono, velocidad y elegir voz de Nora"
-            >
-              <Sliders size={13} className="text-sky-400" />
-              <span className="hidden lg:inline ml-1">Afinar Voz</span>
+              <span>{autoVoice ? "Voz: On" : "Voz: Off"}</span>
             </button>
 
             {/* Botón Nuevo Chat */}
