@@ -3161,20 +3161,22 @@ export default function NoraItuApp() {
         </div>
       )}
 
-      {/* Modal de Llamada de Voz en Vivo en Tiempo Real (Full-Duplex Costo $0) */}
-      <NoraRealtimeCallModal
-        isOpen={showRealtimeCallModal}
-        onClose={() => setShowRealtimeCallModal(false)}
-        selectedVoiceUri={selectedVoiceUri}
-        activeMode={activeMode}
-        onMessageLogged={(userText, assistantText) => {
-          setMessages((prev) => [
-            ...prev,
-            { role: "user", content: userText, created_at: new Date().toISOString() },
-            { role: "assistant", content: assistantText, created_at: new Date().toISOString() }
-          ]);
-        }}
-      />
+      {/* Modal de Llamada de Voz en Vivo en Tiempo Real (Desmontado Absoluto si está cerrado) */}
+      {showRealtimeCallModal && (
+        <NoraRealtimeCallModal
+          isOpen={showRealtimeCallModal}
+          onClose={() => setShowRealtimeCallModal(false)}
+          selectedVoiceUri={selectedVoiceUri}
+          activeMode={activeMode}
+          onMessageLogged={(userText, assistantText) => {
+            setMessages((prev) => [
+              ...prev,
+              { role: "user", content: userText, created_at: new Date().toISOString() },
+              { role: "assistant", content: assistantText, created_at: new Date().toISOString() }
+            ]);
+          }}
+        />
+      )}
     </div>
   );
 }

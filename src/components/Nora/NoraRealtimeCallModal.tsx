@@ -42,8 +42,8 @@ export default function NoraRealtimeCallModal({
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [isTriggeringSOS, setIsTriggeringSOS] = useState<boolean>(false);
 
-  // Modos de interacción y accesibilidad
-  const [interactionMode, setInteractionMode] = useState<"hands_free" | "push_to_talk">("hands_free");
+  // Modos de interacción y accesibilidad (Push-to-Talk por defecto para máxima estabilidad)
+  const [interactionMode, setInteractionMode] = useState<"hands_free" | "push_to_talk">("push_to_talk");
   const [isPushTalking, setIsPushTalking] = useState<boolean>(false);
   const [accessibleAnnouncement, setAccessibleAnnouncement] = useState<string>("Iniciando llamada con Nora...");
 
