@@ -28,10 +28,12 @@ export default function NoraRealtimeCallModal({
   const [isMuted, setIsMuted] = useState<boolean>(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recognitionRef = useRef<any>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const currentUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const historyRef = useRef<{ role: string; content: string }[]>([]);
   const isProcessingRef = useRef<boolean>(false);
+  const recognizedTextRef = useRef<string>("");
   const abortControllerRef = useRef<AbortController | null>(null);
   const activeModeRef = useRef<string>(activeMode);
 
@@ -39,7 +41,7 @@ export default function NoraRealtimeCallModal({
     activeModeRef.current = activeMode;
   }, [activeMode]);
 
-  // 1. Cargar voces y seleccionar acento latinoamericano
+  // 1. Cargar voces y priorizar acento latinoamericano / argentino
   useEffect(() => {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       try {
@@ -269,7 +271,7 @@ export default function NoraRealtimeCallModal({
       } catch (err: any) {
         if (err.name !== "AbortError") {
           console.error("[Realtime Proxy Error]:", err);
-          const fallback = "Comprendo tu consulta. Continuemos profundizando.";
+          const fallback = "Comprendo tu consulta. Sigamos profundizando.";
           setAssistantText(fallback);
           speakText(fallback);
         }
@@ -280,11 +282,42 @@ export default function NoraRealtimeCallModal({
     [onMessageLogged, speakText, stopAssistantSpeech, userTranscript]
   );
 
-  // Iniciar grabación de audio nativo limpio (CERO pitidos)
+  // Iniciar grabación limpia (híbrida: voz a texto + audio blob)
   const startRecording = useCallback(async () => {
     stopAssistantSpeech();
     audioChunksRef.current = [];
+    recognizedTextRef.current = "";
 
+    // 1. Reconocimiento de voz directo (si el navegador lo soporta)
+    if (typeof window !== "undefined") {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        try {
+          const rec = new SpeechRecognition();
+          rec.continuous = false; // Sin bucles
+          rec.interimResults = true;
+          rec.lang = "es-AR";
+
+          rec.onresult = (e: any) => {
+            let txt = "";
+            for (let i = 0; i < e.results.length; i++) {
+              txt += e.results[i][0].transcript;
+            }
+            if (txt.trim()) {
+              recognizedTextRef.current = txt.trim();
+              setUserTranscript(`"${txt.trim()}"`);
+            }
+          };
+
+          rec.start();
+          recognitionRef.current = rec;
+        } catch (e) {
+          console.warn("[SpeechRecognition Start]:", e);
+        }
+      }
+    }
+
+    // 2. Grabador de audio MediaRecorder
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
@@ -303,6 +336,16 @@ export default function NoraRealtimeCallModal({
 
       recorder.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
+
+        // Si ya obtuvimos el texto por reconocimiento, enviar texto directamente (<120ms)
+        if (recognizedTextRef.current.trim().length > 1) {
+          const txt = recognizedTextRef.current.trim();
+          recognizedTextRef.current = "";
+          executeQuery({ message: txt });
+          return;
+        }
+
+        // Fallback: enviar audio blob para transcripción serverless
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
         if (audioBlob.size > 500) {
           const reader = new FileReader();
@@ -330,6 +373,10 @@ export default function NoraRealtimeCallModal({
 
   // Detener grabación y enviar
   const stopRecording = useCallback(() => {
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch {}
+      recognitionRef.current = null;
+    }
     if (mediaRecorderRef.current && callState === "listening") {
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current = null;
@@ -360,6 +407,10 @@ export default function NoraRealtimeCallModal({
   useEffect(() => {
     if (!isOpen) {
       stopAssistantSpeech();
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch {}
+        recognitionRef.current = null;
+      }
       if (mediaRecorderRef.current) {
         try { mediaRecorderRef.current.stop(); } catch {}
         mediaRecorderRef.current = null;

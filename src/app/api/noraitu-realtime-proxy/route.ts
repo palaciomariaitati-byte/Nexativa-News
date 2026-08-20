@@ -15,20 +15,22 @@ export const revalidate = 0;
 export const fetchCache = "force-no-store";
 export const maxDuration = 30;
 
-async function transcribeDirectAudio(base64: string, mimeType: string = "audio/webm"): Promise<string | null> {
+async function transcribeDirectAudio(base64: string, rawMime: string = "audio/webm"): Promise<string | null> {
   const groqKey = process.env.GROQ_API_KEY;
   const rawB64 = base64.includes(",") ? base64.split(",")[1] : base64;
+  const cleanMime = rawMime.toLowerCase().includes("mp4") ? "audio/mp4" : "audio/webm";
 
-  // 1. Groq Whisper Large v3
+  // 1. Groq Whisper Large v3 Turbo
   if (groqKey) {
     try {
       const buffer = Buffer.from(rawB64, "base64");
+      const ext = cleanMime.includes("mp4") ? "mp4" : "webm";
+      const file = new File([buffer], `audio.${ext}`, { type: cleanMime });
       const formData = new FormData();
-      const ext = mimeType.includes("mp4") ? "mp4" : "webm";
-      const blob = new Blob([buffer], { type: mimeType });
-      formData.append("file", blob, `call_audio.${ext}`);
+      formData.append("file", file);
       formData.append("model", "whisper-large-v3-turbo");
       formData.append("language", "es");
+      formData.append("temperature", "0.0");
 
       const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
         method: "POST",
@@ -39,7 +41,8 @@ async function transcribeDirectAudio(base64: string, mimeType: string = "audio/w
 
       if (res.ok) {
         const data = await res.json();
-        if (data.text && data.text.trim()) {
+        if (data.text && data.text.trim().length > 0) {
+          console.log("[Whisper Realtime Success]:", data.text.trim());
           return data.text.trim();
         }
       }
@@ -64,15 +67,20 @@ async function transcribeDirectAudio(base64: string, mimeType: string = "audio/w
           {
             role: "user",
             parts: [
-              { inlineData: { mimeType: mimeType.includes("mp4") ? "audio/mp4" : "audio/webm", data: rawB64 } },
-              { text: "Transcribe exactamente el texto en español que dice este audio. Solo el texto sin comentarios." }
+              { inlineData: { mimeType: cleanMime, data: rawB64 } },
+              { text: "Transcribe exactamente todo lo que dice este audio en español. Devuelve únicamente el texto transcripto, sin comentarios ni explicaciones adicionales." }
             ]
           }
         ]
       });
       const txt = result.response.text();
-      if (txt && txt.trim()) return txt.trim();
-    } catch (gErr) {}
+      if (txt && txt.trim().length > 0) {
+        console.log("[Gemini Audio Fallback Success]:", txt.trim());
+        return txt.trim();
+      }
+    } catch (gErr) {
+      console.warn("[Gemini Audio Transcription Fallback Warn]:", gErr);
+    }
   }
 
   return null;
@@ -80,11 +88,11 @@ async function transcribeDirectAudio(base64: string, mimeType: string = "audio/w
 
 export async function POST(req: Request) {
   try {
-    const { message = "", audioBase64, mimeType, history = [], mode = "general" } = await req.json();
+    const { message = "", audioBase64, mimeType = "audio/webm", history = [], mode = "general" } = await req.json();
 
     let effectiveUserText = (message || "").trim();
 
-    // Si viene audio directo, transcribirlo en <150ms
+    // Si viene audio directo, transcribirlo
     if (!effectiveUserText && audioBase64) {
       const transcribed = await transcribeDirectAudio(audioBase64, mimeType);
       if (transcribed) {
@@ -92,8 +100,15 @@ export async function POST(req: Request) {
       }
     }
 
+    // Si no se detectó texto ni audio válido, avisar con voz cálida
     if (!effectiveUserText) {
-      effectiveUserText = "¿Qué me recomendás para seguir aprendiendo hoy?";
+      const encoder = new TextEncoder();
+      return new Response(encoder.encode("Disculpame, no llegué a escucharte bien. ¿Podrías hablar más cerca del micrófono?"), {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "x-transcribed-user-text": encodeURIComponent("⚠️ No se detectó audio claro")
+        }
+      });
     }
 
     const systemPromptWithMode = `${NORA_PROSODY_SYSTEM_PROMPT}\n\n[MODO CONVERSACIONAL ACTIVO: ${mode.toUpperCase()}]`;
@@ -123,7 +138,7 @@ export async function POST(req: Request) {
           body: JSON.stringify({
             model: "llama-3.3-70b-versatile",
             messages: formattedMessages,
-            temperature: 0.35,
+            temperature: 0.4,
             max_tokens: 250,
             stream: true
           }),
@@ -196,7 +211,7 @@ export async function POST(req: Request) {
         const model = genAI.getGenerativeModel({
           model: "gemini-1.5-flash",
           systemInstruction: systemPromptWithMode,
-          generationConfig: { temperature: 0.35, maxOutputTokens: 250 }
+          generationConfig: { temperature: 0.4, maxOutputTokens: 250 }
         });
 
         const geminiContents: { role: string; parts: any[] }[] = [];
@@ -248,9 +263,8 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3. Fallback directo
     const encoder = new TextEncoder();
-    return new Response(encoder.encode("Te escucho perfectamente. ¿De qué tema te gustaría que hablemos?"), {
+    return new Response(encoder.encode("Te escucho atentamente. ¿De qué tema te gustaría hablar?"), {
       headers: { "Content-Type": "text/plain; charset=utf-8" }
     });
 
