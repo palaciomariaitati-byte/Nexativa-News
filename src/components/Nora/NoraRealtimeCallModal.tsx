@@ -393,30 +393,34 @@ export default function NoraRealtimeCallModal({
 
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      const audioCtx = new AudioCtx({ latencyHint: "interactive" });
+      const audioCtx = audioContextRef.current || new AudioCtx({ latencyHint: "interactive" });
       audioContextRef.current = audioCtx;
 
       if (audioCtx.state === "suspended") {
         await audioCtx.resume();
       }
 
-      // Reproducción muda de 1ms para autorizar hardware en iOS/Android
-      const buffer = audioCtx.createBuffer(1, 1, 22050);
-      const src = audioCtx.createBufferSource();
-      src.buffer = buffer;
-      src.connect(audioCtx.destination);
-      src.start(0);
-
-      // Obtener stream de micrófono de forma limpia y explícita
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          channelCount: 1
+      // Stream de Micrófono con Fallback Progresivo Seguro
+      let stream: MediaStream | null = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
+      } catch (e1) {
+        console.warn("[Mic Init with constraints failed, trying basic audio:true]:", e1);
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (e2) {
+          console.error("[Mic Access Denied / Not Available]:", e2);
+          throw new Error("MIC_DENIED");
         }
-      });
+      }
 
+      if (!stream) throw new Error("MIC_DENIED");
       micStreamRef.current = stream;
 
       const source = audioCtx.createMediaStreamSource(stream);
@@ -536,9 +540,11 @@ export default function NoraRealtimeCallModal({
       };
 
       monitorAudioLoop();
-    } catch (err) {
+    } catch (err: any) {
       console.error("[Audio Engine Tap Init Error]:", err);
-      alert("Por favor permite el acceso al micrófono para hablar con Nora.");
+      if (err?.name === "NotAllowedError" || err?.message === "MIC_DENIED") {
+        alert("Nora necesita permiso de micrófono. Por favor habilítalo en el candado de la barra de direcciones de tu navegador.");
+      }
     } finally {
       setIsInitializing(false);
     }
