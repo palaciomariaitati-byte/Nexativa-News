@@ -535,81 +535,58 @@ export default function NoraItuApp() {
     if (!cleanText) return;
     setPlayingMsgIndex(msgIndex);
 
-    // 1. Intentar síntesis neuronal Kokoro-82M vía /api/noraitu-tts
-    try {
-      const ttsRes = await fetch("/api/noraitu-tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: cleanText, voice: "es-la" }),
-        signal: AbortSignal.timeout(2500)
-      });
-
-      if (ttsRes.ok && ttsRes.headers.get("content-type")?.includes("audio")) {
-        const audioBlob = await ttsRes.blob();
-        const audioUrl = URL.createObjectURL(audioBlob);
-        const audio = new Audio(audioUrl);
-        audioPlayerRef.current = audio;
-
-        audio.onended = () => {
-          setPlayingMsgIndex(null);
-          URL.revokeObjectURL(audioUrl);
-        };
-        audio.onerror = () => {
-          setPlayingMsgIndex(null);
-          URL.revokeObjectURL(audioUrl);
-        };
-
-        await audio.play();
-        return;
-      }
-    } catch (e) {
-      // Continuar al fallback nativo sin interrupción
-    }
-
-    // 2. Fallback Instantáneo a Web Speech API de Alta Definición
+    // 1. Reproducción directa y limpia con Web Speech API en cliente
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
       setPlayingMsgIndex(null);
       return;
     }
 
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.rate = voiceRate; // Velocidad calibrada (def: 0.94x)
-    utterance.pitch = voicePitch; // Tono cálido (def: 0.92)
+    try {
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.resume();
 
-    const voices = window.speechSynthesis.getVoices();
-    let voiceToUse: SpeechSynthesisVoice | undefined = undefined;
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.rate = voiceRate; // Velocidad calibrada (def: 0.94x)
+      utterance.pitch = voicePitch; // Tono cálido (def: 0.92)
 
-    if (selectedVoiceUri) {
-      voiceToUse = voices.find(v => v.voiceURI === selectedVoiceUri);
+      const voices = window.speechSynthesis.getVoices();
+      let voiceToUse: SpeechSynthesisVoice | undefined = undefined;
+
+      if (selectedVoiceUri) {
+        voiceToUse = voices.find(v => v.voiceURI === selectedVoiceUri);
+      }
+
+      if (!voiceToUse) {
+        voiceToUse = voices.find(v => 
+          (v.lang.startsWith("es") || v.lang.includes("es-")) && 
+          (
+            v.name.toLowerCase().includes("google español") || 
+            v.name.toLowerCase().includes("elena") || 
+            v.name.toLowerCase().includes("sabina") ||
+            v.name.toLowerCase().includes("dalia") ||
+            v.name.toLowerCase().includes("argentina")
+          )
+        ) || voices.find(v => 
+          (v.lang.includes("419") || v.lang.includes("MX") || v.lang.includes("AR") || v.lang.startsWith("es")) &&
+          (v.name.toLowerCase().includes("natural") || v.name.toLowerCase().includes("female") || v.name.toLowerCase().includes("mujer"))
+        ) || voices.find(v => v.lang.startsWith("es"));
+      }
+
+      if (voiceToUse) {
+        utterance.voice = voiceToUse;
+        utterance.lang = voiceToUse.lang || "es-AR";
+      } else {
+        utterance.lang = "es-AR";
+      }
+
+      utterance.onend = () => setPlayingMsgIndex(null);
+      utterance.onerror = () => setPlayingMsgIndex(null);
+
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.warn("[Speak Error]:", e);
+      setPlayingMsgIndex(null);
     }
-
-    if (!voiceToUse) {
-      voiceToUse = voices.find(v => 
-        (v.lang.startsWith("es") || v.lang.includes("es-")) && 
-        (
-          v.name.toLowerCase().includes("google español") || 
-          v.name.toLowerCase().includes("elena") || 
-          v.name.toLowerCase().includes("sabina") ||
-          v.name.toLowerCase().includes("dalia") ||
-          v.name.toLowerCase().includes("argentina")
-        )
-      ) || voices.find(v => 
-        (v.lang.includes("419") || v.lang.includes("MX") || v.lang.includes("AR") || v.lang.startsWith("es")) &&
-        (v.name.toLowerCase().includes("natural") || v.name.toLowerCase().includes("female") || v.name.toLowerCase().includes("mujer"))
-      ) || voices.find(v => v.lang.startsWith("es"));
-    }
-
-    if (voiceToUse) {
-      utterance.voice = voiceToUse;
-      utterance.lang = voiceToUse.lang || "es-419";
-    } else {
-      utterance.lang = "es-419";
-    }
-
-    utterance.onend = () => setPlayingMsgIndex(null);
-    utterance.onerror = () => setPlayingMsgIndex(null);
-
-    window.speechSynthesis.speak(utterance);
   };
 
   const handleTestVoice = () => {
