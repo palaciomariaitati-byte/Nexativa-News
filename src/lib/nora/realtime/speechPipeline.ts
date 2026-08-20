@@ -1,14 +1,7 @@
 /**
  * ========================================================================
- * 🎙️ NORAITU REALTIME SPEECH PIPELINE (COSTO $0 - ZERO LATENCY)
+ * 🎙️ NORAITU REALTIME SPEECH PIPELINE (COSTO $0 - ZERO LATENCY - ROBUST)
  * Ubicación: /src/lib/nora/realtime/speechPipeline.ts
- * 
- * Pipeline cliente con:
- *  - Web Speech API continua con reconexión automática
- *  - Barge-in / Interrupción instantánea a 0ms (AudioContext + speechSynthesis.cancel)
- *  - Chunking oracional en español con Intl.Segmenter
- *  - Cola recursiva de reproducción de voz neuronal fluida
- *  - Analizador de energía / volumen de micrófono para visualizador de ondas
  * ========================================================================
  */
 
@@ -17,7 +10,6 @@ export interface RealtimeVoiceConfig {
   onAssistantSpeechStart: () => void;
   onAssistantSpeechEnd: () => void;
   onUserInterruption: () => void;
-  onVolumeChange?: (volume: number) => void;
   voiceUri?: string;
   lang?: string;
 }
@@ -26,14 +18,13 @@ export class NoraRealtimeOrchestrator {
   private recognition: any = null;
   public isSpeaking = false;
   public isListening = false;
+  private isRestarting = false;
   private ttsQueue: string[] = [];
   private currentUtterance: SpeechSynthesisUtterance | null = null;
   private abortController: AbortController | null = null;
   private config: RealtimeVoiceConfig;
-  private audioContext: AudioContext | null = null;
-  private analyser: AnalyserNode | null = null;
-  private micStream: MediaStream | null = null;
-  private volumeInterval: any = null;
+  private silenceTimer: any = null;
+  private lastSpokenText: string = "";
 
   constructor(config: RealtimeVoiceConfig) {
     this.config = config;
@@ -43,7 +34,10 @@ export class NoraRealtimeOrchestrator {
   private initSpeechRecognition() {
     if (typeof window === "undefined") return;
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
+    if (!SpeechRecognition) {
+      console.warn("[Realtime Speech] SpeechRecognition no está soportado en este navegador.");
+      return;
+    }
 
     this.recognition = new SpeechRecognition();
     this.recognition.continuous = true;
@@ -52,6 +46,7 @@ export class NoraRealtimeOrchestrator {
 
     this.recognition.onstart = () => {
       this.isListening = true;
+      this.isRestarting = false;
     };
 
     this.recognition.onresult = (event: any) => {
@@ -67,71 +62,60 @@ export class NoraRealtimeOrchestrator {
         }
       }
 
-      // 🛑 BARGE-IN INMEDIATO: Si el usuario emite sonido o palabras mientras Nora habla, cortar de inmediato a 0ms
-      if ((interim.trim().length > 1 || final.trim().length > 0) && this.isSpeaking) {
+      const activeText = (final || interim).trim();
+
+      // 🛑 BARGE-IN: Si el usuario habla mientras Nora reproduce sonido, cortar de inmediato
+      if (activeText.length > 1 && this.isSpeaking) {
         this.interruptAssistant();
       }
 
-      if (final.trim()) {
-        this.config.onTranscript(final.trim(), true);
-      } else if (interim.trim()) {
-        this.config.onTranscript(interim.trim(), false);
+      if (activeText) {
+        this.lastSpokenText = activeText;
+        this.config.onTranscript(activeText, Boolean(final));
+
+        // Detector de silencio inteligente: Si pasan 1000ms sin nuevas palabras, disparar como final
+        if (this.silenceTimer) clearTimeout(this.silenceTimer);
+        this.silenceTimer = setTimeout(() => {
+          if (this.lastSpokenText.trim().length > 1 && !this.isSpeaking) {
+            this.config.onTranscript(this.lastSpokenText.trim(), true);
+            this.lastSpokenText = "";
+          }
+        }, 1100);
       }
     };
 
     this.recognition.onerror = (err: any) => {
-      if (err.error !== "no-speech" && err.error !== "aborted") {
-        console.warn("[Realtime Speech Warning]:", err.error);
+      if (err.error === "not-allowed") {
+        console.warn("[Realtime Speech] Permiso de micrófono denegado.");
+        this.isListening = false;
       }
     };
 
     this.recognition.onend = () => {
-      // Auto-reinicio para mantener el canal siempre vivo durante la llamada
-      if (this.isListening) {
-        try {
-          this.recognition.start();
-        } catch {}
+      // Auto-reinicio suave sólo si sigue en llamada y Nora no está hablando
+      if (this.isListening && !this.isRestarting && !this.isSpeaking) {
+        this.isRestarting = true;
+        setTimeout(() => {
+          try {
+            if (this.isListening && !this.isSpeaking) {
+              this.recognition?.start();
+            }
+          } catch {}
+          this.isRestarting = false;
+        }, 300);
       }
     };
   }
 
   /**
-   * Inicia la captura de audio y análisis de volumen
+   * Inicia la captura limpia de micrófono
    */
   public async start() {
     this.isListening = true;
+    this.lastSpokenText = "";
     try {
       this.recognition?.start();
     } catch {}
-
-    // Iniciar analizador de volumen para ondas reactivas en la UI
-    try {
-      if (typeof window !== "undefined" && navigator.mediaDevices?.getUserMedia) {
-        this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-        this.audioContext = new AudioCtx();
-        const source = this.audioContext.createMediaStreamSource(this.micStream);
-        this.analyser = this.audioContext.createAnalyser();
-        this.analyser.fftSize = 64;
-        source.connect(this.analyser);
-
-        const dataArray = new Uint8Array(this.analyser.frequencyBinCount);
-        this.volumeInterval = setInterval(() => {
-          if (this.analyser && this.config.onVolumeChange) {
-            this.analyser.getByteFrequencyData(dataArray);
-            let sum = 0;
-            for (let i = 0; i < dataArray.length; i++) {
-              sum += dataArray[i];
-            }
-            const avg = sum / dataArray.length;
-            const normalized = Math.min(100, Math.round((avg / 128) * 100));
-            this.config.onVolumeChange(normalized);
-          }
-        }, 80);
-      }
-    } catch (e) {
-      console.warn("[Realtime Mic Volume Warning]:", e);
-    }
   }
 
   /**
@@ -139,27 +123,18 @@ export class NoraRealtimeOrchestrator {
    */
   public stop() {
     this.isListening = false;
+    if (this.silenceTimer) {
+      clearTimeout(this.silenceTimer);
+      this.silenceTimer = null;
+    }
     this.interruptAssistant();
     try {
       this.recognition?.stop();
     } catch {}
-
-    if (this.volumeInterval) {
-      clearInterval(this.volumeInterval);
-      this.volumeInterval = null;
-    }
-    if (this.micStream) {
-      this.micStream.getTracks().forEach((track) => track.stop());
-      this.micStream = null;
-    }
-    if (this.audioContext && this.audioContext.state !== "closed") {
-      this.audioContext.close().catch(() => {});
-      this.audioContext = null;
-    }
   }
 
   /**
-   * 🛑 INTERRUPCIÓN INSTANTÁNEA (BARGE-IN) A 0 MS
+   * 🛑 INTERRUPCIÓN INSTANTÁNEA (BARGE-IN)
    */
   public interruptAssistant() {
     if (this.abortController) {
@@ -168,7 +143,9 @@ export class NoraRealtimeOrchestrator {
     }
     this.ttsQueue = [];
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
+      try {
+        window.speechSynthesis.cancel();
+      } catch {}
     }
     this.isSpeaking = false;
     this.currentUtterance = null;
@@ -176,7 +153,7 @@ export class NoraRealtimeOrchestrator {
   }
 
   /**
-   * 🗣️ CHUNKING EMOCIONAL Y ENCOLADO DE ORACIONES
+   * 🗣️ ENCOLADO Y REPRODUCCIÓN DE ORACIONES
    */
   public enqueueTextChunk(textChunk: string) {
     const cleanText = textChunk
@@ -195,17 +172,33 @@ export class NoraRealtimeOrchestrator {
     if (this.ttsQueue.length === 0) {
       this.isSpeaking = false;
       this.config.onAssistantSpeechEnd();
+      // Reanudar escucha al terminar de hablar Nora
+      if (this.isListening) {
+        try {
+          this.recognition?.start();
+        } catch {}
+      }
       return;
     }
 
     this.isSpeaking = true;
     this.config.onAssistantSpeechStart();
+
+    // Pausar temporalmente el reconocimiento mientras Nora habla para evitar eco
+    try {
+      this.recognition?.stop();
+    } catch {}
+
     const nextText = this.ttsQueue.shift()!;
 
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
       this.playNextChunk();
       return;
     }
+
+    try {
+      window.speechSynthesis.resume();
+    } catch {}
 
     this.currentUtterance = new SpeechSynthesisUtterance(nextText);
     this.currentUtterance.lang = this.config.lang || "es-AR";
@@ -217,13 +210,12 @@ export class NoraRealtimeOrchestrator {
       if (selectedVoice) this.currentUtterance.voice = selectedVoice;
     }
 
-    // Configuración fina de prosodia en hardware del cliente
-    this.currentUtterance.rate = 1.05; // Aceleración sutil para dinamismo conversacional
+    this.currentUtterance.rate = 1.05;
     this.currentUtterance.pitch = 1.0;
 
     this.currentUtterance.onend = () => {
       this.currentUtterance = null;
-      this.playNextChunk(); // Ejecución recursiva del siguiente chunk encolado
+      this.playNextChunk();
     };
 
     this.currentUtterance.onerror = (e) => {
@@ -232,7 +224,12 @@ export class NoraRealtimeOrchestrator {
       this.playNextChunk();
     };
 
-    window.speechSynthesis.speak(this.currentUtterance);
+    try {
+      window.speechSynthesis.speak(this.currentUtterance);
+    } catch (e) {
+      console.warn("[SpeechSynthesis speak error]:", e);
+      this.playNextChunk();
+    }
   }
 
   public setAbortController(controller: AbortController) {
@@ -271,16 +268,18 @@ export async function manejarStreamingNora(
     });
 
     if (!response.ok || !response.body) {
-      orchestrator.enqueueTextChunk("Disculpame, tuve un micro corte en el enlace. ¿Podrías repetirme eso?");
-      return "";
+      const errorMsg = "Disculpame, tuve un micro corte en el enlace. ¿Podrías repetirme eso?";
+      orchestrator.enqueueTextChunk(errorMsg);
+      return errorMsg;
     }
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
 
     let textoAcumulado = "";
-    // Segmentador nativo en español para detectar cortes de cláusulas naturales
-    const segmenter = new (Intl as any).Segmenter("es", { granularity: "sentence" });
+    const segmenter = typeof Intl !== "undefined" && (Intl as any).Segmenter
+      ? new (Intl as any).Segmenter("es", { granularity: "sentence" })
+      : null;
 
     while (true) {
       const { value, done } = await reader.read();
@@ -290,20 +289,25 @@ export async function manejarStreamingNora(
       textoAcumulado += chunkTexto;
       fullAssistantText += chunkTexto;
 
-      // Evaluamos las oraciones formadas hasta el momento
-      const segments = Array.from(segmenter.segment(textoAcumulado)) as any[];
-
-      // Si hay más de una oración, encolamos todas las terminadas y dejamos la última incompleta en el buffer
-      if (segments.length > 1) {
-        for (let i = 0; i < segments.length - 1; i++) {
-          const fraseLista = segments[i].segment || segments[i].text;
-          orchestrator.enqueueTextChunk(fraseLista);
-          textoAcumulado = textoAcumulado.slice(fraseLista.length);
+      if (segmenter) {
+        const segments = Array.from(segmenter.segment(textoAcumulado)) as any[];
+        if (segments.length > 1) {
+          for (let i = 0; i < segments.length - 1; i++) {
+            const fraseLista = segments[i].segment || segments[i].text;
+            orchestrator.enqueueTextChunk(fraseLista);
+            textoAcumulado = textoAcumulado.slice(fraseLista.length);
+          }
+        }
+      } else {
+        // Fallback si no hay Intl.Segmenter (corte por signos de puntuación)
+        const match = textoAcumulado.match(/(.*?[.?!;\n])\s*(.*)/s);
+        if (match && match[1]) {
+          orchestrator.enqueueTextChunk(match[1]);
+          textoAcumulado = match[2] || "";
         }
       }
     }
 
-    // Encolar el remanente al terminar el stream
     if (textoAcumulado.trim()) {
       orchestrator.enqueueTextChunk(textoAcumulado);
     }

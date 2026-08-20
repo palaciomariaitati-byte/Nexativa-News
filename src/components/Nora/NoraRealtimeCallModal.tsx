@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { NoraRealtimeOrchestrator, manejarStreamingNora } from "@/lib/nora/realtime/speechPipeline";
 
 interface NoraRealtimeCallModalProps {
@@ -21,7 +21,7 @@ export default function NoraRealtimeCallModal({
   const [callState, setCallState] = useState<"connecting" | "listening" | "thinking" | "speaking" | "interrupted">("connecting");
   const [userTranscript, setUserTranscript] = useState<string>("");
   const [assistantResponse, setAssistantResponse] = useState<string>("");
-  const [micVolume, setMicVolume] = useState<number>(0);
+  const [manualText, setManualText] = useState<string>("");
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [callDuration, setCallDuration] = useState<number>(0);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
@@ -31,9 +31,13 @@ export default function NoraRealtimeCallModal({
   const historyRef = useRef<{ role: string; content: string }[]>([]);
   const isProcessingRef = useRef<boolean>(false);
 
-  // 1. Cargar voces del sistema
+  // 1. Desbloquear audio y cargar voces
   useEffect(() => {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      try {
+        window.speechSynthesis.resume();
+      } catch {}
+
       const loadVoices = () => {
         const vList = window.speechSynthesis.getVoices();
         const spanish = vList.filter((v) => v.lang.startsWith("es") || v.lang.includes("es-"));
@@ -66,7 +70,39 @@ export default function NoraRealtimeCallModal({
     };
   }, [isOpen]);
 
-  // 3. Inicializar y desmontar el orquestador de llamada en tiempo real
+  // Función para procesar y responder al usuario
+  const processUserSpeech = useCallback(async (text: string) => {
+    const clean = text.trim();
+    if (!clean || isProcessingRef.current) return;
+
+    isProcessingRef.current = true;
+    setCallState("thinking");
+    setUserTranscript(clean);
+
+    historyRef.current.push({ role: "user", content: clean });
+
+    if (orchestratorRef.current) {
+      setAssistantResponse("");
+      const responseText = await manejarStreamingNora(
+        clean,
+        orchestratorRef.current,
+        historyRef.current.slice(-6),
+        activeMode
+      );
+
+      if (responseText.trim()) {
+        historyRef.current.push({ role: "assistant", content: responseText.trim() });
+        setAssistantResponse(responseText.trim());
+        if (onMessageLogged) {
+          onMessageLogged(clean, responseText.trim());
+        }
+      }
+    }
+
+    isProcessingRef.current = false;
+  }, [activeMode, onMessageLogged]);
+
+  // 3. Inicializar y desmontar el orquestador
   useEffect(() => {
     if (!isOpen) {
       if (orchestratorRef.current) {
@@ -79,36 +115,10 @@ export default function NoraRealtimeCallModal({
     const orchestrator = new NoraRealtimeOrchestrator({
       voiceUri: currentVoice || selectedVoiceUri,
       lang: "es-AR",
-      onVolumeChange: (vol) => {
-        setMicVolume(vol);
-      },
-      onTranscript: async (text, isFinal) => {
+      onTranscript: (text, isFinal) => {
         setUserTranscript(text);
-
-        if (isFinal && text.trim().length > 1 && !isProcessingRef.current) {
-          isProcessingRef.current = true;
-          setCallState("thinking");
-
-          const userText = text.trim();
-          historyRef.current.push({ role: "user", content: userText });
-
-          setAssistantResponse("");
-          const responseText = await manejarStreamingNora(
-            userText,
-            orchestrator,
-            historyRef.current.slice(-6),
-            activeMode
-          );
-
-          if (responseText.trim()) {
-            historyRef.current.push({ role: "assistant", content: responseText.trim() });
-            setAssistantResponse(responseText.trim());
-            if (onMessageLogged) {
-              onMessageLogged(userText, responseText.trim());
-            }
-          }
-
-          isProcessingRef.current = false;
+        if (isFinal && text.trim().length > 1) {
+          processUserSpeech(text);
         }
       },
       onAssistantSpeechStart: () => {
@@ -116,10 +126,11 @@ export default function NoraRealtimeCallModal({
       },
       onAssistantSpeechEnd: () => {
         setCallState("listening");
+        setUserTranscript("");
       },
       onUserInterruption: () => {
         setCallState("interrupted");
-        setTimeout(() => setCallState("listening"), 400);
+        setTimeout(() => setCallState("listening"), 300);
       }
     });
 
@@ -132,7 +143,7 @@ export default function NoraRealtimeCallModal({
       orchestrator.stop();
       orchestratorRef.current = null;
     };
-  }, [isOpen, currentVoice, activeMode]);
+  }, [isOpen, currentVoice, processUserSpeech, selectedVoiceUri]);
 
   if (!isOpen) return null;
 
@@ -160,23 +171,30 @@ export default function NoraRealtimeCallModal({
     }
   };
 
+  const handleManualSend = () => {
+    if (manualText.trim()) {
+      processUserSpeech(manualText.trim());
+      setManualText("");
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-xl animate-fade-in">
-      <div className="relative w-full max-w-lg overflow-hidden bg-gradient-to-b from-slate-900 via-slate-900/95 to-slate-950 border border-cyan-500/30 rounded-3xl shadow-2xl shadow-cyan-500/10 p-6 flex flex-col items-center justify-between min-h-[580px]">
+      <div className="relative w-full max-w-lg overflow-hidden bg-gradient-to-b from-slate-900 via-slate-900/95 to-slate-950 border border-cyan-500/30 rounded-3xl shadow-2xl shadow-cyan-500/10 p-5 sm:p-6 flex flex-col items-center justify-between min-h-[560px]">
         
         {/* Cabecera de la llamada */}
         <div className="w-full flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="relative flex items-center justify-center w-10 h-10 rounded-full bg-cyan-500/20 border border-cyan-400/40">
               <span className="text-xl">✨</span>
-              <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 animate-ping" />
-              <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500" />
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500" />
             </div>
             <div>
-              <h3 className="text-white font-bold text-base tracking-wide flex items-center gap-2">
+              <h3 className="text-white font-bold text-sm sm:text-base tracking-wide flex items-center gap-2">
                 NoraItu Realtime
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-semibold border border-cyan-500/30">
-                  Full Duplex 0ms
+                  En Vivo
                 </span>
               </h3>
               <p className="text-xs text-slate-400 font-mono">
@@ -187,41 +205,24 @@ export default function NoraRealtimeCallModal({
 
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors"
+            className="w-8 h-8 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
             title="Cerrar ventana"
           >
             ✕
           </button>
         </div>
 
-        {/* Orbe Central y Ondas Reactivas */}
-        <div className="my-auto flex flex-col items-center justify-center relative w-full">
-          {/* Ondas expansivas de fondo según volumen de voz */}
-          <div
-            className="absolute rounded-full border border-cyan-400/20 transition-all duration-100 pointer-events-none"
-            style={{
-              width: `${160 + micVolume * 1.8}px`,
-              height: `${160 + micVolume * 1.8}px`,
-              opacity: callState === "listening" ? 0.3 + micVolume / 150 : 0.1
-            }}
-          />
-          <div
-            className="absolute rounded-full border border-teal-400/15 transition-all duration-150 pointer-events-none"
-            style={{
-              width: `${200 + micVolume * 2.4}px`,
-              height: `${200 + micVolume * 2.4}px`,
-              opacity: callState === "listening" ? 0.2 + micVolume / 200 : 0.05
-            }}
-          />
-
+        {/* Orbe Central */}
+        <div className="my-auto flex flex-col items-center justify-center relative w-full py-4">
+          
           {/* Orbe Pulsante Central */}
           <div
             onClick={callState === "speaking" ? handleInterruptNow : undefined}
-            className={`relative flex items-center justify-center w-36 h-36 rounded-full cursor-pointer transition-all duration-500 shadow-2xl ${
+            className={`relative flex items-center justify-center w-32 h-32 sm:w-36 sm:h-36 rounded-full cursor-pointer transition-all duration-500 shadow-2xl ${
               callState === "speaking"
                 ? "bg-gradient-to-tr from-cyan-600 via-teal-500 to-indigo-600 shadow-cyan-500/50 scale-105 animate-pulse"
                 : callState === "thinking"
-                ? "bg-gradient-to-tr from-purple-600 via-indigo-500 to-cyan-500 shadow-purple-500/40 animate-spin scale-95"
+                ? "bg-gradient-to-tr from-purple-600 via-indigo-500 to-cyan-500 shadow-purple-500/40 animate-pulse scale-95"
                 : callState === "interrupted"
                 ? "bg-gradient-to-tr from-amber-600 via-orange-500 to-red-500 shadow-amber-500/50 scale-90"
                 : "bg-gradient-to-tr from-cyan-900 via-slate-800 to-cyan-800 shadow-cyan-900/30 hover:scale-105"
@@ -243,9 +244,9 @@ export default function NoraRealtimeCallModal({
                 {callState === "speaking"
                   ? "Hablando"
                   : callState === "thinking"
-                  ? "Pensando"
+                  ? "Pensando..."
                   : callState === "interrupted"
-                  ? "Corte 0ms"
+                  ? "Interrumpido"
                   : isMuted
                   ? "Silenciado"
                   : "Escuchando"}
@@ -254,24 +255,59 @@ export default function NoraRealtimeCallModal({
           </div>
 
           {/* Subtítulos y Transcripción en Vivo */}
-          <div className="w-full mt-6 px-4 text-center min-h-[64px] flex flex-col items-center justify-center">
+          <div className="w-full mt-5 px-4 text-center min-h-[56px] flex flex-col items-center justify-center">
             {userTranscript ? (
-              <p className="text-xs text-cyan-300/90 font-medium italic animate-fade-in line-clamp-2 max-w-sm">
-                "{userTranscript}"
-              </p>
+              <div className="flex flex-col items-center gap-1.5 animate-fade-in">
+                <p className="text-xs text-cyan-300 font-medium italic line-clamp-2 max-w-sm">
+                  "{userTranscript}"
+                </p>
+                {callState === "listening" && (
+                  <button
+                    onClick={() => processUserSpeech(userTranscript)}
+                    className="text-[10px] px-2.5 py-0.5 rounded-full bg-cyan-500/30 hover:bg-cyan-500/50 text-cyan-200 border border-cyan-400/40 cursor-pointer transition-all"
+                  >
+                    Enviar ahora ➔
+                  </button>
+                )}
+              </div>
             ) : (
               <p className="text-xs text-slate-400 font-light">
-                Hablá con libertad. Podés interrumpir a Nora en cualquier momento.
+                Hablá con libertad. Nora te escucha y responderá al pausar.
               </p>
             )}
           </div>
         </div>
 
-        {/* Selector de Voz y Controles Inferiores */}
-        <div className="w-full flex flex-col items-center gap-4">
+        {/* Barra de Entrada Manual Rápida & Selector de Voz */}
+        <div className="w-full flex flex-col items-center gap-3">
+          
+          {/* Input de respaldo para escribir durante la llamada */}
+          <div className="w-full flex items-center gap-2">
+            <input
+              type="text"
+              value={manualText}
+              onChange={(e) => setManualText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && manualText.trim()) {
+                  handleManualSend();
+                }
+              }}
+              placeholder="O escribile algo a Nora acá..."
+              className="flex-1 px-3.5 py-2 rounded-xl bg-slate-800/60 border border-slate-700/60 text-xs text-white placeholder-slate-400 focus:outline-hidden focus:border-cyan-500"
+            />
+            {manualText.trim() && (
+              <button
+                onClick={handleManualSend}
+                className="px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs cursor-pointer shadow-md transition-all"
+              >
+                Enviar
+              </button>
+            )}
+          </div>
+
           {availableVoices.length > 0 && (
-            <div className="w-full flex items-center justify-between px-3 py-1.5 rounded-xl bg-slate-800/40 border border-slate-700/50 text-xs">
-              <span className="text-slate-400 flex items-center gap-1.5">
+            <div className="w-full flex items-center justify-between px-3 py-1.5 rounded-xl bg-slate-800/40 border border-slate-700/50 text-[11px]">
+              <span className="text-slate-400 flex items-center gap-1">
                 <span>🔊</span> Voz:
               </span>
               <select
@@ -280,7 +316,7 @@ export default function NoraRealtimeCallModal({
                   setCurrentVoice(e.target.value);
                   orchestratorRef.current?.updateVoice(e.target.value);
                 }}
-                className="bg-transparent text-cyan-300 font-medium outline-none text-right cursor-pointer max-w-[240px] truncate"
+                className="bg-transparent text-cyan-300 font-medium outline-none text-right cursor-pointer max-w-[220px] truncate"
               >
                 {availableVoices.map((v) => (
                   <option key={v.voiceURI} value={v.voiceURI} className="bg-slate-900 text-white">
@@ -292,11 +328,11 @@ export default function NoraRealtimeCallModal({
           )}
 
           {/* Barra de botones de llamada */}
-          <div className="flex items-center justify-center gap-6 w-full pt-2">
+          <div className="flex items-center justify-center gap-6 w-full pt-1">
             {/* Silenciar micrófono */}
             <button
               onClick={handleToggleMute}
-              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+              className={`w-11 h-11 rounded-full flex items-center justify-center transition-all cursor-pointer ${
                 isMuted
                   ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
                   : "bg-slate-800 hover:bg-slate-700 text-white border border-slate-600"
@@ -309,7 +345,7 @@ export default function NoraRealtimeCallModal({
             {/* Colgar llamada */}
             <button
               onClick={onClose}
-              className="px-6 h-12 rounded-full bg-red-600 hover:bg-red-500 text-white font-bold text-sm tracking-wide shadow-lg shadow-red-600/30 flex items-center gap-2 transition-transform active:scale-95"
+              className="px-6 h-11 rounded-full bg-red-600 hover:bg-red-500 text-white font-bold text-sm tracking-wide shadow-lg shadow-red-600/30 flex items-center gap-2 transition-transform active:scale-95 cursor-pointer"
             >
               <span>📞</span>
               <span>Finalizar</span>
@@ -319,12 +355,12 @@ export default function NoraRealtimeCallModal({
             <button
               onClick={handleInterruptNow}
               disabled={callState !== "speaking"}
-              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+              className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${
                 callState === "speaking"
                   ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/30 cursor-pointer"
                   : "bg-slate-800/40 text-slate-600 border border-slate-800 cursor-not-allowed"
               }`}
-              title="Interrumpir a Nora (Barge-in)"
+              title="Interrumpir a Nora"
             >
               ✋
             </button>

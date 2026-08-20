@@ -1,4 +1,4 @@
-const CACHE_NAME = 'noraitu-v3';
+const CACHE_NAME = 'noraitu-v4';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
