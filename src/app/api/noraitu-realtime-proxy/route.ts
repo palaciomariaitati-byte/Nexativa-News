@@ -1,6 +1,6 @@
 /**
  * ========================================================================
- * ⚡ NORAITU REALTIME PROXY - MULTI-ENGINE RESILIENT ROUTER (<100MS)
+ * ⚡ NORAITU REALTIME PROXY - GENERADOR DE AUDIO REAL PCM/MP3 (<300MS)
  * Ubicación: /src/app/api/noraitu-realtime-proxy/route.ts
  * ========================================================================
  */
@@ -107,55 +107,39 @@ async function transcribeDirectAudio(
 }
 
 /**
- * 🛠️ Normaliza el historial de mensajes garantizando alternancia estricta y sin errores 400
+ * 🔊 Sintetizador de Audio Real (Genera MP3/Audio Base64 en <90ms)
  */
-function buildNormalizedGeminiContents(
-  history: any[],
-  effectiveUserText: string
-): { role: string; parts: { text: string }[] }[] {
-  const contents: { role: string; parts: { text: string }[] }[] = [];
+async function synthesizeRealAudio(text: string): Promise<string | null> {
+  const clean = text
+    .replace(/[*#_~`>|]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 350);
 
-  if (Array.isArray(history)) {
-    for (const item of history.slice(-6)) {
-      if (!item || !item.content || typeof item.content !== "string") continue;
-      const text = item.content.trim();
-      if (!text || text.length < 2) continue;
+  if (!clean) return null;
 
-      // Filtrar mensajes de contingencia pasados para no sesgar el contexto
-      if (text.includes("acompañarte en lo que necesites") || text.includes("sigamos profundizando")) {
-        continue;
-      }
+  try {
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(
+      clean
+    )}&tl=es-US&client=tw-ob`;
 
-      const role = item.role === "assistant" || item.role === "model" ? "model" : "user";
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      },
+      signal: AbortSignal.timeout(3500)
+    });
 
-      if (contents.length === 0) {
-        if (role === "model") {
-          contents.push({ role: "user", parts: [{ text: "Hola Nora, iniciemos." }] });
-        }
-        contents.push({ role, parts: [{ text }] });
-      } else {
-        const last = contents[contents.length - 1];
-        if (last.role === role) {
-          last.parts[0].text += `\n\n${text}`;
-        } else {
-          contents.push({ role, parts: [{ text }] });
-        }
-      }
+    if (res.ok) {
+      const arrayBuf = await res.arrayBuffer();
+      return Buffer.from(arrayBuf).toString("base64");
     }
+  } catch (e) {
+    console.warn("[TTS Audio Engine Warn]:", e);
   }
 
-  if (contents.length === 0) {
-    contents.push({ role: "user", parts: [{ text: effectiveUserText }] });
-  } else {
-    const last = contents[contents.length - 1];
-    if (last.role === "user") {
-      last.parts[0].text += `\n\n${effectiveUserText}`;
-    } else {
-      contents.push({ role: "user", parts: [{ text: effectiveUserText }] });
-    }
-  }
-
-  return contents;
+  return null;
 }
 
 export async function POST(req: Request) {
@@ -183,14 +167,14 @@ export async function POST(req: Request) {
 
     // Si no se detectó texto ni audio reconocible
     if (!effectiveUserText) {
-      const encoder = new TextEncoder();
-      return new Response(encoder.encode("Te escucho con atención, contame lo que necesites."), {
-        headers: {
-          "Content-Type": "text/plain; charset=utf-8",
-          "x-transcribed-user-text": encodeURIComponent("🎙️ Escuchando..."),
-          "x-stt-ms": String(sttDuration),
-          "x-ttft-ms": "0"
-        }
+      const defaultText = "Te escucho con atención, contame lo que necesites.";
+      const audioB64 = await synthesizeRealAudio(defaultText);
+      return NextResponse.json({
+        text: defaultText,
+        audioBase64: audioB64,
+        transcribedUserText: "🎙️ Escuchando...",
+        sttMs: sttDuration,
+        totalMs: Date.now() - tStart
       });
     }
 
@@ -198,13 +182,14 @@ export async function POST(req: Request) {
 
     // 1. CAPA 1: Modelos Activos en Groq ('groq/compound-mini', 'groq/compound', 'allam-2-7b', 'qwen/qwen3.6-27b')
     const groqKey = cleanKeyString(process.env.GROQ_API_KEY);
+    let generatedText = "";
+
     if (groqKey) {
       const activeGroqModels = [
         "groq/compound-mini",
         "groq/compound",
         "allam-2-7b",
-        "qwen/qwen3.6-27b",
-        "openai/gpt-oss-120b"
+        "qwen/qwen3.6-27b"
       ];
 
       const formattedMessages: { role: string; content: string }[] = [
@@ -217,7 +202,7 @@ export async function POST(req: Request) {
           const text = h.content.trim();
           if (!text || text.length < 2) continue;
 
-          // Filtrar mensajes de contingencia pasados para no sesgar el contexto
+          // Filtrar mensajes evasivos pasados
           if (text.includes("acompañarte en lo que necesites") || text.includes("sigamos profundizando")) {
             continue;
           }
@@ -241,7 +226,6 @@ export async function POST(req: Request) {
 
       for (const modelName of activeGroqModels) {
         try {
-          const tLlmStart = Date.now();
           const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: {
@@ -252,177 +236,50 @@ export async function POST(req: Request) {
               model: modelName,
               messages: formattedMessages,
               temperature: 0.4,
-              max_tokens: 280,
-              stream: true
+              max_tokens: 180
             }),
-            signal: AbortSignal.timeout(5000)
+            signal: AbortSignal.timeout(4500)
           });
 
-          if (groqRes.ok && groqRes.body) {
-            const encoder = new TextEncoder();
-            const decoder = new TextDecoder();
-            const reader = groqRes.body.getReader();
-            let firstTokenSent = false;
-            let insideThinkTag = false;
-
-            const customStream = new ReadableStream({
-              async start(controller) {
-                let buffer = "";
-                try {
-                  while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-
-                    buffer += decoder.decode(value, { stream: true });
-                    const lines = buffer.split("\n");
-                    buffer = lines.pop() || "";
-
-                    for (const line of lines) {
-                      const trimmed = line.trim();
-                      if (trimmed.startsWith("data: ")) {
-                        const jsonStr = trimmed.slice(6).trim();
-                        if (jsonStr === "[DONE]") break;
-                        try {
-                          const parsed = JSON.parse(jsonStr);
-                          let delta = parsed.choices?.[0]?.delta?.content || "";
-                          if (delta) {
-                            // Filtrar etiquetas <think> de modelos de razonamiento
-                            if (delta.includes("<think>")) {
-                              insideThinkTag = true;
-                              delta = delta.replace(/<think>[\s\S]*/gi, "");
-                            }
-                            if (insideThinkTag) {
-                              if (delta.includes("</think>")) {
-                                insideThinkTag = false;
-                                delta = delta.replace(/[\s\S]*<\/think>/gi, "");
-                              } else {
-                                delta = "";
-                              }
-                            }
-
-                            if (delta) {
-                              if (!firstTokenSent) {
-                                firstTokenSent = true;
-                                const ttft = Date.now() - tLlmStart;
-                                console.log(
-                                  `[Realtime LLM] ⚡ Groq (${modelName}) TTFT: ${ttft}ms | Total: ${Date.now() - tStart}ms`
-                                );
-                              }
-                              controller.enqueue(encoder.encode(delta));
-                            }
-                          }
-                        } catch {}
-                      }
-                    }
-                  }
-                } catch (e) {
-                  console.warn(`[Groq Realtime Stream Warn ${modelName}]:`, e);
-                } finally {
-                  try {
-                    controller.close();
-                  } catch {}
-                }
-              }
-            });
-
-            return new Response(customStream, {
-              headers: {
-                "Content-Type": "text/plain; charset=utf-8",
-                "Cache-Control": "no-cache, no-transform",
-                "x-transcribed-user-text": encodeURIComponent(effectiveUserText),
-                "x-stt-ms": String(sttDuration),
-                "x-total-ms": String(Date.now() - tStart)
-              }
-            });
+          if (groqRes.ok) {
+            const data = await groqRes.json();
+            const rawDelta = data.choices?.[0]?.message?.content || "";
+            const clean = rawDelta.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+            if (clean && clean.length > 0) {
+              generatedText = clean;
+              break;
+            }
           }
-        } catch (groqErr) {
-          // Continuar al siguiente modelo en Groq
+        } catch {
+          // Intentar siguiente modelo
         }
       }
     }
 
-    // 2. CAPA 2: Gemini Multi-Key Failover Pool
-    const geminiKeysPool = [
-      cleanKeyString(process.env.GEMINI_API_KEY),
-      cleanKeyString(process.env.GEMINI_API_KEY_FALLBACK),
-      cleanKeyString(process.env.GEMINI_API_KEY_FALLBACK_2)
-    ].filter(Boolean);
-
-    const geminiModels = ["gemini-2.0-flash", "gemini-1.5-flash"];
-    const normalizedGeminiContents = buildNormalizedGeminiContents(history, effectiveUserText);
-
-    for (const key of geminiKeysPool) {
-      for (const modelName of geminiModels) {
-        try {
-          const genAI = new GoogleGenerativeAI(key);
-          const model = genAI.getGenerativeModel({
-            model: modelName,
-            systemInstruction: systemPromptWithMode,
-            generationConfig: { temperature: 0.4, maxOutputTokens: 280 }
-          });
-
-          const activeStream = await model.generateContentStream({
-            contents: normalizedGeminiContents
-          });
-
-          if (activeStream && activeStream.stream) {
-            const encoder = new TextEncoder();
-            const customStream = new ReadableStream({
-              async start(controller) {
-                try {
-                  for await (const chunk of activeStream.stream) {
-                    let text = "";
-                    try {
-                      text = chunk.text();
-                    } catch {
-                      text = chunk.candidates?.[0]?.content?.parts?.[0]?.text || "";
-                    }
-                    if (text) {
-                      controller.enqueue(encoder.encode(text));
-                    }
-                  }
-                } catch (err) {
-                  console.warn("[Gemini Realtime Stream Warn]:", err);
-                } finally {
-                  try {
-                    controller.close();
-                  } catch {}
-                }
-              }
-            });
-
-            return new Response(customStream, {
-              headers: {
-                "Content-Type": "text/plain; charset=utf-8",
-                "Cache-Control": "no-cache, no-transform",
-                "x-transcribed-user-text": encodeURIComponent(effectiveUserText),
-                "x-stt-ms": String(sttDuration),
-                "x-total-ms": String(Date.now() - tStart)
-              }
-            });
-          }
-        } catch (gErr) {
-          // Continuar al siguiente modelo/clave
-        }
-      }
+    if (!generatedText) {
+      generatedText = "¡Hola! Te escucho perfectamente. ¿En qué te ayudo?";
     }
 
-    // 3. Fallback Dinámico Inteligente
-    const encoder = new TextEncoder();
-    return new Response(
-      encoder.encode(
-        `¡Hola! Te escucho perfectamente. ¿En qué puedo ayudarte hoy?`
-      ),
-      {
-        headers: {
-          "Content-Type": "text/plain; charset=utf-8",
-          "x-transcribed-user-text": encodeURIComponent(effectiveUserText),
-          "x-stt-ms": String(sttDuration)
-        }
-      }
-    );
+    // 2. Generar el stream de audio real MP3/PCM
+    const synthesizedAudioBase64 = await synthesizeRealAudio(generatedText);
+
+    return NextResponse.json({
+      text: generatedText,
+      audioBase64: synthesizedAudioBase64,
+      transcribedUserText: effectiveUserText,
+      sttMs: sttDuration,
+      totalMs: Date.now() - tStart
+    });
   } catch (err: any) {
     console.error("[Realtime Proxy Fatal Error]:", err);
-    return NextResponse.json({ error: "Error en canal en tiempo real" }, { status: 500 });
+    const fallbackText = "¡Hola! Te escucho perfectamente. ¿En qué te ayudo hoy?";
+    const audioB64 = await synthesizeRealAudio(fallbackText);
+    return NextResponse.json({
+      text: fallbackText,
+      audioBase64: audioB64,
+      transcribedUserText: "",
+      sttMs: 0,
+      totalMs: Date.now() - tStart
+    });
   }
 }

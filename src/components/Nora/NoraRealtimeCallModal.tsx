@@ -14,6 +14,16 @@ interface NoraRealtimeCallModalProps {
   onMessageLogged?: (userText: string, assistantText: string) => void;
 }
 
+function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const binaryString = window.atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
 export default function NoraRealtimeCallModal({
   isOpen,
   onClose,
@@ -30,7 +40,6 @@ export default function NoraRealtimeCallModal({
   const [callDuration, setCallDuration] = useState<number>(0);
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const [isMuted, setIsMuted] = useState<boolean>(false);
-  const [currentVoice, setCurrentVoice] = useState<string>(selectedVoiceUri || "");
   const [isTriggeringSOS, setIsTriggeringSOS] = useState<boolean>(false);
 
   // Modos de interacción y accesibilidad
@@ -43,10 +52,10 @@ export default function NoraRealtimeCallModal({
   const isProcessingRef = useRef<boolean>(false);
   const historyRef = useRef<{ role: string; content: string }[]>([]);
   const activeModeRef = useRef<string>(activeMode);
-  const activeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const currentAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Audio Pipeline Refs (Stream Único Permanente)
+  // Audio Pipeline Refs (Web Audio API Nativa)
   const micStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const micGainNodeRef = useRef<GainNode | null>(null);
@@ -61,7 +70,6 @@ export default function NoraRealtimeCallModal({
   const noiseFloorRef = useRef<number>(14);
   const speechStartTimeRef = useRef<number>(0);
   const cooldownTimerRef = useRef<any>(null);
-  const hasUnlockedAudioRef = useRef<boolean>(false);
 
   useEffect(() => {
     activeModeRef.current = activeMode;
@@ -71,11 +79,10 @@ export default function NoraRealtimeCallModal({
   const unlockMobileAudioHardware = useCallback(async () => {
     if (typeof window === "undefined") return;
     try {
-      if (audioContextRef.current && audioContextRef.current.state === "suspended") {
-        await audioContextRef.current.resume();
-      }
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       const ctx = audioContextRef.current || new AudioCtx();
+      audioContextRef.current = ctx;
+
       if (ctx.state === "suspended") {
         await ctx.resume();
       }
@@ -86,15 +93,6 @@ export default function NoraRealtimeCallModal({
       src.buffer = buffer;
       src.connect(ctx.destination);
       src.start(0);
-
-      // Desbloquear SpeechSynthesis con utterance vacía
-      if ("speechSynthesis" in window) {
-        window.speechSynthesis.resume();
-        const silentUtterance = new SpeechSynthesisUtterance("");
-        window.speechSynthesis.speak(silentUtterance);
-      }
-
-      hasUnlockedAudioRef.current = true;
     } catch {}
   }, []);
 
@@ -141,49 +139,6 @@ export default function NoraRealtimeCallModal({
     } catch {}
   }, []);
 
-  // 1. Cargar voces en español / rioplatense
-  useEffect(() => {
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      const loadVoices = () => {
-        const vList = window.speechSynthesis.getVoices();
-        const spanish = vList.filter((v) => v.lang.startsWith("es") || v.lang.includes("es-"));
-        const finalVoices = spanish.length > 0 ? spanish : vList;
-
-        const storedVoice = localStorage.getItem("noraitu_selected_voice") || selectedVoiceUri;
-        if (storedVoice) {
-          const match = finalVoices.find((v) => v.voiceURI === storedVoice);
-          if (match) {
-            setCurrentVoice(match.voiceURI);
-            return;
-          }
-        }
-
-        const preferred =
-          finalVoices.find(
-            (v) =>
-              (v.lang.includes("AR") || v.lang.includes("419") || v.lang.includes("MX") || v.name.toLowerCase().includes("argentina")) &&
-              !v.lang.includes("ES")
-          ) ||
-          finalVoices.find(
-            (v) =>
-              v.name.toLowerCase().includes("sabina") ||
-              v.name.toLowerCase().includes("dalia") ||
-              v.name.toLowerCase().includes("google español") ||
-              v.name.toLowerCase().includes("natural")
-          ) ||
-          finalVoices.find((v) => !v.lang.includes("ES")) ||
-          finalVoices[0];
-
-        if (preferred) {
-          setCurrentVoice(preferred.voiceURI);
-        }
-      };
-
-      loadVoices();
-      window.speechSynthesis.onvoiceschanged = loadVoices;
-    }
-  }, [selectedVoiceUri]);
-
   // 2. Temporizador de llamada
   useEffect(() => {
     let timer: any = null;
@@ -196,18 +151,19 @@ export default function NoraRealtimeCallModal({
     };
   }, [isOpen]);
 
-  // 3. Detener habla de Nora de forma absoluta y limpia
+  // 3. Detener audio de Nora de forma absoluta y limpia
   const stopNoraSpeech = useCallback(() => {
     isNoraSpeakingRef.current = false;
-    activeUtteranceRef.current = null;
+    if (currentAudioSourceRef.current) {
+      try {
+        currentAudioSourceRef.current.stop();
+        currentAudioSourceRef.current.disconnect();
+      } catch {}
+      currentAudioSourceRef.current = null;
+    }
     if (cooldownTimerRef.current) {
       clearTimeout(cooldownTimerRef.current);
       cooldownTimerRef.current = null;
-    }
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      try {
-        window.speechSynthesis.cancel();
-      } catch {}
     }
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -237,25 +193,26 @@ export default function NoraRealtimeCallModal({
     }
   }, []);
 
-  // 5. Muteo Absoluto durante la Síntesis de Voz (Mute-on-Speak) y Delay de Seguridad
-  const speakNoraResponse = useCallback(
-    (fullText: string) => {
-      if (isMuted || !fullText.trim()) {
-        isNoraSpeakingRef.current = false;
+  // 5. Reproducción de Audio Real mediante Web Audio API (decodeAudioData)
+  const playRealNoraAudio = useCallback(
+    async (audioBase64: string, fullText: string) => {
+      if (isMuted || !audioBase64) {
         resumeListening();
         return;
       }
 
-      if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-        isNoraSpeakingRef.current = false;
-        resumeListening();
-        return;
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const ctx = audioContextRef.current || new AudioCtx();
+      audioContextRef.current = ctx;
+
+      if (ctx.state === "suspended") {
+        await ctx.resume();
       }
 
-      // 🛡️ ACCIÓN 1: Muteo Absoluto de entrada (GainNode = 0 y track.enabled = false)
-      if (micGainNodeRef.current && audioContextRef.current) {
+      // 🛡️ EXCLUSIÓN MUTUA DE HARDWARE: Apagar micrófono antes de reproducir
+      if (micGainNodeRef.current) {
         try {
-          micGainNodeRef.current.gain.setValueAtTime(0, audioContextRef.current.currentTime);
+          micGainNodeRef.current.gain.setValueAtTime(0, ctx.currentTime);
         } catch {}
       }
       if (micStreamRef.current) {
@@ -267,51 +224,21 @@ export default function NoraRealtimeCallModal({
       stopNoraSpeech();
       isNoraSpeakingRef.current = true;
       setCallState("speaking");
+      setAssistantText(fullText);
       setAccessibleAnnouncement("Nora está respondiendo.");
 
-      const cleanText = fullText
-        .replace(/[*#_~`>]/g, "")
-        .replace(/\|+/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-
-      if (!cleanText) {
-        resumeListening();
-        return;
-      }
-
-      const voices = window.speechSynthesis.getVoices();
-      let voiceToUse = currentVoice ? voices.find((v) => v.voiceURI === currentVoice) : undefined;
-      if (!voiceToUse) {
-        voiceToUse =
-          voices.find((v) => (v.lang.includes("AR") || v.lang.includes("419")) && !v.lang.includes("ES")) ||
-          voices.find((v) => v.lang.startsWith("es"));
-      }
-
       try {
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.resume();
+        const arrayBuf = base64ToArrayBuffer(audioBase64);
+        const audioBuffer = await ctx.decodeAudioData(arrayBuf);
 
-        const utterance = new SpeechSynthesisUtterance(cleanText);
-        utterance.rate = 1.0;
-        utterance.pitch = 1.0;
+        const source = ctx.createBufferSource();
+        source.buffer = audioBuffer;
+        currentAudioSourceRef.current = source;
 
-        if (voiceToUse) {
-          utterance.voice = voiceToUse;
-          utterance.lang = voiceToUse.lang || "es-AR";
-        } else {
-          utterance.lang = "es-AR";
-        }
-
-        utterance.onstart = () => {
-          isNoraSpeakingRef.current = true;
-          setCallState("speaking");
-        };
-
-        // 🛡️ ACCIÓN 2: Reactivación Limpia con Delay de Seguridad de 300ms
-        utterance.onend = () => {
+        // Al finalizar el audio de verdad
+        source.onended = () => {
           isNoraSpeakingRef.current = false;
-          activeUtteranceRef.current = null;
+          currentAudioSourceRef.current = null;
           if (cooldownTimerRef.current) clearTimeout(cooldownTimerRef.current);
           cooldownTimerRef.current = setTimeout(() => {
             resumeListening();
@@ -319,22 +246,14 @@ export default function NoraRealtimeCallModal({
           }, 300);
         };
 
-        utterance.onerror = () => {
-          isNoraSpeakingRef.current = false;
-          activeUtteranceRef.current = null;
-          resumeListening();
-        };
-
-        activeUtteranceRef.current = utterance;
-        (window as any).__noraActiveUtterance = utterance;
-
-        window.speechSynthesis.speak(utterance);
-      } catch (e) {
-        console.warn("[TTS Speech Error]:", e);
+        source.connect(ctx.destination);
+        source.start(0);
+      } catch (err) {
+        console.error("[Web Audio Playback Error]:", err);
         resumeListening();
       }
     },
-    [currentVoice, isMuted, playAccessibleChime, resumeListening, stopNoraSpeech]
+    [isMuted, playAccessibleChime, resumeListening, stopNoraSpeech]
   );
 
   // 6. Protocolo SOS Lazarillo Híbrido
@@ -353,16 +272,9 @@ export default function NoraRealtimeCallModal({
         });
 
         if (result.method === "SMS" && result.smsUri) {
-          speakNoraResponse(
-            "Activando protocolo de emergencia por mensaje de texto con tus coordenadas satelitales a tu contacto de auxilio."
-          );
           setTimeout(() => {
             window.location.href = result.smsUri!;
           }, 1500);
-        } else {
-          speakNoraResponse(
-            "Alerta SOS transmitida con éxito con tu ubicación satelital a tu contacto de auxilio en Ituzaingó."
-          );
         }
       } catch (err: any) {
         console.warn("[SOS Trigger Warning]:", err);
@@ -371,7 +283,7 @@ export default function NoraRealtimeCallModal({
         setIsTriggeringSOS(false);
       }
     },
-    [coords, isOnline, speakNoraResponse, startDangerAlertLoop, unlockMobileAudioHardware]
+    [coords, isOnline, startDangerAlertLoop, unlockMobileAudioHardware]
   );
 
   // 7. Enviar audio con Telemetría
@@ -415,53 +327,43 @@ export default function NoraRealtimeCallModal({
             signal: controller.signal
           });
 
-          const sttMs = res.headers.get("x-stt-ms");
-          const totalBackendMs = res.headers.get("x-total-ms");
-          const transcribedHeader = res.headers.get("x-transcribed-user-text");
-          const userText = transcribedHeader ? decodeURIComponent(transcribedHeader) : "";
-
-          console.log(
-            `⏱️ [Voice Telemetry] STT: ${sttMs || "?"}ms | Backend Total: ${totalBackendMs || "?"}ms | Cliente Total: ${Date.now() - turnStartTime}ms`
-          );
-
-          if (userText && !userText.startsWith("⚠️") && !userText.includes("Escuchando")) {
-            setUserTranscript(`"${userText}"`);
-            historyRef.current.push({ role: "user", content: userText });
-
-            if (/\b(emergencia|auxilio|socorro|me caí|me perdi|me perdí|ayuda urgente)\b/i.test(userText)) {
-              handleExecuteSOS(userText);
-              return;
-            }
-          }
-
-          if (!res.ok || !res.body) {
+          if (!res.ok) {
             isProcessingRef.current = false;
             resumeListening();
             return;
           }
 
-          const bodyReader = res.body.getReader();
-          const decoder = new TextDecoder();
-          let fullAnswer = "";
+          const data = await res.json();
+          const { text = "", audioBase64: resAudio, transcribedUserText = "", sttMs, totalMs } = data;
 
-          while (true) {
-            const { done, value } = await bodyReader.read();
-            if (done) break;
-            const chunk = decoder.decode(value, { stream: true });
-            fullAnswer += chunk;
-            setAssistantText(fullAnswer);
+          console.log(
+            `⏱️ [Voice Telemetry] STT: ${sttMs || "?"}ms | Backend Total: ${totalMs || "?"}ms | Cliente Total: ${Date.now() - turnStartTime}ms`
+          );
+
+          if (transcribedUserText && !transcribedUserText.includes("Escuchando")) {
+            setUserTranscript(`"${transcribedUserText}"`);
+            historyRef.current.push({ role: "user", content: transcribedUserText });
+
+            if (/\b(emergencia|auxilio|socorro|me caí|me perdi|me perdí|ayuda urgente)\b/i.test(transcribedUserText)) {
+              handleExecuteSOS(transcribedUserText);
+              return;
+            }
           }
 
-          const trimmedAnswer = fullAnswer.trim();
-          if (trimmedAnswer) {
-            historyRef.current.push({ role: "assistant", content: trimmedAnswer });
+          if (text) {
+            historyRef.current.push({ role: "assistant", content: text });
             if (historyRef.current.length > 12) {
               historyRef.current = historyRef.current.slice(-12);
             }
             if (onMessageLogged) {
-              onMessageLogged(userText || "🎙️ [Voz]", trimmedAnswer);
+              onMessageLogged(transcribedUserText || "🎙️ [Voz]", text);
             }
-            speakNoraResponse(trimmedAnswer);
+            if (resAudio) {
+              playRealNoraAudio(resAudio, text);
+            } else {
+              setAssistantText(text);
+              resumeListening();
+            }
           } else {
             resumeListening();
           }
@@ -477,7 +379,7 @@ export default function NoraRealtimeCallModal({
 
       reader.readAsDataURL(audioBlob);
     },
-    [handleExecuteSOS, onMessageLogged, playAccessibleChime, resumeListening, speakNoraResponse, stopNoraSpeech]
+    [handleExecuteSOS, onMessageLogged, playAccessibleChime, playRealNoraAudio, resumeListening, stopNoraSpeech]
   );
 
   // 8. Pipeline de Captura Acústica con Stream Permanente sin Titileo (Control por GainNode)
@@ -524,7 +426,7 @@ export default function NoraRealtimeCallModal({
 
         const source = audioCtx.createMediaStreamSource(stream);
 
-        // 🛡️ ACCIÓN 3: GainNode de Control Permanente (Muteo sin cerrar stream)
+        // 🛡️ GainNode de Control Permanente (Muteo sin cerrar stream)
         const micGain = audioCtx.createGain();
         micGain.gain.setValueAtTime(1.0, audioCtx.currentTime);
         micGainNodeRef.current = micGain;
@@ -777,7 +679,7 @@ export default function NoraRealtimeCallModal({
             </div>
             <div>
               <h3 className="text-white font-bold text-sm tracking-wide flex items-center gap-2">
-                Nora Voz Fluida
+                Nora Voz Pura (Web Audio)
                 <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30 uppercase">
                   {interactionMode === "hands_free" ? "Manos Libres" : "Pulsar"}
                 </span>
