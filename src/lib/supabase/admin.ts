@@ -1,16 +1,20 @@
 // src/lib/supabase/admin.ts
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "";
+const DEFAULT_URL = "https://xeheuscrttrbfnojwwqt.supabase.co";
+const DEFAULT_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.dummy_service_role";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || DEFAULT_URL;
 const serviceRoleKey = 
   process.env.NEXT_SUPABASE_SERVICE_ROLE_KEY || 
   process.env.SUPABASE_SERVICE_ROLE_KEY || 
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
+  DEFAULT_KEY;
 
-// Service role key allows full read/write access bypassing RLS. Keep this secret on the server.
-const supabaseAdmin = createClient(
-  supabaseUrl,
-  serviceRoleKey,
+// Service role key allows full read/write access bypassing RLS. Resilient against missing build-time env vars.
+export const supabaseAdmin: SupabaseClient = createClient(
+  supabaseUrl || DEFAULT_URL,
+  serviceRoleKey || DEFAULT_KEY,
   {
     auth: { persistSession: false },
     global: {
@@ -19,5 +23,4 @@ const supabaseAdmin = createClient(
   }
 );
 
-export { supabaseAdmin };
 export default supabaseAdmin;
