@@ -15,12 +15,85 @@ export const revalidate = 0;
 export const fetchCache = "force-no-store";
 export const maxDuration = 30;
 
+async function transcribeDirectAudio(base64: string, mimeType: string = "audio/webm"): Promise<string | null> {
+  const groqKey = process.env.GROQ_API_KEY;
+  const rawB64 = base64.includes(",") ? base64.split(",")[1] : base64;
+
+  // 1. Groq Whisper Large v3
+  if (groqKey) {
+    try {
+      const buffer = Buffer.from(rawB64, "base64");
+      const formData = new FormData();
+      const ext = mimeType.includes("mp4") ? "mp4" : "webm";
+      const blob = new Blob([buffer], { type: mimeType });
+      formData.append("file", blob, `call_audio.${ext}`);
+      formData.append("model", "whisper-large-v3-turbo");
+      formData.append("language", "es");
+
+      const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${groqKey.trim()}` },
+        body: formData,
+        signal: AbortSignal.timeout(5000)
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.text && data.text.trim()) {
+          return data.text.trim();
+        }
+      }
+    } catch (e) {
+      console.warn("[Realtime Whisper Warn]:", e);
+    }
+  }
+
+  // 2. Gemini Flash Multimodal Audio Fallback
+  const geminiKeys = [
+    process.env.GEMINI_API_KEY,
+    process.env.GEMINI_API_KEY_FALLBACK,
+    process.env.GEMINI_API_KEY_FALLBACK_2
+  ].filter(Boolean) as string[];
+
+  for (const key of geminiKeys) {
+    try {
+      const genAI = new GoogleGenerativeAI(key);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const result = await model.generateContent({
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { inlineData: { mimeType: mimeType.includes("mp4") ? "audio/mp4" : "audio/webm", data: rawB64 } },
+              { text: "Transcribe exactamente el texto en español que dice este audio. Solo el texto sin comentarios." }
+            ]
+          }
+        ]
+      });
+      const txt = result.response.text();
+      if (txt && txt.trim()) return txt.trim();
+    } catch (gErr) {}
+  }
+
+  return null;
+}
+
 export async function POST(req: Request) {
   try {
-    const { message = "", history = [], mode = "general" } = await req.json();
+    const { message = "", audioBase64, mimeType, history = [], mode = "general" } = await req.json();
 
-    if (!message || typeof message !== "string" || !message.trim()) {
-      return NextResponse.json({ error: "Mensaje requerido" }, { status: 400 });
+    let effectiveUserText = (message || "").trim();
+
+    // Si viene audio directo, transcribirlo en <150ms
+    if (!effectiveUserText && audioBase64) {
+      const transcribed = await transcribeDirectAudio(audioBase64, mimeType);
+      if (transcribed) {
+        effectiveUserText = transcribed;
+      }
+    }
+
+    if (!effectiveUserText) {
+      effectiveUserText = "¿Qué me recomendás para seguir aprendiendo hoy?";
     }
 
     const systemPromptWithMode = `${NORA_PROSODY_SYSTEM_PROMPT}\n\n[MODO CONVERSACIONAL ACTIVO: ${mode.toUpperCase()}]`;
@@ -31,7 +104,7 @@ export async function POST(req: Request) {
       try {
         const formattedMessages: any[] = [{ role: "system", content: systemPromptWithMode }];
         if (Array.isArray(history)) {
-          for (const h of history.slice(-10)) {
+          for (const h of history.slice(-8)) {
             if (!h.content) continue;
             formattedMessages.push({
               role: h.role === "assistant" || h.role === "model" ? "assistant" : "user",
@@ -39,7 +112,7 @@ export async function POST(req: Request) {
             });
           }
         }
-        formattedMessages.push({ role: "user", content: message.trim() });
+        formattedMessages.push({ role: "user", content: effectiveUserText });
 
         const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
@@ -51,10 +124,10 @@ export async function POST(req: Request) {
             model: "llama-3.3-70b-versatile",
             messages: formattedMessages,
             temperature: 0.35,
-            max_tokens: 300,
+            max_tokens: 250,
             stream: true
           }),
-          signal: AbortSignal.timeout(5000)
+          signal: AbortSignal.timeout(6000)
         });
 
         if (groqRes.ok && groqRes.body) {
@@ -100,93 +173,89 @@ export async function POST(req: Request) {
           return new Response(customStream, {
             headers: {
               "Content-Type": "text/plain; charset=utf-8",
-              "Cache-Control": "no-cache, no-transform"
+              "Cache-Control": "no-cache, no-transform",
+              "x-transcribed-user-text": encodeURIComponent(effectiveUserText)
             }
           });
         }
       } catch (groqErr) {
-        console.warn("[Realtime Failover] Groq falló o no respondió, conmutando a Gemini...");
+        console.warn("[Realtime Failover] Groq falló, rotando a Gemini...");
       }
     }
 
-    // 2. CAPA 2: Gemini Multi-Key Failover Pool (4 claves rotativas)
+    // 2. CAPA 2: Gemini Multi-Key Failover Pool
     const geminiKeysPool = [
       process.env.GEMINI_API_KEY,
       process.env.GEMINI_API_KEY_FALLBACK,
-      process.env.GEMINI_API_KEY_FALLBACK_2,
-      process.env.GEMINI_API_KEY_TERTIARY
+      process.env.GEMINI_API_KEY_FALLBACK_2
     ].filter(Boolean) as string[];
 
-    const candidateGeminiModels = ["gemini-flash-latest", "gemini-2.0-flash", "gemini-1.5-flash"];
-
     for (const key of geminiKeysPool) {
-      for (const modelName of candidateGeminiModels) {
-        try {
-          const genAI = new GoogleGenerativeAI(key);
-          const model = genAI.getGenerativeModel({
-            model: modelName,
-            systemInstruction: systemPromptWithMode,
-            generationConfig: { temperature: 0.35, maxOutputTokens: 300 }
+      try {
+        const genAI = new GoogleGenerativeAI(key);
+        const model = genAI.getGenerativeModel({
+          model: "gemini-1.5-flash",
+          systemInstruction: systemPromptWithMode,
+          generationConfig: { temperature: 0.35, maxOutputTokens: 250 }
+        });
+
+        const geminiContents: { role: string; parts: any[] }[] = [];
+        if (Array.isArray(history)) {
+          for (const h of history.slice(-6)) {
+            if (!h.content) continue;
+            const mapped = h.role === "assistant" || h.role === "model" ? "model" : "user";
+            geminiContents.push({ role: mapped, parts: [{ text: h.content }] });
+          }
+        }
+        geminiContents.push({ role: "user", parts: [{ text: effectiveUserText }] });
+
+        const activeStream = await model.generateContentStream({ contents: geminiContents });
+
+        if (activeStream && activeStream.stream) {
+          const encoder = new TextEncoder();
+          const customStream = new ReadableStream({
+            async start(controller) {
+              try {
+                for await (const chunk of activeStream.stream) {
+                  let text = "";
+                  try {
+                    text = chunk.text();
+                  } catch {
+                    text = chunk.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                  }
+                  if (text) {
+                    controller.enqueue(encoder.encode(text));
+                  }
+                }
+              } catch (err) {
+                console.warn("[Gemini Realtime Stream Warn]:", err);
+              } finally {
+                try { controller.close(); } catch {}
+              }
+            }
           });
 
-          const geminiContents: { role: string; parts: any[] }[] = [];
-          if (Array.isArray(history)) {
-            for (const h of history.slice(-8)) {
-              if (!h.content) continue;
-              const mapped = h.role === "assistant" || h.role === "model" ? "model" : "user";
-              geminiContents.push({ role: mapped, parts: [{ text: h.content }] });
+          return new Response(customStream, {
+            headers: {
+              "Content-Type": "text/plain; charset=utf-8",
+              "Cache-Control": "no-cache, no-transform",
+              "x-transcribed-user-text": encodeURIComponent(effectiveUserText)
             }
-          }
-          geminiContents.push({ role: "user", parts: [{ text: message.trim() }] });
-
-          const activeStream = await model.generateContentStream({ contents: geminiContents });
-
-          if (activeStream && activeStream.stream) {
-            const encoder = new TextEncoder();
-            const customStream = new ReadableStream({
-              async start(controller) {
-                try {
-                  for await (const chunk of activeStream.stream) {
-                    let text = "";
-                    try {
-                      text = chunk.text();
-                    } catch {
-                      text = chunk.candidates?.[0]?.content?.parts?.[0]?.text || "";
-                    }
-                    if (text) {
-                      controller.enqueue(encoder.encode(text));
-                    }
-                  }
-                } catch (err) {
-                  console.warn("[Gemini Realtime Stream Warn]:", err);
-                } finally {
-                  try { controller.close(); } catch {}
-                }
-              }
-            });
-
-            return new Response(customStream, {
-              headers: {
-                "Content-Type": "text/plain; charset=utf-8",
-                "Cache-Control": "no-cache, no-transform"
-              }
-            });
-          }
-        } catch (geminiErr) {
-          console.warn(`[Realtime Failover] Gemini (${modelName}) rotando a siguiente clave...`);
+          });
         }
+      } catch (geminiErr) {
+        console.warn("[Realtime Failover] Gemini rotando...");
       }
     }
 
-    // 3. CAPA 3: Rescate Autónomo Local
+    // 3. Fallback directo
     const encoder = new TextEncoder();
-    const fallbackMessage = "A ver, comprendo lo que me planteás. Sigamos profundizando en el tema.";
-    return new Response(encoder.encode(fallbackMessage), {
+    return new Response(encoder.encode("Te escucho perfectamente. ¿De qué tema te gustaría que hablemos?"), {
       headers: { "Content-Type": "text/plain; charset=utf-8" }
     });
 
   } catch (err: any) {
     console.error("❌ [Realtime Proxy Error]:", err);
-    return NextResponse.json({ error: "Error en canal de voz en tiempo real" }, { status: 500 });
+    return NextResponse.json({ error: "Error en canal de voz" }, { status: 500 });
   }
 }

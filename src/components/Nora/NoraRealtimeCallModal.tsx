@@ -27,16 +27,14 @@ export default function NoraRealtimeCallModal({
   const [currentVoice, setCurrentVoice] = useState<string>(selectedVoiceUri || "");
   const [isMuted, setIsMuted] = useState<boolean>(false);
 
-  const recognitionRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const currentUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const historyRef = useRef<{ role: string; content: string }[]>([]);
   const isProcessingRef = useRef<boolean>(false);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const spokenBufferRef = useRef<string>("");
 
-  // 1. Cargar voces del dispositivo y priorizar acento latinoamericano / argentino
+  // 1. Cargar voces y priorizar acento latinoamericano / argentino
   useEffect(() => {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       try {
@@ -58,7 +56,6 @@ export default function NoraRealtimeCallModal({
           }
         }
 
-        // Búsqueda inteligente de voz femenina latinoamericana/argentina
         const preferred =
           finalVoices.find(
             (v) =>
@@ -192,19 +189,17 @@ export default function NoraRealtimeCallModal({
     [currentVoice, isMuted]
   );
 
-  // Enviar pregunta a la IA de Nora y hablar la respuesta real
-  const handleSendPrompt = useCallback(
-    async (promptText: string) => {
-      const cleanPrompt = promptText.trim();
-      if (!cleanPrompt || isProcessingRef.current) return;
+  // Enviar a la IA ultra-rápida (Proxy 120ms)
+  const executeRealtimeQuery = useCallback(
+    async (payload: { message?: string; audioBase64?: string; mimeType?: string }) => {
+      if (isProcessingRef.current) return;
 
       stopAssistantSpeech();
       isProcessingRef.current = true;
       setCallState("thinking");
-      setUserTranscript(`"${cleanPrompt}"`);
+      if (payload.message) setUserTranscript(`"${payload.message}"`);
+      else setUserTranscript("Procesando tu voz...");
       setAssistantText("");
-
-      historyRef.current.push({ role: "user", content: cleanPrompt });
 
       try {
         const controller = new AbortController();
@@ -214,12 +209,23 @@ export default function NoraRealtimeCallModal({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            message: cleanPrompt,
+            message: payload.message,
+            audioBase64: payload.audioBase64,
+            mimeType: payload.mimeType,
             history: historyRef.current.slice(-6),
             mode: activeMode
           }),
           signal: controller.signal
         });
+
+        const transcribedHeader = res.headers.get("x-transcribed-user-text");
+        if (transcribedHeader) {
+          const decoded = decodeURIComponent(transcribedHeader);
+          setUserTranscript(`"${decoded}"`);
+          historyRef.current.push({ role: "user", content: decoded });
+        } else if (payload.message) {
+          historyRef.current.push({ role: "user", content: payload.message });
+        }
 
         if (!res.ok || !res.body) {
           const errMsg = "Disculpame, tuve un micro corte de enlace. ¿Podrías repetirme?";
@@ -244,7 +250,7 @@ export default function NoraRealtimeCallModal({
         if (full.trim()) {
           historyRef.current.push({ role: "assistant", content: full.trim() });
           if (onMessageLogged) {
-            onMessageLogged(cleanPrompt, full.trim());
+            onMessageLogged(userTranscript || "🎙️ [Voz]", full.trim());
           }
           speakText(full.trim());
         } else {
@@ -252,7 +258,7 @@ export default function NoraRealtimeCallModal({
         }
       } catch (err: any) {
         if (err.name !== "AbortError") {
-          console.error("[Realtime Call Error]:", err);
+          console.error("[Realtime Proxy Call Error]:", err);
           const fallback = "Comprendo lo que me decís. Continuemos profundizando.";
           setAssistantText(fallback);
           speakText(fallback);
@@ -261,147 +267,69 @@ export default function NoraRealtimeCallModal({
         isProcessingRef.current = false;
         setTimeout(() => {
           setCallState((st) => (st === "thinking" ? "idle" : st));
-        }, 1000);
+        }, 800);
       }
     },
-    [activeMode, onMessageLogged, speakText, stopAssistantSpeech]
+    [activeMode, onMessageLogged, speakText, stopAssistantSpeech, userTranscript]
   );
 
-  // Iniciar reconocimiento de voz nativo (Voz a Texto en Vivo en pantalla)
-  const startSpeechRecognition = useCallback(() => {
+  // Iniciar grabación de micrófono
+  const startRecording = useCallback(async () => {
     stopAssistantSpeech();
-    spokenBufferRef.current = "";
-    setUserTranscript("Escuchándote... Hablá con libertad.");
+    audioChunksRef.current = [];
 
-    if (typeof window !== "undefined") {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (SpeechRecognition) {
-        try {
-          const rec = new SpeechRecognition();
-          rec.continuous = true;
-          rec.interimResults = true;
-          rec.lang = "es-AR";
-
-          rec.onresult = (event: any) => {
-            let interim = "";
-            let final = "";
-            for (let i = event.resultIndex; i < event.results.length; ++i) {
-              const text = event.results[i][0]?.transcript || "";
-              if (event.results[i].isFinal) {
-                final += text;
-              } else {
-                interim += text;
-              }
-            }
-            const spoken = (final || interim).trim();
-            if (spoken) {
-              spokenBufferRef.current = spoken;
-              setUserTranscript(`"${spoken}"`);
-            }
-          };
-
-          rec.onerror = (e: any) => {
-            console.warn("[SpeechRecognition event warning]:", e.error);
-          };
-
-          rec.onend = () => {
-            // Si terminó de escuchar y hay palabras en el buffer, enviar inmediatamente
-            if (spokenBufferRef.current.trim().length > 1 && !isProcessingRef.current) {
-              const textToSend = spokenBufferRef.current.trim();
-              spokenBufferRef.current = "";
-              handleSendPrompt(textToSend);
-            }
-          };
-
-          rec.start();
-          recognitionRef.current = rec;
-          setCallState("recording");
-          return;
-        } catch (e) {
-          console.warn("[SpeechRecognition start fallback]:", e);
-        }
-      }
-    }
-
-    // Fallback con MediaRecorder si SpeechRecognition no existe
     try {
-      navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
-        const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
-        const recorder = new MediaRecorder(stream, { mimeType });
-        audioChunksRef.current = [];
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : "audio/mp4";
 
-        recorder.ondataavailable = (e) => {
-          if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data);
+      const recorder = new MediaRecorder(stream, { mimeType });
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64 = (reader.result as string).split(",")[1];
+          executeRealtimeQuery({ audioBase64: base64, mimeType });
         };
+        reader.readAsDataURL(audioBlob);
+      };
 
-        recorder.onstop = () => {
-          stream.getTracks().forEach((t) => t.stop());
-          const blob = new Blob(audioChunksRef.current, { type: mimeType });
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const base64 = (reader.result as string).split(",")[1];
-            fetch("/api/noraitu-chat", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                message: "Escucha este audio del usuario en la llamada y responde conversacionalmente.",
-                history: historyRef.current.slice(-6),
-                audioFile: { base64, mimeType, name: "call_voice.webm" }
-              })
-            })
-              .then((r) => r.text())
-              .then((txt) => {
-                const clean = txt.replace(/data:\s*\[DONE\]/g, "").replace(/data:\s*\{.*?\"text\":\s*\"(.*?)\".*?\}/g, "$1").trim();
-                if (clean) {
-                  setAssistantText(clean);
-                  speakText(clean);
-                }
-              })
-              .catch(() => setCallState("idle"));
-          };
-          reader.readAsDataURL(blob);
-        };
-
-        recorder.start();
-        mediaRecorderRef.current = recorder;
-        setCallState("recording");
-        setUserTranscript("Grabando audio... Tocá al terminar.");
-      });
-    } catch {
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setCallState("recording");
+      setUserTranscript("Grabando tu voz... Tocá el botón rojo al terminar.");
+    } catch (err) {
+      console.error("[Microphone Access Error]:", err);
+      alert("Por favor permite el acceso al micrófono para hablar con Nora.");
       setCallState("idle");
     }
-  }, [handleSendPrompt, speakText, stopAssistantSpeech]);
+  }, [executeRealtimeQuery, stopAssistantSpeech]);
 
-  // Detener captura de voz
-  const stopSpeechCapture = useCallback(() => {
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch {}
-      recognitionRef.current = null;
-    }
-    if (mediaRecorderRef.current) {
-      try {
-        mediaRecorderRef.current.stop();
-      } catch {}
+  // Detener grabación
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && callState === "recording") {
+      mediaRecorderRef.current.stop();
       mediaRecorderRef.current = null;
     }
-
-    if (spokenBufferRef.current.trim().length > 1) {
-      const text = spokenBufferRef.current.trim();
-      spokenBufferRef.current = "";
-      handleSendPrompt(text);
-    } else {
-      setCallState("idle");
-    }
-  }, [handleSendPrompt]);
+  }, [callState]);
 
   // Enviar texto manual
   const handleManualSubmit = () => {
     if (manualText.trim()) {
       const txt = manualText.trim();
       setManualText("");
-      handleSendPrompt(txt);
+      executeRealtimeQuery({ message: txt });
     }
   };
 
@@ -409,11 +337,9 @@ export default function NoraRealtimeCallModal({
   useEffect(() => {
     if (!isOpen) {
       stopAssistantSpeech();
-      if (recognitionRef.current) {
-        try { recognitionRef.current.stop(); } catch {}
-      }
       if (mediaRecorderRef.current) {
-        try { mediaRecorderRef.current.stop(); } catch {}
+        mediaRecorderRef.current.stop();
+        mediaRecorderRef.current = null;
       }
     }
   }, [isOpen, stopAssistantSpeech]);
@@ -442,7 +368,7 @@ export default function NoraRealtimeCallModal({
               <h3 className="text-white font-bold text-sm tracking-wide flex items-center gap-1.5">
                 NoraItu Llamada en Vivo
                 <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30">
-                  Voz Directa
+                  Ultra Rápida
                 </span>
               </h3>
               <p className="text-[11px] text-slate-400 font-mono">
@@ -467,11 +393,11 @@ export default function NoraRealtimeCallModal({
           <div
             onClick={() => {
               if (callState === "recording") {
-                stopSpeechCapture();
+                stopRecording();
               } else if (callState === "speaking") {
                 stopAssistantSpeech();
               } else {
-                startSpeechRecognition();
+                startRecording();
               }
             }}
             className={`relative flex items-center justify-center w-36 h-36 rounded-full cursor-pointer transition-all duration-300 shadow-2xl ${
@@ -489,7 +415,7 @@ export default function NoraRealtimeCallModal({
                 {callState === "recording"
                   ? "🔴"
                   : callState === "thinking"
-                  ? "🧠"
+                  ? "⚡"
                   : callState === "speaking"
                   ? "🗣️"
                   : "🎤"}
@@ -510,11 +436,11 @@ export default function NoraRealtimeCallModal({
           <div className="w-full mt-4 px-3 min-h-[64px] flex flex-col items-center justify-center">
             {callState === "recording" ? (
               <p className="text-xs text-rose-300 font-semibold animate-pulse">
-                {userTranscript || "Escuchándote... Hablale a Nora."}
+                Escuchándote... Hablale a Nora y volvé a tocar el botón al terminar.
               </p>
             ) : callState === "thinking" ? (
               <p className="text-xs text-purple-300 font-medium animate-pulse">
-                🧠 Nora está pensando su respuesta...
+                ⚡ Nora está procesando tu respuesta...
               </p>
             ) : assistantText ? (
               <div className="max-w-xs bg-slate-900/80 border border-slate-800 rounded-2xl p-2.5 shadow-lg animate-fade-in">
