@@ -1547,7 +1547,7 @@ export default function NoraItuApp() {
       }
 
       if (!accumulatedText.trim()) {
-        const fallbackText = "Comprendo perfectamente tu planteamiento. Estoy procesando toda la información para brindarte una respuesta exhaustiva. Continuemos.";
+        const fallbackText = "¡Hola! Te escucho con total atención. Contame, ¿en qué te puedo ayudar hoy?";
         accumulatedText = fallbackText;
         setMessages((prev) => {
           const newArr = [...prev];

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { PhoneOff, Sparkles, Volume2, VolumeX, Mic, Hand, Radio, AlertTriangle } from "lucide-react";
+import { PhoneOff, Sparkles, Volume2, VolumeX, Mic, Hand, Radio, AlertTriangle, Play } from "lucide-react";
 import { useNoraOfflineGPS } from "@/hooks/useNoraOfflineGPS";
 import { dispatchSOS } from "@/lib/nora/protocols/sosDispatcher";
 import { useNoraLazarilloHaptics } from "@/hooks/useNoraLazarilloHaptics";
@@ -34,6 +34,8 @@ export default function NoraRealtimeCallModal({
   const { isOnline, coords } = useNoraOfflineGPS();
   const { emitSinglePulse, startDangerAlertLoop, clearHapticAlerts } = useNoraLazarilloHaptics();
 
+  const [isEngineReady, setIsEngineReady] = useState<boolean>(false);
+  const [isInitializing, setIsInitializing] = useState<boolean>(false);
   const [callState, setCallState] = useState<"connecting" | "listening" | "thinking" | "speaking">("connecting");
   const [userTranscript, setUserTranscript] = useState<string>("");
   const [assistantText, setAssistantText] = useState<string>("");
@@ -45,7 +47,7 @@ export default function NoraRealtimeCallModal({
   // Modos de interacción y accesibilidad (Push-to-Talk por defecto para máxima estabilidad)
   const [interactionMode, setInteractionMode] = useState<"hands_free" | "push_to_talk">("push_to_talk");
   const [isPushTalking, setIsPushTalking] = useState<boolean>(false);
-  const [accessibleAnnouncement, setAccessibleAnnouncement] = useState<string>("Iniciando llamada con Nora...");
+  const [accessibleAnnouncement, setAccessibleAnnouncement] = useState<string>("Llamada con Nora. Toca Iniciar Conexión.");
 
   // Control de estado y memoria de conversación
   const isNoraSpeakingRef = useRef<boolean>(false);
@@ -74,27 +76,6 @@ export default function NoraRealtimeCallModal({
   useEffect(() => {
     activeModeRef.current = activeMode;
   }, [activeMode]);
-
-  // 🔓 DESBLOQUEO EXPLÍCITO DE HARDWARE (User Gesture Policy para iOS/Android)
-  const unlockMobileAudioHardware = useCallback(async () => {
-    if (typeof window === "undefined") return;
-    try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      const ctx = audioContextRef.current || new AudioCtx();
-      audioContextRef.current = ctx;
-
-      if (ctx.state === "suspended") {
-        await ctx.resume();
-      }
-
-      // Reproducción muda de 1ms para autorizar hardware en iOS/Android
-      const buffer = ctx.createBuffer(1, 1, 22050);
-      const src = ctx.createBufferSource();
-      src.buffer = buffer;
-      src.connect(ctx.destination);
-      src.start(0);
-    } catch {}
-  }, []);
 
   // 🔔 Tono auditivo suave para personas no videntes
   const playAccessibleChime = useCallback((type: "start" | "end" | "connected") => {
@@ -142,14 +123,14 @@ export default function NoraRealtimeCallModal({
   // 2. Temporizador de llamada
   useEffect(() => {
     let timer: any = null;
-    if (isOpen) {
+    if (isOpen && isEngineReady) {
       setCallDuration(0);
       timer = setInterval(() => setCallDuration((d) => d + 1), 1000);
     }
     return () => {
       if (timer) clearInterval(timer);
     };
-  }, [isOpen]);
+  }, [isOpen, isEngineReady]);
 
   // 3. Detener audio de Nora de forma absoluta y limpia
   const stopNoraSpeech = useCallback(() => {
@@ -176,7 +157,10 @@ export default function NoraRealtimeCallModal({
   const handleCleanExit = useCallback(() => {
     stopNoraSpeech();
     if (micStreamRef.current) {
-      micStreamRef.current.getTracks().forEach((t) => t.stop());
+      micStreamRef.current.getTracks().forEach((t) => {
+        t.stop();
+        t.enabled = false;
+      });
       micStreamRef.current = null;
     }
     if (audioContextRef.current) {
@@ -189,6 +173,7 @@ export default function NoraRealtimeCallModal({
       cancelAnimationFrame(animFrameRef.current);
       animFrameRef.current = null;
     }
+    setIsEngineReady(false);
     onClose();
   }, [onClose, stopNoraSpeech]);
 
@@ -279,7 +264,6 @@ export default function NoraRealtimeCallModal({
   // 6. Protocolo SOS Lazarillo Híbrido
   const handleExecuteSOS = useCallback(
     async (customNote?: string) => {
-      unlockMobileAudioHardware();
       setIsTriggeringSOS(true);
       startDangerAlertLoop();
       setAccessibleAnnouncement("Activando protocolo de auxilio y geolocalización SOS...");
@@ -303,7 +287,7 @@ export default function NoraRealtimeCallModal({
         setIsTriggeringSOS(false);
       }
     },
-    [coords, isOnline, startDangerAlertLoop, unlockMobileAudioHardware]
+    [coords, isOnline, startDangerAlertLoop]
   );
 
   // 7. Enviar audio con Telemetría
@@ -402,194 +386,192 @@ export default function NoraRealtimeCallModal({
     [handleExecuteSOS, onMessageLogged, playAccessibleChime, playRealNoraAudio, resumeListening, stopNoraSpeech]
   );
 
-  // 8. Pipeline de Captura Acústica con Stream Permanente sin Titileo (Control por GainNode)
+  // 8. Inicialización Asíncrona Controlada por User Gesture (Tap Físico)
+  const startUnifiedAudioEngine = useCallback(async () => {
+    if (isEngineReady || isInitializing) return;
+    setIsInitializing(true);
+
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const audioCtx = new AudioCtx({ latencyHint: "interactive" });
+      audioContextRef.current = audioCtx;
+
+      if (audioCtx.state === "suspended") {
+        await audioCtx.resume();
+      }
+
+      // Reproducción muda de 1ms para autorizar hardware en iOS/Android
+      const buffer = audioCtx.createBuffer(1, 1, 22050);
+      const src = audioCtx.createBufferSource();
+      src.buffer = buffer;
+      src.connect(audioCtx.destination);
+      src.start(0);
+
+      // Obtener stream de micrófono de forma limpia y explícita
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1
+        }
+      });
+
+      micStreamRef.current = stream;
+
+      const source = audioCtx.createMediaStreamSource(stream);
+
+      // GainNode de Control Permanente
+      const micGain = audioCtx.createGain();
+      micGain.gain.setValueAtTime(1.0, audioCtx.currentTime);
+      micGainNodeRef.current = micGain;
+
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.2;
+
+      source.connect(micGain);
+      micGain.connect(analyser);
+      analyserRef.current = analyser;
+
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : "audio/mp4";
+
+      let recorder: MediaRecorder | null = null;
+
+      const createAndStartRecorder = () => {
+        audioChunksRef.current = [];
+        speechStartTimeRef.current = Date.now();
+        recorder = new MediaRecorder(stream, { mimeType });
+
+        recorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) {
+            audioChunksRef.current.push(e.data);
+          }
+        };
+
+        recorder.onstop = () => {
+          const speechDuration = Date.now() - speechStartTimeRef.current;
+          const blob = new Blob(audioChunksRef.current, { type: mimeType });
+
+          if (speechDuration > 400 && blob.size > 1200) {
+            sendVoiceAudioTurn(blob, mimeType);
+          } else {
+            setCallState("listening");
+          }
+        };
+
+        recorder.start(80);
+        mediaRecorderRef.current = recorder;
+      };
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const SILENCE_TIMEOUT_MS = 600;
+
+      setIsEngineReady(true);
+      setCallState("listening");
+      playAccessibleChime("connected");
+      emitSinglePulse("CONFIRM_VOZ");
+      setAccessibleAnnouncement("Conectado con Nora. Lista para escucharte.");
+
+      let baselineCount = 0;
+      let baselineSum = 0;
+
+      const monitorAudioLoop = () => {
+        if (!micStreamRef.current) return;
+
+        analyser.getByteFrequencyData(dataArray);
+
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          sum += dataArray[i];
+        }
+        const avg = sum / dataArray.length;
+        setAudioLevel(Math.min(100, Math.round(avg * 2.3)));
+
+        if (baselineCount < 25) {
+          baselineSum += avg;
+          baselineCount++;
+          noiseFloorRef.current = Math.max(10, Math.round(baselineSum / baselineCount));
+        }
+
+        if (isNoraSpeakingRef.current || isProcessingRef.current) {
+          animFrameRef.current = requestAnimationFrame(monitorAudioLoop);
+          return;
+        }
+
+        if (interactionMode === "push_to_talk") {
+          animFrameRef.current = requestAnimationFrame(monitorAudioLoop);
+          return;
+        }
+
+        const dynamicThreshold = noiseFloorRef.current + 12;
+        const now = Date.now();
+
+        if (avg > dynamicThreshold) {
+          silenceStartRef.current = null;
+          if (!isSpeakingRef.current) {
+            isSpeakingRef.current = true;
+            createAndStartRecorder();
+            setCallState("listening");
+          }
+        } else {
+          if (isSpeakingRef.current) {
+            if (silenceStartRef.current === null) {
+              silenceStartRef.current = now;
+            } else if (now - silenceStartRef.current > SILENCE_TIMEOUT_MS) {
+              isSpeakingRef.current = false;
+              silenceStartRef.current = null;
+              if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+                mediaRecorderRef.current.stop();
+              }
+            }
+          }
+        }
+
+        animFrameRef.current = requestAnimationFrame(monitorAudioLoop);
+      };
+
+      monitorAudioLoop();
+    } catch (err) {
+      console.error("[Audio Engine Tap Init Error]:", err);
+      alert("Por favor permite el acceso al micrófono para hablar con Nora.");
+    } finally {
+      setIsInitializing(false);
+    }
+  }, [emitSinglePulse, interactionMode, isEngineReady, isInitializing, playAccessibleChime, sendVoiceAudioTurn]);
+
+  // Cleanup de seguridad al desmontar
   useEffect(() => {
-    if (!isOpen) {
+    return () => {
       stopNoraSpeech();
       if (micStreamRef.current) {
-        micStreamRef.current.getTracks().forEach((t) => t.stop());
+        micStreamRef.current.getTracks().forEach((t) => {
+          t.stop();
+          t.enabled = false;
+        });
         micStreamRef.current = null;
       }
       if (audioContextRef.current) {
-        audioContextRef.current.close();
+        audioContextRef.current.close().catch(() => {});
         audioContextRef.current = null;
       }
       if (animFrameRef.current) {
         cancelAnimationFrame(animFrameRef.current);
       }
-      return;
-    }
-
-    let isMounted = true;
-
-    async function startUnifiedAudioEngine() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-            channelCount: 1
-          }
-        });
-
-        if (!isMounted) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
-
-        micStreamRef.current = stream;
-
-        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-        const audioCtx = new AudioCtx();
-        audioContextRef.current = audioCtx;
-
-        const source = audioCtx.createMediaStreamSource(stream);
-
-        // 🛡️ GainNode de Control Permanente (Muteo sin cerrar stream)
-        const micGain = audioCtx.createGain();
-        micGain.gain.setValueAtTime(1.0, audioCtx.currentTime);
-        micGainNodeRef.current = micGain;
-
-        const analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 256;
-        analyser.smoothingTimeConstant = 0.2;
-
-        source.connect(micGain);
-        micGain.connect(analyser);
-        analyserRef.current = analyser;
-
-        const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-          ? "audio/webm;codecs=opus"
-          : MediaRecorder.isTypeSupported("audio/webm")
-          ? "audio/webm"
-          : "audio/mp4";
-
-        let recorder: MediaRecorder | null = null;
-
-        const createAndStartRecorder = () => {
-          audioChunksRef.current = [];
-          speechStartTimeRef.current = Date.now();
-          recorder = new MediaRecorder(stream, { mimeType });
-
-          recorder.ondataavailable = (e) => {
-            if (e.data && e.data.size > 0) {
-              audioChunksRef.current.push(e.data);
-            }
-          };
-
-          recorder.onstop = () => {
-            const speechDuration = Date.now() - speechStartTimeRef.current;
-            const blob = new Blob(audioChunksRef.current, { type: mimeType });
-
-            // Solo enviar si la persona habló al menos 400ms y el audio tiene peso real
-            if (speechDuration > 400 && blob.size > 1200) {
-              sendVoiceAudioTurn(blob, mimeType);
-            } else {
-              setCallState("listening");
-            }
-          };
-
-          recorder.start(80);
-          mediaRecorderRef.current = recorder;
-        };
-
-        const dataArray = new Uint8Array(analyser.frequencyBinCount);
-        const SILENCE_TIMEOUT_MS = 600; // Silencio natural para cierre de turno
-
-        setCallState("listening");
-        playAccessibleChime("connected");
-        emitSinglePulse("CONFIRM_VOZ");
-        setAccessibleAnnouncement("Conectado con Nora. Lista para escucharte.");
-
-        let baselineCount = 0;
-        let baselineSum = 0;
-
-        const monitorAudioLoop = () => {
-          if (!isMounted) return;
-
-          analyser.getByteFrequencyData(dataArray);
-
-          let sum = 0;
-          for (let i = 0; i < dataArray.length; i++) {
-            sum += dataArray[i];
-          }
-          const avg = sum / dataArray.length;
-          setAudioLevel(Math.min(100, Math.round(avg * 2.3)));
-
-          // Calibración adaptativa del piso de ruido
-          if (baselineCount < 25) {
-            baselineSum += avg;
-            baselineCount++;
-            noiseFloorRef.current = Math.max(10, Math.round(baselineSum / baselineCount));
-          }
-
-          // Si Nora está hablando o procesando, IGNORAR para evitar bucles de eco
-          if (isNoraSpeakingRef.current || isProcessingRef.current) {
-            animFrameRef.current = requestAnimationFrame(monitorAudioLoop);
-            return;
-          }
-
-          // Si está en modo Pulsar para Hablar, NO activar VAD automático
-          if (interactionMode === "push_to_talk") {
-            animFrameRef.current = requestAnimationFrame(monitorAudioLoop);
-            return;
-          }
-
-          const dynamicThreshold = noiseFloorRef.current + 12;
-          const now = Date.now();
-
-          if (avg > dynamicThreshold) {
-            silenceStartRef.current = null;
-            if (!isSpeakingRef.current) {
-              isSpeakingRef.current = true;
-              createAndStartRecorder();
-              setCallState("listening");
-            }
-          } else {
-            if (isSpeakingRef.current) {
-              if (silenceStartRef.current === null) {
-                silenceStartRef.current = now;
-              } else if (now - silenceStartRef.current > SILENCE_TIMEOUT_MS) {
-                // Silencio confirmado: cerrar turno de voz
-                isSpeakingRef.current = false;
-                silenceStartRef.current = null;
-                if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-                  mediaRecorderRef.current.stop();
-                }
-              }
-            }
-          }
-
-          animFrameRef.current = requestAnimationFrame(monitorAudioLoop);
-        };
-
-        monitorAudioLoop();
-      } catch (err) {
-        console.error("[Audio Engine Init Error]:", err);
-        alert("Por favor permite el acceso al micrófono para hablar con Nora.");
-        onClose();
-      }
-    }
-
-    startUnifiedAudioEngine();
-
-    return () => {
-      isMounted = false;
-      if (cooldownTimerRef.current) clearTimeout(cooldownTimerRef.current);
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-      if (micStreamRef.current) {
-        micStreamRef.current.getTracks().forEach((t) => t.stop());
-      }
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-      }
     };
-  }, [emitSinglePulse, interactionMode, isOpen, onClose, playAccessibleChime, sendVoiceAudioTurn, stopNoraSpeech]);
+  }, [stopNoraSpeech]);
 
   // 9. Controles Push-to-Talk con Desbloqueo Explícito
   const handlePushTalkStart = async () => {
-    await unlockMobileAudioHardware();
+    if (!isEngineReady) {
+      await startUnifiedAudioEngine();
+      return;
+    }
+
     if (callState === "speaking") stopNoraSpeech();
     setIsPushTalking(true);
     emitSinglePulse("CONFIRM_VOZ");
@@ -647,7 +629,7 @@ export default function NoraRealtimeCallModal({
           stopNoraSpeech();
         }
       } else if (e.code === "Escape") {
-        onClose();
+        handleCleanExit();
       }
     };
 
@@ -664,7 +646,7 @@ export default function NoraRealtimeCallModal({
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, [isOpen, callState, interactionMode, isPushTalking, onClose, stopNoraSpeech]);
+  }, [isOpen, callState, interactionMode, isPushTalking, handleCleanExit, stopNoraSpeech]);
 
   if (!isOpen) return null;
 
@@ -679,8 +661,6 @@ export default function NoraRealtimeCallModal({
       role="dialog"
       aria-modal="true"
       aria-label="Llamada de voz con Nora"
-      onClick={unlockMobileAudioHardware}
-      onTouchStart={unlockMobileAudioHardware}
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/90 backdrop-blur-2xl animate-fade-in select-none"
     >
       <div role="status" aria-live="polite" className="sr-only">
@@ -694,18 +674,22 @@ export default function NoraRealtimeCallModal({
           <div className="flex items-center gap-3">
             <div className="relative flex items-center justify-center w-10 h-10 rounded-full bg-cyan-500/15 border border-cyan-400/40 shadow-md shadow-cyan-500/20">
               <Sparkles size={18} className="text-cyan-300 animate-pulse" />
-              <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 animate-ping" />
-              <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500" />
+              {isEngineReady && (
+                <>
+                  <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 animate-ping" />
+                  <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500" />
+                </>
+              )}
             </div>
             <div>
               <h3 className="text-white font-bold text-sm tracking-wide flex items-center gap-2">
                 Nora Voz Pura (Web Audio)
                 <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30 uppercase">
-                  {interactionMode === "hands_free" ? "Manos Libres" : "Pulsar"}
+                  {isEngineReady ? (interactionMode === "hands_free" ? "Manos Libres" : "Pulsar") : "Listo"}
                 </span>
               </h3>
               <p className="text-xs text-slate-400 font-mono">
-                {formatDuration(callDuration)} • {activeMode.toUpperCase()}
+                {isEngineReady ? `${formatDuration(callDuration)} • ${activeMode.toUpperCase()}` : "Conexión Segura"}
               </p>
             </div>
           </div>
@@ -720,142 +704,160 @@ export default function NoraRealtimeCallModal({
           </button>
         </div>
 
-        {/* Selector de Modo */}
-        <div className="w-full flex items-center justify-center gap-2 mt-2">
-          <button
-            onClick={() => {
-              unlockMobileAudioHardware();
-              setInteractionMode("hands_free");
-            }}
-            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
-              interactionMode === "hands_free"
-                ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
-                : "bg-slate-800/50 text-slate-400 hover:text-slate-200"
-            }`}
-          >
-            <Radio size={12} />
-            <span>Flujo Continuo</span>
-          </button>
-          <button
-            onClick={() => {
-              unlockMobileAudioHardware();
-              setInteractionMode("push_to_talk");
-            }}
-            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
-              interactionMode === "push_to_talk"
-                ? "bg-purple-500/20 text-purple-300 border border-purple-500/40"
-                : "bg-slate-800/50 text-slate-400 hover:text-slate-200"
-            }`}
-          >
-            <Hand size={12} />
-            <span>Pulsar para Hablar</span>
-          </button>
-        </div>
-
-        {/* Aura Dinámica Fluida */}
-        <div className="my-auto flex flex-col items-center justify-center w-full py-4 text-center">
-          <div className="relative flex items-center justify-center w-44 h-44">
-            <div
-              className="absolute rounded-full bg-gradient-to-tr from-cyan-500/20 via-teal-500/20 to-emerald-500/20 transition-transform duration-150 ease-out"
-              style={{
-                width: `${130 + (callState === "speaking" ? 35 : audioLevel * 0.6)}px`,
-                height: `${130 + (callState === "speaking" ? 35 : audioLevel * 0.6)}px`,
-                opacity: callState === "thinking" ? 0.3 : 0.8
-              }}
-            />
-
-            <div
-              className="absolute rounded-full bg-gradient-to-tr from-cyan-600/30 via-indigo-600/30 to-purple-600/30 transition-transform duration-180 ease-out"
-              style={{
-                width: `${110 + (callState === "speaking" ? 25 : audioLevel * 0.4)}px`,
-                height: `${110 + (callState === "speaking" ? 25 : audioLevel * 0.4)}px`
-              }}
-            />
-
-            {/* Núcleo Central */}
-            <div
-              className={`relative flex items-center justify-center w-28 h-28 rounded-full shadow-2xl transition-all duration-400 ${
-                callState === "speaking"
-                  ? "bg-gradient-to-tr from-cyan-400 via-teal-300 to-emerald-400 shadow-cyan-400/40 scale-105"
-                  : callState === "thinking"
-                  ? "bg-gradient-to-tr from-purple-600 via-indigo-500 to-cyan-500 shadow-purple-500/40 scale-95"
-                  : isSpeakingRef.current || isPushTalking || audioLevel > 16
-                  ? "bg-gradient-to-tr from-emerald-500 via-teal-400 to-cyan-400 shadow-emerald-400/40 scale-105"
-                  : "bg-gradient-to-tr from-cyan-900/80 via-slate-800 to-teal-950 shadow-cyan-900/30 border border-cyan-500/30"
-              }`}
-            >
-              <div className="absolute inset-1 rounded-full bg-slate-950/40 backdrop-blur-xs flex flex-col items-center justify-center text-center">
-                <span className="text-3xl">
-                  {callState === "speaking"
-                    ? "🗣️"
-                    : callState === "thinking"
-                    ? "⚡"
-                    : isSpeakingRef.current || isPushTalking
-                    ? "🎙️"
-                    : "✨"}
-                </span>
-              </div>
+        {/* Pantalla Previa de Conexión Segura si no se ha hecho tap */}
+        {!isEngineReady ? (
+          <div className="my-auto flex flex-col items-center justify-center w-full py-8 text-center space-y-5">
+            <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-cyan-500 via-teal-400 to-indigo-500 flex items-center justify-center shadow-xl shadow-cyan-500/30 animate-pulse">
+              <Sparkles size={40} className="text-slate-950" />
             </div>
-          </div>
-
-          {/* Subtítulos */}
-          <div className="w-full mt-4 px-3 min-h-[85px] flex flex-col items-center justify-center">
-            {callState === "thinking" ? (
-              <p className="text-xs text-purple-300 font-medium animate-pulse">
-                ⚡ Nora está procesando...
+            <div className="space-y-1 max-w-xs">
+              <h4 className="text-white font-bold text-base">Llamada de Voz con Nora</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Toca el botón para activar el audio de alta fidelidad y hablar en tiempo real.
               </p>
-            ) : assistantText ? (
-              <div className="max-w-sm bg-slate-900/90 border border-slate-800 rounded-2xl p-3 shadow-lg">
-                <p className="text-xs text-emerald-300 font-medium leading-relaxed">
-                  "{assistantText}"
-                </p>
-              </div>
-            ) : userTranscript ? (
-              <p className="text-xs text-cyan-300 font-medium italic line-clamp-2 max-w-xs">
-                {userTranscript}
-              </p>
-            ) : (
-              <div className="space-y-1">
-                <p className="text-xs text-slate-300 font-medium">
-                  {interactionMode === "hands_free"
-                    ? "Te escucho atentamente y sin cortes"
-                    : "Mantené presionado el botón o Espacio para hablar"}
-                </p>
-                <p className="text-[11px] text-slate-400">
-                  {interactionMode === "hands_free"
-                    ? "Hablá con libertad. Nora te escucha y te responde."
-                    : "Pulsá cuando quieras hablar."}
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Modo Pulsar para Hablar */}
-        {interactionMode === "push_to_talk" && (
-          <div className="w-full flex justify-center py-2">
+            </div>
             <button
-              onMouseDown={handlePushTalkStart}
-              onMouseUp={handlePushTalkEnd}
-              onTouchStart={handlePushTalkStart}
-              onTouchEnd={handlePushTalkEnd}
-              className={`w-full py-3 rounded-2xl font-semibold text-sm transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer ${
-                isPushTalking
-                  ? "bg-emerald-500 text-slate-950 scale-98 shadow-emerald-500/30"
-                  : "bg-slate-800 hover:bg-slate-700 text-white border border-slate-700"
-              }`}
+              onClick={startUnifiedAudioEngine}
+              disabled={isInitializing}
+              className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 via-teal-400 to-indigo-500 hover:opacity-90 active:scale-95 text-slate-950 font-bold text-sm shadow-xl shadow-cyan-500/30 transition-all flex items-center gap-2 cursor-pointer"
             >
-              <Mic size={18} className={isPushTalking ? "animate-pulse" : ""} />
-              <span>{isPushTalking ? "Nora te está escuchando..." : "Mantener presionado para hablar"}</span>
+              <Play size={18} className="fill-slate-950" />
+              <span>{isInitializing ? "Conectando micrófono..." : "Iniciar Llamada Segura"}</span>
             </button>
           </div>
+        ) : (
+          <>
+            {/* Selector de Modo */}
+            <div className="w-full flex items-center justify-center gap-2 mt-2">
+              <button
+                onClick={() => setInteractionMode("hands_free")}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
+                  interactionMode === "hands_free"
+                    ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+                    : "bg-slate-800/50 text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                <Radio size={12} />
+                <span>Flujo Continuo</span>
+              </button>
+              <button
+                onClick={() => setInteractionMode("push_to_talk")}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
+                  interactionMode === "push_to_talk"
+                    ? "bg-purple-500/20 text-purple-300 border border-purple-500/40"
+                    : "bg-slate-800/50 text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                <Hand size={12} />
+                <span>Pulsar para Hablar</span>
+              </button>
+            </div>
+
+            {/* Aura Dinámica Fluida */}
+            <div className="my-auto flex flex-col items-center justify-center w-full py-4 text-center">
+              <div className="relative flex items-center justify-center w-44 h-44">
+                <div
+                  className="absolute rounded-full bg-gradient-to-tr from-cyan-500/20 via-teal-500/20 to-emerald-500/20 transition-transform duration-150 ease-out"
+                  style={{
+                    width: `${130 + (callState === "speaking" ? 35 : audioLevel * 0.6)}px`,
+                    height: `${130 + (callState === "speaking" ? 35 : audioLevel * 0.6)}px`,
+                    opacity: callState === "thinking" ? 0.3 : 0.8
+                  }}
+                />
+
+                <div
+                  className="absolute rounded-full bg-gradient-to-tr from-cyan-600/30 via-indigo-600/30 to-purple-600/30 transition-transform duration-180 ease-out"
+                  style={{
+                    width: `${110 + (callState === "speaking" ? 25 : audioLevel * 0.4)}px`,
+                    height: `${110 + (callState === "speaking" ? 25 : audioLevel * 0.4)}px`
+                  }}
+                />
+
+                {/* Núcleo Central */}
+                <div
+                  className={`relative flex items-center justify-center w-28 h-28 rounded-full shadow-2xl transition-all duration-400 ${
+                    callState === "speaking"
+                      ? "bg-gradient-to-tr from-cyan-400 via-teal-300 to-emerald-400 shadow-cyan-400/40 scale-105"
+                      : callState === "thinking"
+                      ? "bg-gradient-to-tr from-purple-600 via-indigo-500 to-cyan-500 shadow-purple-500/40 scale-95"
+                      : isSpeakingRef.current || isPushTalking || audioLevel > 16
+                      ? "bg-gradient-to-tr from-emerald-500 via-teal-400 to-cyan-400 shadow-emerald-400/40 scale-105"
+                      : "bg-gradient-to-tr from-cyan-900/80 via-slate-800 to-teal-950 shadow-cyan-900/30 border border-cyan-500/30"
+                  }`}
+                >
+                  <div className="absolute inset-1 rounded-full bg-slate-950/40 backdrop-blur-xs flex flex-col items-center justify-center text-center">
+                    <span className="text-3xl">
+                      {callState === "speaking"
+                        ? "🗣️"
+                        : callState === "thinking"
+                        ? "⚡"
+                        : isSpeakingRef.current || isPushTalking
+                        ? "🎙️"
+                        : "✨"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Subtítulos */}
+              <div className="w-full mt-4 px-3 min-h-[85px] flex flex-col items-center justify-center">
+                {callState === "thinking" ? (
+                  <p className="text-xs text-purple-300 font-medium animate-pulse">
+                    ⚡ Nora está procesando...
+                  </p>
+                ) : assistantText ? (
+                  <div className="max-w-sm bg-slate-900/90 border border-slate-800 rounded-2xl p-3 shadow-lg">
+                    <p className="text-xs text-emerald-300 font-medium leading-relaxed">
+                      "{assistantText}"
+                    </p>
+                  </div>
+                ) : userTranscript ? (
+                  <p className="text-xs text-cyan-300 font-medium italic line-clamp-2 max-w-xs">
+                    {userTranscript}
+                  </p>
+                ) : (
+                  <div className="space-y-1">
+                    <p className="text-xs text-slate-300 font-medium">
+                      {interactionMode === "hands_free"
+                        ? "Te escucho atentamente y sin cortes"
+                        : "Mantené presionado el botón o Espacio para hablar"}
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      {interactionMode === "hands_free"
+                        ? "Hablá con libertad. Nora te escucha y te responde."
+                        : "Pulsá cuando quieras hablar."}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modo Pulsar para Hablar */}
+            {interactionMode === "push_to_talk" && (
+              <div className="w-full flex justify-center py-2">
+                <button
+                  onMouseDown={handlePushTalkStart}
+                  onMouseUp={handlePushTalkEnd}
+                  onTouchStart={handlePushTalkStart}
+                  onTouchEnd={handlePushTalkEnd}
+                  className={`w-full py-3 rounded-2xl font-semibold text-sm transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer ${
+                    isPushTalking
+                      ? "bg-emerald-500 text-slate-950 scale-98 shadow-emerald-500/30"
+                      : "bg-slate-800 hover:bg-slate-700 text-white border border-slate-700"
+                  }`}
+                >
+                  <Mic size={18} className={isPushTalking ? "animate-pulse" : ""} />
+                  <span>{isPushTalking ? "Nora te está escuchando..." : "Mantener presionado para hablar"}</span>
+                </button>
+              </div>
+            )}
+          </>
         )}
 
         {/* Barra Inferior */}
         <div className="w-full flex items-center justify-between pt-4 border-t border-slate-800/60">
           <button
             onClick={() => {
-              unlockMobileAudioHardware();
               if (isMuted) {
                 setIsMuted(false);
               } else {

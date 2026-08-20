@@ -192,6 +192,49 @@ async function tryCloudflareWorkersAI(messages: SovereignMessage[], isVision: bo
 }
 
 /**
+ * CAPA 2: Groq Open Inference (Compound-mini / Compound / Allam / Qwen)
+ */
+async function tryGroqInference(messages: SovereignMessage[]): Promise<ReadableStream | null> {
+  const rawKey = process.env.GROQ_API_KEY;
+  if (!rawKey) return null;
+  const groqKey = rawKey.replace(/['"\r\n\t ]/g, "").trim();
+  if (!groqKey) return null;
+
+  const activeModels = [
+    "groq/compound-mini",
+    "groq/compound",
+    "allam-2-7b",
+    "qwen/qwen3.6-27b"
+  ];
+
+  for (const model of activeModels) {
+    try {
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${groqKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          stream: true,
+          temperature: 0.4,
+          max_tokens: 2000
+        }),
+        signal: AbortSignal.timeout(6000)
+      });
+
+      if (res.ok && res.body) {
+        console.log(`[Sovereign Router - Capa Groq]: Inferencia exitosa en Groq (${model})`);
+        return res.body;
+      }
+    } catch {}
+  }
+  return null;
+}
+
+/**
  * CAPA 3: Hugging Face Serverless
  */
 async function tryHuggingFaceInference(messages: SovereignMessage[], isVision: boolean): Promise<ReadableStream | null> {
@@ -394,49 +437,7 @@ async function tryGeminiMultiPool(
   return null;
 }
 
-/**
- * CAPA 6: Groq Open Inference
- */
-async function tryGroqInference(
-  messages: SovereignMessage[]
-): Promise<ReadableStream | null> {
-  const groqKey = process.env.GROQ_API_KEY;
-  if (!groqKey) return null;
 
-  const candidateModels = [
-    "openai/gpt-oss-120b",
-    "groq/compound",
-    "qwen/qwen3.6-27b",
-    "openai/gpt-oss-20b",
-    "groq/compound-mini"
-  ];
-
-  for (const model of candidateModels) {
-    try {
-      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${groqKey.trim()}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model,
-          messages,
-          temperature: 0.3,
-          max_tokens: 3500,
-          stream: true
-        }),
-        signal: AbortSignal.timeout(8000)
-      });
-
-      if (res.ok && res.body) {
-        console.log(`[Sovereign Router - Capa 6]: Inferencia exitosa en Groq (${model})`);
-        return res.body;
-      }
-    } catch {}
-  }
-  return null;
-}
 
 /**
  * CAPA 7: Generador Autónomo Local de Rescate (Zero-Downtime Guarantee)
