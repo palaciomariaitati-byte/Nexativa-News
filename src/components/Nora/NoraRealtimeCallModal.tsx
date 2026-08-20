@@ -49,6 +49,7 @@ export default function NoraRealtimeCallModal({
   // Audio Pipeline Refs (Stream Único y Robusto)
   const micStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const micGainNodeRef = useRef<GainNode | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -59,6 +60,7 @@ export default function NoraRealtimeCallModal({
   const silenceStartRef = useRef<number | null>(null);
   const noiseFloorRef = useRef<number>(14);
   const speechStartTimeRef = useRef<number>(0);
+  const cooldownTimerRef = useRef<any>(null);
 
   useEffect(() => {
     activeModeRef.current = activeMode;
@@ -162,10 +164,14 @@ export default function NoraRealtimeCallModal({
     };
   }, [isOpen]);
 
-  // 3. Detener habla de Nora y reactivar micrófono
+  // 3. Detener habla de Nora de forma absoluta y limpia
   const stopNoraSpeech = useCallback(() => {
     isNoraSpeakingRef.current = false;
     activeUtteranceRef.current = null;
+    if (cooldownTimerRef.current) {
+      clearTimeout(cooldownTimerRef.current);
+      cooldownTimerRef.current = null;
+    }
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       try {
         window.speechSynthesis.cancel();
@@ -178,7 +184,7 @@ export default function NoraRealtimeCallModal({
     clearHapticAlerts();
   }, [clearHapticAlerts]);
 
-  // 4. Reanudar escucha limpia tras terminar Nora (Reactivando micrófono a nivel hardware)
+  // 4. Reanudar escucha limpia tras delay de seguridad (Mute-on-Speak & Cooldown de 300ms)
   const resumeListening = useCallback(() => {
     isNoraSpeakingRef.current = false;
     isSpeakingRef.current = false;
@@ -186,7 +192,12 @@ export default function NoraRealtimeCallModal({
     setCallState("listening");
     setAccessibleAnnouncement("Nora te escucha.");
 
-    // Reactivar micrófono de forma limpia
+    // Reactivar micrófono de forma limpia mediante GainNode y tracks
+    if (micGainNodeRef.current && audioContextRef.current) {
+      try {
+        micGainNodeRef.current.gain.setValueAtTime(1.0, audioContextRef.current.currentTime);
+      } catch {}
+    }
     if (micStreamRef.current) {
       micStreamRef.current.getAudioTracks().forEach((t) => {
         t.enabled = true;
@@ -194,7 +205,7 @@ export default function NoraRealtimeCallModal({
     }
   }, []);
 
-  // 5. Reproducción de Voz Nítida a Volumen Total (Con Silenciamiento de Micrófono Anti-Ducking)
+  // 5. Muteo Absoluto durante la Síntesis de Voz (Mute-on-Speak) y Delay de Seguridad
   const speakNoraResponse = useCallback(
     (fullText: string) => {
       if (isMuted || !fullText.trim()) {
@@ -209,7 +220,12 @@ export default function NoraRealtimeCallModal({
         return;
       }
 
-      // 🛡️ BLINDAJE ANTI-DUCKING: Apagar micrófono mientras Nora habla para que el celular suene al 100% de volumen
+      // 🛡️ ACCIÓN 1: Muteo Absoluto de entrada (GainNode = 0 y track.enabled = false)
+      if (micGainNodeRef.current && audioContextRef.current) {
+        try {
+          micGainNodeRef.current.gain.setValueAtTime(0, audioContextRef.current.currentTime);
+        } catch {}
+      }
       if (micStreamRef.current) {
         micStreamRef.current.getAudioTracks().forEach((t) => {
           t.enabled = false;
@@ -260,13 +276,15 @@ export default function NoraRealtimeCallModal({
           setCallState("speaking");
         };
 
+        // 🛡️ ACCIÓN 2: Reactivación Limpia con Delay de Seguridad de 300ms
         utterance.onend = () => {
           isNoraSpeakingRef.current = false;
           activeUtteranceRef.current = null;
-          setTimeout(() => {
+          if (cooldownTimerRef.current) clearTimeout(cooldownTimerRef.current);
+          cooldownTimerRef.current = setTimeout(() => {
             resumeListening();
             playAccessibleChime("start");
-          }, 200);
+          }, 300);
         };
 
         utterance.onerror = () => {
@@ -429,7 +447,7 @@ export default function NoraRealtimeCallModal({
     [handleExecuteSOS, onMessageLogged, playAccessibleChime, resumeListening, speakNoraResponse, stopNoraSpeech]
   );
 
-  // 8. Pipeline de Captura Acústica con Aislamiento Total de Feedback
+  // 8. Pipeline de Captura Acústica con Stream Permanente sin Titileo (Control por GainNode)
   useEffect(() => {
     if (!isOpen) {
       stopNoraSpeech();
@@ -472,11 +490,18 @@ export default function NoraRealtimeCallModal({
         audioContextRef.current = audioCtx;
 
         const source = audioCtx.createMediaStreamSource(stream);
+
+        // 🛡️ ACCIÓN 3: GainNode de Control Permanente (Muteo sin cerrar stream)
+        const micGain = audioCtx.createGain();
+        micGain.gain.setValueAtTime(1.0, audioCtx.currentTime);
+        micGainNodeRef.current = micGain;
+
         const analyser = audioCtx.createAnalyser();
         analyser.fftSize = 256;
         analyser.smoothingTimeConstant = 0.2;
 
-        source.connect(analyser);
+        source.connect(micGain);
+        micGain.connect(analyser);
         analyserRef.current = analyser;
 
         const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
@@ -515,7 +540,7 @@ export default function NoraRealtimeCallModal({
         };
 
         const dataArray = new Uint8Array(analyser.frequencyBinCount);
-        const SILENCE_TIMEOUT_MS = 650; // Silencio estable para cerrar turno sin falsos cortes
+        const SILENCE_TIMEOUT_MS = 600; // Silencio natural para cierre de turno
 
         setCallState("listening");
         playAccessibleChime("connected");
@@ -595,6 +620,7 @@ export default function NoraRealtimeCallModal({
 
     return () => {
       isMounted = false;
+      if (cooldownTimerRef.current) clearTimeout(cooldownTimerRef.current);
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       if (micStreamRef.current) {
         micStreamRef.current.getTracks().forEach((t) => t.stop());
@@ -612,6 +638,9 @@ export default function NoraRealtimeCallModal({
     emitSinglePulse("CONFIRM_VOZ");
 
     if (micStreamRef.current) {
+      if (micGainNodeRef.current && audioContextRef.current) {
+        micGainNodeRef.current.gain.setValueAtTime(1.0, audioContextRef.current.currentTime);
+      }
       micStreamRef.current.getAudioTracks().forEach((t) => {
         t.enabled = true;
       });
