@@ -55,7 +55,7 @@ import remarkGfm from "remark-gfm";
 import { exportNoraCleanWord, exportNoraCleanPdf, exportNoraCleanPptx } from "@/lib/exportUtils";
 import { FunctionPlotter } from "@/components/Nora/FunctionPlotter";
 import NoraRealtimeCallModal from "@/components/Nora/NoraRealtimeCallModal";
-import { useNoraWakeWord } from "@/lib/nora/realtime/useNoraWakeWord";
+import { useNoraWakeWord } from "@/hooks/useNoraWakeWord";
 
 interface AttachedFile {
   name: string;
