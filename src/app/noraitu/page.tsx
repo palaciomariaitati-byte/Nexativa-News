@@ -1074,7 +1074,7 @@ export default function NoraItuApp() {
       .filter((m) => m.content && typeof m.content === "string" && m.content.trim().length > 0)
       .slice(-30)
       .map((m) => ({
-        role: (m.role === "assistant" || m.role === "model") ? "assistant" : "user",
+        role: ((m.role as string) === "assistant" || (m.role as string) === "model") ? "assistant" : "user",
         content: m.content
       }));
 
@@ -1386,7 +1386,7 @@ export default function NoraItuApp() {
       .filter((m) => m.content && typeof m.content === "string" && m.content.trim().length > 0)
       .slice(-30)
       .map((m) => ({
-        role: (m.role === "assistant" || m.role === "model") ? "assistant" : "user",
+        role: ((m.role as string) === "assistant" || (m.role as string) === "model") ? "assistant" : "user",
         content: m.content
       }));
 

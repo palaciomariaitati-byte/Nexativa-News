@@ -300,7 +300,7 @@ export async function manejarStreamingNora(
         }
       } else {
         // Fallback si no hay Intl.Segmenter (corte por signos de puntuación)
-        const match = textoAcumulado.match(/(.*?[.?!;\n])\s*(.*)/s);
+        const match = textoAcumulado.match(/([\s\S]*?[.?!;\n])\s*([\s\S]*)/);
         if (match && match[1]) {
           orchestrator.enqueueTextChunk(match[1]);
           textoAcumulado = match[2] || "";
