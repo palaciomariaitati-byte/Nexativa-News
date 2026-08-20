@@ -156,9 +156,9 @@ export default function NoraItuApp() {
   
   // Estado de Modo Adaptativo (General, Inclusión TEA, Docente, Cátedra)
   const [activeMode, setActiveMode] = useState<string>("general");
-  const [wakeWordEnabled, setWakeWordEnabled] = useState<boolean>(true);
+  const [wakeWordEnabled, setWakeWordEnabled] = useState<boolean>(false);
 
-  // 🎙️ Escucha Activa de Activación por Voz Permanente (Wake Word 24/7)
+  // 🎙️ Escucha Activa de Activación por Voz (Solo si el usuario lo activa explícitamente)
   const { isWakeWordActive } = useNoraWakeWord({
     enabled: wakeWordEnabled && !showRealtimeCallModal,
     onWakeWordDetected: (phrase) => {

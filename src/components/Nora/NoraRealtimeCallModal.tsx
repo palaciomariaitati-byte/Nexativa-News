@@ -172,6 +172,26 @@ export default function NoraRealtimeCallModal({
     clearHapticAlerts();
   }, [clearHapticAlerts]);
 
+  // Cierre limpio de llamada y liberación total de hardware
+  const handleCleanExit = useCallback(() => {
+    stopNoraSpeech();
+    if (micStreamRef.current) {
+      micStreamRef.current.getTracks().forEach((t) => t.stop());
+      micStreamRef.current = null;
+    }
+    if (audioContextRef.current) {
+      try {
+        audioContextRef.current.close();
+      } catch {}
+      audioContextRef.current = null;
+    }
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+    onClose();
+  }, [onClose, stopNoraSpeech]);
+
   // 4. Reanudar escucha limpia tras delay de seguridad (Mute-on-Speak & Cooldown de 300ms)
   const resumeListening = useCallback(() => {
     isNoraSpeakingRef.current = false;
@@ -691,7 +711,7 @@ export default function NoraRealtimeCallModal({
           </div>
 
           <button
-            onClick={onClose}
+            onClick={handleCleanExit}
             aria-label="Finalizar y cerrar llamada"
             className="w-8 h-8 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
             title="Cerrar llamada (Tecla Esc)"
@@ -867,7 +887,7 @@ export default function NoraRealtimeCallModal({
           </button>
 
           <button
-            onClick={onClose}
+            onClick={handleCleanExit}
             aria-label="Finalizar llamada"
             className="w-12 h-12 rounded-full bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-600/40 flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
             title="Finalizar llamada"
