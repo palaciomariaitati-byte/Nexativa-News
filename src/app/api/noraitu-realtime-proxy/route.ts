@@ -111,33 +111,54 @@ async function transcribeDirectAudio(
 }
 
 /**
- * 🔊 Sintetizador de Audio Real (Genera MP3/Audio Base64 en <90ms)
+ * 🔊 Sintetizador de Audio Real Multioración (Genera MP3 encadenado fluido)
  */
 async function synthesizeRealAudio(text: string): Promise<string | null> {
   const clean = text
     .replace(/[*#_~`>|]/g, "")
     .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 350);
+    .trim();
 
   if (!clean) return null;
 
   try {
-    const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(
-      clean
-    )}&tl=es-US&client=tw-ob`;
+    // Dividir en oraciones naturales de hasta 180 caracteres para TTS fluido
+    const sentences = clean.match(/[^.!?]+[.!?]+/g) || [clean];
+    const chunks: string[] = [];
+    let cur = "";
 
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-      },
-      signal: AbortSignal.timeout(3500)
-    });
+    for (const s of sentences) {
+      if ((cur + " " + s).trim().length <= 180) {
+        cur = (cur + " " + s).trim();
+      } else {
+        if (cur) chunks.push(cur);
+        cur = s.trim().slice(0, 180);
+      }
+    }
+    if (cur) chunks.push(cur);
 
-    if (res.ok) {
-      const arrayBuf = await res.arrayBuffer();
-      return Buffer.from(arrayBuf).toString("base64");
+    const buffers: Buffer[] = [];
+    for (const chunk of chunks.slice(0, 6)) { // Hasta 6 oraciones completas y fluidas
+      const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(
+        chunk
+      )}&tl=es-US&client=tw-ob`;
+
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        },
+        signal: AbortSignal.timeout(3000)
+      });
+
+      if (res.ok) {
+        const arrayBuf = await res.arrayBuffer();
+        buffers.push(Buffer.from(arrayBuf));
+      }
+    }
+
+    if (buffers.length > 0) {
+      return Buffer.concat(buffers).toString("base64");
     }
   } catch (e) {
     console.warn("[TTS Audio Engine Warn]:", e);
@@ -192,10 +213,7 @@ export async function POST(req: Request) {
     if (groqKey) {
       const activeGroqModels = [
         "llama-3.3-70b-versatile",
-        "llama-3.1-8b-instant",
-        "llama3-70b-8192",
-        "mixtral-8x7b-32768",
-        "gemma2-9b-it"
+        "llama-3.1-8b-instant"
       ];
 
       const formattedMessages: { role: string; content: string }[] = [
@@ -242,11 +260,11 @@ export async function POST(req: Request) {
               model: modelName,
               messages: formattedMessages,
               temperature: 0.35,
-              max_tokens: 150,
-              frequency_penalty: 0.35,
-              presence_penalty: 0.35
+              max_tokens: 600,
+              frequency_penalty: 0.25,
+              presence_penalty: 0.25
             }),
-            signal: AbortSignal.timeout(3500)
+            signal: AbortSignal.timeout(2500)
           });
 
           if (groqRes.ok) {
@@ -283,7 +301,7 @@ export async function POST(req: Request) {
             const model = genAI.getGenerativeModel({
               model: modelName,
               systemInstruction: systemPromptWithMode,
-              generationConfig: { temperature: 0.35, maxOutputTokens: 180 }
+              generationConfig: { temperature: 0.35, maxOutputTokens: 800 }
             });
 
             const contents: { role: string; parts: any[] }[] = [];
