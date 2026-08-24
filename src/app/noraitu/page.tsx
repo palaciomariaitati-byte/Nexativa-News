@@ -56,6 +56,7 @@ import { exportNoraCleanWord, exportNoraCleanPdf, exportNoraCleanPptx } from "@/
 import { FunctionPlotter } from "@/components/Nora/FunctionPlotter";
 import NoraRealtimeCallModal from "@/components/Nora/NoraRealtimeCallModal";
 import { useNoraWakeWord } from "@/hooks/useNoraWakeWord";
+import { useNoraHardware } from "@/hooks/useNoraHardware";
 
 interface AttachedFile {
   name: string;
@@ -86,6 +87,7 @@ interface Session {
 }
 
 export default function NoraItuApp() {
+  const hardware = useNoraHardware("visual");
   const [userId, setUserId] = useState<string>("");
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -159,7 +161,7 @@ export default function NoraItuApp() {
   const [wakeWordEnabled, setWakeWordEnabled] = useState<boolean>(false);
 
   // 🎙️ Escucha Activa de Activación por Voz (Solo si el usuario lo activa explícitamente)
-  const { isWakeWordActive } = useNoraWakeWord({
+  const { isListening: isWakeWordActive } = useNoraWakeWord({
     enabled: wakeWordEnabled && !showRealtimeCallModal,
     onWakeWordDetected: (phrase) => {
       console.log("[WakeWord] Nora llamada por voz:", phrase);
@@ -642,25 +644,19 @@ export default function NoraItuApp() {
     setPlayingMsgIndex(null);
   };
 
-  // 9. Motor de Visión y Audio en Vivo de Nora Titán (Cámara en Tiempo Real)
+  // 9. Motor de Visión y Audio en Vivo de Nora Titán (Cámara en Tiempo Real con LLaMA 3.2 Vision)
   const startLiveVision = async (facingMode: "user" | "environment" = liveFacingMode) => {
     stopSpeaking();
     setIsLiveStreaming(true);
-    setLiveSubtitles("Activando cámara y visor neuronal de Nora Titán...");
+    setLiveSubtitles("Activando cámara y visor neuronal de Nora Titán (LLaMA 3.2 / Qwen VL)...");
 
     try {
-      if (liveMediaStreamRef.current) {
-        liveMediaStreamRef.current.getTracks().forEach(t => t.stop());
+      const stream = await hardware.acquireCamera(facingMode);
+      if (!stream) {
+        setLiveSubtitles("⚠️ No se pudo acceder a la cámara o el permiso fue denegado.");
+        setIsLiveStreaming(false);
+        return;
       }
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: facingMode,
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
-        audio: false
-      });
 
       liveMediaStreamRef.current = stream;
       if (liveVideoRef.current) {
@@ -823,10 +819,8 @@ export default function NoraItuApp() {
       clearInterval(liveIntervalRef.current);
       liveIntervalRef.current = null;
     }
-    if (liveMediaStreamRef.current) {
-      liveMediaStreamRef.current.getTracks().forEach(t => t.stop());
-      liveMediaStreamRef.current = null;
-    }
+    hardware.releaseCamera();
+    liveMediaStreamRef.current = null;
     setIsLiveStreaming(false);
     setIsAnalyzingFrame(false);
     setShowLiveVisionModal(false);
@@ -1426,7 +1420,8 @@ export default function NoraItuApp() {
           user_id: userId,
           message_id: msgId,
           history: historyPayload,
-          contextData: { mode: activeMode },
+          interactionMode: hardware.currentMode,
+          contextData: { mode: activeMode, interactionMode: hardware.currentMode },
           stream: true,
           file: currentFile ? {
             name: currentFile.name,
@@ -2106,41 +2101,71 @@ export default function NoraItuApp() {
           </div>
           
           <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar py-1">
+            {/* 🎯 SELECTOR DE MODO ADAPTATIVO (MODO VISUAL VS MODO VOZ CONTINUO / ACCESIBILIDAD) */}
+            <div className="flex items-center bg-slate-950/90 p-0.5 sm:p-1 rounded-xl border border-slate-800 shrink-0 shadow-inner">
+              <button
+                onClick={() => {
+                  hardware.switchMode("visual");
+                  setShowRealtimeCallModal(false);
+                }}
+                className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg text-[11px] sm:text-xs font-bold transition-all ${
+                  hardware.currentMode === "visual"
+                    ? "bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-500/25"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+                title="Modo Visual: Chat, Visor de Cámara y OCR con LLaMA 3.2 Vision"
+                aria-pressed={hardware.currentMode === "visual"}
+              >
+                <Eye size={13} className={hardware.currentMode === "visual" ? "text-sky-200" : "text-slate-400"} />
+                <span className="hidden xs:inline">Visual</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  hardware.switchMode("voice");
+                  stopLiveVision();
+                  setShowRealtimeCallModal(true);
+                }}
+                className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg text-[11px] sm:text-xs font-bold transition-all ${
+                  hardware.currentMode === "voice"
+                    ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-500/25"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+                title="Modo Voz Continuo: Accesibilidad, Manos Libres y WebRTC para personas no videntes"
+                aria-pressed={hardware.currentMode === "voice"}
+              >
+                <Radio size={13} className={hardware.currentMode === "voice" ? "text-emerald-200 animate-pulse" : "text-slate-400"} />
+                <span className="hidden xs:inline">Voz (No Videntes)</span>
+              </button>
+            </div>
+
+            {/* Botón Nora Titán Live Vision (En Modo Visual) */}
+            {hardware.currentMode === "visual" && (
+              <button
+                onClick={() => {
+                  setShowLiveVisionModal(true);
+                  startLiveVision();
+                }}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold bg-gradient-to-r from-rose-600 via-purple-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white transition-all shadow-md shadow-rose-500/20 active:scale-95 cursor-pointer shrink-0"
+                title="Abrir Nora Titán Live (Cámara y Visión con LLaMA 3.2)"
+              >
+                <Eye size={13} className="text-white shrink-0" />
+                <span className="font-extrabold tracking-wide">Cámara IA</span>
+              </button>
+            )}
+
             {/* Botón NoraItu Realtime Voice Call */}
             <button
-              onClick={() => setShowRealtimeCallModal(true)}
+              onClick={() => {
+                hardware.switchMode("voice");
+                stopLiveVision();
+                setShowRealtimeCallModal(true);
+              }}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold bg-gradient-to-r from-cyan-600 via-teal-500 to-emerald-600 hover:from-cyan-500 hover:to-emerald-500 text-white transition-all shadow-md shadow-cyan-500/20 active:scale-95 cursor-pointer shrink-0"
               title="Iniciar Llamada en Vivo con Nora"
             >
               <PhoneCall size={13} className="text-white shrink-0" />
               <span className="font-extrabold tracking-wide">Llamada</span>
-            </button>
-
-            {/* Botón Escucha 24/7 Wake Word ("Nora te necesito") */}
-            <button
-              onClick={() => setWakeWordEnabled(!wakeWordEnabled)}
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold transition-all shrink-0 cursor-pointer ${
-                wakeWordEnabled && isWakeWordActive
-                  ? "bg-purple-950/80 text-purple-300 border border-purple-500/40 shadow-sm shadow-purple-500/20"
-                  : "bg-slate-800/80 text-slate-400 border border-slate-700 hover:text-slate-200"
-              }`}
-              title={wakeWordEnabled ? "Escucha 24/7 activa: di 'Nora' o 'Nora te necesito' para despertar" : "Activar escucha 24/7"}
-            >
-              <Mic size={12} className={wakeWordEnabled && isWakeWordActive ? "text-purple-400 animate-pulse" : "text-slate-500"} />
-              <span className="hidden sm:inline">{wakeWordEnabled ? "Oído 24/7" : "Oído Off"}</span>
-            </button>
-
-            {/* Botón Nora Titán Live Vision */}
-            <button
-              onClick={() => {
-                setShowLiveVisionModal(true);
-                startLiveVision();
-              }}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold bg-gradient-to-r from-rose-600 via-purple-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white transition-all shadow-md shadow-rose-500/20 active:scale-95 cursor-pointer shrink-0"
-              title="Abrir Nora Titán Live (Cámara y Visión en Vivo)"
-            >
-              <Eye size={13} className="text-white shrink-0" />
-              <span className="font-extrabold tracking-wide">Titán Live</span>
             </button>
 
             {/* Botón Calibrar y Afinar Voz de Nora (SIEMPRE VISIBLE EN CELULAR Y PC) */}

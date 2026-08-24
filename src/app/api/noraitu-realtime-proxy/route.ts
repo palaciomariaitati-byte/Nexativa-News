@@ -8,6 +8,7 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NORA_PROSODY_SYSTEM_PROMPT } from "@/lib/nora/realtime/prosodyPrompt";
+import { recordPerformanceMetric } from "@/lib/nora/telemetry";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -262,24 +263,46 @@ export async function POST(req: Request) {
 
     // 2. Generar el stream de audio real MP3/PCM
     const synthesizedAudioBase64 = await synthesizeRealAudio(generatedText);
+    const totalDuration = Date.now() - tStart;
+
+    // 3. Registrar Telemetría de Rendimiento en Segundo Plano (SLA <1s)
+    recordPerformanceMetric({
+      interactionMode: "voice",
+      sttLatencyMs: sttDuration,
+      totalLatencyMs: totalDuration,
+      modelProvider: groqKey ? "Groq" : "Gemini",
+      modelName: "Whisper-v3-Turbo + Compound",
+      accessibilityProfile: mode === "inclusion" ? "inclusion_tea" : (mode === "docente" ? "docente" : "general"),
+      metadata: { transcribedTextPreview: effectiveUserText.slice(0, 50), responseTextPreview: generatedText.slice(0, 50) }
+    });
 
     return NextResponse.json({
       text: generatedText,
       audioBase64: synthesizedAudioBase64,
       transcribedUserText: effectiveUserText,
       sttMs: sttDuration,
-      totalMs: Date.now() - tStart
+      totalMs: totalDuration
     });
   } catch (err: any) {
     console.error("[Realtime Proxy Fatal Error]:", err);
     const fallbackText = "¡Hola! Te escucho perfectamente. ¿En qué te ayudo hoy?";
     const audioB64 = await synthesizeRealAudio(fallbackText);
+    const totalDuration = Date.now() - tStart;
+
+    recordPerformanceMetric({
+      interactionMode: "voice",
+      totalLatencyMs: totalDuration,
+      modelProvider: "Fallback-Autonomous",
+      modelName: "Rescue-Local",
+      metadata: { error: err?.message || "Unknown error" }
+    });
+
     return NextResponse.json({
       text: fallbackText,
       audioBase64: audioB64,
       transcribedUserText: "",
       sttMs: 0,
-      totalMs: Date.now() - tStart
+      totalMs: totalDuration
     });
   }
 }

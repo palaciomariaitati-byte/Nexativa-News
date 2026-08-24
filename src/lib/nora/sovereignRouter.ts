@@ -43,10 +43,34 @@ export interface SovereignFileAttachment {
   textContent?: string;
 }
 
+export type NoraInteractionMode = "visual" | "voice";
+
+export const NORA_VOICE_MODE_PROMPT = `
+========================================================================
+🎙️ PROTOCOLO DE INTERACCIÓN EN MODO VOZ CONTINUO (ACCESIBILIDAD & ALTA VELOCIDAD)
+========================================================================
+1. Eres Nora respondiendo por canal de audio en tiempo real para interacción hablada o usuarios no videntes.
+2. REGLA INQUEBRANTABLE DE BREVEDAD: Responde siempre en 1 o 2 oraciones concisas y directas (máximo 30 a 35 palabras).
+3. PROHIBIDO TOTALMENTE el uso de Markdown, negritas (**), asteriscos, títulos (#), listas con guiones (- o *), emojis excesivos o bloques de código.
+4. Tono cálido, fluido, humano y natural en español rioplatense neutro.
+5. Si describes lo que enfoca la cámara o sostienes frente al usuario, da referencias espaciales simples y directas ("a tu derecha", "en el centro").
+`;
+
+export const NORA_VISUAL_MODE_PROMPT = `
+========================================================================
+👁️ PROTOCOLO DE INTERACCIÓN EN MODO VISUAL (CHAT MULTIMODAL & OCR EN TIEMPO REAL)
+========================================================================
+1. Eres Nora en Modo Visual. El usuario cuenta con soporte visual en pantalla y visor de cámara.
+2. Sé concisa, ejecutiva y estructurada. Entrega respuestas claras y organizadas.
+3. Si analizas una imagen, documento o código QR: extrae directamente la información crítica en 3 puntos clave o una tarjeta resumen.
+4. Brinda instrucciones paso a paso breves y directas cuando te soliciten resolver un problema o tarea.
+`;
+
 export interface SovereignRouterParams {
   history?: { role: string; content: string }[];
   userMessage: string;
   systemPrompt?: string;
+  interactionMode?: NoraInteractionMode;
   file?: SovereignFileAttachment | null;
   temperature?: number;
   maxTokens?: number;
@@ -78,9 +102,11 @@ function assembleMessages(
   userMessage: string,
   systemPrompt: string = "",
   imageDataUrl: string | null = null,
-  extractedDocContext: string = ""
+  extractedDocContext: string = "",
+  interactionMode: NoraInteractionMode = "visual"
 ): SovereignMessage[] {
-  const fullSystemPrompt = `${NORA_CONSTITUTIONAL_AXIOMS}\n\n${systemPrompt}`.trim();
+  const modePrompt = interactionMode === "voice" ? NORA_VOICE_MODE_PROMPT : NORA_VISUAL_MODE_PROMPT;
+  const fullSystemPrompt = `${NORA_CONSTITUTIONAL_AXIOMS}\n\n${modePrompt}\n\n${systemPrompt}`.trim();
 
   const messages: SovereignMessage[] = [
     { role: "system", content: fullSystemPrompt }
@@ -97,10 +123,14 @@ function assembleMessages(
   let finalUserContent: string | SovereignContentPart[] = userMessage;
 
   if (imageDataUrl) {
+    const defaultVisionPrompt = interactionMode === "voice"
+      ? "Describe brevemente en 1 o 2 oraciones qué hay en esta imagen para una persona no vidente."
+      : "Analiza detalladamente esta imagen, describe con precisión lo que observas y ofrece una explicación clara, útil y didáctica.";
+
     finalUserContent = [
       {
         type: "text",
-        text: userMessage || "Analiza detalladamente esta imagen, describe con precisión lo que observas y ofrece una explicación clara, útil y didáctica."
+        text: userMessage || defaultVisionPrompt
       },
       {
         type: "image_url",
@@ -192,20 +222,26 @@ async function tryCloudflareWorkersAI(messages: SovereignMessage[], isVision: bo
 }
 
 /**
- * CAPA 2: Groq Open Inference (Compound-mini / Compound / Allam / Qwen)
+ * CAPA 2: Groq Open Inference (Llama 3.2 Vision / Compound / Llama 3.3 70B / Qwen)
  */
-async function tryGroqInference(messages: SovereignMessage[]): Promise<ReadableStream | null> {
+async function tryGroqInference(messages: SovereignMessage[], isVision: boolean): Promise<ReadableStream | null> {
   const rawKey = process.env.GROQ_API_KEY;
   if (!rawKey) return null;
   const groqKey = rawKey.replace(/['"\r\n\t ]/g, "").trim();
   if (!groqKey) return null;
 
-  const activeModels = [
-    "groq/compound-mini",
-    "groq/compound",
-    "allam-2-7b",
-    "qwen/qwen3.6-27b"
-  ];
+  const activeModels = isVision
+    ? [
+        "llama-3.2-11b-vision-preview",
+        "llama-3.2-90b-vision-preview"
+      ]
+    : [
+        "groq/compound-mini",
+        "groq/compound",
+        "llama-3.3-70b-versatile",
+        "allam-2-7b",
+        "qwen/qwen3.6-27b"
+      ];
 
   for (const model of activeModels) {
     try {
@@ -220,7 +256,7 @@ async function tryGroqInference(messages: SovereignMessage[]): Promise<ReadableS
           messages,
           stream: true,
           temperature: 0.4,
-          max_tokens: 2000
+          max_tokens: isVision ? 1500 : 2000
         }),
         signal: AbortSignal.timeout(6000)
       });
@@ -483,6 +519,7 @@ export async function dispatchSovereignInference(params: SovereignRouterParams):
     history = [],
     userMessage,
     systemPrompt = "",
+    interactionMode = "visual",
     file = null,
     sessionId = null,
     contextData
@@ -498,19 +535,20 @@ export async function dispatchSovereignInference(params: SovereignRouterParams):
     userMessage,
     systemPrompt,
     imageDataUrl,
-    attachmentData.structuredContext
+    attachmentData.structuredContext,
+    interactionMode
   );
 
-  console.log(`[SovereignMasterRouter] 📥 Procesando consulta (Vision: ${isVision}, Doc: ${attachmentData.isDocument}, Historial: ${history.length})...`);
+  console.log(`[SovereignMasterRouter] 📥 Procesando consulta (Modo: ${interactionMode}, Vision: ${isVision}, Doc: ${attachmentData.isDocument}, Historial: ${history.length})...`);
 
   // 2. CAPA 1: Ollama Local (Nodo soberano propio si está activo)
   let openAiStream = await tryOllamaLocal(formattedMessages, isVision);
   let usedTag = "Ollama-Local";
 
-  // 3. CAPA 2 (PRIORIDAD 0): Groq Open Inference (Llama 3.3 70B / Qwen 2.5 - Ultra baja latencia <120ms)
-  if (!openAiStream && !isVision) {
-    openAiStream = await tryGroqInference(formattedMessages);
-    if (openAiStream) usedTag = "Groq-Inference";
+  // 3. CAPA 2 (PRIORIDAD 0): Groq Open Inference (Llama 3.2 Vision / Llama 3.3 70B - Ultra baja latencia <120ms)
+  if (!openAiStream) {
+    openAiStream = await tryGroqInference(formattedMessages, isVision);
+    if (openAiStream) usedTag = isVision ? "Groq-Llama3.2-Vision" : "Groq-Inference";
   }
 
   // 4. CAPA 3 (PRIORIDAD 1): Cloudflare Workers AI (Llama 3.3 70B Edge Serverless)

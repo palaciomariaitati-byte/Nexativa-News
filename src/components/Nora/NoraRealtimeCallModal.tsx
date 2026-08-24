@@ -48,6 +48,7 @@ export default function NoraRealtimeCallModal({
   const [interactionMode, setInteractionMode] = useState<"hands_free" | "push_to_talk">("push_to_talk");
   const [isPushTalking, setIsPushTalking] = useState<boolean>(false);
   const [accessibleAnnouncement, setAccessibleAnnouncement] = useState<string>("Llamada con Nora. Toca Iniciar Conexión.");
+  const [micError, setMicError] = useState<string | null>(null);
 
   // Control de estado y memoria de conversación
   const isNoraSpeakingRef = useRef<boolean>(false);
@@ -477,6 +478,7 @@ export default function NoraRealtimeCallModal({
 
       setIsEngineReady(true);
       setCallState("listening");
+      setMicError(null);
       playAccessibleChime("connected");
       emitSinglePulse("CONFIRM_VOZ");
       setAccessibleAnnouncement("Conectado con Nora. Lista para escucharte.");
@@ -541,14 +543,22 @@ export default function NoraRealtimeCallModal({
 
       monitorAudioLoop();
     } catch (err: any) {
-      console.error("[Audio Engine Tap Init Error]:", err);
-      if (err?.name === "NotAllowedError" || err?.message === "MIC_DENIED") {
-        alert("Nora necesita permiso de micrófono. Por favor habilítalo en el candado de la barra de direcciones de tu navegador.");
-      }
+      console.warn("[Audio Engine Init Error]:", err);
+      const msg = err?.name === "NotAllowedError" || err?.message === "MIC_DENIED"
+        ? "Nora necesita permiso de micrófono. Por favor habilítalo en el navegador o en la barra de direcciones."
+        : "No se pudo conectar el micrófono. Por favor verifica los permisos.";
+      setMicError(msg);
     } finally {
       setIsInitializing(false);
     }
   }, [emitSinglePulse, interactionMode, isEngineReady, isInitializing, playAccessibleChime, sendVoiceAudioTurn]);
+
+  // Auto-activación inmediata al abrir el modal
+  useEffect(() => {
+    if (isOpen && !isEngineReady && !isInitializing) {
+      startUnifiedAudioEngine().catch(() => {});
+    }
+  }, [isOpen, isEngineReady, isInitializing, startUnifiedAudioEngine]);
 
   // Cleanup de seguridad al desmontar
   useEffect(() => {
@@ -721,6 +731,11 @@ export default function NoraRealtimeCallModal({
               <p className="text-xs text-slate-400 leading-relaxed">
                 Toca el botón para activar el audio de alta fidelidad y hablar en tiempo real.
               </p>
+              {micError && (
+                <div className="p-2.5 rounded-xl bg-rose-950/80 border border-rose-500/40 text-rose-300 text-xs text-center animate-fadeIn">
+                  ⚠️ {micError}
+                </div>
+              )}
             </div>
             <button
               onClick={startUnifiedAudioEngine}

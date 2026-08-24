@@ -461,6 +461,7 @@ export async function POST(req: Request) {
       message_id,
       file,
       audioFile,
+      interactionMode = contextData?.interactionMode || "visual",
       stream = true 
     } = await req.json();
 
@@ -673,11 +674,12 @@ export async function POST(req: Request) {
     }
 
     if (stream) {
-      console.log("[NoraItu-Chat] 🚀 Invocando Matriz Soberana Blindada (dispatchSovereignInference)...");
+      console.log(`[NoraItu-Chat] 🚀 Invocando Matriz Soberana Blindada (dispatchSovereignInference - Modo: ${interactionMode})...`);
       return await dispatchSovereignInference({
         history: rawHistory,
         userMessage: effectiveMessage,
         systemPrompt: fullSystemPrompt,
+        interactionMode,
         file: effectiveFile,
         sessionId: activeSessionId,
         userId: user_id,
