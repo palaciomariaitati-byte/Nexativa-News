@@ -151,13 +151,15 @@ function assembleMessages(
 }
 
 /**
- * CAPA 1: Ollama Local / VPS Bridge
+ * CAPA 1: Ollama Local / VPS Bridge (Solo si LOCAL_OLLAMA_URL está explícitamente configurado)
  */
 async function tryOllamaLocal(messages: SovereignMessage[], isVision: boolean): Promise<ReadableStream | null> {
-  const ollamaHost = process.env.LOCAL_OLLAMA_URL || process.env.OLLAMA_HOST || "http://127.0.0.1:11434";
+  const ollamaHost = process.env.LOCAL_OLLAMA_URL || process.env.OLLAMA_HOST;
+  if (!ollamaHost) return null; // No intentar en Vercel si no hay host explícito
+
   const candidateModels = isVision
-    ? [process.env.OLLAMA_VISION_MODEL || "llava", "qwen2.5-vl", "llama3.2-vision"]
-    : [process.env.OLLAMA_TEXT_MODEL || "llama3.3", "qwen2.5", "deepseek-r1", "mistral", "llama3.2", "llama3.1"];
+    ? [process.env.OLLAMA_VISION_MODEL || "llava", "qwen2.5-vl"]
+    : [process.env.OLLAMA_TEXT_MODEL || "llama3.3", "qwen2.5", "llama3.2"];
 
   const endpoint = `${ollamaHost.replace(/\/+$/, "")}/v1/chat/completions`;
 
@@ -172,11 +174,11 @@ async function tryOllamaLocal(messages: SovereignMessage[], isVision: boolean): 
           stream: true,
           temperature: 0.3
         }),
-        signal: AbortSignal.timeout(2000)
+        signal: AbortSignal.timeout(1500)
       });
 
       if (res.ok && res.body) {
-        console.log(`[Sovereign Router - Capa 1]: Inferencia 100% Soberana en Nodo Local (${preferredModel})`);
+        console.log(`[Sovereign Router - Capa Local]: Inferencia en Nodo Local (${preferredModel})`);
         return res.body;
       }
     } catch {}
@@ -543,92 +545,88 @@ export async function dispatchSovereignInference(params: SovereignRouterParams):
 
   console.log(`[SovereignMasterRouter] 📥 Procesando consulta (Modo: ${interactionMode}, Vision: ${isVision}, Doc: ${attachmentData.isDocument}, Historial: ${history.length})...`);
 
-  // 2. CAPA 1: Ollama Local (Nodo soberano propio si está activo)
-  let openAiStream = await tryOllamaLocal(formattedMessages, isVision);
-  let usedTag = "Ollama-Local";
+  // 1. CAPA 1 (PRIORIDAD MÁXIMA): Google Gemini Multi-Pool Multimodal (Inferencia instantánea <180ms con 4 Claves Rotativas)
+  const geminiResult = await tryGeminiMultiPool(
+    history,
+    userMessage,
+    systemPrompt,
+    file,
+    attachmentData.structuredContext
+  );
 
-  // 3. CAPA 2 (PRIORIDAD 0): Groq Open Inference (Llama 3.2 Vision / Llama 3.3 70B - Ultra baja latencia <120ms)
-  if (!openAiStream) {
-    openAiStream = await tryGroqInference(formattedMessages, isVision);
-    if (openAiStream) usedTag = isVision ? "Groq-Llama3.2-Vision" : "Groq-Inference";
+  if (geminiResult && geminiResult.stream) {
+    const encoder = new TextEncoder();
+    let fullAssistantText = "";
+
+    const customStream = new ReadableStream({
+      async start(controller) {
+        const heartbeat = setInterval(() => {
+          try { controller.enqueue(encoder.encode(`: keep-alive\n\n`)); } catch { clearInterval(heartbeat); }
+        }, 2500);
+
+        try {
+          for await (const chunk of geminiResult.stream.stream) {
+            let chunkText = "";
+            try { chunkText = chunk.text(); } catch {
+              chunkText = chunk.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            }
+            if (chunkText) {
+              fullAssistantText += chunkText;
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: chunkText, session_id: sessionId })}\n\n`));
+            }
+          }
+
+          if (sessionId && fullAssistantText) {
+            const supabase = createServerSupabaseClient();
+            supabase.from("noraitu_messages").insert([
+              { session_id: sessionId, role: "user", content: userMessage, metadata: { ...(contextData || {}) } },
+              { session_id: sessionId, role: "assistant", content: fullAssistantText, metadata: { generated_by: `NoraItu-${geminiResult.modelTag}` } }
+            ]).then(() => {});
+          }
+
+          controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+        } catch (err) {
+          console.warn("[Gemini Master Stream Ingestion Warning]:", err);
+          controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+        } finally {
+          clearInterval(heartbeat);
+          try { controller.close(); } catch {}
+        }
+      }
+    });
+
+    return new Response(customStream, {
+      headers: {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        "Connection": "keep-alive"
+      }
+    });
   }
 
-  // 4. CAPA 3 (PRIORIDAD 1): Cloudflare Workers AI (Llama 3.3 70B Edge Serverless)
-  if (!openAiStream) {
-    openAiStream = await tryCloudflareWorkersAI(formattedMessages, isVision);
-    if (openAiStream) usedTag = "Cloudflare-Workers-AI";
-  }
+  // 2. CAPA 2 (RESPALDO ULTRA-RÁPIDO): Groq Open Inference (Llama 3.3 70B / Llama 3.2 Vision <120ms)
+  let openAiStream = await tryGroqInference(formattedMessages, isVision);
+  let usedTag = isVision ? "Groq-Llama3.2-Vision" : "Groq-Llama3.3-70B";
 
-  // 5. CAPA 4 (PRIORIDAD 2): Hugging Face Serverless
-  if (!openAiStream) {
-    openAiStream = await tryHuggingFaceInference(formattedMessages, isVision);
-    if (openAiStream) usedTag = "HuggingFace-Serverless";
-  }
-
-  // 6. CAPA 5 (PRIORIDAD 3): OpenRouter Free Open Mesh
+  // 3. CAPA 3 (MALLA SOBERANA ABIERTA): OpenRouter / Cloudflare / HF / Ollama
   if (!openAiStream) {
     openAiStream = await tryOpenRouterFree(formattedMessages, isVision);
     if (openAiStream) usedTag = "OpenRouter-Free-Mesh";
   }
 
-  // 7. CAPA 6 (PRIORIDAD 4 / FALLBACK MULTIMODAL): Google Gemini Multi-Pool (4 Claves Rotativas)
   if (!openAiStream) {
-    const geminiResult = await tryGeminiMultiPool(
-      history,
-      userMessage,
-      systemPrompt,
-      file,
-      attachmentData.structuredContext
-    );
-    if (geminiResult && geminiResult.stream) {
-      const encoder = new TextEncoder();
-      let fullAssistantText = "";
+    openAiStream = await tryCloudflareWorkersAI(formattedMessages, isVision);
+    if (openAiStream) usedTag = "Cloudflare-Workers-AI";
+  }
 
-      const customStream = new ReadableStream({
-        async start(controller) {
-          const heartbeat = setInterval(() => {
-            try { controller.enqueue(encoder.encode(`: keep-alive\n\n`)); } catch { clearInterval(heartbeat); }
-          }, 2500);
+  if (!openAiStream) {
+    openAiStream = await tryHuggingFaceInference(formattedMessages, isVision);
+    if (openAiStream) usedTag = "HuggingFace-Serverless";
+  }
 
-          try {
-            for await (const chunk of geminiResult.stream.stream) {
-              let chunkText = "";
-              try { chunkText = chunk.text(); } catch {
-                chunkText = chunk.candidates?.[0]?.content?.parts?.[0]?.text || "";
-              }
-              if (chunkText) {
-                fullAssistantText += chunkText;
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: chunkText, session_id: sessionId })}\n\n`));
-              }
-            }
-
-            if (sessionId && fullAssistantText) {
-              const supabase = createServerSupabaseClient();
-              supabase.from("noraitu_messages").insert([
-                { session_id: sessionId, role: "user", content: userMessage, metadata: { ...(contextData || {}) } },
-                { session_id: sessionId, role: "assistant", content: fullAssistantText, metadata: { generated_by: `NoraItu-${geminiResult.modelTag}` } }
-              ]).then(() => {});
-            }
-
-            controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-          } catch (err) {
-            console.warn("[Gemini Master Stream Ingestion Warning]:", err);
-            controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-          } finally {
-            clearInterval(heartbeat);
-            try { controller.close(); } catch {}
-          }
-        }
-      });
-
-      return new Response(customStream, {
-        headers: {
-          "Content-Type": "text/event-stream; charset=utf-8",
-          "Cache-Control": "no-cache, no-transform",
-          "Connection": "keep-alive"
-        }
-      });
-    }
+  if (!openAiStream) {
+    openAiStream = await tryOllamaLocal(formattedMessages, isVision);
+    if (openAiStream) usedTag = "Ollama-Local";
   }
 
   // 8. Transformar Streams compatibles con OpenAI (Ollama, Groq, Cloudflare, HF, OpenRouter)
