@@ -1577,7 +1577,7 @@ export default function NoraItuApp() {
       }
 
       if (!accumulatedText.trim()) {
-        const fallbackText = "¡Hola! Te escucho con total atención. Contame, ¿en qué te puedo ayudar hoy?";
+        const fallbackText = "⚠️ No se recibió respuesta del modelo. Por favor reintenta tu consulta.";
         accumulatedText = fallbackText;
         setMessages((prev) => {
           const newArr = [...prev];
