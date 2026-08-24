@@ -57,6 +57,9 @@ import { FunctionPlotter } from "@/components/Nora/FunctionPlotter";
 import NoraRealtimeCallModal from "@/components/Nora/NoraRealtimeCallModal";
 import { useNoraWakeWord } from "@/hooks/useNoraWakeWord";
 import { useNoraHardware } from "@/hooks/useNoraHardware";
+import { executeLocalInference } from "@/lib/nora/webgpu/localEngine";
+import { syncOnlineDeltasIfAvailable } from "@/lib/nora/offline/knowledgeCache";
+import NoraConnectionBadge from "@/components/Nora/NoraConnectionBadge";
 
 interface AttachedFile {
   name: string;
@@ -278,6 +281,9 @@ export default function NoraItuApp() {
       navigator.serviceWorker.register("/noraitu-sw.js", { scope: "/noraitu" })
         .then((reg) => console.log("NoraItu Service Worker activo:", reg.scope))
         .catch((err) => console.warn("NoraItu SW aviso:", err));
+      
+      // Sincronizar cápsulas delta offline en segundo plano
+      syncOnlineDeltasIfAvailable();
     }
 
     // Capturar evento de instalación nativa PWA (Android / Chrome / Edge)
@@ -1461,19 +1467,16 @@ export default function NoraItuApp() {
       });
 
       if (!res.ok) {
-        let errorMsg = "Ocurrió un error temporal al procesar la respuesta.";
-        try {
-          const errData = await res.json();
-          if (errData?.error) errorMsg = errData.error;
-        } catch {
-          errorMsg = `Error del servidor (${res.status}). Por favor reintenta tu mensaje.`;
-        }
-
+        console.warn(`[Nora Chat] Servidor ocupado o sin red (${res.status}). Activando inferencia local WebGPU / Modo Campo...`);
+        const localRes = await executeLocalInference(textToSend, historyPayload, activeMode);
         setMessages((prev) => [...prev, {
           role: "assistant",
-          content: `⚠️ ${errorMsg}`,
+          content: localRes.text,
           created_at: new Date().toISOString()
         }]);
+        if (autoVoice && localRes.text) {
+          speakText(localRes.text, messages.length + 1);
+        }
         setIsLoading(false);
         isSubmittingRef.current = false;
         return;
@@ -1577,14 +1580,14 @@ export default function NoraItuApp() {
       }
 
       if (!accumulatedText.trim()) {
-        const fallbackText = "⚠️ No se recibió respuesta del modelo. Por favor reintenta tu consulta.";
-        accumulatedText = fallbackText;
+        const localRes = await executeLocalInference(textToSend, historyPayload, activeMode);
+        accumulatedText = localRes.text;
         setMessages((prev) => {
           const newArr = [...prev];
           if (newArr.length > 0) {
             newArr[newArr.length - 1] = {
               ...newArr[newArr.length - 1],
-              content: fallbackText
+              content: accumulatedText
             };
           }
           return newArr;
@@ -1608,14 +1611,19 @@ export default function NoraItuApp() {
       }
 
     } catch (err: any) {
+      console.warn("[Nora Chat] Error de red. Conmutando a modo campo local WebGPU...", err);
+      const localRes = await executeLocalInference(textToSend, historyPayload, activeMode);
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: "⚠️ Error de conexión con el servidor de NoraItu. Reintenta en unos instantes.",
+          content: localRes.text,
           created_at: new Date().toISOString()
         }
       ]);
+      if (autoVoice && localRes.text) {
+        speakText(localRes.text, messages.length + 1);
+      }
     } finally {
       isSubmittingRef.current = false;
       setIsLoading(false);
@@ -2132,6 +2140,7 @@ export default function NoraItuApp() {
               <span className="hidden sm:inline-block px-2 py-0.5 rounded-full text-[10px] font-mono bg-sky-950/80 text-sky-400 border border-sky-800/40">
                 Educación • Inclusión DUA
               </span>
+              <NoraConnectionBadge />
             </div>
           </div>
           
