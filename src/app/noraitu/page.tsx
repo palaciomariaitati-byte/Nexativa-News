@@ -903,6 +903,17 @@ export default function NoraItuApp() {
                     fullLiveText += parsed.text;
                     setLiveSubtitles(fullLiveText);
                   }
+                  if (parsed.audioBase64) {
+                    try {
+                      const audio = new Audio("data:audio/mp3;base64," + parsed.audioBase64);
+                      audioPlayerRef.current = audio;
+                      audio.play().catch(() => {
+                        if (fullLiveText.trim()) speakText(fullLiveText.trim(), -99);
+                      });
+                    } catch (e) {
+                      if (fullLiveText.trim()) speakText(fullLiveText.trim(), -99);
+                    }
+                  }
                 } catch {
                   if (dataContent) {
                     fullLiveText += dataContent;
@@ -912,14 +923,24 @@ export default function NoraItuApp() {
               }
             }
           }
-          if (fullLiveText.trim()) {
+          if (fullLiveText.trim() && !audioPlayerRef.current) {
             speakText(fullLiveText.trim(), -99);
           }
         } else {
           const data = await res.json();
           if (data.text) {
             setLiveSubtitles(data.text);
-            speakText(data.text, -99);
+            if (data.audioBase64) {
+              try {
+                const audio = new Audio("data:audio/mp3;base64," + data.audioBase64);
+                audioPlayerRef.current = audio;
+                audio.play().catch(() => speakText(data.text, -99));
+              } catch {
+                speakText(data.text, -99);
+              }
+            } else {
+              speakText(data.text, -99);
+            }
           }
         }
       }
