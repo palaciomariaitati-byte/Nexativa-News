@@ -837,7 +837,7 @@ export default function NoraItuApp() {
     if (!liveVideoRef.current || isAnalyzingFrame) return;
 
     const now = Date.now();
-    if (!customPrompt && now - lastLiveAnalysisRef.current < 2000) {
+    if (!customPrompt && now - lastLiveAnalysisRef.current < 2500) {
       return;
     }
 
@@ -848,17 +848,17 @@ export default function NoraItuApp() {
 
     try {
       setIsAnalyzingFrame(true);
+      setLiveSubtitles("👁️ Nora está analizando la toma en vivo...");
       lastLiveAnalysisRef.current = Date.now();
       const video = liveVideoRef.current;
-      if (video.videoWidth === 0 || video.videoHeight === 0) {
-        setIsAnalyzingFrame(false);
-        return;
-      }
+      
+      const width = video.videoWidth || 640;
+      const height = video.videoHeight || 480;
 
-      // Comprimir fotogramas a 640x480 con calidad 0.5 para eliminar el lag y sobrecarga
-      const canvas = liveCanvasRef.current || document.createElement("canvas");
-      canvas.width = 640;
-      canvas.height = 480;
+      // Crear canvas dinámico en memoria de 640x480 max
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.min(width, 640);
+      canvas.height = Math.min(height, 480);
       const ctx = canvas.getContext("2d");
       if (!ctx) {
         setIsAnalyzingFrame(false);
@@ -866,7 +866,7 @@ export default function NoraItuApp() {
       }
 
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const base64Image = canvas.toDataURL("image/jpeg", 0.5);
+      const base64Image = canvas.toDataURL("image/jpeg", 0.6);
 
       const res = await fetch("/api/noraitu-live", {
         method: "POST",

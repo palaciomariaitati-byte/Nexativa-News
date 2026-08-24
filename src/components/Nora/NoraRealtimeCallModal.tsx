@@ -389,8 +389,9 @@ export default function NoraRealtimeCallModal({
 
   // 8. Inicialización Asíncrona Controlada por User Gesture (Tap Físico)
   const startUnifiedAudioEngine = useCallback(async () => {
-    if (isEngineReady || isInitializing) return;
+    if (isEngineReady) return;
     setIsInitializing(true);
+    setMicError(null);
 
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -545,20 +546,14 @@ export default function NoraRealtimeCallModal({
     } catch (err: any) {
       console.warn("[Audio Engine Init Error]:", err);
       const msg = err?.name === "NotAllowedError" || err?.message === "MIC_DENIED"
-        ? "Nora necesita permiso de micrófono. Por favor habilítalo en el navegador o en la barra de direcciones."
+        ? "Por favor permite el acceso al micrófono en tu navegador y vuelve a presionar el botón."
         : "No se pudo conectar el micrófono. Por favor verifica los permisos.";
       setMicError(msg);
+      setIsEngineReady(false);
     } finally {
       setIsInitializing(false);
     }
-  }, [emitSinglePulse, interactionMode, isEngineReady, isInitializing, playAccessibleChime, sendVoiceAudioTurn]);
-
-  // Auto-activación inmediata al abrir el modal
-  useEffect(() => {
-    if (isOpen && !isEngineReady && !isInitializing) {
-      startUnifiedAudioEngine().catch(() => {});
-    }
-  }, [isOpen, isEngineReady, isInitializing, startUnifiedAudioEngine]);
+  }, [emitSinglePulse, interactionMode, isEngineReady, playAccessibleChime, sendVoiceAudioTurn]);
 
   // Cleanup de seguridad al desmontar
   useEffect(() => {
