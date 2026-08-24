@@ -43,15 +43,13 @@ export default function NoraConnectionBadge() {
     >
       {isOnline ? (
         <>
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-          <Zap className="w-3.5 h-3.5" />
-          <span>Matriz Soberana En Línea</span>
+          <span className="w-2 h-2 rounded-full bg-emerald-400" />
+          <span>En Línea</span>
         </>
       ) : (
         <>
           <WifiOff className="w-3.5 h-3.5" />
-          <Cpu className="w-3.5 h-3.5" />
-          <span>Modo Campo {hasWebGPU ? "(WebGPU)" : "(Local)"}</span>
+          <span>Modo Offline</span>
         </>
       )}
     </div>

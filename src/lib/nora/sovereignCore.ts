@@ -264,7 +264,13 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
     cleanKey(process.env.GEMINI_API_KEY_TERTIARY)
   ].filter(Boolean);
 
-  const geminiModels = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-8b", "gemini-flash-latest"];
+  const geminiModels = [
+    "gemini-flash-latest",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.7-flash"
+  ];
   const geminiContents = buildGeminiContents(history, userMessage, fullSystem, cleanImage);
 
   for (const key of geminiKeys) {
@@ -337,9 +343,7 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
   const openAiMessages = buildOpenAiMessages(history, userMessage, fullSystem, cleanImage);
 
   if (groqKey) {
-    const groqModels = cleanImage
-      ? ["llama-3.2-11b-vision-preview", "llama-3.2-90b-vision-preview"]
-      : ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
+    const groqModels = ["groq/compound-mini", "qwen/qwen3.6-27b", "groq/compound"];
 
     for (const gModel of groqModels) {
       try {
@@ -482,7 +486,13 @@ export async function executeSovereignText(params: SovereignCoreParams): Promise
     cleanKey(process.env.GEMINI_API_KEY_TERTIARY)
   ].filter(Boolean);
 
-  const geminiModels = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-8b"];
+  const geminiModels = [
+    "gemini-flash-latest",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.7-flash"
+  ];
   const geminiContents = buildGeminiContents(history, userMessage, fullSystem, cleanImage);
 
   for (const key of geminiKeys) {
@@ -510,7 +520,7 @@ export async function executeSovereignText(params: SovereignCoreParams): Promise
   const openAiMessages = buildOpenAiMessages(history, userMessage, fullSystem, cleanImage);
 
   if (groqKey) {
-    const groqModels = cleanImage ? ["llama-3.2-11b-vision-preview"] : ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
+    const groqModels = ["groq/compound-mini", "qwen/qwen3.6-27b", "groq/compound"];
     for (const gModel of groqModels) {
       try {
         const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
