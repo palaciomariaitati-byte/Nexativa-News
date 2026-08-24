@@ -93,7 +93,7 @@ function buildGeminiContents(
   const geminiContents: { role: string; parts: any[] }[] = [];
 
   if (Array.isArray(history)) {
-    for (const item of history.slice(-10)) {
+    for (const item of history.slice(-30)) {
       if (!item || !item.content || typeof item.content !== "string") continue;
       const text = item.content.trim();
       if (!text || text.length < 2) continue;
@@ -142,7 +142,7 @@ function buildOpenAiMessages(
   ];
 
   if (Array.isArray(history)) {
-    for (const h of history.slice(-10)) {
+    for (const h of history.slice(-30)) {
       if (!h || !h.content || typeof h.content !== "string") continue;
       const text = h.content.trim();
       if (!text || text.length < 2) continue;
@@ -185,29 +185,30 @@ function buildOpenAiMessages(
  */
 export async function synthesizeRealAudio(text: string): Promise<string | null> {
   const clean = text
-    .replace(/[*#_~`>|]/g, "")
+    .replace(/[*#_~`>|$\\]/g, "")
     .replace(/\s+/g, " ")
     .trim();
 
   if (!clean) return null;
 
   try {
-    const sentences = clean.match(/[^.!?]+[.!?]+/g) || [clean];
+    const words = clean.split(" ");
     const chunks: string[] = [];
     let cur = "";
 
-    for (const s of sentences) {
-      if ((cur + " " + s).trim().length <= 180) {
-        cur = (cur + " " + s).trim();
+    for (const w of words) {
+      if (!w) continue;
+      if ((cur + " " + w).trim().length <= 160) {
+        cur = (cur + " " + w).trim();
       } else {
         if (cur) chunks.push(cur);
-        cur = s.trim().slice(0, 180);
+        cur = w;
       }
     }
     if (cur) chunks.push(cur);
 
     const buffers: Buffer[] = [];
-    for (const chunk of chunks.slice(0, 6)) {
+    for (const chunk of chunks.slice(0, 8)) {
       const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(
         chunk
       )}&tl=es-US&client=tw-ob`;

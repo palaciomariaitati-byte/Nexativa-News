@@ -5,6 +5,7 @@ import { PhoneOff, Sparkles, Volume2, VolumeX, Mic, Hand, Radio, AlertTriangle, 
 import { useNoraOfflineGPS } from "@/hooks/useNoraOfflineGPS";
 import { dispatchSOS } from "@/lib/nora/protocols/sosDispatcher";
 import { useNoraLazarilloHaptics } from "@/hooks/useNoraLazarilloHaptics";
+import { executeLocalInference } from "@/lib/nora/webgpu/localEngine";
 
 interface NoraRealtimeCallModalProps {
   isOpen: boolean;
@@ -339,31 +340,43 @@ export default function NoraRealtimeCallModal({
           const spokenClientText = liveTranscriptRef.current.trim();
           liveTranscriptRef.current = "";
 
-          const res = await fetch("/api/noraitu-realtime-proxy", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              message: spokenClientText,
-              audioBase64: base64,
-              mimeType,
-              history: historyRef.current.slice(-6),
-              mode: activeModeRef.current
-            }),
-            signal: controller.signal
-          });
+          let text = "";
+          let resAudio: string | null = null;
+          let transcribedUserText = spokenClientText;
 
-          if (!res.ok) {
-            isProcessingRef.current = false;
-            resumeListening();
-            return;
+          try {
+            const res = await fetch("/api/noraitu-realtime-proxy", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                message: spokenClientText,
+                audioBase64: base64,
+                mimeType,
+                history: historyRef.current.slice(-24),
+                mode: activeModeRef.current
+              }),
+              signal: controller.signal
+            });
+
+            if (res.ok) {
+              const data = await res.json();
+              text = data.text || "";
+              resAudio = data.audioBase64 || null;
+              transcribedUserText = data.transcribedUserText || spokenClientText;
+            } else {
+              throw new Error("HTTP_FAILED");
+            }
+          } catch (fetchErr: any) {
+            console.warn("[Voice Modal] Red no disponible o error HTTP. Conmutando a Inferencia Local Offline...", fetchErr?.message);
+            const userPrompt = spokenClientText || "Consulta docente por voz";
+            const localRes = await executeLocalInference(
+              userPrompt,
+              historyRef.current,
+              activeModeRef.current
+            );
+            text = localRes.text;
+            transcribedUserText = userPrompt;
           }
-
-          const data = await res.json();
-          const { text = "", audioBase64: resAudio, transcribedUserText = "", sttMs, totalMs } = data;
-
-          console.log(
-            `⏱️ [Voice Telemetry] STT: ${sttMs || "?"}ms | Backend Total: ${totalMs || "?"}ms | Cliente Total: ${Date.now() - turnStartTime}ms`
-          );
 
           if (transcribedUserText && !transcribedUserText.includes("Escuchando")) {
             setUserTranscript(`"${transcribedUserText}"`);
@@ -377,8 +390,8 @@ export default function NoraRealtimeCallModal({
 
           if (text) {
             historyRef.current.push({ role: "assistant", content: text });
-            if (historyRef.current.length > 12) {
-              historyRef.current = historyRef.current.slice(-12);
+            if (historyRef.current.length > 30) {
+              historyRef.current = historyRef.current.slice(-30);
             }
             if (onMessageLogged) {
               onMessageLogged(transcribedUserText || "🎙️ [Voz]", text);
@@ -387,7 +400,19 @@ export default function NoraRealtimeCallModal({
               playRealNoraAudio(resAudio, text);
             } else {
               setAssistantText(text);
-              resumeListening();
+              setCallState("speaking");
+              if (typeof window !== "undefined" && window.speechSynthesis) {
+                window.speechSynthesis.cancel();
+                const cleanVoiceText = text.replace(/[*#_~`>|$\\]/g, "").slice(0, 350);
+                const utter = new SpeechSynthesisUtterance(cleanVoiceText);
+                utter.lang = "es-AR";
+                utter.rate = 1.05;
+                utter.onend = () => resumeListening();
+                utter.onerror = () => resumeListening();
+                window.speechSynthesis.speak(utter);
+              } else {
+                setTimeout(() => resumeListening(), 4000);
+              }
             }
           } else {
             resumeListening();
@@ -498,8 +523,8 @@ export default function NoraRealtimeCallModal({
       };
 
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      const SILENCE_TIMEOUT_MS = 700;
-      const MAX_SPEECH_DURATION_MS = 12000;
+      const SILENCE_TIMEOUT_MS = 2200;
+      const MAX_SPEECH_DURATION_MS = 60000;
 
       setIsEngineReady(true);
       setCallState("listening");
