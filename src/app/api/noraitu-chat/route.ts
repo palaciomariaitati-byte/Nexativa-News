@@ -224,10 +224,10 @@ async function fetchSemanticArticlesRAG(supabase: any, userQuery: string): Promi
     "noticia", "noticias", "ituzaingó", "ituzaingo", "corrientes", "portal", "nexativa", 
     "suceso", "ayer", "hoy", "intendente", "evento", "carnaval", "pesca", "represa", 
     "yacyreta", "politica", "deportes", "actualidad", "paso", "nacional", "internacional",
-    "clima", "gobierno", "argentina", "presidente", "economia", "dolar", "inflacion"
+    "gobierno", "argentina", "presidente", "economia", "dolar", "inflacion"
   ].some(w => lower.includes(w));
   
-  if (!isRegionalQuery && userQuery.trim().length < 5) return "";
+  if (!isRegionalQuery) return "";
 
   try {
     const [hybridResults, webResult] = await Promise.all([

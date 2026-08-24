@@ -75,7 +75,86 @@ export async function POST(req: Request) {
     const fullPrompt = `${TITAN_LIVE_SYSTEM_PROMPT}\n\n[MODO ACTIVO: ${mode.toUpperCase()}]\n\n${queryDirective}`;
     const encoder = new TextEncoder();
 
-    // 1. CAPA 0 (PRIORIDAD 1): Groq LLaMA 3.2 Vision (Inferencia ultrarrápida <250ms)
+    // 1. CAPA 0 (PRIORIDAD MÁXIMA): Google Gemini Multi-Pool Multimodal Stream (Inferencia visual en ~200ms)
+    const keysPool = [
+      process.env.GEMINI_API_KEY,
+      process.env.GEMINI_API_KEY_FALLBACK_2,
+      process.env.GEMINI_API_KEY_TERTIARY,
+      process.env.GEMINI_API_KEY_FALLBACK,
+    ].filter(Boolean) as string[];
+
+    const geminiVisionModels = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"];
+
+    for (const key of keysPool) {
+      for (const modelName of geminiVisionModels) {
+        try {
+          const genAI = new GoogleGenerativeAI(key);
+          const model = genAI.getGenerativeModel({
+            model: modelName,
+            generationConfig: { temperature: 0.25, maxOutputTokens: 300 }
+          });
+
+          const streamResult = await model.generateContentStream([
+            {
+              inlineData: {
+                data: cleanBase64,
+                mimeType: "image/jpeg"
+              }
+            },
+            { text: fullPrompt }
+          ]);
+
+          if (streamResult && streamResult.stream) {
+            console.log(`[Titán Live Vision] 👁️ Inferencia exitosa en Gemini Multimodal (${modelName})`);
+
+            const customStream = new ReadableStream({
+              async start(controller) {
+                const heartbeat = setInterval(() => {
+                  try { controller.enqueue(encoder.encode(`: keep-alive\n\n`)); } catch { clearInterval(heartbeat); }
+                }, 2500);
+
+                let accumulatedGeminiText = "";
+                try {
+                  for await (const chunk of streamResult.stream) {
+                    const chunkText = chunk.text();
+                    if (chunkText) {
+                      accumulatedGeminiText += chunkText;
+                      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: chunkText })}\n\n`));
+                    }
+                  }
+
+                  if (accumulatedGeminiText.trim()) {
+                    const audioB64 = await synthesizeRealAudio(accumulatedGeminiText);
+                    if (audioB64) {
+                      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ audioBase64: audioB64 })}\n\n`));
+                    }
+                  }
+
+                  controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+                } catch (geminiStreamErr) {
+                  console.warn("[Gemini Live Stream Warning]:", geminiStreamErr);
+                } finally {
+                  clearInterval(heartbeat);
+                  try { controller.close(); } catch {}
+                }
+              }
+            });
+
+            return new Response(customStream, {
+              headers: {
+                "Content-Type": "text/event-stream; charset=utf-8",
+                "Cache-Control": "no-cache, no-transform",
+                "Connection": "keep-alive"
+              }
+            });
+          }
+        } catch (err: any) {
+          console.warn(`[Nora Titán Live - ${modelName} Warning]:`, err?.message);
+        }
+      }
+    }
+
+    // 2. CAPA 1 (RESPALDO ABIERTO): Groq LLaMA 3.2 Vision (<250ms)
     const rawGroqKey = process.env.GROQ_API_KEY;
     if (rawGroqKey) {
       const groqKey = rawGroqKey.replace(/['"\r\n\t ]/g, "").trim();
@@ -102,10 +181,10 @@ export async function POST(req: Request) {
                 }
               ],
               stream: true,
-              max_tokens: 350,
+              max_tokens: 300,
               temperature: 0.25
             }),
-            signal: AbortSignal.timeout(5000)
+            signal: AbortSignal.timeout(3000)
           });
 
           if (groqRes.ok && groqRes.body) {
@@ -177,7 +256,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2. CAPA 1: OpenRouter Free Open Mesh (Qwen2.5-VL / LLaMA Vision)
+    // 3. CAPA 2: OpenRouter Free Open Mesh
     if (process.env.OPENROUTER_API_KEY) {
       try {
         const openRouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -201,10 +280,10 @@ export async function POST(req: Request) {
               }
             ],
             stream: true,
-            max_tokens: 350,
+            max_tokens: 300,
             temperature: 0.25
           }),
-          signal: AbortSignal.timeout(5000)
+          signal: AbortSignal.timeout(3000)
         });
 
         if (openRouterRes.ok && openRouterRes.body) {
@@ -262,85 +341,6 @@ export async function POST(req: Request) {
         }
       } catch (orErr) {
         console.warn("[OpenRouter Live Vision Warning]:", orErr);
-      }
-    }
-
-    // 3. CAPA 2 (Respaldo Multi-Pool Gemini Multimodal Stream)
-    const keysPool = [
-      process.env.GEMINI_API_KEY,
-      process.env.GEMINI_API_KEY_FALLBACK_2,
-      process.env.GEMINI_API_KEY_TERTIARY,
-      process.env.GEMINI_API_KEY_FALLBACK,
-    ].filter(Boolean) as string[];
-
-    const geminiVisionModels = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest", "gemini-1.5-pro"];
-
-    for (const key of keysPool) {
-      for (const modelName of geminiVisionModels) {
-        try {
-          const genAI = new GoogleGenerativeAI(key);
-          const model = genAI.getGenerativeModel({
-            model: modelName,
-            generationConfig: { temperature: 0.25, maxOutputTokens: 350 }
-          });
-
-          const streamResult = await model.generateContentStream([
-            {
-              inlineData: {
-                data: cleanBase64,
-                mimeType: "image/jpeg"
-              }
-            },
-            { text: fullPrompt }
-          ]);
-
-          if (streamResult && streamResult.stream) {
-            console.log(`[Titán Live Vision] 👁️ Inferencia exitosa en Gemini Multimodal (${modelName})`);
-
-            const customStream = new ReadableStream({
-              async start(controller) {
-                const heartbeat = setInterval(() => {
-                  try { controller.enqueue(encoder.encode(`: keep-alive\n\n`)); } catch { clearInterval(heartbeat); }
-                }, 2500);
-
-                let accumulatedGeminiText = "";
-                try {
-                  for await (const chunk of streamResult.stream) {
-                    const chunkText = chunk.text();
-                    if (chunkText) {
-                      accumulatedGeminiText += chunkText;
-                      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: chunkText })}\n\n`));
-                    }
-                  }
-
-                  if (accumulatedGeminiText.trim()) {
-                    const audioB64 = await synthesizeRealAudio(accumulatedGeminiText);
-                    if (audioB64) {
-                      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ audioBase64: audioB64 })}\n\n`));
-                    }
-                  }
-
-                  controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-                } catch (geminiStreamErr) {
-                  console.warn("[Gemini Live Stream Warning]:", geminiStreamErr);
-                } finally {
-                  clearInterval(heartbeat);
-                  try { controller.close(); } catch {}
-                }
-              }
-            });
-
-            return new Response(customStream, {
-              headers: {
-                "Content-Type": "text/event-stream; charset=utf-8",
-                "Cache-Control": "no-cache, no-transform",
-                "Connection": "keep-alive"
-              }
-            });
-          }
-        } catch (err: any) {
-          console.warn(`[Nora Titán Live - ${modelName} Warning]:`, err?.message);
-        }
       }
     }
 
