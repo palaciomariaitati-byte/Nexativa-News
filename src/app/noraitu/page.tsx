@@ -1461,10 +1461,17 @@ export default function NoraItuApp() {
       });
 
       if (!res.ok) {
-        const errData = await res.json();
+        let errorMsg = "Ocurrió un error temporal al procesar la respuesta.";
+        try {
+          const errData = await res.json();
+          if (errData?.error) errorMsg = errData.error;
+        } catch {
+          errorMsg = `Error del servidor (${res.status}). Por favor reintenta tu mensaje.`;
+        }
+
         setMessages((prev) => [...prev, {
           role: "assistant",
-          content: `⚠️ ${errData.error || "Ocurrió un error temporal al procesar la respuesta."}`,
+          content: `⚠️ ${errorMsg}`,
           created_at: new Date().toISOString()
         }]);
         setIsLoading(false);
