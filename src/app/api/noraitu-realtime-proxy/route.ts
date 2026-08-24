@@ -9,6 +9,7 @@ import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NORA_PROSODY_SYSTEM_PROMPT } from "@/lib/nora/realtime/prosodyPrompt";
 import { recordPerformanceMetric } from "@/lib/nora/telemetry";
+import { executeSovereignText } from "@/lib/nora/sovereignCore";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -204,211 +205,25 @@ export async function POST(req: Request) {
       });
     }
 
-    const systemPromptWithMode = `${NORA_PROSODY_SYSTEM_PROMPT}\n\n[MODO CONVERSACIONAL ACTIVO: ${mode.toUpperCase()}]`;
+    // Invocación al Núcleo Soberano Unificado (executeSovereignText)
+    const result = await executeSovereignText({
+      history,
+      userMessage: effectiveUserText,
+      systemPrompt: NORA_PROSODY_SYSTEM_PROMPT,
+      mode: mode as any,
+      maxTokens: 600
+    });
 
-    // 1. CAPA 1: Modelos Ultrarrápidos Activos en Groq (Inferencia en ~80-150ms)
-    const groqKey = cleanKeyString(process.env.GROQ_API_KEY);
-    let generatedText = "";
-
-    if (groqKey) {
-      const activeGroqModels = [
-        "llama-3.3-70b-versatile",
-        "llama-3.1-8b-instant"
-      ];
-
-      const formattedMessages: { role: string; content: string }[] = [
-        { role: "system", content: systemPromptWithMode }
-      ];
-
-      if (Array.isArray(history)) {
-        for (const h of history.slice(-6)) {
-          if (!h || !h.content || typeof h.content !== "string") continue;
-          const text = h.content.trim();
-          if (!text || text.length < 2) continue;
-
-          // Filtrar mensajes evasivos pasados
-          if (text.includes("acompañarte en lo que necesites") || text.includes("sigamos profundizando")) {
-            continue;
-          }
-
-          const mappedRole = h.role === "assistant" || h.role === "model" ? "assistant" : "user";
-          const last = formattedMessages[formattedMessages.length - 1];
-          if (last.role === mappedRole) {
-            last.content += `\n\n${text}`;
-          } else {
-            formattedMessages.push({ role: mappedRole, content: text });
-          }
-        }
-      }
-
-      const lastMsg = formattedMessages[formattedMessages.length - 1];
-      if (lastMsg.role === "user") {
-        lastMsg.content += `\n\n${effectiveUserText}`;
-      } else {
-        formattedMessages.push({ role: "user", content: effectiveUserText });
-      }
-
-      for (const modelName of activeGroqModels) {
-        try {
-          const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${groqKey}`,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              model: modelName,
-              messages: formattedMessages,
-              temperature: 0.35,
-              max_tokens: 600,
-              frequency_penalty: 0.25,
-              presence_penalty: 0.25
-            }),
-            signal: AbortSignal.timeout(2500)
-          });
-
-          if (groqRes.ok) {
-            const data = await groqRes.json();
-            const rawDelta = data.choices?.[0]?.message?.content || "";
-            const clean = rawDelta.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
-            if (clean && clean.length > 0) {
-              generatedText = clean;
-              break;
-            }
-          }
-        } catch {
-          // Intentar siguiente modelo
-        }
-      }
-    }
-
-    // 2. CAPA 2 (FALLBACK MULTIMODAL): Gemini Multi-Key Pool (gemini-2.0-flash / 1.5-flash)
-    if (!generatedText) {
-      const geminiKeys = [
-        cleanKeyString(process.env.GEMINI_API_KEY),
-        cleanKeyString(process.env.NEXT_PUBLIC_GEMINI_API_KEY),
-        cleanKeyString(process.env.GOOGLE_GEMINI_API_KEY),
-        cleanKeyString(process.env.GOOGLE_API_KEY),
-        cleanKeyString(process.env.GEMINI_API_KEY_FALLBACK),
-        cleanKeyString(process.env.GEMINI_API_KEY_FALLBACK_2),
-        cleanKeyString(process.env.GEMINI_API_KEY_TERTIARY)
-      ].filter(Boolean);
-
-      const candidateModels = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-8b", "gemini-flash-latest"];
-
-      const currentTurnParts: any[] = [{ text: effectiveUserText }];
-      const geminiContents: { role: string; parts: any[] }[] = [];
-
-      if (Array.isArray(history)) {
-        for (const h of history.slice(-6)) {
-          if (!h || !h.content || typeof h.content !== "string") continue;
-          const text = h.content.trim();
-          if (!text || text.length < 2) continue;
-          const mappedRole = h.role === "assistant" || h.role === "model" ? "model" : "user";
-
-          if (geminiContents.length === 0 && mappedRole === "model") {
-            geminiContents.push({ role: "user", parts: [{ text: "Hola Nora, continuemos nuestro diálogo." }] });
-          }
-
-          if (geminiContents.length > 0 && geminiContents[geminiContents.length - 1].role === mappedRole) {
-            const prevText = geminiContents[geminiContents.length - 1].parts[0]?.text || "";
-            geminiContents[geminiContents.length - 1].parts = [{ text: `${prevText}\n\n${text}` }];
-          } else {
-            geminiContents.push({ role: mappedRole, parts: [{ text: text }] });
-          }
-        }
-      }
-
-      if (geminiContents.length > 0 && geminiContents[geminiContents.length - 1].role === "user") {
-        const lastUserTurn = geminiContents.pop()!;
-        const lastText = lastUserTurn.parts.map((p: any) => p.text || "").filter(Boolean).join("\n\n");
-        if (lastText) {
-          currentTurnParts.unshift({ text: `${lastText}\n\n` });
-        }
-      }
-
-      geminiContents.push({ role: "user", parts: currentTurnParts });
-
-      for (const key of geminiKeys) {
-        if (generatedText) break;
-        for (const modelName of candidateModels) {
-          try {
-            const genAI = new GoogleGenerativeAI(key);
-            const model = genAI.getGenerativeModel({
-              model: modelName,
-              systemInstruction: systemPromptWithMode,
-              generationConfig: { temperature: 0.35, maxOutputTokens: 800 }
-            });
-
-            const result = await model.generateContent({ contents: geminiContents });
-            const txt = result.response.text();
-            if (txt && txt.trim().length > 0) {
-              generatedText = txt.trim();
-              break;
-            }
-          } catch (gemErr) {
-            console.warn(`[Realtime Proxy Gemini - ${modelName} Warning]:`, gemErr);
-          }
-        }
-      }
-    }
-
-    // 3. CAPA 3 (MALLA SOBERANA ABIERTA 100% ACTIVA): Pollinations AI Engine
-    if (!generatedText) {
-      try {
-        const polyMessages: any[] = [
-          { role: "system", content: systemPromptWithMode }
-        ];
-        if (Array.isArray(history)) {
-          for (const h of history.slice(-4)) {
-            if (h?.content && typeof h.content === "string" && h.content.trim()) {
-              polyMessages.push({
-                role: h.role === "assistant" || h.role === "model" ? "assistant" : "user",
-                content: h.content.trim()
-              });
-            }
-          }
-        }
-        polyMessages.push({ role: "user", content: effectiveUserText });
-
-        const polyRes = await fetch("https://text.pollinations.ai/openai", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            messages: polyMessages,
-            model: "openai",
-            stream: false
-          }),
-          signal: AbortSignal.timeout(6000)
-        });
-
-        if (polyRes.ok) {
-          const polyData = await polyRes.json().catch(async () => ({ choices: [{ message: { content: await polyRes.text() } }] }));
-          const content = polyData?.choices?.[0]?.message?.content || (typeof polyData === "string" ? polyData : "");
-          if (content && content.trim().length > 0) {
-            generatedText = content.trim();
-          }
-        }
-      } catch (polyErr) {
-        console.warn("[Realtime Proxy Pollinations Warning]:", polyErr);
-      }
-    }
-
-    if (!generatedText) {
-      generatedText = "Analizando en profundidad tu consulta. Por favor continúa explayando los detalles clave.";
-    }
-
-    // 3. Generar el stream de audio real MP3/PCM
-    const synthesizedAudioBase64 = await synthesizeRealAudio(generatedText);
+    const generatedText = result.text;
+    const synthesizedAudioBase64 = result.audioBase64;
     const totalDuration = Date.now() - tStart;
 
-    // 3. Registrar Telemetría de Rendimiento en Segundo Plano (SLA <1s)
     recordPerformanceMetric({
       interactionMode: "voice",
       sttLatencyMs: sttDuration,
       totalLatencyMs: totalDuration,
-      modelProvider: groqKey ? "Groq" : "Gemini",
-      modelName: "Whisper-v3-Turbo + Compound",
+      modelProvider: result.modelTag,
+      modelName: "Sovereign-Compound-Oral",
       accessibilityProfile: mode === "inclusion" ? "inclusion_tea" : (mode === "docente" ? "docente" : "general"),
       metadata: { transcribedTextPreview: effectiveUserText.slice(0, 50), responseTextPreview: generatedText.slice(0, 50) }
     });
@@ -422,7 +237,7 @@ export async function POST(req: Request) {
     });
   } catch (err: any) {
     console.error("[Realtime Proxy Fatal Error]:", err);
-    const fallbackText = "Comprendo tu consulta. Continuemos profundizando en el tema.";
+    const fallbackText = "Entiendo perfectamente tu consulta. Continuemos profundizando en cada detalle con claridad.";
     const audioB64 = await synthesizeRealAudio(fallbackText);
     const totalDuration = Date.now() - tStart;
 
@@ -443,3 +258,4 @@ export async function POST(req: Request) {
     });
   }
 }
+

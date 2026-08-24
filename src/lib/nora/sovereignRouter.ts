@@ -18,6 +18,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NORA_CONSTITUTIONAL_AXIOMS } from "@/lib/nora/constitutionalShield";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { processSovereignAttachment } from "@/lib/nora/documentExtractor";
+import { executeSovereignStream } from "@/lib/nora/sovereignCore";
 
 export interface SovereignMessage {
   role: "system" | "user" | "assistant";
@@ -566,187 +567,29 @@ export async function dispatchSovereignInference(params: SovereignRouterParams):
     systemPrompt = "",
     interactionMode = "visual",
     file = null,
-    sessionId = null,
-    contextData
+    sessionId = null
   } = params;
 
-  // 1. Procesamiento soberano de adjuntos (PDFs, docs, imágenes)
   const attachmentData = processSovereignAttachment(file);
   const imageDataUrl = prepareImageDataUrl(file || {});
-  const isVision = Boolean(imageDataUrl);
 
-  const formattedMessages = assembleMessages(
-    history,
-    userMessage,
+  let effectiveUserText = userMessage;
+  if (attachmentData.structuredContext) {
+    effectiveUserText = `${attachmentData.structuredContext}\n\n[CONSULTA DEL USUARIO]:\n${userMessage}`;
+  }
+
+  const cleanImageB64 = imageDataUrl && imageDataUrl.includes(",") ? imageDataUrl.split(",")[1] : null;
+
+  return await executeSovereignStream({
+    history: history.map(h => ({
+      role: (h.role === "assistant" || h.role === "model") ? "assistant" : "user",
+      content: typeof h.content === "string" ? h.content : String(h.content || "")
+    })),
+    userMessage: effectiveUserText,
     systemPrompt,
-    imageDataUrl,
-    attachmentData.structuredContext,
-    interactionMode
-  );
-
-  console.log(`[SovereignMasterRouter] 📥 Procesando consulta (Modo: ${interactionMode}, Vision: ${isVision}, Doc: ${attachmentData.isDocument}, Historial: ${history.length})...`);
-
-  // 1. CAPA 1 (PRIORIDAD MÁXIMA): Google Gemini Multi-Pool Multimodal (Inferencia instantánea <180ms con 4 Claves Rotativas)
-  const geminiResult = await tryGeminiMultiPool(
-    history,
-    userMessage,
-    systemPrompt,
+    mode: interactionMode as any,
+    imageBase64: cleanImageB64,
     file,
-    attachmentData.structuredContext
-  );
-
-  if (geminiResult && geminiResult.stream) {
-    const encoder = new TextEncoder();
-    let fullAssistantText = "";
-
-    const customStream = new ReadableStream({
-      async start(controller) {
-        const heartbeat = setInterval(() => {
-          try { controller.enqueue(encoder.encode(`: keep-alive\n\n`)); } catch { clearInterval(heartbeat); }
-        }, 2500);
-
-        try {
-          for await (const chunk of geminiResult.stream.stream) {
-            let chunkText = "";
-            try { chunkText = chunk.text(); } catch {
-              chunkText = chunk.candidates?.[0]?.content?.parts?.[0]?.text || "";
-            }
-            if (chunkText) {
-              fullAssistantText += chunkText;
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: chunkText, session_id: sessionId })}\n\n`));
-            }
-          }
-
-          if (sessionId && fullAssistantText) {
-            const supabase = createServerSupabaseClient();
-            supabase.from("noraitu_messages").insert([
-              { session_id: sessionId, role: "user", content: userMessage, metadata: { ...(contextData || {}) } },
-              { session_id: sessionId, role: "assistant", content: fullAssistantText, metadata: { generated_by: `NoraItu-${geminiResult.modelTag}` } }
-            ]).then(() => {});
-          }
-
-          controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-        } catch (err) {
-          console.warn("[Gemini Master Stream Ingestion Warning]:", err);
-          controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-        } finally {
-          clearInterval(heartbeat);
-          try { controller.close(); } catch {}
-        }
-      }
-    });
-
-    return new Response(customStream, {
-      headers: {
-        "Content-Type": "text/event-stream; charset=utf-8",
-        "Cache-Control": "no-cache, no-transform",
-        "Connection": "keep-alive"
-      }
-    });
-  }
-
-  // 2. CAPA 2 (RESPALDO ULTRA-RÁPIDO): Groq Open Inference (Llama 3.3 70B / Llama 3.2 Vision <120ms)
-  let openAiStream = await tryGroqInference(formattedMessages, isVision);
-  let usedTag = isVision ? "Groq-Llama3.2-Vision" : "Groq-Llama3.3-70B";
-
-  // 3. CAPA 3 (MALLA SOBERANA ABIERTA): OpenRouter / Cloudflare / HF / Ollama
-  if (!openAiStream) {
-    openAiStream = await tryOpenRouterFree(formattedMessages, isVision);
-    if (openAiStream) usedTag = "OpenRouter-Free-Mesh";
-  }
-
-  if (!openAiStream) {
-    openAiStream = await tryCloudflareWorkersAI(formattedMessages, isVision);
-    if (openAiStream) usedTag = "Cloudflare-Workers-AI";
-  }
-
-  if (!openAiStream) {
-    openAiStream = await tryHuggingFaceInference(formattedMessages, isVision);
-    if (openAiStream) usedTag = "HuggingFace-Serverless";
-  }
-
-  if (!openAiStream) {
-    openAiStream = await tryPollinationsFreeInference(formattedMessages);
-    if (openAiStream) usedTag = "Pollinations-Free-Mesh";
-  }
-
-  if (!openAiStream) {
-    openAiStream = await tryOllamaLocal(formattedMessages, isVision);
-    if (openAiStream) usedTag = "Ollama-Local";
-  }
-
-  // 8. Transformar Streams compatibles con OpenAI (Ollama, Groq, Cloudflare, HF, OpenRouter)
-  if (openAiStream) {
-    const encoder = new TextEncoder();
-    const decoder = new TextDecoder();
-
-    const customStream = new ReadableStream({
-      async start(controller) {
-        const reader = openAiStream!.getReader();
-        let buffer = "";
-        let fullText = "";
-
-        const heartbeat = setInterval(() => {
-          try { controller.enqueue(encoder.encode(`: keep-alive\n\n`)); } catch { clearInterval(heartbeat); }
-        }, 2500);
-
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split("\n");
-            buffer = lines.pop() || "";
-
-            for (const line of lines) {
-              const trimmed = line.trim();
-              if (trimmed.startsWith("data: ")) {
-                const dataContent = trimmed.slice(6).trim();
-                if (dataContent === "[DONE]") break;
-                try {
-                  const parsed = JSON.parse(dataContent);
-                  const deltaText = parsed.choices?.[0]?.delta?.content || parsed.choices?.[0]?.delta?.reasoning_content || parsed.response;
-                  if (deltaText) {
-                    fullText += deltaText;
-                    controller.enqueue(
-                      encoder.encode(`data: ${JSON.stringify({ text: deltaText, session_id: sessionId })}\n\n`)
-                    );
-                  }
-                } catch {}
-              }
-            }
-          }
-
-          if (sessionId && fullText) {
-            const supabase = createServerSupabaseClient();
-            supabase.from("noraitu_messages").insert([
-              { session_id: sessionId, role: "user", content: userMessage, metadata: { ...(contextData || {}) } },
-              { session_id: sessionId, role: "assistant", content: fullText, metadata: { generated_by: `NoraItu-${usedTag}` } }
-            ]).then(() => {});
-          }
-
-          controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-        } catch (err) {
-          console.warn("[Sovereign Master Stream Read Error]:", err);
-          controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-        } finally {
-          clearInterval(heartbeat);
-          try { controller.close(); } catch {}
-        }
-      }
-    });
-
-    return new Response(customStream, {
-      headers: {
-        "Content-Type": "text/event-stream; charset=utf-8",
-        "Cache-Control": "no-cache, no-transform",
-        "Connection": "keep-alive"
-      }
-    });
-  }
-
-  // 9. CAPA 7: Rescate Autónomo Local (Cero Caídas Garantizado)
-  console.warn("[SovereignMasterRouter] ⚠️ Activando protocolo de rescate autónomo soberano...");
-  return createAutonomousRescueStream(userMessage, attachmentData.structuredContext, sessionId);
+    sessionId
+  });
 }
