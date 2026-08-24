@@ -18,6 +18,7 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NORA_CONSTITUTIONAL_AXIOMS } from "./constitutionalShield";
+import { executeLocalInference } from "./webgpu/localEngine";
 
 export interface CoreMessage {
   role: "user" | "assistant" | "model" | "system";
@@ -435,13 +436,28 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
     console.warn("[Pollinations Free Mesh Warn]:", polliErr);
   }
 
-  // Respuesta Directa de Emergencia Dinámica (Nunca texto estático)
+  // 5. CAPA 5: Rescate Autónomo Pedagógico Soberano (Zero-Downtime Guarantee sin texto estático)
+  const localRescue = await executeLocalInference(
+    userMessage,
+    history.map(h => ({ role: h.role, content: typeof h.content === "string" ? h.content : String(h.content || "") })),
+    mode
+  );
+
   const rescueStream = new ReadableStream({
     start(controller) {
-      const emergencyAnswer = `Comprendo perfectamente lo que planteas sobre tu consulta. Estoy aquí para asistirte de forma continua y resolver cada punto con claridad pedagógica y rigor. ¿Qué aspecto específico deseas que desglosemos primero?`;
-      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: emergencyAnswer, session_id: sessionId })}\n\n`));
-      controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-      controller.close();
+      const words = localRescue.text.split(" ");
+      let idx = 0;
+      const interval = setInterval(() => {
+        if (idx < words.length) {
+          const chunk = (idx === 0 ? "" : " ") + words[idx];
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: chunk, session_id: sessionId })}\n\n`));
+          idx++;
+        } else {
+          clearInterval(interval);
+          controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+          controller.close();
+        }
+      }, 20);
     }
   });
 
@@ -550,37 +566,14 @@ export async function executeSovereignText(params: SovereignCoreParams): Promise
     }
   }
 
-  // 3. Pollinations Free Mesh
-  try {
-    const formattedPolli = openAiMessages.map(m => ({
-      role: m.role,
-      content: typeof m.content === "string" ? m.content : (Array.isArray(m.content) ? m.content.map((p: any) => p.text || "").join("\n") : String(m.content))
-    }));
-
-    const polliRes = await fetch("https://text.pollinations.ai/openai", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        messages: formattedPolli,
-        model: "openai",
-        stream: false
-      }),
-      signal: AbortSignal.timeout(5000)
-    });
-
-    if (polliRes.ok) {
-      const data = await polliRes.json().catch(async () => ({ choices: [{ message: { content: await polliRes.text() } }] }));
-      const txt = data?.choices?.[0]?.message?.content || (typeof data === "string" ? data : "");
-      if (txt && txt.trim().length > 0) {
-        const audio = await synthesizeRealAudio(txt.trim());
-        return { text: txt.trim(), audioBase64: audio, modelTag: "Pollinations-Free-Mesh" };
-      }
-    }
-  } catch {}
-
-  const dynamicFallback = "Entiendo perfectamente lo que necesitas. Sigamos avanzando juntos en el desarrollo de la idea con total claridad.";
-  const fallbackAudio = await synthesizeRealAudio(dynamicFallback);
-  return { text: dynamicFallback, audioBase64: fallbackAudio, modelTag: "Autonomous-Rescue" };
+  // 3. Fallback Autónomo Soberano Local con Memoria
+  const dynamicFallback = await executeLocalInference(
+    userMessage,
+    history.map(h => ({ role: h.role, content: typeof h.content === "string" ? h.content : String(h.content || "") })),
+    mode
+  );
+  const fallbackAudio = await synthesizeRealAudio(dynamicFallback.text);
+  return { text: dynamicFallback.text, audioBase64: fallbackAudio, modelTag: "Autonomous-Sovereign-Local" };
 }
 
 /**
