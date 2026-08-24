@@ -65,11 +65,14 @@ export async function executeLocalInference(
   const recentHistoryText = history.slice(-6).map(h => `${h.role}: ${h.content}`).join("\n").toLowerCase();
   const combinedContext = `${recentHistoryText}\nuser: ${cleanQuery}`;
 
-  // 1. Consultar la Cápsula Local de Conocimiento (RAG en el dispositivo)
-  const localKnowledge = await searchOfflineKnowledge(userQuery);
-  if (localKnowledge && cleanQuery.length > 5 && !cleanQuery.includes("planificaci") && !cleanQuery.includes("secuencia")) {
-    const text = `He consultado mi base local para responderte con precisión:\n${localKnowledge}\n\n¿Deseas que profundicemos en algún punto en particular?`;
-    return { text, source: "local_capsule" };
+  // 1. Consultar la Cápsula Local de Conocimiento únicamente ante consultas cívicas o de emergencias explícitas
+  const isCivicQuery = ["hospital", "bomberos", "policia", "policía", "comisaria", "comisaría", "emergencia", "guardia", "ituzaingo", "ituzaingó", "esteros", "ibera", "iberá", "represa", "yacyreta", "yacyretá"].some(w => cleanQuery.includes(w));
+  if (isCivicQuery) {
+    const localKnowledge = await searchOfflineKnowledge(userQuery);
+    if (localKnowledge) {
+      const text = `He consultado mi guía local verificada de Ituzaingó para orientarte:\n\n${localKnowledge}\n\n¿Deseas información sobre algún otro servicio o trámite en particular?`;
+      return { text, source: "local_capsule" };
+    }
   }
 
   let responseText = "";

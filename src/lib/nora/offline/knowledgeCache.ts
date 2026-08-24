@@ -128,6 +128,15 @@ export async function saveOfflineDeltas(items: OfflineKnowledgeItem[]): Promise<
   }
 }
 
+const STOP_WORDS = new Set([
+  "de", "la", "el", "los", "las", "un", "una", "unos", "unas", "con", "para", "por",
+  "que", "qué", "como", "cómo", "donde", "dónde", "cuando", "cuándo", "nora", "hola",
+  "buen", "buenos", "dias", "tardes", "noches", "sobre", "entre", "hacer", "puedes",
+  "decirme", "cual", "cuál", "quien", "quién", "este", "esta", "estos", "estas",
+  "algo", "todo", "nada", "pero", "sino", "bien", "gracias", "favor", "quiero",
+  "saber", "explicar", "explicame", "ayuda", "duda", "tema", "punto", "consulta"
+]);
+
 /**
  * Busca información relevante en la base local para responder offline (RAG Local)
  */
@@ -142,16 +151,34 @@ export async function searchOfflineKnowledge(query: string): Promise<string> {
 
       request.onsuccess = () => {
         const allItems: OfflineKnowledgeItem[] = request.result || [];
-        const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+        const cleanWords = query
+          .toLowerCase()
+          .replace(/[¿?¡!.,:;()]/g, "")
+          .split(/\s+/)
+          .filter(w => w.length > 3 && !STOP_WORDS.has(w));
 
-        if (words.length === 0) {
+        if (cleanWords.length === 0) {
           resolve("");
           return;
         }
 
+        const isEmergencyQuery = cleanWords.some(w =>
+          ["hospital", "bomberos", "policia", "policía", "comisaria", "comisaría", "emergencia", "guardia", "medico", "ambulancia"].includes(w)
+        );
+
+        const isTourismQuery = cleanWords.some(w =>
+          ["esteros", "ibera", "iberá", "represa", "yacyreta", "yacyretá", "turismo", "playa", "camping"].includes(w)
+        );
+
         const matches = allItems.filter(item => {
+          if (item.category === "salud" || item.id.includes("civico")) {
+            return isEmergencyQuery;
+          }
+          if (item.id.includes("turismo") || item.title.toLowerCase().includes("esteros")) {
+            return isTourismQuery;
+          }
           const text = `${item.title} ${item.content}`.toLowerCase();
-          return words.some(w => text.includes(w));
+          return cleanWords.some(w => text.includes(w));
         });
 
         if (matches.length === 0) {
@@ -160,11 +187,11 @@ export async function searchOfflineKnowledge(query: string): Promise<string> {
         }
 
         const formatted = matches
-          .slice(0, 3)
-          .map(m => `• [CÁPSULA LOCAL - ${m.title}]: ${m.content}`)
+          .slice(0, 2)
+          .map(m => `• [${m.title}]: ${m.content}`)
           .join("\n\n");
 
-        resolve(`\n\n[INFORMACIÓN DE CÁPSULA LOCAL OFFLINE]:\n${formatted}`);
+        resolve(formatted);
       };
 
       request.onerror = () => resolve("");
