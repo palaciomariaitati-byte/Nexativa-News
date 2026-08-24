@@ -237,11 +237,12 @@ async function tryGroqInference(messages: SovereignMessage[], isVision: boolean)
         "llama-3.2-90b-vision-preview"
       ]
     : [
-        "groq/compound-mini",
-        "groq/compound",
         "llama-3.3-70b-versatile",
-        "allam-2-7b",
-        "qwen/qwen3.6-27b"
+        "llama-3.1-8b-instant",
+        "llama3-70b-8192",
+        "llama3-8b-8192",
+        "mixtral-8x7b-32768",
+        "gemma2-9b-it"
       ];
 
   for (const model of activeModels) {
@@ -256,7 +257,7 @@ async function tryGroqInference(messages: SovereignMessage[], isVision: boolean)
           model,
           messages,
           stream: true,
-          temperature: 0.4,
+          temperature: 0.35,
           max_tokens: isVision ? 1500 : 2000
         }),
         signal: AbortSignal.timeout(6000)
@@ -322,30 +323,31 @@ async function tryHuggingFaceInference(messages: SovereignMessage[], isVision: b
  * CAPA 4: OpenRouter Free Open Mesh
  */
 async function tryOpenRouterFree(messages: SovereignMessage[], isVision: boolean): Promise<ReadableStream | null> {
-  const openRouterKey = process.env.OPENROUTER_API_KEY;
-  if (!openRouterKey) return null;
+  const rawKey = process.env.OPENROUTER_API_KEY;
+  if (!rawKey) return null;
+  const apiKey = rawKey.replace(/['"\r\n\t ]/g, "").trim();
+  if (!apiKey) return null;
 
-  const freeModels = isVision
+  const candidateModels = isVision
     ? [
         "qwen/qwen-2.5-vl-72b-instruct:free",
-        "meta-llama/llama-3.2-11b-vision-instruct:free",
-        "google/gemini-2.0-flash-exp:free"
+        "meta-llama/llama-3.2-11b-vision-instruct:free"
       ]
     : [
-        "deepseek/deepseek-r1:free",
         "meta-llama/llama-3.3-70b-instruct:free",
+        "deepseek/deepseek-r1:free",
         "qwen/qwen-2.5-72b-instruct:free",
-        "mistralai/mistral-small-24b-instruct-2501:free"
+        "google/gemini-2.0-flash-exp:free"
       ];
 
-  for (const model of freeModels) {
+  for (const model of candidateModels) {
     try {
       const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${openRouterKey.trim()}`,
+          "Authorization": `Bearer ${apiKey}`,
           "HTTP-Referer": "https://nexativanews.com.ar",
-          "X-Title": "Nora Titán Sovereign AI",
+          "X-Title": "NoraItu Universal",
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
@@ -386,11 +388,10 @@ async function tryGeminiMultiPool(
   if (keysPool.length === 0) return null;
 
   const candidateModels = [
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
     "gemini-flash-latest",
-    "gemini-3.7-flash",
-    "gemini-3.6-flash",
-    "gemini-3.5-flash",
-    "gemini-3.1-pro-preview"
+    "gemini-1.5-pro"
   ];
 
   const currentTurnParts: any[] = [];

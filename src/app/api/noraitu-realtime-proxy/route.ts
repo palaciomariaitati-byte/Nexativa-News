@@ -260,11 +260,54 @@ export async function POST(req: Request) {
       }
     }
 
+    // 2. CAPA 2 (FALLBACK MULTIMODAL): Gemini Multi-Key Pool (gemini-2.0-flash / 1.5-flash)
     if (!generatedText) {
-      generatedText = "¡Hola! Te escucho perfectamente. ¿En qué te ayudo?";
+      const geminiKeys = [
+        cleanKeyString(process.env.GEMINI_API_KEY),
+        cleanKeyString(process.env.GEMINI_API_KEY_FALLBACK),
+        cleanKeyString(process.env.GEMINI_API_KEY_FALLBACK_2),
+        cleanKeyString(process.env.GEMINI_API_KEY_TERTIARY)
+      ].filter(Boolean);
+
+      const candidateModels = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"];
+
+      for (const key of geminiKeys) {
+        if (generatedText) break;
+        for (const modelName of candidateModels) {
+          try {
+            const genAI = new GoogleGenerativeAI(key);
+            const model = genAI.getGenerativeModel({
+              model: modelName,
+              systemInstruction: systemPromptWithMode,
+              generationConfig: { temperature: 0.35, maxOutputTokens: 180 }
+            });
+
+            const contents: { role: string; parts: any[] }[] = [];
+            if (Array.isArray(history)) {
+              for (const h of history.slice(-6)) {
+                if (!h || !h.content || typeof h.content !== "string") continue;
+                const role = h.role === "assistant" || h.role === "model" ? "model" : "user";
+                contents.push({ role, parts: [{ text: h.content.trim() }] });
+              }
+            }
+            contents.push({ role: "user", parts: [{ text: effectiveUserText }] });
+
+            const result = await model.generateContent({ contents });
+            const txt = result.response.text();
+            if (txt && txt.trim().length > 0) {
+              generatedText = txt.trim();
+              break;
+            }
+          } catch {}
+        }
+      }
     }
 
-    // 2. Generar el stream de audio real MP3/PCM
+    if (!generatedText) {
+      generatedText = "Te escucho con atención, contame lo que necesites.";
+    }
+
+    // 3. Generar el stream de audio real MP3/PCM
     const synthesizedAudioBase64 = await synthesizeRealAudio(generatedText);
     const totalDuration = Date.now() - tStart;
 
