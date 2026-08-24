@@ -39,8 +39,9 @@ async function transcribeDirectAudio(
   if (groqKey) {
     try {
       const buffer = Buffer.from(rawB64, "base64");
+      const uint8 = new Uint8Array(buffer);
       const ext = cleanMime.includes("mp4") ? "mp4" : "webm";
-      const blob = new Blob([buffer], { type: cleanMime });
+      const blob = new Blob([uint8], { type: cleanMime });
       const formData = new FormData();
       formData.append("file", blob, `audio.${ext}`);
       formData.append("model", "whisper-large-v3-turbo");
@@ -71,10 +72,11 @@ async function transcribeDirectAudio(
   const geminiKeys = [
     cleanKeyString(process.env.GEMINI_API_KEY),
     cleanKeyString(process.env.GEMINI_API_KEY_FALLBACK),
-    cleanKeyString(process.env.GEMINI_API_KEY_FALLBACK_2)
+    cleanKeyString(process.env.GEMINI_API_KEY_FALLBACK_2),
+    cleanKeyString(process.env.GEMINI_API_KEY_TERTIARY)
   ].filter(Boolean);
 
-  const audioModels = ["gemini-2.0-flash", "gemini-1.5-flash"];
+  const audioModels = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"];
 
   for (const key of geminiKeys) {
     for (const modelName of audioModels) {
@@ -87,16 +89,17 @@ async function transcribeDirectAudio(
               role: "user",
               parts: [
                 { inlineData: { mimeType: cleanMime, data: rawB64 } },
-                { text: "Transcribe fielmente en español lo que se dice. Devuelve únicamente el texto plano." }
+                { text: "Escucha este audio y transcribe con fidelidad lo que dice la persona en español. Devuelve SOLO el texto transcrito sin comillas ni aclaraciones. Si no hay voz inteligible, responde [SILENCIO]." }
               ]
             }
           ]
         });
-        const txt = result.response.text();
-        if (txt && txt.trim().length > 0) {
+        const rawTxt = result.response.text();
+        const txt = (rawTxt || "").replace(/```[\s\S]*?```/g, "").replace(/\[SILENCIO\]/gi, "").trim();
+        if (txt && txt.length > 0) {
           const sttMs = Date.now() - t0;
-          console.log(`[Realtime STT] 🎙️ Gemini Audio (${modelName}) en ${sttMs}ms: "${txt.trim()}"`);
-          return { text: txt.trim(), sttMs };
+          console.log(`[Realtime STT] 🎙️ Gemini Audio (${modelName}) en ${sttMs}ms: "${txt}"`);
+          return { text: txt, sttMs };
         }
       } catch {
         // Continuar siguiente modelo/clave
@@ -145,6 +148,7 @@ async function synthesizeRealAudio(text: string): Promise<string | null> {
 
 export async function POST(req: Request) {
   const tStart = Date.now();
+
   try {
     const {
       message = "",
@@ -168,12 +172,12 @@ export async function POST(req: Request) {
 
     // Si no se detectó texto ni audio reconocible
     if (!effectiveUserText) {
-      const defaultText = "Te escucho con atención, contame lo que necesites.";
+      const defaultText = "No alcancé a escucharte bien. Por favor repetí tu consulta o escribila aquí abajo.";
       const audioB64 = await synthesizeRealAudio(defaultText);
       return NextResponse.json({
         text: defaultText,
         audioBase64: audioB64,
-        transcribedUserText: "🎙️ Escuchando...",
+        transcribedUserText: "🎙️ (Audio no detectado)",
         sttMs: sttDuration,
         totalMs: Date.now() - tStart
       });

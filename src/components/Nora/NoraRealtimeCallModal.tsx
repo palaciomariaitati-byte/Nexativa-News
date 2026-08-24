@@ -59,6 +59,8 @@ export default function NoraRealtimeCallModal({
   const activeModeRef = useRef<string>(activeMode);
   const currentAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const liveTranscriptRef = useRef<string>("");
+  const recognitionRef = useRef<any>(null);
 
   // Audio Pipeline Refs (Web Audio API Nativa)
   const micStreamRef = useRef<MediaStream | null>(null);
@@ -326,10 +328,14 @@ export default function NoraRealtimeCallModal({
           const controller = new AbortController();
           abortControllerRef.current = controller;
 
+          const spokenClientText = liveTranscriptRef.current.trim();
+          liveTranscriptRef.current = "";
+
           const res = await fetch("/api/noraitu-realtime-proxy", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+              message: spokenClientText,
               audioBase64: base64,
               mimeType,
               history: historyRef.current.slice(-6),
@@ -493,6 +499,32 @@ export default function NoraRealtimeCallModal({
       playAccessibleChime("connected");
       emitSinglePulse("CONFIRM_VOZ");
       setAccessibleAnnouncement("Conectado con Nora. Lista para escucharte.");
+
+      // Inicializar SpeechRecognition nativo en paralelo si el navegador lo soporta
+      if (typeof window !== "undefined") {
+        const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (SpeechRec) {
+          try {
+            const rec = new SpeechRec();
+            rec.continuous = true;
+            rec.interimResults = true;
+            rec.lang = "es-AR";
+            rec.onresult = (e: any) => {
+              let cur = "";
+              for (let i = e.resultIndex; i < e.results.length; ++i) {
+                cur += e.results[i][0].transcript;
+              }
+              if (cur.trim()) {
+                liveTranscriptRef.current = cur.trim();
+                setUserTranscript(`"${cur.trim()}"`);
+              }
+            };
+            rec.onerror = () => {};
+            try { rec.start(); } catch {}
+            recognitionRef.current = rec;
+          } catch {}
+        }
+      }
 
       let baselineCount = 0;
       let baselineSum = 0;
