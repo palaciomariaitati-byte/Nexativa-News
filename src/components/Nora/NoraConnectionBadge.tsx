@@ -31,7 +31,7 @@ export default function NoraConnectionBadge() {
       className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border backdrop-blur-md transition-all duration-300 shadow-sm ${
         isOnline
           ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-          : "bg-amber-500/15 border-amber-500/30 text-amber-300 animate-pulse"
+          : "bg-amber-500/15 border-amber-500/30 text-amber-300"
       }`}
       title={
         isOnline

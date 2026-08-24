@@ -1469,11 +1469,30 @@ export default function NoraItuApp() {
       if (!res.ok) {
         console.warn(`[Nora Chat] Servidor ocupado o sin red (${res.status}). Activando inferencia local WebGPU / Modo Campo...`);
         const localRes = await executeLocalInference(textToSend, historyPayload, activeMode);
+        
         setMessages((prev) => [...prev, {
           role: "assistant",
-          content: localRes.text,
+          content: "",
           created_at: new Date().toISOString()
         }]);
+
+        const words = localRes.text.split(" ");
+        let acc = "";
+        for (let i = 0; i < words.length; i++) {
+          acc += (i === 0 ? "" : " ") + words[i];
+          const curr = acc;
+          setMessages((prev) => {
+            const arr = [...prev];
+            if (arr.length > 0) {
+              arr[arr.length - 1] = { ...arr[arr.length - 1], content: curr };
+            }
+            return arr;
+          });
+          if (i % 4 === 0) {
+            await new Promise((r) => setTimeout(r, 12));
+          }
+        }
+
         if (autoVoice && localRes.text) {
           speakText(localRes.text, messages.length + 1);
         }
@@ -1613,14 +1632,30 @@ export default function NoraItuApp() {
     } catch (err: any) {
       console.warn("[Nora Chat] Error de red. Conmutando a modo campo local WebGPU...", err);
       const localRes = await executeLocalInference(textToSend, historyPayload, activeMode);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: localRes.text,
-          created_at: new Date().toISOString()
+      
+      setMessages((prev) => [...prev, {
+        role: "assistant",
+        content: "",
+        created_at: new Date().toISOString()
+      }]);
+
+      const words = localRes.text.split(" ");
+      let acc = "";
+      for (let i = 0; i < words.length; i++) {
+        acc += (i === 0 ? "" : " ") + words[i];
+        const curr = acc;
+        setMessages((prev) => {
+          const arr = [...prev];
+          if (arr.length > 0) {
+            arr[arr.length - 1] = { ...arr[arr.length - 1], content: curr };
+          }
+          return arr;
+        });
+        if (i % 4 === 0) {
+          await new Promise((r) => setTimeout(r, 12));
         }
-      ]);
+      }
+
       if (autoVoice && localRes.text) {
         speakText(localRes.text, messages.length + 1);
       }
