@@ -523,8 +523,8 @@ export default function NoraRealtimeCallModal({
       };
 
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      const SILENCE_TIMEOUT_MS = 2200;
-      const MAX_SPEECH_DURATION_MS = 60000;
+      const SILENCE_TIMEOUT_MS = 1400;
+      const MAX_SPEECH_DURATION_MS = 45000;
 
       setIsEngineReady(true);
       setCallState("listening");
@@ -574,10 +574,9 @@ export default function NoraRealtimeCallModal({
         const avg = sum / dataArray.length;
         setAudioLevel(Math.min(100, Math.round(avg * 2.3)));
 
-        if (baselineCount < 25) {
-          baselineSum += avg;
-          baselineCount++;
-          noiseFloorRef.current = Math.max(10, Math.round(baselineSum / baselineCount));
+        // Calibración adaptativa continua de piso de ruido ambiente
+        if (!isSpeakingRef.current) {
+          noiseFloorRef.current = Math.max(8, noiseFloorRef.current * 0.95 + avg * 0.05);
         }
 
         if (isNoraSpeakingRef.current || isProcessingRef.current) {
@@ -590,7 +589,8 @@ export default function NoraRealtimeCallModal({
           return;
         }
 
-        const dynamicThreshold = Math.max(15, noiseFloorRef.current + 8);
+        // Umbral dinámico robusto antirruido (evita que el ventilador o zumbido mantenga el micro abierto)
+        const dynamicThreshold = Math.max(22, noiseFloorRef.current + 12);
         const now = Date.now();
 
         if (avg > dynamicThreshold) {
@@ -909,19 +909,30 @@ export default function NoraRealtimeCallModal({
             {/* Orb Central Reactivo */}
             <div className="flex-1 w-full flex flex-col items-center justify-center py-3">
               <div className="relative flex items-center justify-center">
-                <div
-                  className={`w-36 h-36 rounded-full transition-all duration-100 flex items-center justify-center ${
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (callState === "speaking") {
+                      stopNoraSpeech();
+                    } else if (isSpeakingRef.current && mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+                      isSpeakingRef.current = false;
+                      silenceStartRef.current = null;
+                      mediaRecorderRef.current.stop();
+                    }
+                  }}
+                  className={`w-36 h-36 rounded-full transition-all duration-100 flex items-center justify-center cursor-pointer ${
                     callState === "speaking"
                       ? "bg-gradient-to-tr from-cyan-400 via-emerald-400 to-teal-300 animate-pulse shadow-2xl shadow-cyan-500/50 scale-105"
                       : callState === "thinking"
                       ? "bg-gradient-to-tr from-purple-500 via-pink-500 to-indigo-500 animate-spin shadow-2xl shadow-purple-500/50"
                       : isSpeakingRef.current || isPushTalking
-                      ? "bg-gradient-to-tr from-emerald-400 to-cyan-500 shadow-2xl shadow-emerald-500/40 scale-102"
+                      ? "bg-gradient-to-tr from-emerald-400 to-cyan-500 shadow-2xl shadow-emerald-500/40 scale-102 ring-4 ring-emerald-500/30"
                       : "bg-gradient-to-tr from-slate-800 via-slate-700 to-slate-800 opacity-90"
                   }`}
                   style={{
                     transform: `scale(${1 + (audioLevel / 100) * 0.22})`
                   }}
+                  title={isSpeakingRef.current ? "Toca para enviar tu consulta ahora" : "Nora te escucha"}
                 >
                   <div className="absolute inset-1 rounded-full bg-slate-950/40 backdrop-blur-xs flex flex-col items-center justify-center text-center">
                     <span className="text-3xl">
@@ -933,8 +944,11 @@ export default function NoraRealtimeCallModal({
                         ? "🎙️"
                         : "✨"}
                     </span>
+                    {isSpeakingRef.current && (
+                      <span className="text-[10px] text-emerald-300 font-mono mt-1 font-semibold">Enviar ya</span>
+                    )}
                   </div>
-                </div>
+                </button>
               </div>
 
               {/* Subtítulos */}
