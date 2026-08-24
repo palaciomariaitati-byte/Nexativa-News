@@ -12,6 +12,7 @@ interface NoraRealtimeCallModalProps {
   selectedVoiceUri?: string;
   activeMode?: string;
   onMessageLogged?: (userText: string, assistantText: string) => void;
+  initialHistory?: { role: string; content: string }[];
 }
 
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
@@ -29,7 +30,8 @@ export default function NoraRealtimeCallModal({
   onClose,
   selectedVoiceUri,
   activeMode = "general",
-  onMessageLogged
+  onMessageLogged,
+  initialHistory = []
 }: NoraRealtimeCallModalProps) {
   const { isOnline, coords } = useNoraOfflineGPS();
   const { emitSinglePulse, startDangerAlertLoop, clearHapticAlerts } = useNoraLazarilloHaptics();
@@ -55,7 +57,13 @@ export default function NoraRealtimeCallModal({
   // Control de estado y memoria de conversación
   const isNoraSpeakingRef = useRef<boolean>(false);
   const isProcessingRef = useRef<boolean>(false);
-  const historyRef = useRef<{ role: string; content: string }[]>([]);
+  const historyRef = useRef<{ role: string; content: string }[]>(initialHistory || []);
+
+  useEffect(() => {
+    if (initialHistory && initialHistory.length > 0) {
+      historyRef.current = [...initialHistory];
+    }
+  }, [initialHistory]);
   const activeModeRef = useRef<string>(activeMode);
   const currentAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);

@@ -3243,6 +3243,10 @@ export default function NoraItuApp() {
           onClose={() => setShowRealtimeCallModal(false)}
           selectedVoiceUri={selectedVoiceUri}
           activeMode={activeMode}
+          initialHistory={messages.filter(m => m.content && typeof m.content === "string").slice(-20).map(m => ({
+            role: ((m.role as string) === "assistant" || (m.role as string) === "model") ? "assistant" : "user",
+            content: m.content
+          }))}
           onMessageLogged={(userText, assistantText) => {
             setMessages((prev) => [
               ...prev,
