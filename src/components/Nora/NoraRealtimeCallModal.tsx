@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { PhoneOff, Sparkles, Volume2, VolumeX, Mic, Hand, Radio, AlertTriangle, Play } from "lucide-react";
+import { PhoneOff, Sparkles, Volume2, VolumeX, Mic, Hand, Radio, AlertTriangle, Play, Send } from "lucide-react";
 import { useNoraOfflineGPS } from "@/hooks/useNoraOfflineGPS";
 import { dispatchSOS } from "@/lib/nora/protocols/sosDispatcher";
 import { useNoraLazarilloHaptics } from "@/hooks/useNoraLazarilloHaptics";
@@ -43,6 +43,7 @@ export default function NoraRealtimeCallModal({
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [isTriggeringSOS, setIsTriggeringSOS] = useState<boolean>(false);
+  const [typedMessage, setTypedMessage] = useState<string>("");
 
   // Modos de interacción y accesibilidad (Push-to-Talk por defecto para máxima estabilidad)
   const [interactionMode, setInteractionMode] = useState<"hands_free" | "push_to_talk">("push_to_talk");
@@ -644,12 +645,77 @@ export default function NoraRealtimeCallModal({
     }
   };
 
+  // 💬 Envío de texto dentro del Modo Voz sin perder el audio
+  const handleSendTypedMessage = async () => {
+    if (!typedMessage.trim() || callState === "thinking") return;
+    const textToSend = typedMessage.trim();
+    setTypedMessage("");
+
+    if (callState === "speaking") stopNoraSpeech();
+    setCallState("thinking");
+    setUserTranscript(textToSend);
+    setAccessibleAnnouncement(`Enviando: ${textToSend}`);
+
+    if (onMessageLogged) {
+      onMessageLogged(textToSend, "");
+    }
+
+    try {
+      const res = await fetch("/api/noraitu-realtime-proxy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: textToSend,
+          history: historyRef.current.slice(-6),
+          mode: activeModeRef.current
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.text) {
+          setAssistantText(data.text);
+          historyRef.current.push({ role: "user", content: textToSend });
+          historyRef.current.push({ role: "assistant", content: data.text });
+          if (onMessageLogged) onMessageLogged(textToSend, data.text);
+
+          if (data.audioBase64) {
+            await playRealNoraAudio(data.audioBase64, data.text);
+          } else {
+            setAccessibleAnnouncement(data.text);
+            resumeListening();
+          }
+        } else {
+          resumeListening();
+        }
+      } else {
+        resumeListening();
+      }
+    } catch (e) {
+      console.warn("[Typed Voice Turn Error]:", e);
+      resumeListening();
+    }
+  };
+
+  // 🔄 Recuperación de AudioContext al volver a la pestaña
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && audioContextRef.current) {
+        if (audioContextRef.current.state === "suspended") {
+          audioContextRef.current.resume().catch(() => {});
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
+
   // ⌨️ Accesibilidad por Teclado
   useEffect(() => {
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === "Space" && e.target === document.body) {
+      if (e.code === "Space" && (e.target as HTMLElement)?.tagName !== "INPUT") {
         e.preventDefault();
         if (interactionMode === "push_to_talk" && !isPushTalking) {
           handlePushTalkStart();
@@ -662,7 +728,7 @@ export default function NoraRealtimeCallModal({
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.code === "Space" && interactionMode === "push_to_talk" && isPushTalking) {
+      if (e.code === "Space" && interactionMode === "push_to_talk" && isPushTalking && (e.target as HTMLElement)?.tagName !== "INPUT") {
         e.preventDefault();
         handlePushTalkEnd();
       }
@@ -695,38 +761,27 @@ export default function NoraRealtimeCallModal({
         {accessibleAnnouncement}
       </div>
 
-      <div className="relative w-full max-w-md overflow-hidden bg-gradient-to-b from-slate-900 via-[#070b14] to-slate-950 border border-cyan-500/30 rounded-3xl shadow-2xl p-6 flex flex-col items-center justify-between min-h-[590px]">
+      <div className="relative w-full max-w-md overflow-hidden bg-gradient-to-b from-slate-900 via-[#070b14] to-slate-950 border border-cyan-500/30 rounded-3xl shadow-2xl p-5 sm:p-6 flex flex-col items-center justify-between min-h-[590px]">
         
-        {/* Cabecera Tipo Llamada */}
-        <div className="w-full flex items-center justify-between border-b border-slate-800/60 pb-3.5">
-          <div className="flex items-center gap-3">
-            <div className="relative flex items-center justify-center w-10 h-10 rounded-full bg-cyan-500/15 border border-cyan-400/40 shadow-md shadow-cyan-500/20">
-              <Sparkles size={18} className="text-cyan-300 animate-pulse" />
-              {isEngineReady && (
-                <>
-                  <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 animate-ping" />
-                  <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500" />
-                </>
-              )}
-            </div>
+        {/* Cabecera del Modal */}
+        <div className="w-full flex items-center justify-between pb-3 border-b border-slate-800/60">
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" />
             <div>
-              <h3 className="text-white font-bold text-sm tracking-wide flex items-center gap-2">
-                Nora Voz Pura (Web Audio)
-                <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30 uppercase">
-                  {isEngineReady ? (interactionMode === "hands_free" ? "Manos Libres" : "Pulsar") : "Listo"}
-                </span>
+              <h3 className="font-bold text-white text-sm flex items-center gap-1.5">
+                Nora Realtime Voice
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-950 border border-cyan-500/40 text-cyan-300 font-mono">HD</span>
               </h3>
-              <p className="text-xs text-slate-400 font-mono">
-                {isEngineReady ? `${formatDuration(callDuration)} • ${activeMode.toUpperCase()}` : "Conexión Segura"}
+              <p className="text-[11px] text-slate-400 font-mono">
+                {isOnline ? "En Línea (Soberano)" : "Modo Offline"} • {formatDuration(callDuration)}
               </p>
             </div>
           </div>
 
           <button
             onClick={handleCleanExit}
-            aria-label="Finalizar y cerrar llamada"
-            className="w-8 h-8 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
-            title="Cerrar llamada (Tecla Esc)"
+            aria-label="Cerrar llamada"
+            className="p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
           >
             ✕
           </button>
@@ -786,37 +841,22 @@ export default function NoraRealtimeCallModal({
               </button>
             </div>
 
-            {/* Aura Dinámica Fluida */}
-            <div className="my-auto flex flex-col items-center justify-center w-full py-4 text-center">
-              <div className="relative flex items-center justify-center w-44 h-44">
+            {/* Orb Central Reactivo */}
+            <div className="flex-1 w-full flex flex-col items-center justify-center py-3">
+              <div className="relative flex items-center justify-center">
                 <div
-                  className="absolute rounded-full bg-gradient-to-tr from-cyan-500/20 via-teal-500/20 to-emerald-500/20 transition-transform duration-150 ease-out"
-                  style={{
-                    width: `${130 + (callState === "speaking" ? 35 : audioLevel * 0.6)}px`,
-                    height: `${130 + (callState === "speaking" ? 35 : audioLevel * 0.6)}px`,
-                    opacity: callState === "thinking" ? 0.3 : 0.8
-                  }}
-                />
-
-                <div
-                  className="absolute rounded-full bg-gradient-to-tr from-cyan-600/30 via-indigo-600/30 to-purple-600/30 transition-transform duration-180 ease-out"
-                  style={{
-                    width: `${110 + (callState === "speaking" ? 25 : audioLevel * 0.4)}px`,
-                    height: `${110 + (callState === "speaking" ? 25 : audioLevel * 0.4)}px`
-                  }}
-                />
-
-                {/* Núcleo Central */}
-                <div
-                  className={`relative flex items-center justify-center w-28 h-28 rounded-full shadow-2xl transition-all duration-400 ${
+                  className={`w-36 h-36 rounded-full transition-all duration-100 flex items-center justify-center ${
                     callState === "speaking"
-                      ? "bg-gradient-to-tr from-cyan-400 via-teal-300 to-emerald-400 shadow-cyan-400/40 scale-105"
+                      ? "bg-gradient-to-tr from-cyan-400 via-emerald-400 to-teal-300 animate-pulse shadow-2xl shadow-cyan-500/50 scale-105"
                       : callState === "thinking"
-                      ? "bg-gradient-to-tr from-purple-600 via-indigo-500 to-cyan-500 shadow-purple-500/40 scale-95"
-                      : isSpeakingRef.current || isPushTalking || audioLevel > 16
-                      ? "bg-gradient-to-tr from-emerald-500 via-teal-400 to-cyan-400 shadow-emerald-400/40 scale-105"
-                      : "bg-gradient-to-tr from-cyan-900/80 via-slate-800 to-teal-950 shadow-cyan-900/30 border border-cyan-500/30"
+                      ? "bg-gradient-to-tr from-purple-500 via-pink-500 to-indigo-500 animate-spin shadow-2xl shadow-purple-500/50"
+                      : isSpeakingRef.current || isPushTalking
+                      ? "bg-gradient-to-tr from-emerald-400 to-cyan-500 shadow-2xl shadow-emerald-500/40 scale-102"
+                      : "bg-gradient-to-tr from-slate-800 via-slate-700 to-slate-800 opacity-90"
                   }`}
+                  style={{
+                    transform: `scale(${1 + (audioLevel / 100) * 0.22})`
+                  }}
                 >
                   <div className="absolute inset-1 rounded-full bg-slate-950/40 backdrop-blur-xs flex flex-col items-center justify-center text-center">
                     <span className="text-3xl">
@@ -833,10 +873,10 @@ export default function NoraRealtimeCallModal({
               </div>
 
               {/* Subtítulos */}
-              <div className="w-full mt-4 px-3 min-h-[85px] flex flex-col items-center justify-center">
+              <div className="w-full mt-3 px-3 min-h-[65px] flex flex-col items-center justify-center">
                 {callState === "thinking" ? (
                   <p className="text-xs text-purple-300 font-medium animate-pulse">
-                    ⚡ Nora está procesando...
+                    ⚡ Nora está pensando...
                   </p>
                 ) : assistantText ? (
                   <div className="max-w-sm bg-slate-900/90 border border-slate-800 rounded-2xl p-3 shadow-lg">
@@ -849,7 +889,7 @@ export default function NoraRealtimeCallModal({
                     {userTranscript}
                   </p>
                 ) : (
-                  <div className="space-y-1">
+                  <div className="space-y-1 text-center">
                     <p className="text-xs text-slate-300 font-medium">
                       {interactionMode === "hands_free"
                         ? "Te escucho atentamente y sin cortes"
@@ -863,23 +903,47 @@ export default function NoraRealtimeCallModal({
                   </div>
                 )}
               </div>
+
+              {/* Entrada de Texto Híbrida en Modo Voz */}
+              <div className="w-full flex items-center gap-2 mt-2 px-1">
+                <input
+                  type="text"
+                  value={typedMessage}
+                  onChange={(e) => setTypedMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && typedMessage.trim()) {
+                      handleSendTypedMessage();
+                    }
+                  }}
+                  placeholder="Escribe aquí si prefieres tipear..."
+                  className="flex-1 px-3.5 py-2 rounded-xl bg-slate-900/90 border border-slate-700/80 text-xs text-white placeholder-slate-400 focus:outline-hidden focus:border-cyan-500 transition-colors"
+                />
+                <button
+                  onClick={handleSendTypedMessage}
+                  disabled={!typedMessage.trim() || callState === "thinking"}
+                  className="p-2 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-400 hover:opacity-90 disabled:opacity-30 text-slate-950 font-bold transition-all cursor-pointer shrink-0 shadow-md shadow-cyan-500/20"
+                  title="Enviar texto a Nora"
+                >
+                  <Send size={15} />
+                </button>
+              </div>
             </div>
 
             {/* Modo Pulsar para Hablar */}
             {interactionMode === "push_to_talk" && (
-              <div className="w-full flex justify-center py-2">
+              <div className="w-full flex justify-center py-1">
                 <button
                   onMouseDown={handlePushTalkStart}
                   onMouseUp={handlePushTalkEnd}
                   onTouchStart={handlePushTalkStart}
                   onTouchEnd={handlePushTalkEnd}
-                  className={`w-full py-3 rounded-2xl font-semibold text-sm transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer ${
+                  className={`w-full py-2.5 rounded-2xl font-semibold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer ${
                     isPushTalking
                       ? "bg-emerald-500 text-slate-950 scale-98 shadow-emerald-500/30"
                       : "bg-slate-800 hover:bg-slate-700 text-white border border-slate-700"
                   }`}
                 >
-                  <Mic size={18} className={isPushTalking ? "animate-pulse" : ""} />
+                  <Mic size={16} className={isPushTalking ? "animate-pulse" : ""} />
                   <span>{isPushTalking ? "Nora te está escuchando..." : "Mantener presionado para hablar"}</span>
                 </button>
               </div>
@@ -888,7 +952,7 @@ export default function NoraRealtimeCallModal({
         )}
 
         {/* Barra Inferior */}
-        <div className="w-full flex items-center justify-between pt-4 border-t border-slate-800/60">
+        <div className="w-full flex items-center justify-between pt-3 border-t border-slate-800/60 mt-auto">
           <button
             onClick={() => {
               if (isMuted) {
@@ -899,7 +963,7 @@ export default function NoraRealtimeCallModal({
               }
             }}
             aria-label={isMuted ? "Reanudar voz de Nora" : "Silenciar voz de Nora"}
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+            className={`w-11 h-11 rounded-full flex items-center justify-center transition-all cursor-pointer ${
               isMuted
                 ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
                 : "bg-slate-800 hover:bg-slate-700 text-white border border-slate-700"
@@ -914,17 +978,17 @@ export default function NoraRealtimeCallModal({
             onClick={() => handleExecuteSOS("Solicitud manual de auxilio")}
             disabled={isTriggeringSOS}
             aria-label="Botón de emergencia SOS Lazarillo"
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-extrabold text-xs shadow-lg shadow-rose-600/40 border border-rose-400/40 cursor-pointer transition-all animate-pulse"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-extrabold text-xs shadow-lg shadow-rose-600/40 border border-rose-400/40 cursor-pointer transition-all animate-pulse"
             title="Activar Protocolo SOS Lazarillo"
           >
             <AlertTriangle size={14} />
-            <span>{isTriggeringSOS ? "Enviando SOS..." : "SOS AUXILIO"}</span>
+            <span>{isTriggeringSOS ? "Enviando..." : "SOS AUXILIO"}</span>
           </button>
 
           <button
             onClick={handleCleanExit}
             aria-label="Finalizar llamada"
-            className="w-12 h-12 rounded-full bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-600/40 flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
+            className="w-11 h-11 rounded-full bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-600/40 flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
             title="Finalizar llamada"
           >
             <PhoneOff size={18} />

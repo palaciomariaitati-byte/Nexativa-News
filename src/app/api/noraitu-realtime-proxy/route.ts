@@ -181,16 +181,17 @@ export async function POST(req: Request) {
 
     const systemPromptWithMode = `${NORA_PROSODY_SYSTEM_PROMPT}\n\n[MODO CONVERSACIONAL ACTIVO: ${mode.toUpperCase()}]`;
 
-    // 1. CAPA 1: Modelos Activos en Groq ('groq/compound-mini', 'groq/compound', 'allam-2-7b', 'qwen/qwen3.6-27b')
+    // 1. CAPA 1: Modelos Ultrarrápidos Activos en Groq (Inferencia en ~80-150ms)
     const groqKey = cleanKeyString(process.env.GROQ_API_KEY);
     let generatedText = "";
 
     if (groqKey) {
       const activeGroqModels = [
-        "groq/compound-mini",
-        "groq/compound",
-        "allam-2-7b",
-        "qwen/qwen3.6-27b"
+        "llama-3.3-70b-versatile",
+        "llama-3.1-8b-instant",
+        "llama3-70b-8192",
+        "mixtral-8x7b-32768",
+        "gemma2-9b-it"
       ];
 
       const formattedMessages: { role: string; content: string }[] = [
@@ -236,10 +237,12 @@ export async function POST(req: Request) {
             body: JSON.stringify({
               model: modelName,
               messages: formattedMessages,
-              temperature: 0.4,
-              max_tokens: 180
+              temperature: 0.35,
+              max_tokens: 150,
+              frequency_penalty: 0.35,
+              presence_penalty: 0.35
             }),
-            signal: AbortSignal.timeout(4500)
+            signal: AbortSignal.timeout(3500)
           });
 
           if (groqRes.ok) {
