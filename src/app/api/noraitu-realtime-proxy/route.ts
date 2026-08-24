@@ -293,6 +293,39 @@ export async function POST(req: Request) {
 
       const candidateModels = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"];
 
+      const currentTurnParts: any[] = [{ text: effectiveUserText }];
+      const geminiContents: { role: string; parts: any[] }[] = [];
+
+      if (Array.isArray(history)) {
+        for (const h of history.slice(-6)) {
+          if (!h || !h.content || typeof h.content !== "string") continue;
+          const text = h.content.trim();
+          if (!text || text.length < 2) continue;
+          const mappedRole = h.role === "assistant" || h.role === "model" ? "model" : "user";
+
+          if (geminiContents.length === 0 && mappedRole === "model") {
+            geminiContents.push({ role: "user", parts: [{ text: "Hola Nora, continuemos nuestro diálogo." }] });
+          }
+
+          if (geminiContents.length > 0 && geminiContents[geminiContents.length - 1].role === mappedRole) {
+            const prevText = geminiContents[geminiContents.length - 1].parts[0]?.text || "";
+            geminiContents[geminiContents.length - 1].parts = [{ text: `${prevText}\n\n${text}` }];
+          } else {
+            geminiContents.push({ role: mappedRole, parts: [{ text: text }] });
+          }
+        }
+      }
+
+      if (geminiContents.length > 0 && geminiContents[geminiContents.length - 1].role === "user") {
+        const lastUserTurn = geminiContents.pop()!;
+        const lastText = lastUserTurn.parts.map((p: any) => p.text || "").filter(Boolean).join("\n\n");
+        if (lastText) {
+          currentTurnParts.unshift({ text: `${lastText}\n\n` });
+        }
+      }
+
+      geminiContents.push({ role: "user", parts: currentTurnParts });
+
       for (const key of geminiKeys) {
         if (generatedText) break;
         for (const modelName of candidateModels) {
@@ -304,29 +337,21 @@ export async function POST(req: Request) {
               generationConfig: { temperature: 0.35, maxOutputTokens: 800 }
             });
 
-            const contents: { role: string; parts: any[] }[] = [];
-            if (Array.isArray(history)) {
-              for (const h of history.slice(-6)) {
-                if (!h || !h.content || typeof h.content !== "string") continue;
-                const role = h.role === "assistant" || h.role === "model" ? "model" : "user";
-                contents.push({ role, parts: [{ text: h.content.trim() }] });
-              }
-            }
-            contents.push({ role: "user", parts: [{ text: effectiveUserText }] });
-
-            const result = await model.generateContent({ contents });
+            const result = await model.generateContent({ contents: geminiContents });
             const txt = result.response.text();
             if (txt && txt.trim().length > 0) {
               generatedText = txt.trim();
               break;
             }
-          } catch {}
+          } catch (gemErr) {
+            console.warn(`[Realtime Proxy Gemini - ${modelName} Warning]:`, gemErr);
+          }
         }
       }
     }
 
     if (!generatedText) {
-      generatedText = "Te escucho con atención, contame lo que necesites.";
+      generatedText = "Comprendo lo que planteas sobre este tema. Continuemos desarrollando los detalles clave.";
     }
 
     // 3. Generar el stream de audio real MP3/PCM
@@ -353,7 +378,7 @@ export async function POST(req: Request) {
     });
   } catch (err: any) {
     console.error("[Realtime Proxy Fatal Error]:", err);
-    const fallbackText = "¡Hola! Te escucho perfectamente. ¿En qué te ayudo hoy?";
+    const fallbackText = "Comprendo tu consulta. Continuemos profundizando en el tema.";
     const audioB64 = await synthesizeRealAudio(fallbackText);
     const totalDuration = Date.now() - tStart;
 
@@ -368,7 +393,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       text: fallbackText,
       audioBase64: audioB64,
-      transcribedUserText: "",
+      transcribedUserText: "🎙️ (Consulta en curso)",
       sttMs: 0,
       totalMs: totalDuration
     });
