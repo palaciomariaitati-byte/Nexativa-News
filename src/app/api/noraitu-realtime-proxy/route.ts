@@ -286,12 +286,15 @@ export async function POST(req: Request) {
     if (!generatedText) {
       const geminiKeys = [
         cleanKeyString(process.env.GEMINI_API_KEY),
+        cleanKeyString(process.env.NEXT_PUBLIC_GEMINI_API_KEY),
+        cleanKeyString(process.env.GOOGLE_GEMINI_API_KEY),
+        cleanKeyString(process.env.GOOGLE_API_KEY),
         cleanKeyString(process.env.GEMINI_API_KEY_FALLBACK),
         cleanKeyString(process.env.GEMINI_API_KEY_FALLBACK_2),
         cleanKeyString(process.env.GEMINI_API_KEY_TERTIARY)
       ].filter(Boolean);
 
-      const candidateModels = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"];
+      const candidateModels = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-8b", "gemini-flash-latest"];
 
       const currentTurnParts: any[] = [{ text: effectiveUserText }];
       const geminiContents: { role: string; parts: any[] }[] = [];
@@ -350,8 +353,49 @@ export async function POST(req: Request) {
       }
     }
 
+    // 3. CAPA 3 (MALLA SOBERANA ABIERTA 100% ACTIVA): Pollinations AI Engine
     if (!generatedText) {
-      generatedText = "Comprendo lo que planteas sobre este tema. Continuemos desarrollando los detalles clave.";
+      try {
+        const polyMessages: any[] = [
+          { role: "system", content: systemPromptWithMode }
+        ];
+        if (Array.isArray(history)) {
+          for (const h of history.slice(-4)) {
+            if (h?.content && typeof h.content === "string" && h.content.trim()) {
+              polyMessages.push({
+                role: h.role === "assistant" || h.role === "model" ? "assistant" : "user",
+                content: h.content.trim()
+              });
+            }
+          }
+        }
+        polyMessages.push({ role: "user", content: effectiveUserText });
+
+        const polyRes = await fetch("https://text.pollinations.ai/openai", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: polyMessages,
+            model: "openai",
+            stream: false
+          }),
+          signal: AbortSignal.timeout(6000)
+        });
+
+        if (polyRes.ok) {
+          const polyData = await polyRes.json().catch(async () => ({ choices: [{ message: { content: await polyRes.text() } }] }));
+          const content = polyData?.choices?.[0]?.message?.content || (typeof polyData === "string" ? polyData : "");
+          if (content && content.trim().length > 0) {
+            generatedText = content.trim();
+          }
+        }
+      } catch (polyErr) {
+        console.warn("[Realtime Proxy Pollinations Warning]:", polyErr);
+      }
+    }
+
+    if (!generatedText) {
+      generatedText = "Analizando en profundidad tu consulta. Por favor continúa explayando los detalles clave.";
     }
 
     // 3. Generar el stream de audio real MP3/PCM

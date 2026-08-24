@@ -384,6 +384,9 @@ async function tryGeminiMultiPool(
 ): Promise<{ stream: any; modelTag: string } | null> {
   const keysPool = [
     process.env.GEMINI_API_KEY,
+    process.env.NEXT_PUBLIC_GEMINI_API_KEY,
+    process.env.GOOGLE_GEMINI_API_KEY,
+    process.env.GOOGLE_API_KEY,
     process.env.GEMINI_API_KEY_FALLBACK,
     process.env.GEMINI_API_KEY_FALLBACK_2,
     process.env.GEMINI_API_KEY_TERTIARY
@@ -392,8 +395,9 @@ async function tryGeminiMultiPool(
   if (keysPool.length === 0) return null;
 
   const candidateModels = [
-    "gemini-2.0-flash",
     "gemini-1.5-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash-8b",
     "gemini-flash-latest",
     "gemini-1.5-pro"
   ];
@@ -475,6 +479,41 @@ async function tryGeminiMultiPool(
         } catch {}
       }
     }
+  }
+  return null;
+}
+
+/**
+ * CAPA 6: Pollinations Free Open Mesh (100% Gratuito, Cero Caídas, Sin API Key)
+ */
+async function tryPollinationsFreeInference(messages: SovereignMessage[]): Promise<ReadableStream | null> {
+  try {
+    const formatted = messages.map(m => {
+      const textContent = typeof m.content === "string" 
+        ? m.content 
+        : (Array.isArray(m.content) ? m.content.map((p: any) => p.text || "").join("\n") : "");
+      return { role: m.role, content: textContent };
+    });
+
+    const res = await fetch("https://text.pollinations.ai/openai", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        messages: formatted,
+        model: "openai",
+        stream: true
+      }),
+      signal: AbortSignal.timeout(8000)
+    });
+
+    if (res.ok && res.body) {
+      console.log("[Sovereign Router - Capa 6]: Inferencia exitosa en Pollinations Open Mesh (Respaldo Soberano)");
+      return res.body;
+    }
+  } catch (err) {
+    console.warn("[Sovereign Router - Capa 6 Pollinations Warning]:", err);
   }
   return null;
 }
@@ -624,6 +663,11 @@ export async function dispatchSovereignInference(params: SovereignRouterParams):
   if (!openAiStream) {
     openAiStream = await tryHuggingFaceInference(formattedMessages, isVision);
     if (openAiStream) usedTag = "HuggingFace-Serverless";
+  }
+
+  if (!openAiStream) {
+    openAiStream = await tryPollinationsFreeInference(formattedMessages);
+    if (openAiStream) usedTag = "Pollinations-Free-Mesh";
   }
 
   if (!openAiStream) {
