@@ -765,14 +765,21 @@ export default function NoraItuApp() {
             }
           }
         } catch (e) {}
-      }, 300);
+      }, 400);
 
-      liveIntervalRef.current = qrScannerInterval;
+      // Escaneo visual continuo para no videntes y análisis de entorno
+      const autoVisionTimer = setInterval(() => {
+        if (liveVideoRef.current && liveVideoRef.current.videoWidth > 0 && !isAnalyzingFrame) {
+          captureAndAnalyzeFrame();
+        }
+      }, 7000);
 
-      // Primer análisis visual tras 1.5s de enfocar la cámara
+      liveIntervalRef.current = autoVisionTimer;
+
+      // Primer análisis visual tras 1s de enfocar la cámara
       setTimeout(() => {
-        captureAndAnalyzeFrame("Describe qué estás observando en esta toma en vivo y qué detalles útiles o educativos detectas.");
-      }, 1500);
+        captureAndAnalyzeFrame("Describe con precisión y claridad qué estás observando en esta toma en vivo de forma concisa para una persona no vidente.");
+      }, 1000);
 
     } catch (err: any) {
       console.error("Error iniciando cámara en vivo:", err);
@@ -3124,7 +3131,13 @@ export default function NoraItuApp() {
           {/* Visor de Video en Tiempo Real con HUD Cyberpunk */}
           <div className="relative flex-1 flex items-center justify-center overflow-hidden">
             <video
-              ref={liveVideoRef}
+              ref={(el) => {
+                liveVideoRef.current = el;
+                if (el && liveMediaStreamRef.current && el.srcObject !== liveMediaStreamRef.current) {
+                  el.srcObject = liveMediaStreamRef.current;
+                  el.play().catch(() => {});
+                }
+              }}
               autoPlay
               playsInline
               muted

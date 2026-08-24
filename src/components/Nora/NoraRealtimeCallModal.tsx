@@ -46,6 +46,7 @@ export default function NoraRealtimeCallModal({
 
   // Modos de interacción y accesibilidad (Push-to-Talk por defecto para máxima estabilidad)
   const [interactionMode, setInteractionMode] = useState<"hands_free" | "push_to_talk">("push_to_talk");
+  const interactionModeRef = useRef<"hands_free" | "push_to_talk">(interactionMode);
   const [isPushTalking, setIsPushTalking] = useState<boolean>(false);
   const [accessibleAnnouncement, setAccessibleAnnouncement] = useState<string>("Llamada con Nora. Toca Iniciar Conexión.");
   const [micError, setMicError] = useState<string | null>(null);
@@ -77,6 +78,10 @@ export default function NoraRealtimeCallModal({
   useEffect(() => {
     activeModeRef.current = activeMode;
   }, [activeMode]);
+
+  useEffect(() => {
+    interactionModeRef.current = interactionMode;
+  }, [interactionMode]);
 
   // 🔔 Tono auditivo suave para personas no videntes
   const playAccessibleChime = useCallback((type: "start" | "end" | "connected") => {
@@ -449,6 +454,9 @@ export default function NoraRealtimeCallModal({
       let recorder: MediaRecorder | null = null;
 
       const createAndStartRecorder = () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+          return;
+        }
         audioChunksRef.current = [];
         speechStartTimeRef.current = Date.now();
         recorder = new MediaRecorder(stream, { mimeType });
@@ -463,7 +471,7 @@ export default function NoraRealtimeCallModal({
           const speechDuration = Date.now() - speechStartTimeRef.current;
           const blob = new Blob(audioChunksRef.current, { type: mimeType });
 
-          if (speechDuration > 400 && blob.size > 1200) {
+          if (speechDuration > 300 && blob.size > 600) {
             sendVoiceAudioTurn(blob, mimeType);
           } else {
             setCallState("listening");
@@ -475,7 +483,8 @@ export default function NoraRealtimeCallModal({
       };
 
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      const SILENCE_TIMEOUT_MS = 600;
+      const SILENCE_TIMEOUT_MS = 700;
+      const MAX_SPEECH_DURATION_MS = 12000;
 
       setIsEngineReady(true);
       setCallState("listening");
@@ -510,12 +519,12 @@ export default function NoraRealtimeCallModal({
           return;
         }
 
-        if (interactionMode === "push_to_talk") {
+        if (interactionModeRef.current === "push_to_talk") {
           animFrameRef.current = requestAnimationFrame(monitorAudioLoop);
           return;
         }
 
-        const dynamicThreshold = noiseFloorRef.current + 12;
+        const dynamicThreshold = Math.max(15, noiseFloorRef.current + 8);
         const now = Date.now();
 
         if (avg > dynamicThreshold) {
@@ -536,6 +545,14 @@ export default function NoraRealtimeCallModal({
                 mediaRecorderRef.current.stop();
               }
             }
+          }
+        }
+
+        if (isSpeakingRef.current && now - speechStartTimeRef.current > MAX_SPEECH_DURATION_MS) {
+          isSpeakingRef.current = false;
+          silenceStartRef.current = null;
+          if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+            mediaRecorderRef.current.stop();
           }
         }
 
