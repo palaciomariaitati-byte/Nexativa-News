@@ -6,6 +6,7 @@ import { useNoraOfflineGPS } from "@/hooks/useNoraOfflineGPS";
 import { dispatchSOS } from "@/lib/nora/protocols/sosDispatcher";
 import { useNoraLazarilloHaptics } from "@/hooks/useNoraLazarilloHaptics";
 import { executeLocalInference } from "@/lib/nora/webgpu/localEngine";
+import { normalizePhoneticTextForSpeech } from "@/lib/nora/phoneticNormalizer";
 
 interface NoraRealtimeCallModalProps {
   isOpen: boolean;
@@ -219,9 +220,9 @@ export default function NoraRealtimeCallModal({
     }
   }, []);
 
-  // 5. Reproducción de Audio Completa y Continua (Sin cortes de palabras)
+  // 5. Reproducción de Audio Completa y Fonéticamente Humana (Sin cortes de palabras)
   const playRealNoraAudio = useCallback(
-    async (_audioBase64: string | null, fullText: string) => {
+    async (_audioBase64: string | null, fullText: string, customPhoneticText?: string) => {
       if (isMuted || !fullText || !fullText.trim()) {
         resumeListening();
         return;
@@ -245,14 +246,10 @@ export default function NoraRealtimeCallModal({
         try {
           window.speechSynthesis.cancel();
 
-          const cleanVoiceText = fullText
-            .replace(/[*#_~`>|$\\]/g, "")
-            .replace(/\s+/g, " ")
-            .trim();
-
-          const utterance = new SpeechSynthesisUtterance(cleanVoiceText);
+          const spokenText = customPhoneticText || normalizePhoneticTextForSpeech(fullText);
+          const utterance = new SpeechSynthesisUtterance(spokenText);
           utterance.lang = "es-AR";
-          utterance.rate = 1.02;
+          utterance.rate = 1.04;
           utterance.pitch = 1.05;
 
           const voices = window.speechSynthesis.getVoices();
@@ -271,7 +268,7 @@ export default function NoraRealtimeCallModal({
             cooldownTimerRef.current = setTimeout(() => {
               resumeListening();
               playAccessibleChime("start");
-            }, 300);
+            }, 250);
           };
 
           utterance.onerror = () => {
@@ -355,6 +352,7 @@ export default function NoraRealtimeCallModal({
           liveTranscriptRef.current = "";
 
           let text = "";
+          let phoneticText = "";
           let resAudio: string | null = null;
           let transcribedUserText = spokenClientText;
 
@@ -375,6 +373,7 @@ export default function NoraRealtimeCallModal({
             if (res.ok) {
               const data = await res.json();
               text = data.text || "";
+              phoneticText = data.phoneticText || "";
               resAudio = data.audioBase64 || null;
               transcribedUserText = data.transcribedUserText || spokenClientText;
             } else {
@@ -410,7 +409,7 @@ export default function NoraRealtimeCallModal({
             if (onMessageLogged) {
               onMessageLogged(transcribedUserText || "🎙️ [Voz]", text);
             }
-            playRealNoraAudio(resAudio, text);
+            playRealNoraAudio(resAudio, text, phoneticText);
           } else {
             resumeListening();
           }
