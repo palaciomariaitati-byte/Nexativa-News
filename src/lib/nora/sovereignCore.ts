@@ -255,7 +255,42 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
   const fullSystem = `${NORA_MASTER_SYSTEM_PROMPT}\n\n[MODO ACTIVO: ${mode.toUpperCase()}]\n\n${systemPrompt}`.trim();
   const encoder = new TextEncoder();
 
-  // 1. CAPA 1: Google Gemini Multi-Pool Multimodal Stream (<180ms)
+  // 1. CAPA 1: Groq Ultra-Fast Tier (<350ms)
+  const groqKey = cleanKey(process.env.GROQ_API_KEY) || cleanKey(process.env.NEXT_PUBLIC_GROQ_API_KEY);
+  const openAiMessages = buildOpenAiMessages(history, userMessage, fullSystem, cleanImage);
+
+  if (groqKey) {
+    const groqModels = ["groq/compound-mini", "qwen/qwen3.6-27b", "groq/compound"];
+
+    for (const gModel of groqModels) {
+      try {
+        const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${groqKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: gModel,
+            messages: openAiMessages,
+            stream: true,
+            max_tokens: maxTokens,
+            temperature
+          }),
+          signal: AbortSignal.timeout(3000)
+        });
+
+        if (groqRes.ok && groqRes.body) {
+          console.log(`[Sovereign Core - Capa 1]: Inferencia exitosa en Groq (${gModel})`);
+          return transformOpenAiStreamToSSE(groqRes.body, sessionId, Boolean(cleanImage));
+        }
+      } catch (groqErr) {
+        console.warn(`[Groq ${gModel} Warn]:`, groqErr);
+      }
+    }
+  }
+
+  // 2. CAPA 2: Google Gemini Multi-Pool Multimodal Stream (<2.5s)
   const geminiKeys = [
     cleanKey(process.env.GEMINI_API_KEY),
     cleanKey(process.env.NEXT_PUBLIC_GEMINI_API_KEY),
@@ -267,11 +302,9 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
   ].filter(Boolean);
 
   const geminiModels = [
-    "gemini-flash-latest",
     "gemini-3.6-flash",
     "gemini-3.5-flash",
-    "gemini-3.5-flash-lite",
-    "gemini-3.7-flash"
+    "gemini-flash-latest"
   ];
   const geminiContents = buildGeminiContents(history, userMessage, fullSystem, cleanImage);
 
@@ -287,7 +320,7 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
 
         const streamResult = await model.generateContentStream({ contents: geminiContents });
         if (streamResult && streamResult.stream) {
-          console.log(`[Sovereign Core - Capa 1]: Inferencia exitosa en Gemini (${modelName})`);
+          console.log(`[Sovereign Core - Capa 2]: Inferencia exitosa en Gemini (${modelName})`);
 
           const customStream = new ReadableStream({
             async start(controller) {
@@ -336,41 +369,6 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
         }
       } catch (gemErr: any) {
         console.warn(`[Gemini Engine ${modelName} Warn]:`, gemErr?.message || "Rate limit or busy");
-      }
-    }
-  }
-
-  // 2. CAPA 2: Groq Open Inference Tier (<120ms)
-  const groqKey = cleanKey(process.env.GROQ_API_KEY) || cleanKey(process.env.NEXT_PUBLIC_GROQ_API_KEY);
-  const openAiMessages = buildOpenAiMessages(history, userMessage, fullSystem, cleanImage);
-
-  if (groqKey) {
-    const groqModels = ["groq/compound-mini", "qwen/qwen3.6-27b", "groq/compound"];
-
-    for (const gModel of groqModels) {
-      try {
-        const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${groqKey}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            model: gModel,
-            messages: openAiMessages,
-            stream: true,
-            max_tokens: maxTokens,
-            temperature
-          }),
-          signal: AbortSignal.timeout(3500)
-        });
-
-        if (groqRes.ok && groqRes.body) {
-          console.log(`[Sovereign Core - Capa 2]: Inferencia exitosa en Groq (${gModel})`);
-          return transformOpenAiStreamToSSE(groqRes.body, sessionId, Boolean(cleanImage));
-        }
-      } catch (groqErr) {
-        console.warn(`[Groq ${gModel} Warn]:`, groqErr);
       }
     }
   }
@@ -598,6 +596,8 @@ function transformOpenAiStreamToSSE(
         try { controller.enqueue(encoder.encode(`: keep-alive\n\n`)); } catch { clearInterval(heartbeat); }
       }, 2500);
 
+      let isInsideThinkTag = false;
+
       try {
         while (true) {
           const { done, value } = await reader.read();
@@ -615,7 +615,23 @@ function transformOpenAiStreamToSSE(
 
               try {
                 const parsed = JSON.parse(content);
-                const delta = parsed.choices?.[0]?.delta?.content || "";
+                let delta = parsed.choices?.[0]?.delta?.content || "";
+                if (!delta) continue;
+
+                // Filtrar etiquetas <think>...</think> para erradicar reflexiones en inglés
+                if (delta.includes("<think>")) {
+                  isInsideThinkTag = true;
+                  delta = delta.replace(/<think>[\s\S]*/, "");
+                }
+                if (isInsideThinkTag) {
+                  if (delta.includes("</think>")) {
+                    isInsideThinkTag = false;
+                    delta = delta.replace(/[\s\S]*<\/think>/, "");
+                  } else {
+                    continue;
+                  }
+                }
+
                 if (delta) {
                   accumulatedText += delta;
                   controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: delta, session_id: sessionId })}\n\n`));
