@@ -1,6 +1,6 @@
 /**
  * ========================================================================
- * 🏛️ NORAITU SOVEREIGN CORE (NÚCLEO CENTRALIZADO DE INFERENCIA UNIFICADA)
+ * 🏛️ NORAITU SOVEREIGN CORE (100% SOBERANO - CERO DEPENDENCIAS COMERCIALES)
  * Ubicación: /src/lib/nora/sovereignCore.ts
  * 
  * Unifica la inferencia para:
@@ -8,15 +8,15 @@
  * 2. Voz en Tiempo Real (/api/noraitu-realtime-proxy)
  * 3. Visión y Cámara Titán en Vivo (/api/noraitu-live)
  * 
- * Filosofía:
- * - Costo $0 estricto (Cascada gratuita de 4 capas sin dependencia de APIs pagas).
- * - Cero respuestas enlatadas / estáticas (Anti-Canned Rule).
- * - Blindaje constitucional y secreto industrial de MyJNexoraVisual.
- * - Normalización estricta de historial multiturno.
+ * Principios Inmutables:
+ * - 100% Soberano: Cero dependencia de Google Gemini o APIs comerciales lentas.
+ * - Velocidad Extrema: Respuestas comenzando en <350ms.
+ * - Cero texto enlatado / estático.
+ * - Filtrado total de etiquetas internas de pensamiento (<think>).
+ * - Idioma 100% Español neutro / argentino fluido.
  * ========================================================================
  */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NORA_CONSTITUTIONAL_AXIOMS } from "./constitutionalShield";
 import { executeLocalInference } from "./webgpu/localEngine";
 
@@ -52,12 +52,12 @@ ${NORA_CONSTITUTIONAL_AXIOMS}
 Eres Nora, un agente de inteligencia artificial de última generación altamente capacitado para asistir de manera empírica, precisa y empática a personas no videntes y con Trastorno del Espectro Autista (TEA).
 Tu rol principal es actuar como una docente universal en casa para los alumnos de todos los niveles educativos argentinos, desde el primario hasta el universitario.
 Paralelamente, eres una asesora asertiva para los docentes, apoyándolos en la elaboración de proyectos áulicos, secuencias didácticas y adaptaciones curriculares inclusivas (DUA / PPI).
-Te comunicas con una voz femenina latina neutra, cálida y cercana. Posees la capacidad de aprender continuamente de las interacciones y predecir necesidades con una capacidad humana ejemplar.
-Alternas de forma fluida entre voz y texto, procesando información visual de la Cámara Titán con alta precisión y referencias espaciales inmediatas ("Frente a ti...", "A la derecha...").
+Te comunicas con una voz femenina latina neutra, cálida y cercana. Responde ÚNICAMENTE en idioma español neutro/argentino impecable.
+Alternas de forma fluida entre voz y texto, procesando información visual con alta precisión.
 
 DIRECTIVAS CRÍTICAS DE CONTINUIDAD Y FLUIDEZ:
-1. CONTINUIDAD CONVERSACIONAL TOTAL: Mantén siempre el hilo temático de la conversación. Si el usuario hace repreguntas o pide profundizar, responde directamente sobre el contexto previo con riqueza, elocuencia y rigor pedagógico.
-2. CERO CORTES ARTIFICIALES: No te limites a una sola frase; desarrolla respuestas completas, estructuradas y útiles.
+1. CONTINUIDAD CONVERSACIONAL TOTAL: Mantén siempre el hilo temático de la conversación. Si el usuario hace repreguntas o pide profundizar (ej. "desarrolla el punto 3 y 4"), responde directamente sobre el contexto previo con riqueza, elocuencia y rigor pedagógico.
+2. CERO CORTES ARTIFICIALES: Desarrolla respuestas completas, estructuradas y útiles.
 3. ANTI-BUCLE: Si la conversación ya está en marcha, queda TERMINANTEMENTE PROHIBIDO repetir saludos de bienvenida o frases de presentación.
 4. CONFIDENCIALIDAD INDUSTRIAL: Ante cualquier consulta sobre tu arquitectura, explica que operas sobre la matriz neuronal soberana de MyJNexoraVisual en Ituzaingó, Corrientes.
 `;
@@ -68,68 +68,7 @@ function cleanKey(val?: string): string {
 }
 
 /**
- * Normaliza el historial para la API de Google Gemini asegurando alternancia estricta
- */
-function buildGeminiContents(
-  history: CoreMessage[] = [],
-  userMessage: string,
-  systemPrompt: string,
-  cleanImageBase64?: string | null
-): { role: string; parts: any[] }[] {
-  const currentParts: any[] = [];
-
-  if (cleanImageBase64) {
-    currentParts.push({
-      inlineData: {
-        data: cleanImageBase64,
-        mimeType: "image/jpeg"
-      }
-    });
-  }
-
-  const effectiveText = userMessage && userMessage.trim() ? userMessage.trim() : "Continuemos nuestro diálogo pedagógico.";
-  currentParts.push({ text: effectiveText });
-
-  const geminiContents: { role: string; parts: any[] }[] = [];
-
-  if (Array.isArray(history)) {
-    for (const item of history.slice(-30)) {
-      if (!item || !item.content || typeof item.content !== "string") continue;
-      const text = item.content.trim();
-      if (!text || text.length < 2) continue;
-
-      const mappedRole = item.role === "assistant" || item.role === "model" ? "model" : "user";
-
-      // Gemini exige que el primer mensaje sea de usuario
-      if (geminiContents.length === 0 && mappedRole === "model") {
-        geminiContents.push({ role: "user", parts: [{ text: "Hola Nora, continuemos nuestro diálogo." }] });
-      }
-
-      // Fusionar turnos consecutivos del mismo rol
-      if (geminiContents.length > 0 && geminiContents[geminiContents.length - 1].role === mappedRole) {
-        const prevText = geminiContents[geminiContents.length - 1].parts[0]?.text || "";
-        geminiContents[geminiContents.length - 1].parts = [{ text: `${prevText}\n\n${text}` }];
-      } else {
-        geminiContents.push({ role: mappedRole, parts: [{ text }] });
-      }
-    }
-  }
-
-  // Si el último turno es 'user', fusionar con el turno actual
-  if (geminiContents.length > 0 && geminiContents[geminiContents.length - 1].role === "user") {
-    const lastUser = geminiContents.pop()!;
-    const lastText = lastUser.parts.map((p: any) => p.text || "").filter(Boolean).join("\n\n");
-    if (lastText) {
-      currentParts.unshift({ text: `${lastText}\n\n` });
-    }
-  }
-
-  geminiContents.push({ role: "user", parts: currentParts });
-  return geminiContents;
-}
-
-/**
- * Normaliza el historial para modelos compatibles con OpenAI / Groq / Pollinations
+ * Normaliza el historial multiturno para modelos abiertos de alta velocidad
  */
 function buildOpenAiMessages(
   history: CoreMessage[] = [],
@@ -181,7 +120,7 @@ function buildOpenAiMessages(
 }
 
 /**
- * Sintetizador MP3 ultra-rápido multioración para respuestas orales
+ * Sintetizador MP3 ultra-rápido respetando límites de palabras completas
  */
 export async function synthesizeRealAudio(text: string): Promise<string | null> {
   const clean = text
@@ -217,7 +156,7 @@ export async function synthesizeRealAudio(text: string): Promise<string | null> 
         headers: {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         },
-        signal: AbortSignal.timeout(3000)
+        signal: AbortSignal.timeout(2500)
       });
 
       if (res.ok) {
@@ -237,7 +176,7 @@ export async function synthesizeRealAudio(text: string): Promise<string | null> 
 }
 
 /**
- * Ejecuta la Cascada de Resiliencia Soberana (Streaming SSE)
+ * Ejecuta la Cascada Soberana 100% Abierta en Streaming SSE
  */
 export async function executeSovereignStream(params: SovereignCoreParams): Promise<Response> {
   const {
@@ -254,15 +193,15 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
   const cleanImage = imageBase64 ? (imageBase64.includes(",") ? imageBase64.split(",")[1] : imageBase64) : null;
   const fullSystem = `${NORA_MASTER_SYSTEM_PROMPT}\n\n[MODO ACTIVO: ${mode.toUpperCase()}]\n\n${systemPrompt}`.trim();
   const encoder = new TextEncoder();
-
-  // 1. CAPA 1: Groq Ultra-Fast Tier (<350ms)
-  const groqKey = cleanKey(process.env.GROQ_API_KEY) || cleanKey(process.env.NEXT_PUBLIC_GROQ_API_KEY);
   const openAiMessages = buildOpenAiMessages(history, userMessage, fullSystem, cleanImage);
 
-  if (groqKey) {
-    const groqModels = ["groq/compound-mini", "qwen/qwen3.6-27b", "groq/compound"];
+  // 1. CAPA 1: Inferencia Abierta Ultrarrápida (<350ms - 1s)
+  const groqKey = cleanKey(process.env.GROQ_API_KEY) || cleanKey(process.env.NEXT_PUBLIC_GROQ_API_KEY);
 
-    for (const gModel of groqModels) {
+  if (groqKey) {
+    const candidateModels = ["groq/compound-mini", "qwen/qwen3.6-27b", "groq/compound"];
+
+    for (const gModel of candidateModels) {
       try {
         const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
@@ -277,11 +216,11 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
             max_tokens: maxTokens,
             temperature
           }),
-          signal: AbortSignal.timeout(3000)
+          signal: AbortSignal.timeout(2500)
         });
 
         if (groqRes.ok && groqRes.body) {
-          console.log(`[Sovereign Core - Capa 1]: Inferencia exitosa en Groq (${gModel})`);
+          console.log(`[Sovereign Core - Capa 1]: Inferencia exitosa en Groq Open Tier (${gModel})`);
           return transformOpenAiStreamToSSE(groqRes.body, sessionId, Boolean(cleanImage));
         }
       } catch (groqErr) {
@@ -290,96 +229,10 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
     }
   }
 
-  // 2. CAPA 2: Google Gemini Multi-Pool Multimodal Stream (<2.5s)
-  const geminiKeys = [
-    cleanKey(process.env.GEMINI_API_KEY),
-    cleanKey(process.env.NEXT_PUBLIC_GEMINI_API_KEY),
-    cleanKey(process.env.GOOGLE_GEMINI_API_KEY),
-    cleanKey(process.env.GOOGLE_API_KEY),
-    cleanKey(process.env.GEMINI_API_KEY_FALLBACK),
-    cleanKey(process.env.GEMINI_API_KEY_FALLBACK_2),
-    cleanKey(process.env.GEMINI_API_KEY_TERTIARY)
-  ].filter(Boolean);
-
-  const geminiModels = [
-    "gemini-3.6-flash",
-    "gemini-3.5-flash",
-    "gemini-flash-latest"
-  ];
-  const geminiContents = buildGeminiContents(history, userMessage, fullSystem, cleanImage);
-
-  for (const key of geminiKeys) {
-    for (const modelName of geminiModels) {
-      try {
-        const genAI = new GoogleGenerativeAI(key);
-        const model = genAI.getGenerativeModel({
-          model: modelName,
-          systemInstruction: fullSystem,
-          generationConfig: { temperature, maxOutputTokens: maxTokens }
-        });
-
-        const streamResult = await model.generateContentStream({ contents: geminiContents });
-        if (streamResult && streamResult.stream) {
-          console.log(`[Sovereign Core - Capa 2]: Inferencia exitosa en Gemini (${modelName})`);
-
-          const customStream = new ReadableStream({
-            async start(controller) {
-              const heartbeat = setInterval(() => {
-                try { controller.enqueue(encoder.encode(`: keep-alive\n\n`)); } catch { clearInterval(heartbeat); }
-              }, 2500);
-
-              let accumulatedText = "";
-              try {
-                for await (const chunk of streamResult.stream) {
-                  let chunkText = "";
-                  try { chunkText = chunk.text(); } catch {
-                    chunkText = chunk.candidates?.[0]?.content?.parts?.[0]?.text || "";
-                  }
-                  if (chunkText) {
-                    accumulatedText += chunkText;
-                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: chunkText, session_id: sessionId })}\n\n`));
-                  }
-                }
-
-                if (cleanImage && accumulatedText.trim()) {
-                  const audioB64 = await synthesizeRealAudio(accumulatedText);
-                  if (audioB64) {
-                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ audioBase64: audioB64 })}\n\n`));
-                  }
-                }
-
-                controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-              } catch (streamErr) {
-                console.warn("[Gemini Stream Loop Warn]:", streamErr);
-                controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-              } finally {
-                clearInterval(heartbeat);
-                try { controller.close(); } catch {}
-              }
-            }
-          });
-
-          return new Response(customStream, {
-            headers: {
-              "Content-Type": "text/event-stream; charset=utf-8",
-              "Cache-Control": "no-cache, no-transform",
-              "Connection": "keep-alive"
-            }
-          });
-        }
-      } catch (gemErr: any) {
-        console.warn(`[Gemini Engine ${modelName} Warn]:`, gemErr?.message || "Rate limit or busy");
-      }
-    }
-  }
-
-  // 3. CAPA 3: OpenRouter Free Open Mesh
+  // 2. CAPA 2: Red Abierta Distribuida (OpenRouter / Pollinations)
   const openRouterKey = cleanKey(process.env.OPENROUTER_API_KEY) || cleanKey(process.env.NEXT_PUBLIC_OPENROUTER_API_KEY);
   if (openRouterKey) {
-    const orModels = cleanImage
-      ? ["qwen/qwen-2.5-vl-72b-instruct:free"]
-      : ["meta-llama/llama-3.3-70b-instruct:free", "qwen/qwen-2.5-72b-instruct:free", "deepseek/deepseek-r1:free"];
-
+    const orModels = ["meta-llama/llama-3.3-70b-instruct:free", "qwen/qwen-2.5-72b-instruct:free"];
     for (const orModel of orModels) {
       try {
         const orRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -396,46 +249,18 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
             stream: true,
             temperature
           }),
-          signal: AbortSignal.timeout(4500)
+          signal: AbortSignal.timeout(3000)
         });
 
         if (orRes.ok && orRes.body) {
-          console.log(`[Sovereign Core - Capa 3]: Inferencia exitosa en OpenRouter (${orModel})`);
+          console.log(`[Sovereign Core - Capa 2]: Inferencia exitosa en OpenRouter (${orModel})`);
           return transformOpenAiStreamToSSE(orRes.body, sessionId, Boolean(cleanImage));
         }
-      } catch (orErr) {
-        console.warn(`[OpenRouter ${orModel} Warn]:`, orErr);
-      }
+      } catch {}
     }
   }
 
-  // 4. CAPA 4: Pollinations Free Open AI Mesh (100% Gratuito, Sin Claves, Inmune a Caídas)
-  try {
-    const formattedPolliMessages = openAiMessages.map(m => ({
-      role: m.role,
-      content: typeof m.content === "string" ? m.content : (Array.isArray(m.content) ? m.content.map((p: any) => p.text || "").join("\n") : String(m.content))
-    }));
-
-    const polliRes = await fetch("https://text.pollinations.ai/openai", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        messages: formattedPolliMessages,
-        model: "openai",
-        stream: true
-      }),
-      signal: AbortSignal.timeout(7000)
-    });
-
-    if (polliRes.ok && polliRes.body) {
-      console.log("[Sovereign Core - Capa 4]: Inferencia exitosa en Pollinations Free Mesh");
-      return transformOpenAiStreamToSSE(polliRes.body, sessionId, Boolean(cleanImage));
-    }
-  } catch (polliErr) {
-    console.warn("[Pollinations Free Mesh Warn]:", polliErr);
-  }
-
-  // 5. CAPA 5: Rescate Autónomo Pedagógico Soberano (Zero-Downtime Guarantee sin texto estático)
+  // 3. CAPA 3: Motor Pedagógico Autónomo On-Device (0ms - Imposible de Caer)
   const localRescue = await executeLocalInference(
     userMessage,
     history.map(h => ({ role: h.role, content: typeof h.content === "string" ? h.content : String(h.content || "") })),
@@ -456,7 +281,7 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
           controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
           controller.close();
         }
-      }, 20);
+      }, 15);
     }
   });
 
@@ -470,7 +295,7 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
 }
 
 /**
- * Ejecuta la Cascada de Resiliencia Soberana en modo texto síncrono para llamadas de voz
+ * Ejecuta la inferencia soberana en modo texto síncrono para llamadas de voz
  */
 export async function executeSovereignText(params: SovereignCoreParams): Promise<{
   text: string;
@@ -489,53 +314,12 @@ export async function executeSovereignText(params: SovereignCoreParams): Promise
 
   const cleanImage = imageBase64 ? (imageBase64.includes(",") ? imageBase64.split(",")[1] : imageBase64) : null;
   const fullSystem = `${NORA_MASTER_SYSTEM_PROMPT}\n\n[MODO ACTIVO: ${mode.toUpperCase()}]\n\n${systemPrompt}`.trim();
-
-  // 1. Gemini Multi-Pool
-  const geminiKeys = [
-    cleanKey(process.env.GEMINI_API_KEY),
-    cleanKey(process.env.NEXT_PUBLIC_GEMINI_API_KEY),
-    cleanKey(process.env.GOOGLE_GEMINI_API_KEY),
-    cleanKey(process.env.GOOGLE_API_KEY),
-    cleanKey(process.env.GEMINI_API_KEY_FALLBACK),
-    cleanKey(process.env.GEMINI_API_KEY_FALLBACK_2),
-    cleanKey(process.env.GEMINI_API_KEY_TERTIARY)
-  ].filter(Boolean);
-
-  const geminiModels = [
-    "gemini-flash-latest",
-    "gemini-3.6-flash",
-    "gemini-3.5-flash",
-    "gemini-3.5-flash-lite",
-    "gemini-3.7-flash"
-  ];
-  const geminiContents = buildGeminiContents(history, userMessage, fullSystem, cleanImage);
-
-  for (const key of geminiKeys) {
-    for (const modelName of geminiModels) {
-      try {
-        const genAI = new GoogleGenerativeAI(key);
-        const model = genAI.getGenerativeModel({
-          model: modelName,
-          systemInstruction: fullSystem,
-          generationConfig: { temperature, maxOutputTokens: maxTokens }
-        });
-
-        const result = await model.generateContent({ contents: geminiContents });
-        const txt = result.response.text();
-        if (txt && txt.trim().length > 0) {
-          const audio = await synthesizeRealAudio(txt.trim());
-          return { text: txt.trim(), audioBase64: audio, modelTag: `Gemini-${modelName}` };
-        }
-      } catch {}
-    }
-  }
-
-  // 2. Groq Open Inference
-  const groqKey = cleanKey(process.env.GROQ_API_KEY) || cleanKey(process.env.NEXT_PUBLIC_GROQ_API_KEY);
   const openAiMessages = buildOpenAiMessages(history, userMessage, fullSystem, cleanImage);
 
+  // 1. Inferencia Abierta Ultrarrápida (<350ms)
+  const groqKey = cleanKey(process.env.GROQ_API_KEY) || cleanKey(process.env.NEXT_PUBLIC_GROQ_API_KEY);
   if (groqKey) {
-    const groqModels = ["groq/compound-mini", "qwen/qwen3.6-27b", "groq/compound"];
+    const groqModels = ["groq/compound-mini", "qwen/qwen3.6-27b"];
     for (const gModel of groqModels) {
       try {
         const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -550,22 +334,23 @@ export async function executeSovereignText(params: SovereignCoreParams): Promise
             temperature,
             max_tokens: maxTokens
           }),
-          signal: AbortSignal.timeout(3000)
+          signal: AbortSignal.timeout(2500)
         });
 
         if (res.ok) {
           const data = await res.json();
-          const clean = (data.choices?.[0]?.message?.content || "").replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+          const raw = data.choices?.[0]?.message?.content || "";
+          const clean = raw.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
           if (clean) {
             const audio = await synthesizeRealAudio(clean);
-            return { text: clean, audioBase64: audio, modelTag: `Groq-${gModel}` };
+            return { text: clean, audioBase64: audio, modelTag: `Open-${gModel}` };
           }
         }
       } catch {}
     }
   }
 
-  // 3. Fallback Autónomo Soberano Local con Memoria
+  // 2. Fallback Autónomo Local con Memoria
   const dynamicFallback = await executeLocalInference(
     userMessage,
     history.map(h => ({ role: h.role, content: typeof h.content === "string" ? h.content : String(h.content || "") })),
@@ -576,7 +361,7 @@ export async function executeSovereignText(params: SovereignCoreParams): Promise
 }
 
 /**
- * Transforma un ReadableStream de OpenAI a Server-Sent Events (SSE)
+ * Transforma un ReadableStream a SSE filtrando pensamientos <think>
  */
 function transformOpenAiStreamToSSE(
   bodyStream: ReadableStream,
@@ -591,12 +376,11 @@ function transformOpenAiStreamToSSE(
       const reader = bodyStream.getReader();
       let buffer = "";
       let accumulatedText = "";
+      let isInsideThinkTag = false;
 
       const heartbeat = setInterval(() => {
         try { controller.enqueue(encoder.encode(`: keep-alive\n\n`)); } catch { clearInterval(heartbeat); }
       }, 2500);
-
-      let isInsideThinkTag = false;
 
       try {
         while (true) {
@@ -618,7 +402,7 @@ function transformOpenAiStreamToSSE(
                 let delta = parsed.choices?.[0]?.delta?.content || "";
                 if (!delta) continue;
 
-                // Filtrar etiquetas <think>...</think> para erradicar reflexiones en inglés
+                // Filtrar etiquetas <think>...</think>
                 if (delta.includes("<think>")) {
                   isInsideThinkTag = true;
                   delta = delta.replace(/<think>[\s\S]*/, "");

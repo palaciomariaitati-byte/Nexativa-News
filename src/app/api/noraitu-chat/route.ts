@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { generateTextEmbedding } from "@/lib/nora/embeddings";
 import { resolveAdaptiveEducationalContext } from "@/lib/nora/educationalRouter";
