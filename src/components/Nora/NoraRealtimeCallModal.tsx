@@ -153,6 +153,9 @@ export default function NoraRealtimeCallModal({
   // 3. Detener audio de Nora de forma absoluta y limpia
   const stopNoraSpeech = useCallback(() => {
     isNoraSpeakingRef.current = false;
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      try { window.speechSynthesis.cancel(); } catch {}
+    }
     if (currentAudioSourceRef.current) {
       try {
         currentAudioSourceRef.current.stop();
@@ -195,7 +198,7 @@ export default function NoraRealtimeCallModal({
     onClose();
   }, [onClose, stopNoraSpeech]);
 
-  // 4. Reanudar escucha limpia tras delay de seguridad (Mute-on-Speak & Cooldown de 300ms)
+  // 4. Reanudar escucha limpia tras delay de seguridad
   const resumeListening = useCallback(() => {
     isNoraSpeakingRef.current = false;
     isSpeakingRef.current = false;
@@ -203,7 +206,7 @@ export default function NoraRealtimeCallModal({
     setCallState("listening");
     setAccessibleAnnouncement("Nora te escucha.");
 
-    // Reactivar micrófono de forma limpia mediante GainNode y tracks
+    // Reactivar micrófono de forma limpia
     if (micGainNodeRef.current && audioContextRef.current) {
       try {
         micGainNodeRef.current.gain.setValueAtTime(1.0, audioContextRef.current.currentTime);
@@ -216,32 +219,12 @@ export default function NoraRealtimeCallModal({
     }
   }, []);
 
-  // 5. Reproducción de Audio Real mediante Web Audio API (decodeAudioData)
+  // 5. Reproducción de Audio Completa y Continua (Sin cortes de palabras)
   const playRealNoraAudio = useCallback(
-    async (audioBase64: string, fullText: string) => {
-      if (isMuted || !audioBase64) {
+    async (_audioBase64: string | null, fullText: string) => {
+      if (isMuted || !fullText || !fullText.trim()) {
         resumeListening();
         return;
-      }
-
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      const ctx = audioContextRef.current || new AudioCtx();
-      audioContextRef.current = ctx;
-
-      if (ctx.state === "suspended") {
-        await ctx.resume();
-      }
-
-      // 🛡️ EXCLUSIÓN MUTUA DE HARDWARE: Apagar micrófono antes de reproducir
-      if (micGainNodeRef.current) {
-        try {
-          micGainNodeRef.current.gain.setValueAtTime(0, ctx.currentTime);
-        } catch {}
-      }
-      if (micStreamRef.current) {
-        micStreamRef.current.getAudioTracks().forEach((t) => {
-          t.enabled = false;
-        });
       }
 
       stopNoraSpeech();
@@ -250,31 +233,62 @@ export default function NoraRealtimeCallModal({
       setAssistantText(fullText);
       setAccessibleAnnouncement("Nora está respondiendo.");
 
-      try {
-        const arrayBuf = base64ToArrayBuffer(audioBase64);
-        const audioBuffer = await ctx.decodeAudioData(arrayBuf);
-
-        const source = ctx.createBufferSource();
-        source.buffer = audioBuffer;
-        currentAudioSourceRef.current = source;
-
-        // Al finalizar el audio de verdad
-        source.onended = () => {
-          isNoraSpeakingRef.current = false;
-          currentAudioSourceRef.current = null;
-          if (cooldownTimerRef.current) clearTimeout(cooldownTimerRef.current);
-          cooldownTimerRef.current = setTimeout(() => {
-            resumeListening();
-            playAccessibleChime("start");
-          }, 300);
-        };
-
-        source.connect(ctx.destination);
-        source.start(0);
-      } catch (err) {
-        console.error("[Web Audio Playback Error]:", err);
-        resumeListening();
+      // Apagar micrófono temporalmente para evitar retroalimentación
+      if (micStreamRef.current) {
+        micStreamRef.current.getAudioTracks().forEach((t) => {
+          t.enabled = false;
+        });
       }
+
+      // Reproducción continua de texto completo mediante SpeechSynthesis
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        try {
+          window.speechSynthesis.cancel();
+
+          const cleanVoiceText = fullText
+            .replace(/[*#_~`>|$\\]/g, "")
+            .replace(/\s+/g, " ")
+            .trim();
+
+          const utterance = new SpeechSynthesisUtterance(cleanVoiceText);
+          utterance.lang = "es-AR";
+          utterance.rate = 1.02;
+          utterance.pitch = 1.05;
+
+          const voices = window.speechSynthesis.getVoices();
+          const spanishVoice = voices.find(v =>
+            (v.lang.startsWith("es-AR") || v.lang.startsWith("es-419") || v.lang.startsWith("es-US") || v.lang.startsWith("es")) &&
+            (v.name.toLowerCase().includes("female") || v.name.toLowerCase().includes("paulina") || v.name.toLowerCase().includes("elena") || v.name.toLowerCase().includes("sabina") || v.name.toLowerCase().includes("monica") || v.name.toLowerCase().includes("natural"))
+          ) || voices.find(v => v.lang.startsWith("es"));
+
+          if (spanishVoice) {
+            utterance.voice = spanishVoice;
+          }
+
+          utterance.onend = () => {
+            isNoraSpeakingRef.current = false;
+            if (cooldownTimerRef.current) clearTimeout(cooldownTimerRef.current);
+            cooldownTimerRef.current = setTimeout(() => {
+              resumeListening();
+              playAccessibleChime("start");
+            }, 300);
+          };
+
+          utterance.onerror = () => {
+            isNoraSpeakingRef.current = false;
+            resumeListening();
+          };
+
+          window.speechSynthesis.speak(utterance);
+          return;
+        } catch (e) {
+          console.warn("[SpeechSynthesis Error]:", e);
+        }
+      }
+
+      setTimeout(() => {
+        resumeListening();
+      }, 4000);
     },
     [isMuted, playAccessibleChime, resumeListening, stopNoraSpeech]
   );
@@ -396,24 +410,7 @@ export default function NoraRealtimeCallModal({
             if (onMessageLogged) {
               onMessageLogged(transcribedUserText || "🎙️ [Voz]", text);
             }
-            if (resAudio) {
-              playRealNoraAudio(resAudio, text);
-            } else {
-              setAssistantText(text);
-              setCallState("speaking");
-              if (typeof window !== "undefined" && window.speechSynthesis) {
-                window.speechSynthesis.cancel();
-                const cleanVoiceText = text.replace(/[*#_~`>|$\\]/g, "").slice(0, 350);
-                const utter = new SpeechSynthesisUtterance(cleanVoiceText);
-                utter.lang = "es-AR";
-                utter.rate = 1.05;
-                utter.onend = () => resumeListening();
-                utter.onerror = () => resumeListening();
-                window.speechSynthesis.speak(utter);
-              } else {
-                setTimeout(() => resumeListening(), 4000);
-              }
-            }
+            playRealNoraAudio(resAudio, text);
           } else {
             resumeListening();
           }
