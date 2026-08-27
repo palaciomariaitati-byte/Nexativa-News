@@ -41,6 +41,7 @@ export interface SovereignCoreParams {
   sessionId?: string | null;
   maxTokens?: number;
   temperature?: number;
+  lastInterruptedResponse?: { text: string; timestamp?: number } | null;
 }
 
 export const NORA_MASTER_SYSTEM_PROMPT = `
@@ -402,7 +403,8 @@ export async function executeSovereignText(params: SovereignCoreParams): Promise
     mode = "general",
     imageBase64 = null,
     maxTokens = 600,
-    temperature = 0.35
+    temperature = 0.35,
+    lastInterruptedResponse = null
   } = params;
 
   // 0. Fast-path offline
@@ -417,7 +419,13 @@ export async function executeSovereignText(params: SovereignCoreParams): Promise
   }
 
   const cleanImage = imageBase64 ? (imageBase64.includes(",") ? imageBase64.split(",")[1] : imageBase64) : null;
-  const fullSystem = `${NORA_MASTER_SYSTEM_PROMPT}\n\n[MODO ACTIVO: ${mode.toUpperCase()}]\n\n${systemPrompt}`.trim();
+  
+  let transitionPrompt = "";
+  if (lastInterruptedResponse && lastInterruptedResponse.text) {
+    transitionPrompt = `\n\n[CONTEXTO PEDAGÓGICO PREVIO INTERRUMPIDO]: "${lastInterruptedResponse.text}"\n[DIRECTIVA DE CONTINUIDAD]: Responde con total claridad la nueva consulta del usuario. Al concluir tu explicación en una frase breve, consulta con naturalidad si desea retomar el tema previo (ej: "¿Querés que volvamos a lo que estábamos hablando sobre...?").`;
+  }
+
+  const fullSystem = `${NORA_MASTER_SYSTEM_PROMPT}\n\n[MODO ACTIVO: ${mode.toUpperCase()}]\n\n${systemPrompt}${transitionPrompt}`.trim();
   const openAiMessages = buildOpenAiMessages(history, userMessage, fullSystem, cleanImage);
 
   // 1. Inferencia Abierta Ultrarrápida Groq (Timeout agresivo de 400ms en voz para cero silencios)

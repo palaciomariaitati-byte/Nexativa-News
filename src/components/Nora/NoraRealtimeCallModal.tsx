@@ -108,12 +108,15 @@ export default function NoraRealtimeCallModal({
   const audioChunksRef = useRef<Blob[]>([]);
   const animFrameRef = useRef<number | null>(null);
 
-  // VAD Calibrado Antirruido
+  // VAD Calibrado Antirruido y Filtro de Interrupciones (VAD Watchdog 700ms)
   const isSpeakingRef = useRef<boolean>(false);
   const silenceStartRef = useRef<number | null>(null);
   const noiseFloorRef = useRef<number>(14);
   const speechStartTimeRef = useRef<number>(0);
   const cooldownTimerRef = useRef<any>(null);
+  const interruptionSoundStartRef = useRef<number | null>(null);
+  const lastInterruptedResponseRef = useRef<{ text: string; timestamp: number } | null>(null);
+  const lastCompletedAssistantTextRef = useRef<string>("");
 
   useEffect(() => {
     activeModeRef.current = activeMode;
@@ -292,6 +295,7 @@ export default function NoraRealtimeCallModal({
       isNoraSpeakingRef.current = true;
       setCallState("speaking");
       setAssistantText(fullText);
+      lastCompletedAssistantTextRef.current = fullText;
 
       const spokenText = customPhoneticText || normalizePhoneticTextForSpeech(fullText);
 
@@ -306,13 +310,6 @@ export default function NoraRealtimeCallModal({
       }
 
       setAccessibleAnnouncement("Nora está respondiendo.");
-
-      // Apagar micrófono temporalmente para evitar retroalimentación
-      if (micStreamRef.current) {
-        micStreamRef.current.getAudioTracks().forEach((t) => {
-          t.enabled = false;
-        });
-      }
 
       // Reproducción continua de texto completo mediante SpeechSynthesis con Heartbeat
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
@@ -448,6 +445,8 @@ export default function NoraRealtimeCallModal({
           let transcribedUserText = spokenClientText;
 
           try {
+            const interruptedContext = lastInterruptedResponseRef.current;
+            // No limpiar inmediatamente para permitir recuperación continua
             const res = await fetch("/api/noraitu-realtime-proxy", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -456,7 +455,8 @@ export default function NoraRealtimeCallModal({
                 audioBase64: base64,
                 mimeType,
                 history: historyRef.current.slice(-24),
-                mode: activeModeRef.current
+                mode: activeModeRef.current,
+                lastInterruptedResponse: interruptedContext
               }),
               signal: controller.signal
             });
@@ -657,12 +657,38 @@ export default function NoraRealtimeCallModal({
         const avg = sum / dataArray.length;
         setAudioLevel(Math.min(100, Math.round(avg * 2.3)));
 
-        // Calibración adaptativa continua de piso de ruido ambiente
-        if (!isSpeakingRef.current) {
-          noiseFloorRef.current = Math.max(6, noiseFloorRef.current * 0.95 + avg * 0.05);
+        const now = Date.now();
+
+        // 🛡️ FILTRO DE DURACIÓN DE INTERRUPCIÓN (VAD WATCHDOG 700ms mientras Nora habla)
+        if (isNoraSpeakingRef.current) {
+          const interruptThreshold = Math.max(18, noiseFloorRef.current + 8);
+          if (avg > interruptThreshold) {
+            if (interruptionSoundStartRef.current === null) {
+              interruptionSoundStartRef.current = now;
+            } else if (now - interruptionSoundStartRef.current >= 700) {
+              // Interrupción legítima: el sonido persistió más de 700ms (no es tos ni carraspeo)
+              lastInterruptedResponseRef.current = {
+                text: lastCompletedAssistantTextRef.current,
+                timestamp: now
+              };
+              interruptionSoundStartRef.current = null;
+              stopNoraSpeech();
+              isSpeakingRef.current = true;
+              speechStartTimeRef.current = now;
+              createAndStartRecorder();
+              setCallState("listening");
+              setAccessibleAnnouncement("Te escucho...");
+            }
+          } else {
+            // Si el sonido decayó antes de 700ms (tos, carraspeo, ruido breve), descartar y Nora continúa
+            interruptionSoundStartRef.current = null;
+          }
+
+          animFrameRef.current = requestAnimationFrame(monitorAudioLoop);
+          return;
         }
 
-        if (isNoraSpeakingRef.current || isProcessingRef.current) {
+        if (isProcessingRef.current) {
           animFrameRef.current = requestAnimationFrame(monitorAudioLoop);
           return;
         }
@@ -674,7 +700,6 @@ export default function NoraRealtimeCallModal({
 
         // Umbral dinámico calibrado y altamente sensible
         const dynamicThreshold = Math.max(9, noiseFloorRef.current + 4);
-        const now = Date.now();
 
         if (avg > dynamicThreshold) {
           silenceStartRef.current = null;
