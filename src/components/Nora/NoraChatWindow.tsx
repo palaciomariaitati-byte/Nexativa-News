@@ -25,6 +25,8 @@ export default function NoraChatWindow({ isOpen, onClose, contextData }: NoraCha
   const [isTyping, setIsTyping] = useState(false);
   const [isFrozen, setIsFrozen] = useState(false);
   const [hasConsented, setHasConsented] = useState(false);
+  const [showAllHistory, setShowAllHistory] = useState(false);
+  const [accessibleLiveText, setAccessibleLiveText] = useState<string>("Ventana de chat con Nora abierta.");
   
   // Multimodal state
   const [attachedImage, setAttachedImage] = useState<{ file: File; base64: string; mimeType: string } | null>(null);
@@ -193,13 +195,16 @@ export default function NoraChatWindow({ isOpen, onClose, contextData }: NoraCha
       const data = await res.json();
       if (data.text) {
         setMessages([...newHistory, { role: "nora", content: data.text, isLegalResponse: data.freeze, audioBase64: data.audioBase64 }]);
+        setAccessibleLiveText(`Nora dice: ${data.text}`);
         if (data.freeze) {
           setIsFrozen(true);
         }
       }
     } catch (e) {
       console.error(e);
-      setMessages([...newHistory, { role: "nora", content: "¡Uy! Perdoná la demora, se nos llenó el local de gente de golpe y se me tildó el sistema 😅. Si tenés prisa, ¿me escribís por WhatsApp usando el globito verde?" }]);
+      const fallback = "¡Uy! Perdoná la demora, se nos llenó el local de gente de golpe y se me tildó el sistema 😅. Si tenés prisa, ¿me escribís por WhatsApp usando el globito verde?";
+      setMessages([...newHistory, { role: "nora", content: fallback }]);
+      setAccessibleLiveText(`Nora dice: ${fallback}`);
     } finally {
       setIsTyping(false);
     }
@@ -208,15 +213,29 @@ export default function NoraChatWindow({ isOpen, onClose, contextData }: NoraCha
   if (!isOpen) return null;
 
   return (
-    <div className={`fixed bottom-16 sm:bottom-8 left-3 right-3 sm:right-auto sm:left-8 z-40 w-auto sm:w-[380px] max-w-[calc(100vw-24px)] backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl shadow-black/80 overflow-hidden flex flex-col h-[430px] sm:h-[500px] max-h-[60vh] sm:max-h-[80vh] animate-in slide-in-from-bottom-6 fade-in duration-300 ${isFrozen ? "bg-slate-900/95" : "bg-black/95"}`}>
+    <div 
+      role="dialog"
+      aria-modal="true"
+      aria-label="Ventana de conversación con Nora"
+      className={`fixed bottom-16 sm:bottom-8 left-3 right-3 sm:right-auto sm:left-8 z-40 w-auto sm:w-[380px] max-w-[calc(100vw-24px)] backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl shadow-black/80 overflow-hidden flex flex-col h-[430px] sm:h-[500px] max-h-[60vh] sm:max-h-[80vh] animate-in slide-in-from-bottom-6 fade-in duration-300 ${isFrozen ? "bg-slate-900/95" : "bg-black/95"}`}
+    >
+      {/* Región Dinámica Asertiva para TalkBack (Android) y VoiceOver (iOS) */}
+      <div 
+        id="nora-chat-a11y-live-region"
+        aria-live="assertive" 
+        aria-atomic="true" 
+        className="sr-only"
+      >
+        {accessibleLiveText}
+      </div>
       
       {/* Header */}
       <div className="bg-gradient-to-r from-[var(--color-brand-accent)] to-[var(--color-brand-accent-hover)] p-4 flex items-center justify-between shadow-lg relative z-10">
         <div className="flex items-center gap-3">
           <div className="relative">
-            {/* Avatar placeholder - El usuario cambiará esto */}
+            {/* Avatar */}
             <div className="w-10 h-10 rounded-full bg-black/20 flex items-center justify-center border-2 border-white/30 overflow-hidden">
-              <img src="/nora-avatar.jpg?v=2" alt="Nora" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display='none'; }} />
+              <img src="/nora-avatar.jpg?v=2" alt="Avatar de Nora" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display='none'; }} />
               <User className="w-6 h-6 text-black/50 absolute -z-10" />
             </div>
             <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[var(--color-brand-accent)]"></div>
@@ -226,7 +245,12 @@ export default function NoraChatWindow({ isOpen, onClose, contextData }: NoraCha
             <p className="text-black/70 text-xs font-bold">En línea</p>
           </div>
         </div>
-        <button onClick={onClose} className="text-black/50 hover:text-black transition-colors bg-black/10 hover:bg-black/20 rounded-full p-1">
+        <button 
+          onClick={onClose} 
+          role="button"
+          aria-label="Cerrar ventana de chat con Nora"
+          className="text-black/50 hover:text-black transition-colors bg-black/10 hover:bg-black/20 rounded-full p-1 cursor-pointer"
+        >
           <X className="w-5 h-5" />
         </button>
       </div>
@@ -237,15 +261,32 @@ export default function NoraChatWindow({ isOpen, onClose, contextData }: NoraCha
           <p className="pr-6">
             <strong>Hola, soy Nora.</strong> Para ayudarte y conectar tus intereses con comercios locales, proceso tus mensajes, audios e imágenes mediante IA bajo los términos de la <strong>Ley Nacional N° 25.326 de Protección de Datos Personales</strong>. Al interactuar conmigo, aceptas nuestra <a href="/legal-and-ip/politica-privacidad" target="_blank" rel="noopener noreferrer" className="underline font-bold text-white">Política de Privacidad y Términos de Uso</a>.
           </p>
-          <button onClick={() => setHasConsented(true)} className="absolute top-2 right-2 text-slate-400 hover:text-white p-1">
+          <button 
+            onClick={() => setHasConsented(true)} 
+            role="button"
+            aria-label="Aceptar y cerrar banner de privacidad"
+            className="absolute top-2 right-2 text-slate-400 hover:text-white p-1 cursor-pointer"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      {/* Messages Area */}
+      {/* Messages Area con Virtualización de DOM (Últimos 10 mensajes en caliente) */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth">
-        {messages.map((msg, idx) => (
+        {messages.length > 10 && !showAllHistory && (
+          <button
+            type="button"
+            role="button"
+            aria-label={`Ver ${messages.length - 10} mensajes anteriores`}
+            onClick={() => setShowAllHistory(true)}
+            className="w-full py-1.5 px-3 mb-2 text-center text-xs text-cyan-400/80 hover:text-cyan-300 bg-white/5 hover:bg-white/10 rounded-xl transition border border-white/10 flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <span>📜 Ver {messages.length - 10} mensajes anteriores</span>
+          </button>
+        )}
+
+        {(showAllHistory || messages.length <= 10 ? messages : messages.slice(-10)).map((msg, idx) => (
           <div key={idx} className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}>
             <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm ${
               msg.role === "user" 
@@ -268,7 +309,11 @@ export default function NoraChatWindow({ isOpen, onClose, contextData }: NoraCha
               )}
               {msg.attachedImageUrl && (
                 <div className="mb-2 rounded-lg overflow-hidden border border-white/20">
-                  <img src={msg.attachedImageUrl} alt="Adjunto" className="max-w-full h-auto max-h-32 object-contain bg-black/50" />
+                  <img 
+                    src={msg.attachedImageUrl} 
+                    alt="Pizarrón, apunte o imagen analizada por Nora para accesibilidad visual" 
+                    className="max-w-full h-auto max-h-32 object-contain bg-black/50" 
+                  />
                 </div>
               )}
               <div 
@@ -279,13 +324,17 @@ export default function NoraChatWindow({ isOpen, onClose, contextData }: NoraCha
                 <div className="mt-2.5 pt-2 border-t border-white/10 flex items-center gap-2">
                   <button
                     onClick={() => downloadAsWord(`informe_nora_${idx}`, "INFORME NORA — NEXATIVA NEWS", msg.content)}
-                    className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-white rounded text-[11px] font-semibold transition"
+                    role="button"
+                    aria-label="Descargar este informe como documento de Word"
+                    className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-white rounded text-[11px] font-semibold transition cursor-pointer"
                   >
                     📄 Word (.doc)
                   </button>
                   <button
                     onClick={() => exportToPdf("INFORME NORA — NEXATIVA NEWS", msg.content)}
-                    className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-white rounded text-[11px] font-semibold transition"
+                    role="button"
+                    aria-label="Imprimir o exportar este informe a PDF"
+                    className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-white rounded text-[11px] font-semibold transition cursor-pointer"
                   >
                     🖨️ PDF
                   </button>
@@ -293,21 +342,35 @@ export default function NoraChatWindow({ isOpen, onClose, contextData }: NoraCha
               )}
               {msg.isLegalResponse && (
                 <div className="mt-3 pt-3 border-t border-slate-700">
-                  <a href="/libro-de-quejas" target="_blank" rel="noopener noreferrer" className="block w-full text-center py-2 px-3 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-lg transition-colors border border-white/20">
+                  <a 
+                    href="/libro-de-quejas" 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    role="button"
+                    aria-label="Abrir formulario oficial de reclamos en nueva pestaña"
+                    className="block w-full text-center py-2 px-3 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-lg transition-colors border border-white/20"
+                  >
                     Abrir Formulario Oficial de Reclamos
                   </a>
                 </div>
               )}
               {msg.isHumanSupport && (
                 <div className="mt-3 pt-3 border-t border-slate-700">
-                  <a href="https://wa.me/5493786414533" target="_blank" rel="noopener noreferrer" className="block w-full text-center py-2 px-3 bg-green-600/20 hover:bg-green-600/40 text-green-400 text-xs font-semibold rounded-lg transition-colors border border-green-500/30">
+                  <a 
+                    href="https://wa.me/5493786414533" 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    role="button"
+                    aria-label="Contactar soporte humano de Nora por WhatsApp"
+                    className="block w-full text-center py-2 px-3 bg-green-600/20 hover:bg-green-600/40 text-green-400 text-xs font-semibold rounded-lg transition-colors border border-green-500/30"
+                  >
                     Ir a WhatsApp de Soporte
                   </a>
                 </div>
               )}
               {msg.audioBase64 && (
                 <div className="mt-3 pt-2 border-t border-white/10">
-                  <audio controls src={`data:audio/mp3;base64,${msg.audioBase64}`} className="h-8 w-full outline-none [&::-webkit-media-controls-panel]:bg-white/10 [&::-webkit-media-controls-current-time-display]:text-white [&::-webkit-media-controls-time-remaining-display]:text-white" />
+                  <audio controls aria-label="Audio de respuesta de Nora" src={`data:audio/mp3;base64,${msg.audioBase64}`} className="h-8 w-full outline-none [&::-webkit-media-controls-panel]:bg-white/10 [&::-webkit-media-controls-current-time-display]:text-white [&::-webkit-media-controls-time-remaining-display]:text-white" />
                 </div>
               )}
             </div>
@@ -318,7 +381,7 @@ export default function NoraChatWindow({ isOpen, onClose, contextData }: NoraCha
         ))}
         
         {isTyping && (
-          <div className="flex flex-col items-start">
+          <div className="flex flex-col items-start" role="status" aria-label="Nora está redactando una respuesta">
             <div className="max-w-[85%] px-4 py-3 rounded-2xl bg-gradient-to-br from-gray-900 to-black border border-white/10 rounded-bl-sm flex items-center gap-1.5">
               <div className="w-2 h-2 rounded-full bg-[var(--color-brand-accent)] animate-bounce" style={{ animationDelay: "0ms" }}></div>
               <div className="w-2 h-2 rounded-full bg-[var(--color-brand-accent)] animate-bounce" style={{ animationDelay: "150ms" }}></div>
@@ -335,6 +398,8 @@ export default function NoraChatWindow({ isOpen, onClose, contextData }: NoraCha
         {!isFrozen && (
           <button
             type="button"
+            role="button"
+            aria-label="Hablar con un representante humano"
             onClick={() => {
               setIsFrozen(true);
               setMessages(prev => [...prev, {
@@ -342,8 +407,9 @@ export default function NoraChatWindow({ isOpen, onClose, contextData }: NoraCha
                 content: "He suspendido mi asistencia automatizada en esta sesión. Por favor, haz clic abajo para contactarte con un representante humano por WhatsApp.",
                 isHumanSupport: true
               }]);
+              setAccessibleLiveText("Asistencia suspendida para derivación con representante humano.");
             }}
-            className="absolute -top-7 right-4 bg-slate-800 hover:bg-slate-700 text-white text-[10px] uppercase font-bold py-1.5 px-3 rounded-t-lg border border-white/10 border-b-0 transition-colors flex items-center gap-1 z-10"
+            className="absolute -top-7 right-4 bg-slate-800 hover:bg-slate-700 text-white text-[10px] uppercase font-bold py-1.5 px-3 rounded-t-lg border border-white/10 border-b-0 transition-colors flex items-center gap-1 z-10 cursor-pointer"
           >
             <User className="w-3 h-3" /> Hablar con un humano
           </button>
@@ -351,10 +417,12 @@ export default function NoraChatWindow({ isOpen, onClose, contextData }: NoraCha
         {previewUrl && (
           <div className="absolute bottom-full left-4 mb-2 relative inline-block">
             <div className="relative rounded-lg overflow-hidden border-2 border-[var(--color-brand-accent)] bg-black/80 shadow-lg">
-              <img src={previewUrl} alt="Preview" className="h-16 w-16 object-cover" />
+              <img src={previewUrl} alt="Vista previa de imagen a enviar a Nora" className="h-16 w-16 object-cover" />
               <button 
                 onClick={handleRemoveImage}
-                className="absolute top-1 right-1 bg-black/60 text-white p-0.5 rounded-full hover:bg-black"
+                role="button"
+                aria-label="Quitar imagen adjunta"
+                className="absolute top-1 right-1 bg-black/60 text-white p-0.5 rounded-full hover:bg-black cursor-pointer"
               >
                 <X className="w-3 h-3" />
               </button>
@@ -363,12 +431,13 @@ export default function NoraChatWindow({ isOpen, onClose, contextData }: NoraCha
         )}
         
         <form onSubmit={handleSend} className="relative flex items-center">
-          
           <button 
             type="button"
+            role="button"
+            aria-label="Adjuntar imagen del pizarrón o documento (JPG, PNG, WEBP)"
             onClick={() => fileInputRef.current?.click()}
             disabled={isFrozen || isTyping}
-            className={`absolute left-2 p-2 rounded-full transition-colors ${isFrozen || isTyping ? "text-gray-600 cursor-not-allowed" : "text-gray-400 hover:text-white hover:bg-white/10"}`}
+            className={`absolute left-2 p-2 rounded-full transition-colors ${isFrozen || isTyping ? "text-gray-600 cursor-not-allowed" : "text-gray-400 hover:text-white hover:bg-white/10 cursor-pointer"}`}
             title="Adjuntar imagen (JPG, PNG, WEBP)"
           >
             <Paperclip className="w-4 h-4" />
@@ -379,25 +448,29 @@ export default function NoraChatWindow({ isOpen, onClose, contextData }: NoraCha
             onChange={handleFileChange} 
             accept="image/png, image/jpeg, image/webp" 
             className="hidden" 
+            aria-hidden="true"
           />
 
           <input 
             type="text" 
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            aria-label="Escribe tu mensaje para Nora"
             placeholder={isFrozen ? "Sesión redirigida a canales legales oficiales." : "Escribe un mensaje..."}
             disabled={isFrozen}
             className={`w-full bg-white/5 border border-white/10 rounded-full pl-10 pr-12 py-3 text-sm text-white focus:outline-none focus:border-[var(--color-brand-accent)] transition-colors ${isFrozen ? "opacity-50 cursor-not-allowed" : ""}`}
           />
           <button 
             type="submit" 
+            role="button"
+            aria-label="Enviar mensaje a Nora"
             disabled={(!input.trim() && !attachedImage) || isTyping || isFrozen}
-            className={`absolute right-2 p-2 rounded-full transition-transform ${isFrozen ? "bg-gray-600 text-gray-400 cursor-not-allowed" : "bg-[var(--color-brand-accent)] text-black hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"}`}
+            className={`absolute right-2 p-2 rounded-full transition-transform ${isFrozen ? "bg-gray-600 text-gray-400 cursor-not-allowed" : "bg-[var(--color-brand-accent)] text-black hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 cursor-pointer"}`}
           >
             <Send className="w-4 h-4 ml-0.5" />
           </button>
         </form>
-        <div className="text-center mt-2 flex items-center justify-center gap-1 text-[9px] text-gray-400 uppercase tracking-widest font-semibold">
+        <div className="text-center mt-2 flex items-center justify-center gap-1 text-[9px] text-gray-400 uppercase tracking-widest font-semibold" aria-hidden="true">
           <Sparkles className="w-3 h-3 text-purple-400" /> Anfitriona & Guía Digital
         </div>
       </div>

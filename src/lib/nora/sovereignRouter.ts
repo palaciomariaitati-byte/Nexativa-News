@@ -14,7 +14,6 @@
  * ========================================================================
  */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NORA_CONSTITUTIONAL_AXIOMS } from "@/lib/nora/constitutionalShield";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { processSovereignAttachment } from "@/lib/nora/documentExtractor";
@@ -373,116 +372,7 @@ async function tryOpenRouterFree(messages: SovereignMessage[], isVision: boolean
   return null;
 }
 
-/**
- * CAPA 5: Google Gemini Multi-Pool Multimodal
- */
-async function tryGeminiMultiPool(
-  history: { role: string; content: string }[],
-  userMessage: string,
-  systemPrompt: string,
-  file?: SovereignFileAttachment | null,
-  extractedDocContext?: string
-): Promise<{ stream: any; modelTag: string } | null> {
-  const keysPool = [
-    process.env.GEMINI_API_KEY,
-    process.env.NEXT_PUBLIC_GEMINI_API_KEY,
-    process.env.GOOGLE_GEMINI_API_KEY,
-    process.env.GOOGLE_API_KEY,
-    process.env.GEMINI_API_KEY_FALLBACK,
-    process.env.GEMINI_API_KEY_FALLBACK_2,
-    process.env.GEMINI_API_KEY_TERTIARY
-  ].filter(Boolean) as string[];
-
-  if (keysPool.length === 0) return null;
-
-  const candidateModels = [
-    "gemini-1.5-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash-8b",
-    "gemini-flash-latest",
-    "gemini-1.5-pro"
-  ];
-
-  const currentTurnParts: any[] = [];
-  if (file?.base64) {
-    let cleanMime = (file.mimeType || file.type || "").split(";")[0].trim();
-    if (!cleanMime || cleanMime === "application/octet-stream") {
-      cleanMime = file.name?.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/jpeg";
-    }
-    const cleanB64 = file.base64.includes(",") ? file.base64.split(",")[1] : file.base64;
-    currentTurnParts.push({
-      inlineData: { data: cleanB64, mimeType: cleanMime }
-    });
-  }
-
-  let finalUserText = userMessage || "Hola Nora, continuemos.";
-  if (extractedDocContext && currentTurnParts.length === 0) {
-    finalUserText = `${extractedDocContext}\n[CONSULTA DEL USUARIO]:\n${finalUserText}`;
-  }
-  currentTurnParts.push({ text: finalUserText });
-
-  const geminiContents: { role: string; parts: any[] }[] = [];
-  for (const item of history) {
-    if (!item.content || !item.content.trim()) continue;
-    const mappedRole = item.role === "assistant" || item.role === "model" ? "model" : "user";
-    if (geminiContents.length === 0 && mappedRole === "model") {
-      geminiContents.push({ role: "user", parts: [{ text: "Hola Nora, continuemos nuestro diálogo." }] });
-    }
-    if (geminiContents.length > 0 && geminiContents[geminiContents.length - 1].role === mappedRole) {
-      const prevText = geminiContents[geminiContents.length - 1].parts[0]?.text || "";
-      geminiContents[geminiContents.length - 1].parts = [{ text: `${prevText}\n\n${item.content}` }];
-    } else {
-      geminiContents.push({ role: mappedRole, parts: [{ text: item.content }] });
-    }
-  }
-
-  if (geminiContents.length > 0 && geminiContents[geminiContents.length - 1].role === "user") {
-    const lastUserTurn = geminiContents.pop()!;
-    const lastText = lastUserTurn.parts.map((p: any) => p.text || "").filter(Boolean).join("\n\n");
-    if (lastText) {
-      currentTurnParts.unshift({ text: `${lastText}\n\n` });
-    }
-  }
-
-  geminiContents.push({ role: "user", parts: currentTurnParts });
-
-  const fullSys = `${NORA_CONSTITUTIONAL_AXIOMS}\n\n${systemPrompt}`.trim();
-
-  for (const key of keysPool) {
-    for (const modelName of candidateModels) {
-      try {
-        const genAI = new GoogleGenerativeAI(key);
-        const model = genAI.getGenerativeModel({
-          model: modelName,
-          systemInstruction: fullSys,
-          generationConfig: { temperature: 0.35, maxOutputTokens: 3500 }
-        });
-        const activeStream = await model.generateContentStream({ contents: geminiContents });
-        if (activeStream) {
-          console.log(`[Sovereign Router - Capa 5]: Inferencia exitosa en Gemini Pool (${modelName})`);
-          return { stream: activeStream, modelTag: modelName };
-        }
-      } catch (e: any) {
-        try {
-          const genAI = new GoogleGenerativeAI(key);
-          const fallbackModel = genAI.getGenerativeModel({
-            model: modelName,
-            generationConfig: { temperature: 0.35, maxOutputTokens: 3500 }
-          });
-          const contentsWithPrompt = [
-            { role: "user", parts: [{ text: fullSys }, ...currentTurnParts] }
-          ];
-          const activeStream = await fallbackModel.generateContentStream({ contents: contentsWithPrompt });
-          if (activeStream) {
-            console.log(`[Sovereign Router - Capa 5]: Inferencia exitosa en Gemini Fallback (${modelName})`);
-            return { stream: activeStream, modelTag: modelName };
-          }
-        } catch {}
-      }
-    }
-  }
-  return null;
-}
+// Capa 5: Ejecución centralizada a través de executeSovereignStream (Ollama + Pollinations + Groq + HF + Local)
 
 /**
  * CAPA 6: Pollinations Free Open Mesh (100% Gratuito, Cero Caídas, Sin API Key)

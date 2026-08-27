@@ -95,6 +95,7 @@ export default function NoraItuApp() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [showAllHistory, setShowAllHistory] = useState(false);
   const [inputMessage, setInputMessage] = useState("");
   const [attachedFile, setAttachedFile] = useState<AttachedFile | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -2442,9 +2443,21 @@ export default function NoraItuApp() {
               </div>
             </div>
           ) : (
-            /* Stream de Mensajes */
+            /* Stream de Mensajes con Virtualización de DOM */
             <div className="max-w-3xl mx-auto space-y-6">
-              {messages.map((msg, index) => {
+              {messages.length > 10 && !showAllHistory && (
+                <div className="text-center py-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAllHistory(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-sky-400 bg-sky-950/40 hover:bg-sky-900/50 border border-sky-800/60 rounded-full transition-all shadow-sm"
+                  >
+                    📜 Mostrar {messages.length - 10} mensajes anteriores
+                  </button>
+                </div>
+              )}
+
+              {(showAllHistory || messages.length <= 10 ? messages : messages.slice(-10)).map((msg, index) => {
                 const isUser = msg.role === "user";
                 const isSpeakingThis = playingMsgIndex === index;
 

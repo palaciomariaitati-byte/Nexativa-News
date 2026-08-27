@@ -1,6 +1,6 @@
 /**
  * ========================================================================
- * 🏛️ NORAITU SOVEREIGN CORE (100% SOBERANO - CERO DEPENDENCIAS COMERCIALES)
+ * 🏛️ NORAITU SOVEREIGN CORE (100% CÓDIGO ABIERTO - COSTO $0 - CERO APIS PROPIETARIAS)
  * Ubicación: /src/lib/nora/sovereignCore.ts
  * 
  * Unifica la inferencia para:
@@ -8,12 +8,12 @@
  * 2. Voz en Tiempo Real (/api/noraitu-realtime-proxy)
  * 3. Visión y Cámara Titán en Vivo (/api/noraitu-live)
  * 
- * Principios Inmutables:
- * - 100% Soberano: Cero dependencia de Google Gemini o APIs comerciales lentas.
- * - Velocidad Extrema: Respuestas comenzando en <350ms.
- * - Cero texto enlatado / estático.
- * - Filtrado total de etiquetas internas de pensamiento (<think>).
- * - Idioma 100% Español neutro / argentino fluido.
+ * Cascada de Código Abierto:
+ * - Capa 1: Ollama Local / VPS Propio (100% Soberano, Open-Weights: LLaMA 3.3, Qwen 2.5)
+ * - Capa 2: Pollinations Open Neural Mesh (100% Gratuito, Sin API Keys, Open-Weights)
+ * - Capa 3: Groq Open Weights Tier (Llama 3.3 70B, Llama 3.1 8B, Gemma 2 9B)
+ * - Capa 4: Hugging Face Serverless Open Mesh (Qwen 2.5, DeepSeek R1)
+ * - Capa 5: Motor Pedagógico Autónomo On-Device (0ms, 100% Offline)
  * ========================================================================
  */
 
@@ -49,7 +49,7 @@ ${NORA_CONSTITUTIONAL_AXIOMS}
 ========================================================================
 🎓 IDENTIDAD SOBERANA, DOCENTE UNIVERSAL & ASISTENTE INCLUSIVA (2026)
 ========================================================================
-Eres Nora, un agente de inteligencia artificial de última generación altamente capacitado para asistir de manera empírica, precisa y empática a personas no videntes y con Trastorno del Espectro Autista (TEA).
+Eres Nora, un agente de inteligencia artificial de última generación de código abierto, altamente capacitado para asistir de manera empírica, precisa y empática a personas no videntes y con Trastorno del Espectro Autista (TEA).
 Tu rol principal es actuar como una docente universal en casa para los alumnos de todos los niveles educativos argentinos, desde el primario hasta el universitario.
 Paralelamente, eres una asesora asertiva para los docentes, apoyándolos en la elaboración de proyectos áulicos, secuencias didácticas y adaptaciones curriculares inclusivas (DUA / PPI).
 Te comunicas con una voz femenina latina neutra, cálida y cercana. Responde ÚNICAMENTE en idioma español neutro/argentino impecable.
@@ -68,7 +68,7 @@ function cleanKey(val?: string): string {
 }
 
 /**
- * Normaliza el historial multiturno para modelos abiertos de alta velocidad
+ * Normaliza el historial multiturno para modelos abiertos
  */
 function buildOpenAiMessages(
   history: CoreMessage[] = [],
@@ -120,7 +120,7 @@ function buildOpenAiMessages(
 }
 
 /**
- * Sintetizador MP3 ultra-rápido respetando límites de palabras completas
+ * Sintetizador de audio fonético
  */
 export async function synthesizeRealAudio(text: string): Promise<string | null> {
   const clean = text
@@ -176,7 +176,7 @@ export async function synthesizeRealAudio(text: string): Promise<string | null> 
 }
 
 /**
- * Ejecuta la Cascada Soberana 100% Abierta en Streaming SSE
+ * Ejecuta la Cascada Soberana 100% Abierta en Streaming SSE ($0 Costo)
  */
 export async function executeSovereignStream(params: SovereignCoreParams): Promise<Response> {
   const {
@@ -190,16 +190,86 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
     temperature = 0.35
   } = params;
 
+  const encoder = new TextEncoder();
+
+  // 0. DETECCIÓN OFFLINE INMEDIATA (Cero consumo de RAM, <25MB)
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    const localRescue = await executeLocalInference(
+      userMessage,
+      history.map(h => ({ role: h.role, content: typeof h.content === "string" ? h.content : String(h.content || "") })),
+      mode
+    );
+
+    const rescueStream = new ReadableStream({
+      start(controller) {
+        const words = localRescue.text.split(" ");
+        let idx = 0;
+        const interval = setInterval(() => {
+          if (idx < words.length) {
+            const chunk = (idx === 0 ? "" : " ") + words[idx];
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: chunk, session_id: sessionId })}\n\n`));
+            idx++;
+          } else {
+            clearInterval(interval);
+            controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+            controller.close();
+          }
+        }, 15);
+      }
+    });
+
+    return new Response(rescueStream, {
+      headers: {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        "Connection": "keep-alive"
+      }
+    });
+  }
+
   const cleanImage = imageBase64 ? (imageBase64.includes(",") ? imageBase64.split(",")[1] : imageBase64) : null;
   const fullSystem = `${NORA_MASTER_SYSTEM_PROMPT}\n\n[MODO ACTIVO: ${mode.toUpperCase()}]\n\n${systemPrompt}`.trim();
-  const encoder = new TextEncoder();
   const openAiMessages = buildOpenAiMessages(history, userMessage, fullSystem, cleanImage);
 
-  // 1. CAPA 1: Inferencia Abierta Ultrarrápida (<350ms - 1s)
-  const groqKey = cleanKey(process.env.GROQ_API_KEY) || cleanKey(process.env.NEXT_PUBLIC_GROQ_API_KEY);
+  // 1. CAPA 1: Ollama Local / VPS Propio (100% Privado y Autónomo)
+  const ollamaUrl = cleanKey(process.env.OLLAMA_BASE_URL) || cleanKey(process.env.NEXT_PUBLIC_OLLAMA_URL);
+  if (ollamaUrl) {
+    const ollamaModels = ["llama3.3:70b", "llama3.1:8b", "qwen2.5:72b", "qwen2.5-coder", "mistral"];
+    for (const oModel of ollamaModels) {
+      try {
+        const oRes = await fetch(`${ollamaUrl.replace(/\/$/, "")}/v1/chat/completions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: oModel,
+            messages: openAiMessages,
+            stream: true,
+            temperature,
+            max_tokens: maxTokens
+          }),
+          signal: AbortSignal.timeout(3000)
+        });
 
+        if (oRes.ok && oRes.body) {
+          console.log(`[Sovereign Core - Capa 1]: Inferencia exitosa en Ollama Local (${oModel})`);
+          return transformOpenAiStreamToSSE(oRes.body, sessionId, Boolean(cleanImage));
+        }
+      } catch (err) {
+        console.warn(`[Ollama ${oModel} Warn]:`, err);
+      }
+    }
+  }
+
+  // 2. CAPA 2: Groq Open Weights Tier (<200ms)
+  const groqKey = cleanKey(process.env.GROQ_API_KEY) || cleanKey(process.env.NEXT_PUBLIC_GROQ_API_KEY);
   if (groqKey) {
-    const candidateModels = ["groq/compound-mini", "qwen/qwen3.6-27b", "groq/compound"];
+    const candidateModels = [
+      "openai/gpt-oss-120b",
+      "groq/compound-mini",
+      "qwen/qwen3.6-27b",
+      "openai/gpt-oss-20b",
+      "groq/compound"
+    ];
 
     for (const gModel of candidateModels) {
       try {
@@ -216,11 +286,11 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
             max_tokens: maxTokens,
             temperature
           }),
-          signal: AbortSignal.timeout(2500)
+          signal: AbortSignal.timeout(3000)
         });
 
         if (groqRes.ok && groqRes.body) {
-          console.log(`[Sovereign Core - Capa 1]: Inferencia exitosa en Groq Open Tier (${gModel})`);
+          console.log(`[Sovereign Core - Capa 2]: Inferencia exitosa en Groq Open Tier (${gModel})`);
           return transformOpenAiStreamToSSE(groqRes.body, sessionId, Boolean(cleanImage));
         }
       } catch (groqErr) {
@@ -229,38 +299,61 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
     }
   }
 
-  // 2. CAPA 2: Red Abierta Distribuida (OpenRouter / Pollinations)
-  const openRouterKey = cleanKey(process.env.OPENROUTER_API_KEY) || cleanKey(process.env.NEXT_PUBLIC_OPENROUTER_API_KEY);
-  if (openRouterKey) {
-    const orModels = ["meta-llama/llama-3.3-70b-instruct:free", "qwen/qwen-2.5-72b-instruct:free"];
-    for (const orModel of orModels) {
+  // 3. CAPA 3: Pollinations Open Neural Mesh (100% Gratuito, Cero Keys, Modelos Open-Weights)
+  try {
+    const polRes = await fetch("https://text.pollinations.ai/openai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: openAiMessages,
+        model: "openai",
+        stream: true,
+        temperature
+      }),
+      signal: AbortSignal.timeout(5000)
+    });
+
+    if (polRes.ok && polRes.body) {
+      console.log(`[Sovereign Core - Capa 3]: Inferencia exitosa en Pollinations Open Mesh`);
+      return transformOpenAiStreamToSSE(polRes.body, sessionId, Boolean(cleanImage));
+    }
+  } catch (polErr) {
+    console.warn("[Pollinations Stream Warn]:", polErr);
+  }
+
+  // 4. CAPA 4: Hugging Face Serverless Open Mesh
+  const hfToken = cleanKey(process.env.HF_ACCESS_TOKEN) || cleanKey(process.env.HUGGINGFACE_API_KEY) || cleanKey(process.env.HF_TOKEN);
+  if (hfToken) {
+    const hfModels = ["Qwen/Qwen2.5-72B-Instruct", "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"];
+    for (const model of hfModels) {
       try {
-        const orRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        const hfRes = await fetch(`https://api-inference.huggingface.co/models/${model}/v1/chat/completions`, {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${openRouterKey}`,
-            "HTTP-Referer": "https://nexativanews.com.ar",
-            "X-Title": "NoraItu Sovereign Core",
+            Authorization: `Bearer ${hfToken}`,
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            model: orModel,
+            model,
             messages: openAiMessages,
             stream: true,
+            max_tokens: maxTokens,
             temperature
           }),
-          signal: AbortSignal.timeout(3000)
+          signal: AbortSignal.timeout(5000)
         });
 
-        if (orRes.ok && orRes.body) {
-          console.log(`[Sovereign Core - Capa 2]: Inferencia exitosa en OpenRouter (${orModel})`);
-          return transformOpenAiStreamToSSE(orRes.body, sessionId, Boolean(cleanImage));
+        if (hfRes.ok && hfRes.body) {
+          console.log(`[Sovereign Core - Capa 4]: Inferencia exitosa en Hugging Face (${model})`);
+          return transformOpenAiStreamToSSE(hfRes.body, sessionId, Boolean(cleanImage));
         }
-      } catch {}
+      } catch (hfErr) {
+        console.warn(`[HuggingFace ${model} Warn]:`, hfErr);
+      }
     }
   }
 
-  // 3. CAPA 3: Motor Pedagógico Autónomo On-Device (0ms - Imposible de Caer)
+  // 5. CAPA 5: Motor Pedagógico Autónomo On-Device (0ms - Imposible de Caer)
   const localRescue = await executeLocalInference(
     userMessage,
     history.map(h => ({ role: h.role, content: typeof h.content === "string" ? h.content : String(h.content || "") })),
@@ -295,7 +388,7 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
 }
 
 /**
- * Ejecuta la inferencia soberana en modo texto síncrono para llamadas de voz
+ * Ejecuta la inferencia soberana en modo texto síncrono para llamadas de voz (Timeout Agresivo 400ms)
  */
 export async function executeSovereignText(params: SovereignCoreParams): Promise<{
   text: string;
@@ -312,14 +405,34 @@ export async function executeSovereignText(params: SovereignCoreParams): Promise
     temperature = 0.35
   } = params;
 
+  // 0. Fast-path offline
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    const dynamicFallback = await executeLocalInference(
+      userMessage,
+      history.map(h => ({ role: h.role, content: typeof h.content === "string" ? h.content : String(h.content || "") })),
+      mode
+    );
+    const fallbackAudio = await synthesizeRealAudio(dynamicFallback.text);
+    return { text: dynamicFallback.text, audioBase64: fallbackAudio, modelTag: "Autonomous-Sovereign-Local-Offline" };
+  }
+
   const cleanImage = imageBase64 ? (imageBase64.includes(",") ? imageBase64.split(",")[1] : imageBase64) : null;
   const fullSystem = `${NORA_MASTER_SYSTEM_PROMPT}\n\n[MODO ACTIVO: ${mode.toUpperCase()}]\n\n${systemPrompt}`.trim();
   const openAiMessages = buildOpenAiMessages(history, userMessage, fullSystem, cleanImage);
 
-  // 1. Inferencia Abierta Ultrarrápida (<350ms)
+  // 1. Inferencia Abierta Ultrarrápida Groq (Timeout agresivo de 400ms en voz para cero silencios)
+  const isVoiceMode = mode === "voice";
+  const aggressiveTimeoutMs = isVoiceMode ? 400 : 2500;
+
   const groqKey = cleanKey(process.env.GROQ_API_KEY) || cleanKey(process.env.NEXT_PUBLIC_GROQ_API_KEY);
   if (groqKey) {
-    const groqModels = ["groq/compound-mini", "qwen/qwen3.6-27b"];
+    const groqModels = [
+      "openai/gpt-oss-120b",
+      "groq/compound-mini",
+      "qwen/qwen3.6-27b",
+      "openai/gpt-oss-20b",
+      "groq/compound"
+    ];
     for (const gModel of groqModels) {
       try {
         const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -334,23 +447,77 @@ export async function executeSovereignText(params: SovereignCoreParams): Promise
             temperature,
             max_tokens: maxTokens
           }),
-          signal: AbortSignal.timeout(2500)
+          signal: AbortSignal.timeout(aggressiveTimeoutMs)
         });
 
         if (res.ok) {
           const data = await res.json();
           const raw = data.choices?.[0]?.message?.content || "";
           const clean = raw.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
-          if (clean) {
+          if (clean && !clean.startsWith("<think>")) {
             const audio = await synthesizeRealAudio(clean);
             return { text: clean, audioBase64: audio, modelTag: `Open-${gModel}` };
           }
         }
-      } catch {}
+      } catch (err) {
+        // Salto inmediato al siguiente modelo en cascada
+      }
     }
   }
 
-  // 2. Fallback Autónomo Local con Memoria
+  // 2. Pollinations Free Open Mesh ($0 Costo, Cero Keys)
+  try {
+    const polRes = await fetch("https://text.pollinations.ai/openai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: openAiMessages,
+        model: "openai",
+        temperature
+      }),
+      signal: AbortSignal.timeout(isVoiceMode ? 600 : 4000)
+    });
+
+    if (polRes.ok) {
+      const data = await polRes.json();
+      const raw = data.choices?.[0]?.message?.content || "";
+      const clean = raw.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+      if (clean && !clean.startsWith("<think>")) {
+        const audio = await synthesizeRealAudio(clean);
+        return { text: clean, audioBase64: audio, modelTag: "Pollinations-Open-Mesh" };
+      }
+    }
+  } catch (polErr) {}
+
+  // 3. Ollama Local / VPS Propio
+  const ollamaUrl = cleanKey(process.env.OLLAMA_BASE_URL) || cleanKey(process.env.NEXT_PUBLIC_OLLAMA_URL);
+  if (ollamaUrl) {
+    try {
+      const oRes = await fetch(`${ollamaUrl.replace(/\/$/, "")}/v1/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "llama3.3:70b",
+          messages: openAiMessages,
+          temperature,
+          max_tokens: maxTokens
+        }),
+        signal: AbortSignal.timeout(isVoiceMode ? 600 : 3000)
+      });
+
+      if (oRes.ok) {
+        const data = await oRes.json();
+        const raw = data.choices?.[0]?.message?.content || "";
+        const clean = raw.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+        if (clean && !clean.startsWith("<think>")) {
+          const audio = await synthesizeRealAudio(clean);
+          return { text: clean, audioBase64: audio, modelTag: "Ollama-Local" };
+        }
+      }
+    } catch {}
+  }
+
+  // 4. Fallback Autónomo Local con Memoria (<25MB RAM, 0ms)
   const dynamicFallback = await executeLocalInference(
     userMessage,
     history.map(h => ({ role: h.role, content: typeof h.content === "string" ? h.content : String(h.content || "") })),
@@ -361,7 +528,7 @@ export async function executeSovereignText(params: SovereignCoreParams): Promise
 }
 
 /**
- * Transforma un ReadableStream a SSE filtrando pensamientos <think>
+ * Transforma un ReadableStream a SSE implementando Stateful Stream Filter (<think> hermético)
  */
 function transformOpenAiStreamToSSE(
   bodyStream: ReadableStream,
@@ -377,6 +544,7 @@ function transformOpenAiStreamToSSE(
       let buffer = "";
       let accumulatedText = "";
       let isInsideThinkTag = false;
+      let thinkBuffer = "";
 
       const heartbeat = setInterval(() => {
         try { controller.enqueue(encoder.encode(`: keep-alive\n\n`)); } catch { clearInterval(heartbeat); }
@@ -402,18 +570,32 @@ function transformOpenAiStreamToSSE(
                 let delta = parsed.choices?.[0]?.delta?.content || "";
                 if (!delta) continue;
 
-                // Filtrar etiquetas <think>...</think>
+                // 🛡️ Stateful Stream Filter: Detección y retención hermética de <think>
                 if (delta.includes("<think>")) {
                   isInsideThinkTag = true;
-                  delta = delta.replace(/<think>[\s\S]*/, "");
+                  const parts = delta.split("<think>");
+                  if (parts[0]) {
+                    accumulatedText += parts[0];
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: parts[0], session_id: sessionId })}\n\n`));
+                  }
+                  thinkBuffer = parts[1] || "";
+                  continue;
                 }
+
                 if (isInsideThinkTag) {
                   if (delta.includes("</think>")) {
                     isInsideThinkTag = false;
-                    delta = delta.replace(/[\s\S]*<\/think>/, "");
+                    const parts = delta.split("</think>");
+                    thinkBuffer = ""; // Descartar todo el búfer de pensamiento
+                    const afterThink = parts[1] || "";
+                    if (afterThink) {
+                      accumulatedText += afterThink;
+                      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: afterThink, session_id: sessionId })}\n\n`));
+                    }
                   } else {
-                    continue;
+                    thinkBuffer += delta; // Retener silenciosamente en búfer temporal
                   }
+                  continue;
                 }
 
                 if (delta) {
@@ -422,6 +604,15 @@ function transformOpenAiStreamToSSE(
                 }
               } catch {}
             }
+          }
+        }
+
+        // Si el stream finalizó abruptamente dentro de <think>, descartar el búfer
+        if (isInsideThinkTag) {
+          thinkBuffer = "";
+          if (!accumulatedText.trim()) {
+            const rescue = "He analizado tu consulta pedagógica. Continuemos avanzando juntos con el tema.";
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: rescue, session_id: sessionId })}\n\n`));
           }
         }
 

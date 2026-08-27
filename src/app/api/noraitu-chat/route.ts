@@ -288,10 +288,10 @@ async function tryGroqStream(
 
   const candidateModels = [
     "openai/gpt-oss-120b",
-    "groq/compound",
+    "groq/compound-mini",
     "qwen/qwen3.6-27b",
     "openai/gpt-oss-20b",
-    "groq/compound-mini"
+    "groq/compound"
   ];
 
   const formattedMessages: any[] = [

@@ -10,66 +10,13 @@ import { NORA_PROSODY_SYSTEM_PROMPT } from "@/lib/nora/realtime/prosodyPrompt";
 import { recordPerformanceMetric } from "@/lib/nora/telemetry";
 import { executeSovereignText } from "@/lib/nora/sovereignCore";
 import { normalizePhoneticTextForSpeech } from "@/lib/nora/phoneticNormalizer";
+import { transcribeAudioWithWhisper } from "@/lib/nora/audioTranscriber";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "force-no-store";
 export const maxDuration = 30;
-
-function cleanKeyString(val?: string): string {
-  if (!val) return "";
-  return val.replace(/['"\r\n\t ]/g, "").trim();
-}
-
-/**
- * 🎙️ Transcribe audio con Groq Whisper Large v3 Turbo (<120ms)
- */
-async function transcribeDirectAudio(
-  base64: string,
-  rawMime: string = "audio/webm"
-): Promise<{ text: string; sttMs: number } | null> {
-  const t0 = Date.now();
-  const rawB64 = base64.includes(",") ? base64.split(",")[1] : base64;
-  if (!rawB64 || rawB64.length < 50) return null;
-
-  const cleanMime = rawMime.toLowerCase().includes("mp4") ? "audio/mp4" : "audio/webm";
-  const groqKey = cleanKeyString(process.env.GROQ_API_KEY) || cleanKeyString(process.env.NEXT_PUBLIC_GROQ_API_KEY);
-
-  if (groqKey) {
-    try {
-      const buffer = Buffer.from(rawB64, "base64");
-      const uint8 = new Uint8Array(buffer);
-      const ext = cleanMime.includes("mp4") ? "mp4" : "webm";
-      const blob = new Blob([uint8], { type: cleanMime });
-      const formData = new FormData();
-      formData.append("file", blob, `audio.${ext}`);
-      formData.append("model", "whisper-large-v3-turbo");
-      formData.append("language", "es");
-      formData.append("temperature", "0.0");
-
-      const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${groqKey}` },
-        body: formData,
-        signal: AbortSignal.timeout(3500)
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.text && data.text.trim().length > 0) {
-          const sttMs = Date.now() - t0;
-          console.log(`[Realtime STT] 🎙️ Groq Whisper en ${sttMs}ms: "${data.text.trim()}"`);
-          return { text: data.text.trim(), sttMs };
-        }
-      }
-    } catch (e) {
-      console.warn("[Realtime Whisper Warn]:", e);
-    }
-  }
-
-  return null;
-}
 
 export async function POST(req: Request) {
   const tStart = Date.now();
@@ -86,12 +33,16 @@ export async function POST(req: Request) {
     let effectiveUserText = (message || "").trim();
     let sttDuration = 0;
 
-    // Si viene audio y no hay texto previo, transcribir
+    // Si viene audio y no hay texto previo, transcribir con Cascada Soberana (Whisper + Gemini)
     if (!effectiveUserText && audioBase64) {
-      const sttResult = await transcribeDirectAudio(audioBase64, mimeType);
-      if (sttResult) {
-        effectiveUserText = sttResult.text;
-        sttDuration = sttResult.sttMs;
+      const tSttStart = Date.now();
+      const transcribed = await transcribeAudioWithWhisper({
+        base64: audioBase64,
+        mimeType
+      });
+      if (transcribed && transcribed.trim().length > 0) {
+        effectiveUserText = transcribed.trim();
+        sttDuration = Date.now() - tSttStart;
       }
     }
 

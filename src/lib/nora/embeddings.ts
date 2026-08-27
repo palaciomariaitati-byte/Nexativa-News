@@ -1,39 +1,66 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+/**
+ * ========================================================================
+ * 🧠 NORAITU VECTOR EMBEDDINGS (100% CÓDIGO ABIERTO - OLLAMA / HUGGING FACE)
+ * Ubicación: /src/lib/nora/embeddings.ts
+ * ========================================================================
+ */
+
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
+function cleanKey(val?: string): string {
+  if (!val) return "";
+  return val.replace(/['"\r\n\t ]/g, "").trim();
+}
+
 /**
- * Genera el vector embedding (768 dimensiones) para un texto usando Gemini text-embedding-004 (Gratuito)
+ * Genera vector embedding (768/384 dim) con modelos abiertos (Ollama nomic-embed / HF bge-small)
  */
 export async function generateTextEmbedding(text: string): Promise<number[] | null> {
-  const keysPool = [
-    process.env.GEMINI_API_KEY,
-    process.env.GEMINI_API_KEY_FALLBACK,
-    process.env.GEMINI_API_KEY_FALLBACK_2,
-    process.env.GEMINI_API_KEY_TERTIARY,
-  ].filter(Boolean) as string[];
+  const cleanText = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().substring(0, 4000);
+  if (!cleanText) return null;
 
-  if (keysPool.length === 0) {
-    console.warn("[Embedding Warning] No se encontraron API keys configuradas.");
-    return null;
+  // 1. Capa 1: Ollama Local (nomic-embed-text / all-minilm / bge-m3)
+  const ollamaUrl = cleanKey(process.env.OLLAMA_BASE_URL) || cleanKey(process.env.NEXT_PUBLIC_OLLAMA_URL);
+  if (ollamaUrl) {
+    try {
+      const res = await fetch(`${ollamaUrl.replace(/\/$/, "")}/api/embeddings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "nomic-embed-text",
+          prompt: cleanText
+        }),
+        signal: AbortSignal.timeout(3000)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.embedding)) {
+          return data.embedding;
+        }
+      }
+    } catch {}
   }
 
-  const cleanText = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().substring(0, 8000);
-
-  const embeddingModels = ["gemini-embedding-001", "gemini-embedding-2"];
-
-  for (const apiKey of keysPool) {
-    for (const em of embeddingModels) {
-      try {
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: em });
-        const result = await model.embedContent(cleanText);
-        if (result.embedding && result.embedding.values) {
-          return result.embedding.values;
+  // 2. Capa 2: Hugging Face Open Serverless Feature Extraction
+  const hfToken = cleanKey(process.env.HF_ACCESS_TOKEN) || cleanKey(process.env.HUGGINGFACE_API_KEY) || cleanKey(process.env.HF_TOKEN);
+  if (hfToken) {
+    try {
+      const res = await fetch("https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${hfToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ inputs: cleanText }),
+        signal: AbortSignal.timeout(4000)
+      });
+      if (res.ok) {
+        const embedding = await res.json();
+        if (Array.isArray(embedding)) {
+          return embedding;
         }
-      } catch (err: any) {
-        console.warn(`[Embedding Fallback Warning] Error con key (${apiKey.substring(0, 6)}...) y modelo (${em}):`, err.message);
       }
-    }
+    } catch {}
   }
 
   return null;
@@ -45,13 +72,10 @@ export async function generateTextEmbedding(text: string): Promise<number[] | nu
 export async function indexArticleSemanticMemory(articleId: string, title: string, content: string, category: string = "local"): Promise<boolean> {
   try {
     const supabase = createServerSupabaseClient();
-    
-    // Unificar título y contenido limpio
     const fullText = `${title}\n\n${content.replace(/<[^>]+>/g, ' ')}`;
     const embedding = await generateTextEmbedding(fullText);
 
     if (!embedding) {
-      console.error(`[Memory Index Error] No se pudo generar embedding para el artículo ${articleId}`);
       return false;
     }
 
@@ -59,7 +83,7 @@ export async function indexArticleSemanticMemory(articleId: string, title: strin
       .from("article_embeddings")
       .insert({
         article_id: articleId,
-        chunk_content: fullText.substring(0, 2000), // Guardar extracto significativo
+        chunk_content: fullText.substring(0, 2000),
         metadata: { title, category, indexed_at: new Date().toISOString() },
         embedding: embedding
       });
@@ -83,7 +107,6 @@ export async function indexArticleSemanticMemory(articleId: string, title: strin
 export function autoIndexArticlesAsync(articles: Array<{ id: string; title: string; content?: string; category?: string }>): void {
   if (!articles || articles.length === 0) return;
 
-  // Ejecución asíncrona no bloqueante
   Promise.allSettled(
     articles.map(article => 
       indexArticleSemanticMemory(
@@ -100,4 +123,3 @@ export function autoIndexArticlesAsync(articles: Array<{ id: string; title: stri
     console.warn("[Auto-Indexing Async Warning] Fallo en procesamiento en segundo plano:", err);
   });
 }
-
