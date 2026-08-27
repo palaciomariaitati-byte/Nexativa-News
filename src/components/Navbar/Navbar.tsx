@@ -66,7 +66,7 @@ export default function Navbar() {
               Clasificados
             </Link>
             <a
-              href="https://nexora-store-xi.vercel.app/"
+              href="https://nexora-store-app.vercel.app/"
               target="_blank"
               rel="noopener noreferrer"
               className="text-[11px] 2xl:text-xs font-black text-[#e4a834] hover:text-amber-300 transition-colors uppercase tracking-wider flex items-center gap-1 bg-[#0e2430] px-2.5 py-1 rounded-full border border-[#e4a834]/40 hover:border-[#e4a834] shadow-sm"
@@ -170,7 +170,7 @@ export default function Navbar() {
               </Link>
 
               <a
-                href="https://nexora-store-xi.vercel.app/"
+                href="https://nexora-store-app.vercel.app/"
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setMobileMenuOpen(false)}
