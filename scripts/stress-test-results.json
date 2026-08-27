@@ -1,0 +1,81 @@
+{
+  "timestamp": "2026-08-27T16:01:21.171Z",
+  "endpoints": [
+    {
+      "name": "Portada Principal",
+      "url": "https://www.nexativanews.com.ar/",
+      "status": 200,
+      "latencyMs": 1204
+    },
+    {
+      "name": "Clasificados Regionales",
+      "url": "https://www.nexativanews.com.ar/clasificados",
+      "status": 200,
+      "latencyMs": 264
+    },
+    {
+      "name": "Formulario Publicar Clasificado",
+      "url": "https://www.nexativanews.com.ar/clasificados/publicar",
+      "status": 200,
+      "latencyMs": 236
+    },
+    {
+      "name": "Nora ITU Asistente Accesible",
+      "url": "https://www.nexativanews.com.ar/noraitu",
+      "status": 200,
+      "latencyMs": 980
+    },
+    {
+      "name": "Guía Comercial",
+      "url": "https://www.nexativanews.com.ar/guia",
+      "status": 200,
+      "latencyMs": 1048
+    },
+    {
+      "name": "Inmuebles Verificados",
+      "url": "https://www.nexativanews.com.ar/guia/inmuebles",
+      "status": 200,
+      "latencyMs": 245
+    },
+    {
+      "name": "Empleos & Oficios",
+      "url": "https://www.nexativanews.com.ar/empleos",
+      "status": 200,
+      "latencyMs": 235
+    },
+    {
+      "name": "Shop / Tienda",
+      "url": "https://www.nexativanews.com.ar/store",
+      "status": 200,
+      "latencyMs": 1588
+    }
+  ],
+  "apis": [
+    {
+      "name": "Nora Realtime Proxy (Voz Normal)",
+      "status": 200,
+      "latencyMs": 4767,
+      "success": true
+    },
+    {
+      "name": "Nora Realtime Proxy (Recuperación Ruido/Tos)",
+      "status": 200,
+      "latencyMs": 247,
+      "success": true
+    },
+    {
+      "name": "Nora Asistente de Clasificados",
+      "status": 200,
+      "latencyMs": 1694,
+      "success": true
+    }
+  ],
+  "localHub": [],
+  "bottlenecksFound": [],
+  "summary": {
+    "total": 15,
+    "passed": 15,
+    "failed": 0,
+    "warnings": 0
+  }
+}
