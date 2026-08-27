@@ -65,6 +65,15 @@ export default function Navbar() {
               <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
               Clasificados
             </Link>
+            <a
+              href="https://nexora-store-xi.vercel.app/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-black text-[#e4a834] hover:text-amber-300 transition-colors uppercase tracking-widest flex items-center gap-1.5 bg-[#0e2430] px-3 py-1.5 rounded-full border border-[#e4a834]/40 hover:border-[#e4a834] shadow-md shadow-[#e4a834]/10"
+              title="Shopping Digital de Software SaaS"
+            >
+              📦 Nexora Store
+            </a>
             <Link href="/store" className="text-xs font-bold hover:text-[var(--color-brand-accent)] transition-colors uppercase tracking-widest">
               Shop
             </Link>
@@ -159,6 +168,16 @@ export default function Navbar() {
               >
                 <Tag className="w-4 h-4 text-amber-400" /> 🚗 Clasificados (Autos/Usados)
               </Link>
+
+              <a
+                href="https://nexora-store-xi.vercel.app/"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-3.5 bg-[#0e2430] border border-[#e4a834]/40 rounded-xl text-[#e4a834] font-black flex items-center gap-2 text-xs"
+              >
+                📦 Nexora Store (Software SaaS)
+              </a>
 
               <Link
                 href="/store"
