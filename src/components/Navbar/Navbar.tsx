@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import type { Session } from "@supabase/supabase-js";
-import { Menu, X, Briefcase, Store as StoreIcon, Newspaper, BookOpen, Sparkles, UserCheck } from "lucide-react";
+import { Menu, X, Briefcase, Store as StoreIcon, Newspaper, BookOpen, Sparkles, UserCheck, Tag } from "lucide-react";
 
 import { usePathname } from "next/navigation";
 
@@ -60,6 +60,10 @@ export default function Navbar() {
             <Link href="/empleos" className="text-xs font-bold text-emerald-400 hover:text-emerald-300 transition-colors uppercase tracking-widest flex items-center gap-1.5 bg-emerald-950/40 px-3 py-1.5 rounded-full border border-emerald-500/30">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
               Empleos & Oficios
+            </Link>
+            <Link href="/clasificados" className="text-xs font-bold text-amber-400 hover:text-amber-300 transition-colors uppercase tracking-widest flex items-center gap-1.5 bg-amber-950/40 px-3 py-1.5 rounded-full border border-amber-500/30">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+              Clasificados
             </Link>
             <Link href="/store" className="text-xs font-bold hover:text-[var(--color-brand-accent)] transition-colors uppercase tracking-widest">
               Shop
@@ -146,6 +150,14 @@ export default function Navbar() {
                 className="p-3.5 bg-white/5 border border-white/10 rounded-xl text-orange-200 font-bold flex items-center gap-2 text-xs"
               >
                 <BookOpen className="w-4 h-4 text-orange-400" /> Edición Clásica
+              </Link>
+
+              <Link
+                href="/clasificados"
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-3.5 bg-amber-950/50 border border-amber-500/40 rounded-xl text-amber-300 font-bold flex items-center gap-2 text-xs"
+              >
+                <Tag className="w-4 h-4 text-amber-400" /> 🚗 Clasificados (Autos/Usados)
               </Link>
 
               <Link
