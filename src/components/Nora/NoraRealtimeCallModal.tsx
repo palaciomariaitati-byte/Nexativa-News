@@ -179,6 +179,7 @@ export default function NoraRealtimeCallModal({
   }, [isOpen, isEngineReady]);
 
   const speechHeartbeatRef = useRef<any>(null);
+  const activeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   const clearSpeechHeartbeat = useCallback(() => {
     if (speechHeartbeatRef.current) {
@@ -190,6 +191,7 @@ export default function NoraRealtimeCallModal({
   // Reanudar escucha limpia tras delay de seguridad
   const resumeListening = useCallback(() => {
     clearSpeechHeartbeat();
+    activeUtteranceRef.current = null;
     isNoraSpeakingRef.current = false;
     isSpeakingRef.current = false;
     silenceStartRef.current = null;
@@ -209,26 +211,29 @@ export default function NoraRealtimeCallModal({
     }
   }, [clearSpeechHeartbeat]);
 
-  const resetSpeechHeartbeat = useCallback(() => {
+  const resetSpeechHeartbeat = useCallback((durationMs?: number) => {
     clearSpeechHeartbeat();
+    const timeout = durationMs || 30000;
     speechHeartbeatRef.current = setTimeout(() => {
-      // Si tras 3000ms sin eventos de progresión sigue en 'speaking', recuperar automáticamente
+      // Solo recuperar si realmente se excedió el tiempo total estimado de la locución
       if (isNoraSpeakingRef.current) {
-        console.warn("[Nora Voice Heartbeat] SpeechSynthesis colgado (>3000ms de inactividad). Ejecutando recuperación transparente...");
+        console.warn("[Nora Voice Heartbeat] Fin de tiempo de seguridad de locución. Liberando canal...");
         if (typeof window !== "undefined" && "speechSynthesis" in window) {
           try { window.speechSynthesis.cancel(); } catch {}
         }
+        activeUtteranceRef.current = null;
         isNoraSpeakingRef.current = false;
         resumeListening();
-        playAccessibleChime("start"); // Tono bip de aviso al alumno no vidente
+        playAccessibleChime("start");
         setAccessibleAnnouncement("Canal de audio restablecido. Nora te escucha.");
       }
-    }, 3000);
+    }, timeout);
   }, [clearSpeechHeartbeat, playAccessibleChime, resumeListening]);
 
   // 3. Detener audio de Nora de forma absoluta y limpia
   const stopNoraSpeech = useCallback(() => {
     clearSpeechHeartbeat();
+    activeUtteranceRef.current = null;
     isNoraSpeakingRef.current = false;
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       try { window.speechSynthesis.cancel(); } catch {}
@@ -315,9 +320,12 @@ export default function NoraRealtimeCallModal({
           window.speechSynthesis.cancel();
 
           const spokenText = customPhoneticText || normalizePhoneticTextForSpeech(fullText);
+          const estimatedDurationMs = Math.max(15000, Math.round((spokenText.length / 8) * 1000) + 8000);
+
           const utterance = new SpeechSynthesisUtterance(spokenText);
+          activeUtteranceRef.current = utterance; // 🛡️ Evita Garbage Collection prematuro en Chrome/Edge
           utterance.lang = "es-AR";
-          utterance.rate = 1.04;
+          utterance.rate = 1.02;
           utterance.pitch = 1.05;
 
           const voices = window.speechSynthesis.getVoices();
@@ -331,31 +339,31 @@ export default function NoraRealtimeCallModal({
           }
 
           utterance.onstart = () => {
-            resetSpeechHeartbeat();
-          };
-
-          utterance.onboundary = () => {
-            resetSpeechHeartbeat();
+            resetSpeechHeartbeat(estimatedDurationMs);
           };
 
           utterance.onend = () => {
             clearSpeechHeartbeat();
+            activeUtteranceRef.current = null;
             isNoraSpeakingRef.current = false;
             if (cooldownTimerRef.current) clearTimeout(cooldownTimerRef.current);
+            // Delay de seguridad de 350ms para evitar que el micrófono capture el eco final
             cooldownTimerRef.current = setTimeout(() => {
               resumeListening();
               playAccessibleChime("start");
-            }, 250);
+            }, 350);
           };
 
-          utterance.onerror = () => {
+          utterance.onerror = (err) => {
+            console.warn("[SpeechSynthesis Error]:", err);
             clearSpeechHeartbeat();
+            activeUtteranceRef.current = null;
             isNoraSpeakingRef.current = false;
             resumeListening();
             playAccessibleChime("start");
           };
 
-          resetSpeechHeartbeat();
+          resetSpeechHeartbeat(estimatedDurationMs);
           window.speechSynthesis.speak(utterance);
           return;
         } catch (e) {
