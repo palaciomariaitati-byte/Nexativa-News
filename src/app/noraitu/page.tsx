@@ -214,6 +214,21 @@ export default function NoraItuApp() {
       if (!storedUserId) {
         storedUserId = localStorage.getItem("noraitu_user_id") || "";
       }
+
+      // Detección de Modos Accesibles Inmediatos (Lazarillo Visual Titán o Llamada Directa)
+      const isLazarilloMode = urlParams.get("lazarillo") === "1" || urlParams.get("ciego") === "1";
+      const isCallMode = urlParams.get("call") === "1";
+
+      if (isLazarilloMode) {
+        setActiveMode("inclusion");
+        setShowLiveVisionModal(true);
+        setTimeout(() => {
+          startLiveVision("environment");
+          speakText("Hola, soy Nora, tu lazarillo visual. He activado la Cámara Titán. Apunta tu teléfono hacia el frente para guiarte en tu camino.", -99);
+        }, 1000);
+      } else if (isCallMode) {
+        setShowRealtimeCallModal(true);
+      }
     }
 
     if (!storedUserId) {
@@ -656,12 +671,14 @@ export default function NoraItuApp() {
     stopSpeaking();
     setIsLiveStreaming(true);
     setLiveSubtitles("Activando cámara y visor neuronal de Nora Titán (LLaMA 3.2 / Qwen VL)...");
+    hardware.acquireWakeLock();
 
     try {
       const stream = await hardware.acquireCamera(facingMode);
       if (!stream) {
         setLiveSubtitles("⚠️ No se pudo acceder a la cámara o el permiso fue denegado.");
         setIsLiveStreaming(false);
+        hardware.releaseWakeLock();
         return;
       }
 
@@ -785,12 +802,17 @@ export default function NoraItuApp() {
 
       // Primer análisis visual tras 1s de enfocar la cámara
       setTimeout(() => {
-        captureAndAnalyzeFrame("Describe con precisión y claridad qué estás observando en esta toma en vivo de forma concisa para una persona no vidente.");
+        const isLazarillo = activeMode === "inclusion";
+        const initialPrompt = isLazarillo
+          ? "Actúa como lazarillo visual para una persona no vidente. Describe el camino indicando referencias espaciales con esfera de reloj (ej: a tus 12 en punto, a tus 2 en punto) y advierte cualquier obstáculo o desnivel de forma concisa."
+          : "Describe con precisión y claridad qué estás observando en esta toma en vivo de forma concisa.";
+        captureAndAnalyzeFrame(initialPrompt);
       }, 1000);
 
     } catch (err: any) {
       console.error("Error iniciando cámara en vivo:", err);
       setLiveSubtitles("⚠️ No se pudo acceder a la cámara. Por favor permite el acceso en tu navegador.");
+      hardware.releaseWakeLock();
     }
   };
 
@@ -834,6 +856,7 @@ export default function NoraItuApp() {
       liveIntervalRef.current = null;
     }
     hardware.releaseCamera();
+    hardware.releaseWakeLock();
     liveMediaStreamRef.current = null;
     setIsLiveStreaming(false);
     setIsAnalyzingFrame(false);
@@ -882,12 +905,17 @@ export default function NoraItuApp() {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const base64Image = canvas.toDataURL("image/jpeg", 0.6);
 
+      const isLazarillo = activeMode === "inclusion";
+      const defaultVisionPrompt = isLazarillo
+        ? "Actúa como un lazarillo visual de alta precisión para una persona no vidente. Describe el camino al frente indicando obstáculos con la esfera de reloj (ej. 'A tus 12 en punto a 2 metros...', 'A tus 2 en punto...'). Si hay desniveles, escalones, pozos o peligros inminentes, adviértelo con máxima prioridad en 1 o 2 frases breves."
+        : "Describe qué estás observando en esta toma en vivo de forma concisa.";
+
       const res = await fetch("/api/noraitu-live", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           imageBase64: base64Image,
-          userPrompt: customPrompt || liveCustomPrompt || "Describe qué estás observando en esta toma en vivo.",
+          userPrompt: customPrompt || liveCustomPrompt || defaultVisionPrompt,
           mode: activeMode
         }),
         signal: AbortSignal.timeout(12000)
@@ -939,6 +967,28 @@ export default function NoraItuApp() {
           }
           if (fullLiveText.trim() && !audioPlayerRef.current) {
             speakText(fullLiveText.trim(), -99);
+          }
+
+          // Alerta háptica por vibración ante detección de peligros o desniveles
+          if (fullLiveText.trim()) {
+            const lower = fullLiveText.toLowerCase();
+            if (
+              lower.includes("cuidado") ||
+              lower.includes("atención") ||
+              lower.includes("atencion") ||
+              lower.includes("peligro") ||
+              lower.includes("escalón") ||
+              lower.includes("escalon") ||
+              lower.includes("escalera") ||
+              lower.includes("pozo") ||
+              lower.includes("desnivel") ||
+              lower.includes("obstáculo") ||
+              lower.includes("obstaculo")
+            ) {
+              if (typeof navigator !== "undefined" && navigator.vibrate) {
+                navigator.vibrate([250, 100, 250]);
+              }
+            }
           }
         } else {
           const data = await res.json();
@@ -1691,7 +1741,57 @@ export default function NoraItuApp() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // Renderizador de Markdown Robusto con soporte de Tablas GFM, Imágenes IA y Enlaces
+  // Helper para renderizar pictogramas visuales interactivos para TEA (Estándar SAAC / ARASAAC)
+  const processPictogramChildren = (children: any): any => {
+    if (typeof children === "string") {
+      if (!children.includes("[PICTO:")) return children;
+      const parts = children.split(/(\[PICTO:\s*[^\]]+\])/gi);
+      return parts.map((part, idx) => {
+        const match = part.match(/\[PICTO:\s*([^\]]+)\]/i);
+        if (match) {
+          const pictoLabel = match[1].trim();
+          const getPictoEmoji = (label: string): string => {
+            const l = label.toLowerCase();
+            if (l.includes("mochila")) return "🎒";
+            if (l.includes("leer") || l.includes("libro")) return "📖";
+            if (l.includes("escribir") || l.includes("lapiz") || l.includes("lápiz")) return "✍️";
+            if (l.includes("guardar") || l.includes("orden")) return "📦";
+            if (l.includes("escuchar") || l.includes("oido") || l.includes("oído")) return "👂";
+            if (l.includes("colegio") || l.includes("escuela") || l.includes("aula")) return "🏫";
+            if (l.includes("reloj") || l.includes("tiempo") || l.includes("hora")) return "⏰";
+            if (l.includes("comer") || l.includes("almuerzo") || l.includes("comida")) return "🍎";
+            if (l.includes("casa") || l.includes("hogar")) return "🏠";
+            if (l.includes("tarea") || l.includes("deberes")) return "📝";
+            if (l.includes("jugar") || l.includes("recreo")) return "🎮";
+            if (l.includes("descanso") || l.includes("calma") || l.includes("parar")) return "🧘";
+            if (l.includes("bien") || l.includes("correcto") || l.includes("logrado")) return "✅";
+            if (l.includes("primero") || l.includes("inicio")) return "1️⃣";
+            if (l.includes("segundo") || l.includes("desarrollo")) return "2️⃣";
+            if (l.includes("tercero") || l.includes("final")) return "3️⃣";
+            return "🧩";
+          };
+          const emoji = getPictoEmoji(pictoLabel);
+          return (
+            <span
+              key={idx}
+              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 my-0.5 mx-1 rounded-lg bg-sky-950/90 border border-sky-400/50 text-sky-200 text-xs font-bold shadow-xs select-none align-middle"
+              title={`Pictograma de apoyo visual: ${pictoLabel}`}
+            >
+              <span className="text-sm">{emoji}</span>
+              <span className="uppercase tracking-wider font-mono text-[11px] text-sky-100">{pictoLabel}</span>
+            </span>
+          );
+        }
+        return part;
+      });
+    }
+    if (Array.isArray(children)) {
+      return children.map((c, i) => <React.Fragment key={i}>{processPictogramChildren(c)}</React.Fragment>);
+    }
+    return children;
+  };
+
+  // Renderizador de Markdown Robusto con soporte de Tablas GFM, Imágenes IA, Enlaces y Pictogramas TEA
   const renderMessageContent = (content: string, msgIndex: number) => {
     return (
       <div className="space-y-3 leading-relaxed text-sm md:text-[15px] prose-invert max-w-none">
@@ -1700,22 +1800,22 @@ export default function NoraItuApp() {
           components={{
             p: ({ node, children, ...props }) => (
               <p className="my-1.5 text-slate-200 leading-relaxed" {...props}>
-                {children}
+                {processPictogramChildren(children)}
               </p>
             ),
             h1: ({ node, children, ...props }) => (
               <h1 className="text-lg md:text-xl font-bold text-white mt-4 mb-2 pb-1 border-b border-slate-800" {...props}>
-                {children}
+                {processPictogramChildren(children)}
               </h1>
             ),
             h2: ({ node, children, ...props }) => (
               <h2 className="text-base md:text-lg font-bold text-sky-200 mt-3 mb-1.5" {...props}>
-                {children}
+                {processPictogramChildren(children)}
               </h2>
             ),
             h3: ({ node, children, ...props }) => (
               <h3 className="text-sm md:text-base font-semibold text-sky-300 mt-2.5 mb-1" {...props}>
-                {children}
+                {processPictogramChildren(children)}
               </h3>
             ),
             ul: ({ node, children, ...props }) => (
@@ -1730,17 +1830,17 @@ export default function NoraItuApp() {
             ),
             li: ({ node, children, ...props }) => (
               <li className="leading-snug" {...props}>
-                {children}
+                {processPictogramChildren(children)}
               </li>
             ),
             strong: ({ node, children, ...props }) => (
               <strong className="text-sky-300 font-semibold" {...props}>
-                {children}
+                {processPictogramChildren(children)}
               </strong>
             ),
             blockquote: ({ node, children, ...props }) => (
               <blockquote className="border-l-4 border-sky-500/60 pl-3 my-2 text-slate-300 italic bg-sky-950/20 py-1 rounded-r-lg" {...props}>
-                {children}
+                {processPictogramChildren(children)}
               </blockquote>
             ),
             table: ({ node, children, ...props }) => (
@@ -1861,8 +1961,39 @@ export default function NoraItuApp() {
     );
   };
 
+  // Gesto Universal Tiflotecnológico: Doble Toque en cualquier lugar de la pantalla para No Videntes
+  const lastScreenTapRef = useRef<number>(0);
+  const handleUniversalScreenDoubleTap = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (
+      target.closest("button") ||
+      target.closest("input") ||
+      target.closest("textarea") ||
+      target.closest("a") ||
+      showLiveVisionModal ||
+      showRealtimeCallModal
+    ) {
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastScreenTapRef.current < 350) {
+      lastScreenTapRef.current = 0;
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        navigator.vibrate([100, 50, 100]);
+      }
+      stopSpeaking();
+      setShowRealtimeCallModal(true);
+    } else {
+      lastScreenTapRef.current = now;
+    }
+  };
+
   return (
-    <div className="flex h-screen w-full bg-[#090d16] text-slate-100 font-sans overflow-hidden antialiased selection:bg-sky-500/30 selection:text-sky-200">
+    <div 
+      onClick={handleUniversalScreenDoubleTap}
+      className="flex h-screen w-full bg-[#090d16] text-slate-100 font-sans overflow-hidden antialiased selection:bg-sky-500/30 selection:text-sky-200"
+    >
       
       {/* Inputs Ocultos de Archivos y Cámara */}
       <input 

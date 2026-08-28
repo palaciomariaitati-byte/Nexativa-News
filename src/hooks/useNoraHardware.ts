@@ -149,6 +149,35 @@ export function useNoraHardware(initialMode: NoraHardwareMode = "visual") {
     }
   }, [releaseCamera, releaseMicrophone]);
 
+  const wakeLockSentinelRef = useRef<any>(null);
+
+  // Mantiene la pantalla encendida activamente (Screen Wake Lock API)
+  const acquireWakeLock = useCallback(async () => {
+    if (typeof navigator !== "undefined" && "wakeLock" in navigator) {
+      try {
+        if (!wakeLockSentinelRef.current || wakeLockSentinelRef.current.released) {
+          wakeLockSentinelRef.current = await (navigator as any).wakeLock.request("screen");
+          wakeLockSentinelRef.current.addEventListener("release", () => {
+            console.log("[WakeLock] Screen Wake Lock liberado");
+          });
+          console.log("[WakeLock] Screen Wake Lock activado con éxito");
+        }
+      } catch (err) {
+        console.warn("[WakeLock] Error solicitando Wake Lock:", err);
+      }
+    }
+  }, []);
+
+  // Libera el Screen Wake Lock
+  const releaseWakeLock = useCallback(() => {
+    if (wakeLockSentinelRef.current) {
+      try {
+        wakeLockSentinelRef.current.release();
+      } catch (e) {}
+      wakeLockSentinelRef.current = null;
+    }
+  }, []);
+
   // Cambia de modo de manera segura y limpia los recursos del modo anterior
   const switchMode = useCallback(
     (newMode: NoraHardwareMode) => {
@@ -170,7 +199,7 @@ export function useNoraHardware(initialMode: NoraHardwareMode = "visual") {
     [currentMode, releaseCamera, releaseMicrophone]
   );
 
-  // Cargar modo preferido de localStorage al montar
+  // Cargar modo preferido de localStorage al montar y escuchar visibilidad
   useEffect(() => {
     try {
       const savedMode = localStorage.getItem("noraitu_interaction_mode") as NoraHardwareMode | null;
@@ -179,10 +208,20 @@ export function useNoraHardware(initialMode: NoraHardwareMode = "visual") {
       }
     } catch (e) {}
 
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === "visible" && (isCameraActive || isMicActive)) {
+        await acquireWakeLock();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      releaseWakeLock();
       releaseAllHardware();
     };
-  }, [releaseAllHardware]);
+  }, [releaseAllHardware, acquireWakeLock, releaseWakeLock, isCameraActive, isMicActive]);
 
   return {
     currentMode,
@@ -199,6 +238,8 @@ export function useNoraHardware(initialMode: NoraHardwareMode = "visual") {
     releaseCamera,
     releaseMicrophone,
     releaseAllHardware,
+    acquireWakeLock,
+    releaseWakeLock,
     setIsAudioPlaying
   };
 }

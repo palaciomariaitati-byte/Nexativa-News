@@ -169,17 +169,56 @@ export default function NoraRealtimeCallModal({
     } catch {}
   }, []);
 
-  // 2. Temporizador de llamada
+  // 2. Temporizador de llamada y Screen Wake Lock
+  const callWakeLockRef = useRef<any>(null);
+
+  const requestCallWakeLock = useCallback(async () => {
+    if (typeof navigator !== "undefined" && "wakeLock" in navigator) {
+      try {
+        if (!callWakeLockRef.current || callWakeLockRef.current.released) {
+          callWakeLockRef.current = await (navigator as any).wakeLock.request("screen");
+          console.log("[Nora Call] Screen Wake Lock activo durante la llamada");
+        }
+      } catch (err) {
+        console.warn("[Nora Call] Wake Lock aviso:", err);
+      }
+    }
+  }, []);
+
+  const releaseCallWakeLock = useCallback(() => {
+    if (callWakeLockRef.current) {
+      try {
+        callWakeLockRef.current.release();
+      } catch (e) {}
+      callWakeLockRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
     let timer: any = null;
-    if (isOpen && isEngineReady) {
-      setCallDuration(0);
-      timer = setInterval(() => setCallDuration((d) => d + 1), 1000);
+    if (isOpen) {
+      requestCallWakeLock();
+      const handleVis = async () => {
+        if (document.visibilityState === "visible" && isOpen) {
+          await requestCallWakeLock();
+        }
+      };
+      document.addEventListener("visibilitychange", handleVis);
+
+      if (isEngineReady) {
+        setCallDuration(0);
+        timer = setInterval(() => setCallDuration((d) => d + 1), 1000);
+      }
+
+      return () => {
+        document.removeEventListener("visibilitychange", handleVis);
+        releaseCallWakeLock();
+        if (timer) clearInterval(timer);
+      };
+    } else {
+      releaseCallWakeLock();
     }
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [isOpen, isEngineReady]);
+  }, [isOpen, isEngineReady, requestCallWakeLock, releaseCallWakeLock]);
 
   const speechHeartbeatRef = useRef<any>(null);
   const activeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
