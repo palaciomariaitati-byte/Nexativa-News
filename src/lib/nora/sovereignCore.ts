@@ -17,7 +17,6 @@
  * ========================================================================
  */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NORA_CONSTITUTIONAL_AXIOMS } from "./constitutionalShield";
 import { executeLocalInference } from "./webgpu/localEngine";
 
@@ -240,85 +239,7 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
   const fullSystem = `${NORA_MASTER_SYSTEM_PROMPT}\n\n[MODO ACTIVO: ${mode.toUpperCase()}]\n\n${systemPrompt}`.trim();
   const openAiMessages = buildOpenAiMessages(history, userMessage, fullSystem, cleanImage);
 
-  // 1. CAPA 1: Google Gemini Ultra-Fast & Vision Tier (Multi-Key Redundancy)
-  const geminiCandidateKeys = [
-    process.env.GEMINI_API_KEY,
-    process.env.GEMINI_API_KEY_FALLBACK,
-    process.env.GEMINI_API_KEY_FALLBACK_2,
-    process.env.GEMINI_API_KEY_TERTIARY
-  ].map(cleanKey).filter(Boolean);
-
-  if (geminiCandidateKeys.length > 0) {
-    const geminiModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"];
-    for (const key of geminiCandidateKeys) {
-      for (const geminiModel of geminiModels) {
-        try {
-          const genAI = new GoogleGenerativeAI(key);
-          const model = genAI.getGenerativeModel({
-            model: geminiModel,
-            systemInstruction: fullSystem
-          });
-
-          const contents: any[] = [];
-          for (const h of history.slice(-20)) {
-            if (!h || !h.content || typeof h.content !== "string") continue;
-            const role = h.role === "assistant" || h.role === "model" ? "model" : "user";
-            contents.push({ role, parts: [{ text: h.content }] });
-          }
-
-          const userParts: any[] = [];
-          if (cleanImage) {
-            userParts.push({
-              inlineData: {
-                data: cleanImage,
-                mimeType: "image/jpeg"
-              }
-            });
-          }
-          userParts.push({ text: userMessage && userMessage.trim() ? userMessage.trim() : (cleanImage ? "Describe lo que observas frente a la cámara con precisión espacial." : "Continuemos nuestro diálogo.") });
-          contents.push({ role: "user", parts: userParts });
-
-          const result = await model.generateContentStream({ contents });
-          if (result && result.stream) {
-            console.log(`[Sovereign Core - Capa 1 Gemini]: Inferencia exitosa (${geminiModel}${isVisionRequest ? " - Visión Titán" : ""})`);
-            
-            const customStream = new ReadableStream({
-              async start(controller) {
-                try {
-                  for await (const chunk of result.stream) {
-                    const chunkText = chunk.text();
-                    if (chunkText) {
-                      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: chunkText, session_id: sessionId })}\n\n`));
-                    }
-                  }
-                  controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-                  controller.close();
-                } catch (streamErr) {
-                  console.warn("[Gemini Stream Loop Warn]:", streamErr);
-                  try {
-                    controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-                    controller.close();
-                  } catch {}
-                }
-              }
-            });
-
-            return new Response(customStream, {
-              headers: {
-                "Content-Type": "text/event-stream; charset=utf-8",
-                "Cache-Control": "no-cache, no-transform",
-                "Connection": "keep-alive"
-              }
-            });
-          }
-        } catch (geminiErr: any) {
-          console.warn(`[Gemini ${geminiModel} Warn]:`, geminiErr?.message || geminiErr);
-        }
-      }
-    }
-  }
-
-  // 2. CAPA 2: Groq Open Inference Tier (LLaMA 3.2 Vision / LLaMA 3.3 70B / Qwen)
+  // 1. CAPA 1: Groq Open Inference Tier (LLaMA 3.2 Vision / LLaMA 3.3 70B / Qwen)
   const groqKey = cleanKey(process.env.GROQ_API_KEY) || cleanKey(process.env.NEXT_PUBLIC_GROQ_API_KEY);
   if (groqKey) {
     const groqCandidateModels = isVisionRequest
@@ -355,7 +276,7 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
         });
 
         if (groqRes.ok && groqRes.body) {
-          console.log(`[Sovereign Core - Capa 2 Groq]: Inferencia exitosa (${gModel}${isVisionRequest ? " - Visión Titán" : ""})`);
+          console.log(`[Sovereign Core - Capa 1 Groq]: Inferencia exitosa (${gModel}${isVisionRequest ? " - Visión Titán" : ""})`);
           return transformOpenAiStreamToSSE(groqRes.body, sessionId, isVisionRequest);
         }
       } catch (groqErr) {
@@ -364,7 +285,7 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
     }
   }
 
-  // 3. CAPA 3: OpenRouter Open Weights Mesh (:free Tier - Qwen 2.5 VL / LLaMA 3.2 Vision / LLaMA 3.3 70B)
+  // 2. CAPA 2: OpenRouter Open Weights Mesh (:free Tier - Qwen 2.5 VL / LLaMA 3.2 Vision / LLaMA 3.3 70B)
   const openRouterKey = cleanKey(process.env.OPENROUTER_API_KEY) || cleanKey(process.env.NEXT_PUBLIC_OPENROUTER_API_KEY);
   if (openRouterKey) {
     const openRouterModels = isVisionRequest
@@ -398,7 +319,7 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
         });
 
         if (orRes.ok && orRes.body) {
-          console.log(`[Sovereign Core - Capa 3 OpenRouter]: Inferencia exitosa (${orModel})`);
+          console.log(`[Sovereign Core - Capa 2 OpenRouter]: Inferencia exitosa (${orModel})`);
           return transformOpenAiStreamToSSE(orRes.body, sessionId, isVisionRequest);
         }
       } catch (orErr) {
@@ -407,7 +328,7 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
     }
   }
 
-  // 4. CAPA 4: Hugging Face Serverless Open Mesh (Qwen 2.5-VL / LLaMA Vision / DeepSeek R1)
+  // 3. CAPA 3: Hugging Face Serverless Open Mesh (Qwen 2.5-VL / LLaMA Vision / DeepSeek R1)
   const hfToken = cleanKey(process.env.HF_ACCESS_TOKEN) || cleanKey(process.env.HUGGINGFACE_API_KEY) || cleanKey(process.env.HF_TOKEN);
   if (hfToken) {
     const hfModels = isVisionRequest
@@ -439,7 +360,7 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
           });
 
           if (hfRes.ok && hfRes.body) {
-            console.log(`[Sovereign Core - Capa 4 HuggingFace]: Inferencia exitosa (${model})`);
+            console.log(`[Sovereign Core - Capa 3 HuggingFace]: Inferencia exitosa (${model})`);
             return transformOpenAiStreamToSSE(hfRes.body, sessionId, isVisionRequest);
           }
           if (hfRes.status === 503 || hfRes.status === 429) break;
@@ -450,7 +371,7 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
     }
   }
 
-  // 5. CAPA 5: Ollama Local / VPS Propio (100% Privado y Autónomo)
+  // 4. CAPA 4: Ollama Local / VPS Propio (100% Privado y Autónomo)
   const ollamaUrl = cleanKey(process.env.OLLAMA_BASE_URL) || cleanKey(process.env.NEXT_PUBLIC_OLLAMA_URL);
   if (ollamaUrl) {
     const ollamaModels = isVisionRequest
@@ -473,7 +394,7 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
         });
 
         if (oRes.ok && oRes.body) {
-          console.log(`[Sovereign Core - Capa 5 Ollama]: Inferencia exitosa (${oModel})`);
+          console.log(`[Sovereign Core - Capa 4 Ollama]: Inferencia exitosa (${oModel})`);
           return transformOpenAiStreamToSSE(oRes.body, sessionId, isVisionRequest);
         }
       } catch (err) {
@@ -482,7 +403,7 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
     }
   }
 
-  // 6. CAPA 6: Pollinations Open Neural Mesh (100% Gratuito, Cero Keys, Open-Weights)
+  // 5. CAPA 5: Pollinations Open Neural Mesh (100% Gratuito, Cero Keys, Open-Weights)
   try {
     const polRes = await fetch("https://text.pollinations.ai/openai", {
       method: "POST",
@@ -497,14 +418,14 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
     });
 
     if (polRes.ok && polRes.body) {
-      console.log(`[Sovereign Core - Capa 6 Pollinations]: Inferencia exitosa`);
+      console.log(`[Sovereign Core - Capa 5 Pollinations]: Inferencia exitosa`);
       return transformOpenAiStreamToSSE(polRes.body, sessionId, isVisionRequest);
     }
   } catch (polErr) {
     console.warn("[Pollinations Stream Warn]:", polErr);
   }
 
-  // 7. CAPA 7: Motor Pedagógico Autónomo On-Device (0ms - Imposible de Caer)
+  // 6. CAPA 6: Motor Pedagógico Autónomo On-Device (0ms - Imposible de Caer)
   const rescueText = isVisionRequest
     ? `👁️ **Cámara Titán Activa**: Imagen recibida en vivo. Observo el entorno frente a ti; enfoca los elementos u obstáculos que deseas que describa con precisión espacial o texto a leer y te guiaré de inmediato.`
     : (await executeLocalInference(
