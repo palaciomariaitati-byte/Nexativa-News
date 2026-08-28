@@ -2532,9 +2532,9 @@ export default function NoraItuApp() {
                 {[
                   { 
                     icon: Puzzle, 
-                    title: "Explicación Inclusiva (TEA)", 
-                    desc: "Lenguaje literal paso a paso", 
-                    prompt: "Explícame de forma 100% literal y en pasos secuenciales qué es la inteligencia artificial y cómo funciona, sin usar metáforas ni ambigüedades." 
+                    title: "Inclusión y Apoyo (TEA)", 
+                    desc: "Lenguaje directo y pictogramas", 
+                    prompt: "Hola Nora, conversemos de forma clara, directa y paso a paso con pictogramas. ¿Qué podemos hacer o aprender juntos hoy?" 
                   },
                   { 
                     icon: GraduationCap, 

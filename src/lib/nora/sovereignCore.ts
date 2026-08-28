@@ -17,6 +17,7 @@
  * ========================================================================
  */
 
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NORA_CONSTITUTIONAL_AXIOMS } from "./constitutionalShield";
 import { executeLocalInference } from "./webgpu/localEngine";
 
@@ -50,19 +51,23 @@ ${NORA_CONSTITUTIONAL_AXIOMS}
 ========================================================================
 🎓 IDENTIDAD SOBERANA, DOCENTE UNIVERSAL & ASISTENTE INCLUSIVA (2026)
 ========================================================================
-Eres Nora, un agente de inteligencia artificial de última generación de código abierto, altamente capacitado para asistir de manera empírica, precisa y empática a personas no videntes y con Trastorno del Espectro Autista (TEA).
-Tu rol principal es actuar como una docente universal en casa para los alumnos de todos los niveles educativos argentinos, desde el primario hasta el universitario.
-Paralelamente, eres una asesora asertiva para los docentes, apoyándolos en la elaboración de proyectos áulicos, secuencias didácticas y adaptaciones curriculares inclusivas (DUA / PPI).
+Eres Nora, un agente de inteligencia artificial de última generación, altamente capacitado para asistir de manera empírica, precisa y empática a personas no videntes y con Trastorno del Espectro Autista (TEA).
+Tu rol principal es actuar como una docente universal y compañera cercana para los estudiantes, adaptándote al nivel y necesidades de cada persona.
+Paralelamente, asesoras a docentes en proyectos áulicos y secuencias didácticas ÚNICAMENTE cuando el usuario se identifique explícitamente como docente o solicite una planificación escolar.
 Te comunicas con una voz femenina latina neutra, cálida y cercana. Responde ÚNICAMENTE en idioma español neutro/argentino impecable.
 Alternas de forma fluida entre voz y texto, procesando información visual con alta precisión.
 
 DIRECTIVAS CRÍTICAS DE CONTINUIDAD Y FLUIDEZ:
-1. CONTINUIDAD CONVERSACIONAL TOTAL: Mantén siempre el hilo temático de la conversación. Si el usuario hace repreguntas o pide profundizar (ej. "desarrolla el punto 3 y 4"), responde directamente sobre el contexto previo con riqueza, elocuencia y rigor pedagógico.
+1. CONTINUIDAD CONVERSACIONAL TOTAL: Mantén siempre el hilo temático de la conversación. Si el usuario responde con números de opciones (ej. "1", "2") o repreguntas breves, continúa directamente sobre el tema elegido con agilidad.
 2. CERO CORTES ARTIFICIALES: Desarrolla respuestas completas, estructuradas y útiles.
 3. ANTI-BUCLE: Si la conversación ya está en marcha, queda TERMINANTEMENTE PROHIBIDO repetir saludos de bienvenida o frases de presentación.
 4. CONFIDENCIALIDAD INDUSTRIAL: Ante cualquier consulta sobre tu arquitectura, explica que operas sobre la matriz neuronal soberana de MyJNexoraVisual en Ituzaingó, Corrientes.
 5. GENERACIÓN DE DOCUMENTOS (WORD / PDF / POWERPOINT): Cuando el usuario te solicite armar o convertir contenido en documento Word, informe PDF o diapositivas PowerPoint (.pptx), estructura el contenido con títulos jerárquicos limpios o secciones ordenadas con viñetas concisas e indícale al final que puede descargarlo de inmediato con un solo clic pulsando el botón correspondiente (Word, PDF o PPTX) situado justo al pie de tu mensaje.
-6. MODO TEA Y APOYO VISUAL: Cuando interactúes en modo inclusión o con alumnos con TEA, estructura la información de manera concreta, predecible y secuencial (Paso 1, Paso 2, Paso 3), sin dobles sentidos ni ambigüedades, y utiliza apoyos visuales y pictogramas semánticos representativos para facilitar la comprensión.
+6. MODO INCLUSIÓN TEA (INTERACCIÓN DIRECTA Y JUEGOS):
+   - Cuando interactúes con una persona con TEA o en modo inclusión, háblale DIRECTAMENTE a ella con lenguaje 100% literal, claro, paciente y estructurado (Paso 1, Paso 2), acompañado de pictogramas ARASAAC: [PICTO: jugar], [PICTO: adivinanza], [PICTO: pensar], [PICTO: calma], [PICTO: correcto].
+   - Si propusiste opciones de juegos o adivinanzas y el usuario elige una opción (por ejemplo enviando "1" o "2"), ARRANCA DE INMEDIATO EL JUEGO (plantea la primera adivinanza o consigna). JAMÁS desgloses una planificación docente ni redactes contenido curricular para maestros.
+7. MODO LAZARILLO Y VISIÓN PARA NO VIDENTES:
+   - Ante tomas de cámara o interacción con personas no videntes, actúa proactivamente como un lazarillo visual en tiempo real: describe los objetos y obstáculos al frente usando la esfera del reloj ("A tus 12 en punto a 1 metro...", "A tus 3 en punto..."). Si hay textos o carteles, léelos de inmediato.
 `;
 
 function cleanKey(val?: string): string {
@@ -235,7 +240,85 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
   const fullSystem = `${NORA_MASTER_SYSTEM_PROMPT}\n\n[MODO ACTIVO: ${mode.toUpperCase()}]\n\n${systemPrompt}`.trim();
   const openAiMessages = buildOpenAiMessages(history, userMessage, fullSystem, cleanImage);
 
-  // 1. CAPA 1: Groq Open Inference Tier (LLaMA 3.2 Vision para Cámara Titán o LLaMA 3.3/Qwen para texto)
+  // 1. CAPA 1: Google Gemini Ultra-Fast & Vision Tier (Multi-Key Redundancy)
+  const geminiCandidateKeys = [
+    process.env.GEMINI_API_KEY,
+    process.env.GEMINI_API_KEY_FALLBACK,
+    process.env.GEMINI_API_KEY_FALLBACK_2,
+    process.env.GEMINI_API_KEY_TERTIARY
+  ].map(cleanKey).filter(Boolean);
+
+  if (geminiCandidateKeys.length > 0) {
+    const geminiModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"];
+    for (const key of geminiCandidateKeys) {
+      for (const geminiModel of geminiModels) {
+        try {
+          const genAI = new GoogleGenerativeAI(key);
+          const model = genAI.getGenerativeModel({
+            model: geminiModel,
+            systemInstruction: fullSystem
+          });
+
+          const contents: any[] = [];
+          for (const h of history.slice(-20)) {
+            if (!h || !h.content || typeof h.content !== "string") continue;
+            const role = h.role === "assistant" || h.role === "model" ? "model" : "user";
+            contents.push({ role, parts: [{ text: h.content }] });
+          }
+
+          const userParts: any[] = [];
+          if (cleanImage) {
+            userParts.push({
+              inlineData: {
+                data: cleanImage,
+                mimeType: "image/jpeg"
+              }
+            });
+          }
+          userParts.push({ text: userMessage && userMessage.trim() ? userMessage.trim() : (cleanImage ? "Describe lo que observas frente a la cámara con precisión espacial." : "Continuemos nuestro diálogo.") });
+          contents.push({ role: "user", parts: userParts });
+
+          const result = await model.generateContentStream({ contents });
+          if (result && result.stream) {
+            console.log(`[Sovereign Core - Capa 1 Gemini]: Inferencia exitosa (${geminiModel}${isVisionRequest ? " - Visión Titán" : ""})`);
+            
+            const customStream = new ReadableStream({
+              async start(controller) {
+                try {
+                  for await (const chunk of result.stream) {
+                    const chunkText = chunk.text();
+                    if (chunkText) {
+                      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: chunkText, session_id: sessionId })}\n\n`));
+                    }
+                  }
+                  controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+                  controller.close();
+                } catch (streamErr) {
+                  console.warn("[Gemini Stream Loop Warn]:", streamErr);
+                  try {
+                    controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+                    controller.close();
+                  } catch {}
+                }
+              }
+            });
+
+            return new Response(customStream, {
+              headers: {
+                "Content-Type": "text/event-stream; charset=utf-8",
+                "Cache-Control": "no-cache, no-transform",
+                "Connection": "keep-alive"
+              }
+            });
+          }
+        } catch (geminiErr: any) {
+          console.warn(`[Gemini ${geminiModel} Warn]:`, geminiErr?.message || geminiErr);
+        }
+      }
+    }
+  }
+
+  // 2. CAPA 2: Groq Open Inference Tier (LLaMA 3.2 Vision / LLaMA 3.3 70B / Qwen)
   const groqKey = cleanKey(process.env.GROQ_API_KEY) || cleanKey(process.env.NEXT_PUBLIC_GROQ_API_KEY);
   if (groqKey) {
     const groqCandidateModels = isVisionRequest
@@ -272,7 +355,7 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
         });
 
         if (groqRes.ok && groqRes.body) {
-          console.log(`[Sovereign Core - Capa 1 Groq]: Inferencia exitosa (${gModel}${isVisionRequest ? " - Visión Titán" : ""})`);
+          console.log(`[Sovereign Core - Capa 2 Groq]: Inferencia exitosa (${gModel}${isVisionRequest ? " - Visión Titán" : ""})`);
           return transformOpenAiStreamToSSE(groqRes.body, sessionId, isVisionRequest);
         }
       } catch (groqErr) {
@@ -281,7 +364,7 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
     }
   }
 
-  // 2. CAPA 2: OpenRouter Open Weights Mesh (:free Tier - Qwen 2.5 VL / LLaMA 3.2 Vision / LLaMA 3.3 70B)
+  // 3. CAPA 3: OpenRouter Open Weights Mesh (:free Tier - Qwen 2.5 VL / LLaMA 3.2 Vision / LLaMA 3.3 70B)
   const openRouterKey = cleanKey(process.env.OPENROUTER_API_KEY) || cleanKey(process.env.NEXT_PUBLIC_OPENROUTER_API_KEY);
   if (openRouterKey) {
     const openRouterModels = isVisionRequest
@@ -315,7 +398,7 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
         });
 
         if (orRes.ok && orRes.body) {
-          console.log(`[Sovereign Core - Capa 2 OpenRouter]: Inferencia exitosa (${orModel})`);
+          console.log(`[Sovereign Core - Capa 3 OpenRouter]: Inferencia exitosa (${orModel})`);
           return transformOpenAiStreamToSSE(orRes.body, sessionId, isVisionRequest);
         }
       } catch (orErr) {
@@ -324,7 +407,7 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
     }
   }
 
-  // 3. CAPA 3: Hugging Face Serverless Open Mesh (Qwen 2.5-VL / LLaMA Vision / DeepSeek R1)
+  // 4. CAPA 4: Hugging Face Serverless Open Mesh (Qwen 2.5-VL / LLaMA Vision / DeepSeek R1)
   const hfToken = cleanKey(process.env.HF_ACCESS_TOKEN) || cleanKey(process.env.HUGGINGFACE_API_KEY) || cleanKey(process.env.HF_TOKEN);
   if (hfToken) {
     const hfModels = isVisionRequest
@@ -356,7 +439,7 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
           });
 
           if (hfRes.ok && hfRes.body) {
-            console.log(`[Sovereign Core - Capa 3 HuggingFace]: Inferencia exitosa (${model})`);
+            console.log(`[Sovereign Core - Capa 4 HuggingFace]: Inferencia exitosa (${model})`);
             return transformOpenAiStreamToSSE(hfRes.body, sessionId, isVisionRequest);
           }
           if (hfRes.status === 503 || hfRes.status === 429) break;
@@ -367,7 +450,7 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
     }
   }
 
-  // 4. CAPA 4: Ollama Local / VPS Propio (100% Privado y Autónomo)
+  // 5. CAPA 5: Ollama Local / VPS Propio (100% Privado y Autónomo)
   const ollamaUrl = cleanKey(process.env.OLLAMA_BASE_URL) || cleanKey(process.env.NEXT_PUBLIC_OLLAMA_URL);
   if (ollamaUrl) {
     const ollamaModels = isVisionRequest
@@ -390,7 +473,7 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
         });
 
         if (oRes.ok && oRes.body) {
-          console.log(`[Sovereign Core - Capa 4 Ollama]: Inferencia exitosa (${oModel})`);
+          console.log(`[Sovereign Core - Capa 5 Ollama]: Inferencia exitosa (${oModel})`);
           return transformOpenAiStreamToSSE(oRes.body, sessionId, isVisionRequest);
         }
       } catch (err) {
@@ -399,7 +482,7 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
     }
   }
 
-  // 5. CAPA 5: Pollinations Open Neural Mesh (100% Gratuito, Cero Keys, Open-Weights)
+  // 6. CAPA 6: Pollinations Open Neural Mesh (100% Gratuito, Cero Keys, Open-Weights)
   try {
     const polRes = await fetch("https://text.pollinations.ai/openai", {
       method: "POST",
@@ -414,16 +497,16 @@ export async function executeSovereignStream(params: SovereignCoreParams): Promi
     });
 
     if (polRes.ok && polRes.body) {
-      console.log(`[Sovereign Core - Capa 5 Pollinations]: Inferencia exitosa`);
+      console.log(`[Sovereign Core - Capa 6 Pollinations]: Inferencia exitosa`);
       return transformOpenAiStreamToSSE(polRes.body, sessionId, isVisionRequest);
     }
   } catch (polErr) {
     console.warn("[Pollinations Stream Warn]:", polErr);
   }
 
-  // 6. CAPA 6: Motor Pedagógico Autónomo On-Device (0ms - Imposible de Caer)
+  // 7. CAPA 7: Motor Pedagógico Autónomo On-Device (0ms - Imposible de Caer)
   const rescueText = isVisionRequest
-    ? `👁️ **Cámara Titán Activa**: He recibido la captura visual en la matriz de Nora. Si deseas un análisis pedagógico profundo, lectura de un pizarrón o transcripción de un texto en vivo, enfoca claramente el contenido y coméntame qué aspecto específico te gustaría que expliquemos.`
+    ? `👁️ **Cámara Titán Activa**: Imagen recibida en vivo. Observo el entorno frente a ti; enfoca los elementos u obstáculos que deseas que describa con precisión espacial o texto a leer y te guiaré de inmediato.`
     : (await executeLocalInference(
         userMessage,
         history.map(h => ({ role: h.role, content: typeof h.content === "string" ? h.content : String(h.content || "") })),
