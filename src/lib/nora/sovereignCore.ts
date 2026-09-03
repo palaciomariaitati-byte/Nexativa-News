@@ -64,9 +64,10 @@ DIRECTIVAS CRÍTICAS DE CONTINUIDAD Y FLUIDEZ:
 5. GENERACIÓN DE DOCUMENTOS (WORD / PDF / POWERPOINT): Cuando el usuario te solicite armar o convertir contenido en documento Word, informe PDF o diapositivas PowerPoint (.pptx), estructura el contenido con títulos jerárquicos limpios o secciones ordenadas con viñetas concisas e indícale al final que puede descargarlo de inmediato con un solo clic pulsando el botón correspondiente (Word, PDF o PPTX) situado justo al pie de tu mensaje.
 6. MODO INCLUSIÓN TEA (INTERACCIÓN DIRECTA Y JUEGOS):
    - Cuando interactúes con una persona con TEA o en modo inclusión, háblale DIRECTAMENTE a ella con lenguaje 100% literal, claro, paciente y estructurado (Paso 1, Paso 2), acompañado de pictogramas ARASAAC: [PICTO: jugar], [PICTO: adivinanza], [PICTO: pensar], [PICTO: calma], [PICTO: correcto].
-   - Si propusiste opciones de juegos o adivinanzas y el usuario elige una opción (por ejemplo enviando "1" o "2"), ARRANCA DE INMEDIATO EL JUEGO (plantea la primera adivinanza o consigna). JAMÁS desgloses una planificación docente ni redactes contenido curricular para maestros.
-7. MODO LAZARILLO Y VISIÓN PARA NO VIDENTES:
-   - Ante tomas de cámara o interacción con personas no videntes, actúa proactivamente como un lazarillo visual en tiempo real: describe los objetos y obstáculos al frente usando la esfera del reloj ("A tus 12 en punto a 1 metro...", "A tus 3 en punto..."). Si hay textos o carteles, léelos de inmediato.
+8. ASESORÍA DOCENTE Y SECUENCIAS DIDÁCTICAS COMPLETAS POR CLASES:
+   - Cuando un docente te pida planificar, armar un programa, unidad curricular (UC) o secuencia didáctica (Primaria, Inicial, Especial, Secundaria), queda TERMINANTEMENTE PROHIBIDO entregar una simple actividad aislada.
+   - Entrega la SECUENCIA DIDÁCTICA INTEGRAL COMPLETA: Encuadre curricular (NAP / UC / Grado), CONTENIDOS TRIPARTITOS (Conceptuales -Saber-, Procedimentales -Saber Hacer- y Actitudinales -Saber Ser / Convivir-), Propósitos y Objetivos de Aprendizaje (Bloom), Desglose exhaustivo CLASE POR CLASE (Clase 1, Clase 2, Clase 3...) con Inicio (disparador y saberes previos), Desarrollo (andamiaje y actividades) y Cierre (metacognición y síntesis), Pautas DUA / Educación Especial (PPI / pictogramas ARASAAC si aplica) y EVALUACIÓN INTEGRAL (Criterios de logro, Instrumentos formativos/sumativos y Rúbrica Analítica de Evaluación).
+   - Si el docente consulta sobre qué temas tratar, propón las opciones centrales según el diseño curricular y ofrécete a redactar la secuencia completa.
 `;
 
 function cleanKey(val?: string): string {
@@ -87,24 +88,19 @@ function buildOpenAiMessages(
     { role: "system", content: fullSystemPrompt }
   ];
 
-  if (Array.isArray(history)) {
-    for (const h of history.slice(-30)) {
+  if (Array.isArray(history) && history.length > 0) {
+    // Tomar solo los últimos 16 mensajes para evitar sobrecarga y context drift
+    for (const h of history.slice(-16)) {
       if (!h || !h.content || typeof h.content !== "string") continue;
       const text = h.content.trim();
       if (!text || text.length < 2) continue;
 
       const mappedRole = h.role === "assistant" || h.role === "model" ? "assistant" : "user";
-      const last = messages[messages.length - 1];
-
-      if (last && last.role === mappedRole && typeof last.content === "string") {
-        last.content += `\n\n${text}`;
-      } else {
-        messages.push({ role: mappedRole, content: text });
-      }
+      messages.push({ role: mappedRole, content: text });
     }
   }
 
-  const effectiveText = userMessage && userMessage.trim() ? userMessage.trim() : "Continuemos nuestro diálogo pedagógico.";
+  const effectiveText = userMessage && userMessage.trim() ? userMessage.trim() : "Continuemos nuestro diálogo.";
 
   if (cleanImageBase64) {
     messages.push({
@@ -115,12 +111,7 @@ function buildOpenAiMessages(
       ]
     });
   } else {
-    const last = messages[messages.length - 1];
-    if (last && last.role === "user" && typeof last.content === "string") {
-      last.content += `\n\n${effectiveText}`;
-    } else {
-      messages.push({ role: "user", content: effectiveText });
-    }
+    messages.push({ role: "user", content: effectiveText });
   }
 
   return messages;
@@ -501,18 +492,20 @@ export async function executeSovereignText(params: SovereignCoreParams): Promise
   const fullSystem = `${NORA_MASTER_SYSTEM_PROMPT}\n\n[MODO ACTIVO: ${mode.toUpperCase()}]\n\n${systemPrompt}${transitionPrompt}`.trim();
   const openAiMessages = buildOpenAiMessages(history, userMessage, fullSystem, cleanImage);
 
-  // 1. Inferencia Abierta Ultrarrápida Groq (Timeout agresivo de 400ms en voz para cero silencios)
+  // 1. Inferencia Abierta Ultrarrápida Groq (Timeout seguro de 3500ms en voz para permitir respuestas completas)
   const isVoiceMode = mode === "voice";
-  const aggressiveTimeoutMs = isVoiceMode ? 400 : 2500;
+  const voiceTimeoutMs = 4000;
+  const standardTimeoutMs = 5000;
+  const timeoutToUse = isVoiceMode ? voiceTimeoutMs : standardTimeoutMs;
 
   const groqKey = cleanKey(process.env.GROQ_API_KEY) || cleanKey(process.env.NEXT_PUBLIC_GROQ_API_KEY);
   if (groqKey) {
     const groqModels = [
+      "llama-3.3-70b-versatile",
+      "llama-3.1-8b-instant",
       "openai/gpt-oss-120b",
       "groq/compound-mini",
-      "qwen/qwen3.6-27b",
-      "openai/gpt-oss-20b",
-      "groq/compound"
+      "qwen/qwen3.6-27b"
     ];
     for (const gModel of groqModels) {
       try {
@@ -526,9 +519,9 @@ export async function executeSovereignText(params: SovereignCoreParams): Promise
             model: gModel,
             messages: openAiMessages,
             temperature,
-            max_tokens: maxTokens
+            max_tokens: Math.max(750, maxTokens)
           }),
-          signal: AbortSignal.timeout(aggressiveTimeoutMs)
+          signal: AbortSignal.timeout(timeoutToUse)
         });
 
         if (res.ok) {
@@ -556,7 +549,7 @@ export async function executeSovereignText(params: SovereignCoreParams): Promise
         model: "openai",
         temperature
       }),
-      signal: AbortSignal.timeout(isVoiceMode ? 600 : 4000)
+      signal: AbortSignal.timeout(isVoiceMode ? 3500 : 5000)
     });
 
     if (polRes.ok) {
@@ -581,9 +574,9 @@ export async function executeSovereignText(params: SovereignCoreParams): Promise
           model: "llama3.3:70b",
           messages: openAiMessages,
           temperature,
-          max_tokens: maxTokens
+          max_tokens: Math.max(750, maxTokens)
         }),
-        signal: AbortSignal.timeout(isVoiceMode ? 600 : 3000)
+        signal: AbortSignal.timeout(isVoiceMode ? 3000 : 4000)
       });
 
       if (oRes.ok) {

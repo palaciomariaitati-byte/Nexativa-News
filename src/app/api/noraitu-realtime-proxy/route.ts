@@ -47,24 +47,54 @@ export async function POST(req: Request) {
       }
     }
 
+    // 🛡️ FILTRO DE RUIDO Y ALUCINACIONES COMUNES DE WHISPER
+    const whisperHallucinations = [
+      "gracias por ver",
+      "subtítulos por",
+      "subtitulos por",
+      "amara.org",
+      "suscríbete",
+      "suscribete al canal",
+      "transcripción por",
+      "transcripcion por",
+      "un subtítulo de",
+      "reproducir música",
+      "música de fondo",
+      "[música]",
+      "(música)",
+      "[risas]",
+      "[aplausos]",
+      "chau",
+      "adiós",
+      "silencio"
+    ];
+
+    const isHallucination = whisperHallucinations.some(h => 
+      effectiveUserText.toLowerCase().includes(h) && effectiveUserText.length < 35
+    );
+
+    if (isHallucination) {
+      effectiveUserText = "";
+    }
+
     // 🛡️ PROTOCOLO DE RECUPERACIÓN CONVERSACIONAL (Manejo de Hilo ante Ruidos / Transcripciones Vacías)
     const isNoiseOrEmpty = !effectiveUserText ||
       effectiveUserText.length < 2 ||
-      /^(tos|carraspeo|hum|eh|ah|ruido|sonido|\[.*\]|\(.*\))\.*$/i.test(effectiveUserText);
+      /^(tos|carraspeo|hum|eh|ah|ajá|aja|ruido|sonido|\[.*\]|\(.*\))\.*$/i.test(effectiveUserText);
 
     if (isNoiseOrEmpty) {
       if (lastInterruptedResponse && lastInterruptedResponse.text) {
-        const rescueCourtesy = "Escuché un sonido. ¿Deseás que continúe con la explicación anterior o pasamos al siguiente tema?";
+        const rescueCourtesy = "Te escucho. ¿Deseás que continúe con la explicación anterior o querés consultarme otra cosa?";
         return NextResponse.json({
           text: rescueCourtesy,
           phoneticText: rescueCourtesy,
-          transcribedUserText: "[Sonido breve detectado]",
+          transcribedUserText: "[Sonido detectado]",
           latencyMs: Date.now() - tStart,
           model: "Conversational-Recovery-Protocol"
         });
       }
 
-      const defaultText = "No alcancé a escucharte bien. Por favor repetí tu consulta o decime 'continuar'.";
+      const defaultText = "No alcancé a escucharte con claridad. ¿Podrías repetir tu pregunta o decirme 'continuar'?";
       return NextResponse.json({
         text: defaultText,
         phoneticText: defaultText,
@@ -74,11 +104,23 @@ export async function POST(req: Request) {
       });
     }
 
-    // 🔄 Si el usuario pide explícitamente continuar tras una interrupción
-    const isContinueRequest = /^(si|sí|continua|continuá|continúa|seguí|seguir|dale|adelante|retoma|retomá)\b/i.test(effectiveUserText);
+    // 🔄 DETECTOR INTELIGENTE DE CONTINUIDAD (Reconocimiento amplio de pedidos de continuación e hilo)
+    const isContinueRequest = /^(si|sí|continua|continuá|continúa|seguí|seguir|dale|adelante|retoma|retomá|completá|completa|terminá|termina|qué más|que mas|no terminaste|seguí contándome|seguí diciéndome|explicame más|explicame mas|respondé a mi última pregunta|responde mi pregunta|completá la info|completa la info)\b/i.test(effectiveUserText) ||
+      effectiveUserText.toLowerCase().includes("completá la info") ||
+      effectiveUserText.toLowerCase().includes("completa la info") ||
+      effectiveUserText.toLowerCase().includes("terminá de") ||
+      effectiveUserText.toLowerCase().includes("no terminaste") ||
+      effectiveUserText.toLowerCase().includes("respondé a mi última pregunta") ||
+      effectiveUserText.toLowerCase().includes("responde mi pregunta");
+
     let promptToInfer = effectiveUserText;
-    if (isContinueRequest && lastInterruptedResponse && lastInterruptedResponse.text) {
-      promptToInfer = `Por favor retoma y continúa desarrollando de forma completa y elocuente la explicación que estábamos viendo: "${lastInterruptedResponse.text}".`;
+    
+    // Obtener la última respuesta del asistente registrada en el historial si no viene en lastInterruptedResponse
+    const lastAssistantInHistory = [...history].reverse().find(h => h.role === "assistant" || h.role === "model")?.content;
+    const referenceContext = (lastInterruptedResponse && lastInterruptedResponse.text) ? lastInterruptedResponse.text : (lastAssistantInHistory || "");
+
+    if (isContinueRequest && referenceContext) {
+      promptToInfer = `[INSTRUCCIÓN CRÍTICA DE CONTINUIDAD]: El usuario solicita continuar o completar la información sobre el tema exacto que estábamos desarrollando. Continúa y finaliza de forma elocuente, profunda y clara la siguiente explicación sin cambiar de tema ni inventar otra historia: "${referenceContext}".`;
     }
 
     const tInferStart = Date.now();
@@ -87,7 +129,7 @@ export async function POST(req: Request) {
       userMessage: promptToInfer,
       systemPrompt: NORA_PROSODY_SYSTEM_PROMPT,
       mode: mode as any,
-      maxTokens: 550,
+      maxTokens: 850,
       temperature: 0.35,
       lastInterruptedResponse: isContinueRequest ? null : lastInterruptedResponse
     });

@@ -6,6 +6,12 @@
  * ========================================================================
  */
 
+import {
+  DIDACTIC_SEQUENCE_MASTER_TEMPLATE,
+  SPECIAL_EDUCATION_FRAMEWORK,
+  ARGENTINE_PRIMARY_CURRICULUM
+} from "./curricularFramework";
+
 export function resolveAdaptiveEducationalContext(arg1: any, arg2?: any): string {
   const userMessage = typeof arg1 === "string" ? arg1 : (typeof arg2 === "string" ? arg2 : "");
   const contextData = typeof arg1 === "object" ? arg1 : (typeof arg2 === "object" ? arg2 : {});
@@ -26,7 +32,7 @@ export function resolveAdaptiveEducationalContext(arg1: any, arg2?: any): string
 ========================================================================
 1. INTERACCIÓN DIRECTA CON EL USUARIO (PERSONA / NIÑO / JOVEN CON TEA):
    - Háblale DIRECTAMENTE a la persona como una asistente/compañera cordial, empática, clara y paciente.
-   - PROHIBIDO TERMINANTEMENTE generar planificaciones docentes, tablas curriculares, secuencias áulicas para maestros o rúbricas de evaluación a menos que el usuario diga explícitamente "soy docente y quiero una planificación".
+   - PROHIBIDO TERMINANTEMENTE generar planificaciones docentes, tablas curriculares, secuencias áulicas para maestros o rúbricas de evaluación a menos que el usuario diga explícitamente "soy docente y quiero una planificación" o "planificar para un alumno con TEA".
    - Si el usuario o tú iniciaron una dinámica de juegos, adivinanzas o trivias y el usuario selecciona una opción con un número ("1", "2", "3") o responde una letra, ARRANCA EL JUEGO INMEDIATAMENTE en ese mismo mensaje con la primera consigna o adivinanza concreta.
 2. DIRECTIVA DE ATOMICIDAD (SINGLE-TASK STEPPING PARA ALTO TCR - TASK COMPLETION RATE):
    - Nunca entregues más de 1 o 2 pasos breves en el mismo turno.
@@ -43,25 +49,31 @@ export function resolveAdaptiveEducationalContext(arg1: any, arg2?: any): string
 `;
   }
 
-  // 2. MODO PEDAGÓGICO INTERNACIONAL Y DISEÑO CURRICULAR (Marco UNESCO & Taxonomía de Bloom)
+  // 2. MODO PEDAGÓGICO DOCENTE Y DISEÑO CURRICULAR (NAP / Primaria / Educación Especial / DUA / Secuencia por Clases)
   const isPedagogy = explicitMode === "docente" || 
-    ["planificacion", "secuencia didactica", "unidad didactica", "curriculo", "diseno curricular", "rubrica de evaluacion", "plan de clase", "objetivos de aprendizaje", "criterios de evaluacion", "situacion de aprendizaje", "dua", "bloom", "unesco"].some(w => lower.includes(w));
+    ["planificacion", "planificación", "planificar", "secuencia didactica", "secuencia didáctica", "unidad didactica", "unidad didáctica", "unidad curricular", "uc", "curriculo", "currículo", "diseno curricular", "diseño curricular", "rubrica de evaluacion", "rúbrica", "plan de clase", "objetivos de aprendizaje", "criterios de evaluacion", "situacion de aprendizaje", "dua", "bloom", "unesco", "primer grado", "segundo grado", "tercer grado", "cuarto grado", "quinto grado", "sexto grado", "1er grado", "2do grado", "3er grado", "4to grado", "5to grado", "6to grado", "nivel primario", "educacion especial", "educación especial", "ppi", "clase por clase", "proyecto aulico", "proyecto áulico"].some(w => lower.includes(w));
 
   if (isPedagogy) {
+    const isSpecialEdRequest = ["especial", "inclusion", "inclusión", "tea", "discapacidad", "adaptacion", "adaptación", "ppi", "dua"].some(w => lower.includes(w));
+
     return `
 ========================================================================
-🎓 MODO PEDAGÓGICO DE CLASE MUNDIAL (MARCO UNESCO TIC & TAXONOMÍA DE BLOOM REVISADA)
+🎓 MODO ASESORÍA DOCENTE DE ÉLITE Y GENERADOR CURRICULAR INTEGRAL
 ========================================================================
-- Estructura las planificaciones con alineación a estándares curriculares internacionales y Diseño Universal para el Aprendizaje (DUA):
-  1. 🎯 **Nivel Cognitivo Bloom**: Identifica explícitamente la dimensión (Recordar, Comprender, Aplicar, Analizar, Evaluar, Crear).
-  2. 📚 **Objetivos de Aprendizaje Medibles**: Formulados con verbos de desempeño operacionalizables.
-  3. 📋 **Secuencia Didáctica de 3 Fases**:
-     * **Inicio (Apertura)**: Activación de saberes previos y disparador motivacional.
-     * **Desarrollo (Andamiaje)**: Actividades con progresión de dificultad y diversificación de formatos (Pautas DUA).
-     * **Cierre (Metacognición)**: Síntesis, autorregulación y evaluación formativa.
-  4. 📊 **Grilla Curricular en Tabla Markdown**:
-     Genera siempre una tabla estructurada (Columnas: | Fase | Actividad y Consigna | Recursos y Tiempo | Criterio de Evaluación DUA |).
-  5. 📝 **Rúbrica Analítica con Escala de Desempeño**: (Inicial, En Proceso, Logrado, Destacado).
+DIRECTIVA SUPREMA PARA SOLICITUDES DE DOCENTES:
+- Queda TERMINANTEMENTE PROHIBIDO entregar una simple actividad aislada o un resumen de 5 renglones cuando un docente solicita ayuda para planificar o armar un programa/clase.
+- NORA DEBE DESPLEGAR LA SECUENCIA DIDÁCTICA INTEGRAL COMPLETA con:
+  1. Encuadre Curricular y Fundamentación (NAP / Grado / UC / Tiempo).
+  2. CONTENIDOS TRIPARTITOS OBLIGATORIOS: Conceptuales (Saber), Procedimentales (Saber Hacer) y Actitudinales (Saber Ser / Convivir).
+  3. Propósitos y Objetivos de Aprendizaje (Bloom / Capacidades).
+  4. Desglose exhaustivo CLASE POR CLASE (Clase 1, Clase 2, Clase 3...) con Inicio (disparador y saberes previos), Desarrollo (andamiaje y actividades) y Cierre (metacognición y síntesis), Recursos y Materiales.
+  5. Configuraciones DUA / Educación Especial (PPI / pictogramas ARASAAC si aplica).
+  6. EVALUACIÓN INTEGRAL FORMAL: Criterios de evaluación (indicadores de logro observables), Instrumentos de evaluación (listas de cotejo, registros, portfolio, tickets de salida) y Rúbrica Analítica de Desempeño.
+- Si el docente consulta sobre qué temas tratar o pide propuestas para una Unidad Curricular (UC) o grado de Primaria/Especial, proponle el mapa temático oficial de los NAP y ofrece redactar de inmediato la secuencia didáctica completa para la opción que elija.
+
+${DIDACTIC_SEQUENCE_MASTER_TEMPLATE}
+
+${isSpecialEdRequest ? SPECIAL_EDUCATION_FRAMEWORK : ""}
 ========================================================================
 `;
   }
