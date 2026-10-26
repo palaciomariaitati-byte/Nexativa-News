@@ -529,7 +529,7 @@ export default function SovereignHomeDesign({
               <Link href="/noticias?categoria=Deportes" className="text-gray-300 hover:text-white transition-colors py-1">
                 Deportes
               </Link>
-              <Link href="/prensa" className="text-red-400 hover:text-red-300 transition-colors py-1 flex items-center gap-1">
+              <Link href="/#streaming" className="text-red-400 hover:text-red-300 transition-colors py-1 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
                 En Vivo
               </Link>
@@ -577,7 +577,7 @@ export default function SovereignHomeDesign({
               { label: '🎨 Espacio Cultural Regional', href: '/cultura' },
               { label: '🏷️ Avisos Clasificados', href: '/clasificados' },
               { label: '⚽ Central Deportiva', href: '/noticias?categoria=Deportes' },
-              { label: '📺 Transmisión Streaming En Vivo', href: '/prensa', highlight: 'text-red-400' },
+              { label: '📺 Transmisión Streaming En Vivo', href: '/#streaming', highlight: 'text-red-400' },
               { label: '👑 Planes de Membresía VIP', href: '/checkout?tier=oro', highlight: 'text-amber-400' },
             ].map((link, i) => (
               <Link
@@ -922,6 +922,37 @@ export default function SovereignHomeDesign({
               </div>
             </div>
           </aside>
+        </section>
+
+        {/* ====================================================
+            TRANSMISIÓN EN VIVO: STREAMING TV & RADIO DEL LITORAL
+           ==================================================== */}
+        <section id="streaming" className="space-y-4 pt-6 border-t border-gray-800/60 scroll-mt-24">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <span className="w-3 h-3 rounded-full bg-red-600 animate-ping shrink-0" />
+              <div>
+                <span className="text-[11px] font-bold tracking-widest uppercase text-red-500 flex items-center gap-1.5">
+                  TRANSMISIÓN CONTINUA • SEÑAL OFICIAL 2026
+                </span>
+                <h2
+                  className="text-2xl sm:text-3xl font-serif font-bold tracking-tight mt-0.5"
+                  style={{ fontFamily: 'Georgia, serif' }}
+                >
+                  Nexativa TV & Radio <span className="text-[#e5b242] italic">En Vivo</span>
+                </h2>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-1 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 font-mono text-xs font-bold tracking-wider uppercase animate-pulse">
+                ● SEÑAL AL AIRE
+              </span>
+            </div>
+          </div>
+
+          <div className="w-full rounded-2xl border border-white/10 overflow-hidden bg-slate-950 shadow-2xl p-2 sm:p-4">
+            <VideoSection />
+          </div>
         </section>
 
         {/* ====================================================
