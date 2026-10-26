@@ -33,22 +33,25 @@ export default function AdminSidebar({ userRole }: AdminSidebarProps) {
       {/* Botón Resumen General */}
       <Link
         href="/admin"
-        className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
+        className={`px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-between ${
           pathname === "/admin"
-            ? "bg-[var(--color-brand-accent)] text-black shadow-lg"
-            : "bg-white/10 hover:bg-white/20 text-white"
+            ? "bg-[#e5b242] text-black shadow-lg shadow-amber-500/20 font-black"
+            : "bg-[#131923] hover:bg-[#1a2230] text-gray-300 hover:text-white border border-[#232d3d]"
         }`}
       >
-        <BarChart3 className="w-4 h-4" />
-        <span>📊 Resumen General</span>
+        <div className="flex items-center gap-2">
+          <BarChart3 className="w-4 h-4" />
+          <span>Resumen General</span>
+        </div>
+        <ChevronRight className="w-3.5 h-3.5 opacity-60" />
       </Link>
 
       {/* SECTOR 1: SERVICIOS & COMUNIDAD */}
-      <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-950/60">
+      <div className="border border-[#1e2633] rounded-xl overflow-hidden bg-[#0c1219]">
         <button
           type="button"
           onClick={() => toggleSector("servicios")}
-          className="w-full px-3 py-2.5 bg-slate-900/90 hover:bg-slate-900 text-rose-300 font-extrabold flex items-center justify-between transition-colors uppercase tracking-wider text-[11px]"
+          className="w-full px-3 py-2.5 bg-[#121822] hover:bg-[#161f2c] text-rose-300 font-extrabold flex items-center justify-between transition-colors uppercase tracking-wider text-[11px]"
         >
           <span className="flex items-center gap-1.5">
             <Wrench className="w-3.5 h-3.5 text-rose-400" />
