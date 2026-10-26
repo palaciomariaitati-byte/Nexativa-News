@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'NoraItu AI - Asistente Autónomo',
     short_name: 'NoraItu',
-    description: 'Inteligencia Artificial Universal, Multimodal y Soberana de MyJNexoraVisual.',
+    description: 'Inteligencia Artificial Universal, Multimodal y Soberana de Nexora One.',
     id: '/noraitu',
     scope: '/noraitu',
     start_url: '/noraitu',

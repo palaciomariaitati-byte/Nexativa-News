@@ -266,7 +266,7 @@ export default function CleanFlashPlayer({
         </div>
         <div className="text-[10px] text-gray-400 flex items-center gap-1 font-mono">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-          Powered by <strong className="text-white">MyJNexoraVisual</strong>
+          Powered by <strong className="text-white">Nexora One</strong>
         </div>
       </div>
 
@@ -299,7 +299,7 @@ export default function CleanFlashPlayer({
             </button>
 
             <div className="pt-2 text-[10px] text-gray-500 border-t border-white/10 w-full max-w-xs text-center font-mono">
-              Desarrollado por <strong>MyJNexoraVisual</strong> para Nexativa News © Todos los derechos reservados
+              Desarrollado por <strong>Nexora One</strong> para Nexativa News © Todos los derechos reservados
             </div>
           </div>
         )}
@@ -346,7 +346,7 @@ export default function CleanFlashPlayer({
 
         {/* Footer Credit Signature */}
         <div className="pt-2 text-[10px] text-gray-400 border-t border-white/5 flex items-center justify-between">
-          <span>Infraestructura Periodística Digital por <strong>MyJNexoraVisual</strong></span>
+          <span>Infraestructura Periodística Digital por <strong>Nexora One</strong></span>
           <span className="text-red-400 font-bold uppercase font-sans">© Nexativa News</span>
         </div>
       </div>

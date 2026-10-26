@@ -13,7 +13,7 @@ export const maxDuration = 60;
  * 
  * Pipeline multimedia aislado para generación y edición de imágenes DSLR 8K (Flux.1)
  * y video promocional/comercial (MiniMax Video / Hunyuan) a Costo $0.
- * Operado bajo la red neuronal distribuida de MyJNexoraVisual.
+ * Operado bajo la red neuronal distribuida de Nexora One.
  * ========================================================================
  */
 
@@ -71,7 +71,7 @@ export async function POST(req: Request) {
         seed,
         aspect_ratio,
         metadata: {
-          engine: "MyJNexoraVisual-DistributedNeuralNetwork",
+          engine: "Nexora One-DistributedNeuralNetwork",
           resolution: `${width}x${height}`,
           processing_tier: "Sovereign-C0"
         },
@@ -97,7 +97,7 @@ export async function POST(req: Request) {
         prompt: cleanPrompt,
         seed,
         metadata: {
-          engine: "MyJNexoraVisual-DistributedNeuralNetwork",
+          engine: "Nexora One-DistributedNeuralNetwork",
           video_codec: "H.264/MP4",
           processing_tier: "Sovereign-C0"
         },

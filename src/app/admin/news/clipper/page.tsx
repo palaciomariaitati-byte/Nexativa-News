@@ -192,7 +192,7 @@ export default function NoraClipperAdminPage() {
 
       const json = await res.json();
       if (json.success) {
-        setFlashSuccessMsg("🎉 ¡Flash Noticioso Multi-Programa (1-5 min) publicado con éxito! Transmitiendo con el reproductor limpio Nexativa Clean Player (por MyJNexoraVisual).");
+        setFlashSuccessMsg("🎉 ¡Flash Noticioso Multi-Programa (1-5 min) publicado con éxito! Transmitiendo con el reproductor limpio Nexativa Clean Player (por Nexora One).");
       } else {
         alert("Error al publicar Flash: " + json.error);
       }
@@ -219,7 +219,7 @@ export default function NoraClipperAdminPage() {
           </p>
         </div>
         <div className="text-[10px] text-gray-400 bg-black/60 border border-white/10 px-3 py-2 rounded-xl text-right font-mono">
-          Desarrollado por <strong className="text-white">MyJNexoraVisual</strong>
+          Desarrollado por <strong className="text-white">Nexora One</strong>
           <span className="block text-red-400 font-bold font-sans uppercase">Nexativa News ©</span>
         </div>
       </div>

@@ -93,7 +93,7 @@ export default function AdminNewsFlashesPage() {
             <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} /> Refrescar Emisión
           </button>
           <span className="text-[10px] text-gray-400 font-mono">
-            Desarrollado por <strong className="text-white">MyJNexoraVisual</strong>
+            Desarrollado por <strong className="text-white">Nexora One</strong>
           </span>
         </div>
       </div>

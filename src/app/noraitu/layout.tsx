@@ -1,23 +1,23 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'NoraItu AI - Asistente Inteligente Universal de MyJNexoraVisual',
-  description: 'NoraItu es una Inteligencia Artificial multimodal soberana desarrollada en Ituzaingó, Corrientes, por MyJNexoraVisual. Análisis de documentos, facturas, fotos, voz femenina y consultas en tiempo real.',
+  title: 'NoraItu AI - Asistente Inteligente Universal de Nexora One',
+  description: 'NoraItu es una Inteligencia Artificial multimodal soberana desarrollada en Ituzaingó, Corrientes, por Nexora One. Análisis de documentos, facturas, fotos, voz femenina y consultas en tiempo real.',
   manifest: '/noraitu-manifest.json',
   keywords: [
     'NoraItu',
     'NoraItu AI',
     'Nora Itu',
     'Inteligencia Artificial Ituzaingó',
-    'MyJNexoraVisual',
+    'Nexora One',
     'IA Argentina',
     'Chatbot IA Corrientes',
     'Auditoría de facturas IA',
     'Asistente de voz multimodal'
   ],
-  authors: [{ name: 'MyJNexoraVisual' }],
-  creator: 'MyJNexoraVisual',
-  publisher: 'MyJNexoraVisual',
+  authors: [{ name: 'Nexora One' }],
+  creator: 'Nexora One',
+  publisher: 'Nexora One',
   metadataBase: new URL('https://www.nexativanews.com.ar'),
   alternates: {
     canonical: '/noraitu',
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: 'NoraItu AI - Inteligencia Artificial Multimodal Soberana',
-    description: 'Asistente de IA multimodal desarrollado en Ituzaingó, Corrientes por MyJNexoraVisual. Visión, voz femenina, auditoría de documentos y más.',
+    description: 'Asistente de IA multimodal desarrollado en Ituzaingó, Corrientes por Nexora One. Visión, voz femenina, auditoría de documentos y más.',
     url: 'https://www.nexativanews.com.ar/noraitu',
     siteName: 'NoraItu AI',
     locale: 'es_AR',
@@ -49,7 +49,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'NoraItu AI - MyJNexoraVisual',
+    title: 'NoraItu AI - Nexora One',
     description: 'Inteligencia Artificial soberana desarrollada en Ituzaingó, Corrientes.',
     images: ['/icons/main-icon.png'],
   },

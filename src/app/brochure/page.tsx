@@ -168,7 +168,7 @@ export default function BrochureComercialPage() {
                 🤖 La Ventaja Tecnológica: Motor Nora IA & Distribución Omnipresente
               </h3>
               <p className="text-xs text-slate-700 leading-relaxed mb-2.5">
-                A diferencia de los medios tradicionales, Nexativa News cuenta con <strong>Nora</strong>, la Inteligencia Artificial periodística desarrollada por <strong>MyJNexoraVisual</strong>. Al anunciarte en Nexativa, activa una red de difusión inteligente:
+                A diferencia de los medios tradicionales, Nexativa News cuenta con <strong>Nora</strong>, la Inteligencia Artificial periodística desarrollada por <strong>Nexora One</strong>. Al anunciarte en Nexativa, activa una red de difusión inteligente:
               </p>
               <ul className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs text-slate-700">
                 <li className="bg-white border border-slate-200 rounded-xl p-2.5">
@@ -254,7 +254,7 @@ export default function BrochureComercialPage() {
                 💬 WhatsApp Comercial Nexativa: +54 9 3786 61-1250
               </span>
               <span className="text-slate-300">
-                ⚙️ MyJNexoraVisual (IA Nora): +54 9 3786 41-4533
+                ⚙️ Nexora One (IA Nora): +54 9 3786 41-4533
               </span>
             </div>
             <div className="mt-2 text-[10px] text-slate-400 font-mono">
@@ -264,7 +264,7 @@ export default function BrochureComercialPage() {
 
           {/* Footer Final */}
           <div className="mt-3 text-center text-[10px] text-slate-500 border-t border-slate-200 pt-1.5">
-            Nexativa News © 2026 | Tecnología con Propósito Humano por MyJNexoraVisual & IA Nora Engine | Página 2 de 2
+            Nexativa News © 2026 | Tecnología con Propósito Humano por Nexora One & IA Nora Engine | Página 2 de 2
           </div>
         </section>
       </div>

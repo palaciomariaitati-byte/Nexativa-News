@@ -37,7 +37,7 @@ export default function AdminCitizenQrPage() {
         </div>
 
         <div className="text-[10px] text-gray-400 bg-black/60 border border-white/10 px-3 py-2 rounded-xl text-right font-mono">
-          Desarrollado por <strong className="text-white">MyJNexoraVisual</strong>
+          Desarrollado por <strong className="text-white">Nexora One</strong>
           <span className="block text-red-400 font-bold font-sans uppercase">Nexativa News ©</span>
         </div>
       </div>
@@ -78,7 +78,7 @@ export default function AdminCitizenQrPage() {
           </div>
 
           <div className="pt-4 border-t border-slate-200 text-[10px] text-slate-500 font-mono flex items-center justify-between">
-            <span>Soporte Tecnológico: <strong>MyJNexoraVisual</strong></span>
+            <span>Soporte Tecnológico: <strong>Nexora One</strong></span>
             <span>Redacción: <strong>Nexativa News</strong></span>
           </div>
         </div>
@@ -127,7 +127,7 @@ export default function AdminCitizenQrPage() {
               <ShieldAlert className="w-4 h-4" /> Cobertura Legal y Filtro Periodístico
             </div>
             <p className="leading-relaxed">
-              Todos los reportes enviados a través de este QR ingresan en estado <strong>Pendiente de Verificación (Prioridad Secundaria)</strong>. El sistema incluye la cláusula de deslinde de responsabilidad de <strong>MyJNexoraVisual & Nexativa News</strong> para proteger a la firma ante cualquier material no verificado.
+              Todos los reportes enviados a través de este QR ingresan en estado <strong>Pendiente de Verificación (Prioridad Secundaria)</strong>. El sistema incluye la cláusula de deslinde de responsabilidad de <strong>Nexora One & Nexativa News</strong> para proteger a la firma ante cualquier material no verificado.
             </p>
           </div>
         </div>

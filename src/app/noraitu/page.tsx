@@ -2106,7 +2106,7 @@ export default function NoraItuApp() {
             <div className="space-y-2.5">
               {/* Botón Compartir Directo en WhatsApp */}
               <a
-                href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`¡Hola! Te recomiendo probar NoraItu, la IA Soberana desarrollada en Ituzaingó por MyJNexoraVisual. Transcribe audios, crea imágenes, traduce y planifica clases gratis: ${typeof window !== "undefined" ? `${window.location.origin}/noraitu` : "https://nexativanews.com.ar/noraitu"}`)}`}
+                href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`¡Hola! Te recomiendo probar NoraItu, la IA Soberana desarrollada en Ituzaingó por Nexora One. Transcribe audios, crea imágenes, traduce y planifica clases gratis: ${typeof window !== "undefined" ? `${window.location.origin}/noraitu` : "https://nexativanews.com.ar/noraitu"}`)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs md:text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 transition-all hover:scale-[1.02] active:scale-95"
@@ -2131,7 +2131,7 @@ export default function NoraItuApp() {
             </div>
 
             <div className="text-[11px] text-slate-500 font-mono">
-              Desarrollada por MyJNexoraVisual • Ituzaingó, Corrientes
+              Desarrollada por Nexora One • Ituzaingó, Corrientes
             </div>
           </div>
         </div>
@@ -2155,7 +2155,7 @@ export default function NoraItuApp() {
               <h1 className="font-bold text-base tracking-wide bg-gradient-to-r from-white via-slate-200 to-sky-400 bg-clip-text text-transparent">
                 NoraItu AI
               </h1>
-              <p className="text-[10px] text-sky-400/80 font-mono">By MyJNexoraVisual</p>
+              <p className="text-[10px] text-sky-400/80 font-mono">By Nexora One</p>
             </div>
           </div>
           <button 
@@ -2274,7 +2274,7 @@ export default function NoraItuApp() {
             <ShieldCheck size={14} className="text-emerald-400" />
             <span>100% Blindada</span>
           </div>
-          <span className="text-[10px] font-mono text-slate-600">MyJNexoraVisual</span>
+          <span className="text-[10px] font-mono text-slate-600">Nexora One</span>
         </div>
       </aside>
 
@@ -2453,7 +2453,7 @@ export default function NoraItuApp() {
                   Nora Titán Universal
                 </h2>
                 <p className="text-[11px] sm:text-xs text-slate-400 max-w-sm mt-1">
-                  Inteligencia Soberana de MyJNexoraVisual al servicio de la educación nacional.
+                  Inteligencia Soberana de Nexora One al servicio de la educación nacional.
                 </p>
               </div>
 
@@ -2828,7 +2828,7 @@ export default function NoraItuApp() {
           <div className="text-center mt-2 text-[10px] text-slate-500 flex flex-wrap items-center justify-center gap-1.5">
             <span>NoraItu AI</span>
             <span>•</span>
-            <span>Tecnología desarrollada por <strong className="text-sky-400 font-medium">MyJNexoraVisual</strong></span>
+            <span>Tecnología desarrollada por <strong className="text-sky-400 font-medium">Nexora One</strong></span>
             <span>•</span>
             <span>Ituzaingó, Corrientes</span>
           </div>

@@ -583,7 +583,7 @@ export default function CorresponsalMovilPage() {
               Nora Exteriores & Reporte Ciudadano
             </h1>
             <span className="text-[9px] text-gray-400 font-mono block">
-              Powered by <strong className="text-white">MyJNexoraVisual</strong>
+              Powered by <strong className="text-white">Nexora One</strong>
             </span>
           </div>
         </div>
@@ -601,12 +601,12 @@ export default function CorresponsalMovilPage() {
         <div className="bg-amber-950/90 border-b border-amber-500/40 p-4 text-xs text-amber-200 space-y-2 animate-fadeIn z-30">
           <div className="flex items-center justify-between font-bold text-white uppercase text-[11px]">
             <span className="flex items-center gap-1.5 text-amber-400">
-              <ShieldAlert className="w-4 h-4 text-amber-400" /> Aviso Legal y Deslinde de Responsabilidad (MyJNexoraVisual / Nexativa News)
+              <ShieldAlert className="w-4 h-4 text-amber-400" /> Aviso Legal y Deslinde de Responsabilidad (Nexora One / Nexativa News)
             </span>
             <button onClick={() => setShowLegalNotice(false)}><X className="w-4 h-4" /></button>
           </div>
           <p className="leading-relaxed">
-            <strong>MyJNexoraVisual</strong> y <strong>Nexativa News</strong> actúan únicamente como soporte tecnológico de recepción. Los reportes o archivos enviados de forma anónima o sin datos de identidad comprobables carecen de presunción de veracidad inmediata, no poseen la misma carga de objetividad ni prioridad de publicación que las coberturas de corresponsales acreditados, y serán sometidos a estricta verificación periodística previa. El emisor asume total responsabilidad legal por la veracidad del material enviado.
+            <strong>Nexora One</strong> y <strong>Nexativa News</strong> actúan únicamente como soporte tecnológico de recepción. Los reportes o archivos enviados de forma anónima o sin datos de identidad comprobables carecen de presunción de veracidad inmediata, no poseen la misma carga de objetividad ni prioridad de publicación que las coberturas de corresponsales acreditados, y serán sometidos a estricta verificación periodística previa. El emisor asume total responsabilidad legal por la veracidad del material enviado.
           </p>
         </div>
       )}
@@ -940,7 +940,7 @@ export default function CorresponsalMovilPage() {
 
           {/* Legal Disclaimer Brief Footer */}
           <div className="bg-black/40 border border-white/5 p-2.5 rounded-xl text-[10px] text-gray-400 leading-snug">
-            <span className="text-amber-400 font-bold">Deslinde Legal:</span> MyJNexoraVisual y Nexativa News actúan únicamente como plataforma de recepción. Los reportes anónimos serán sometidos a verificación previa.
+            <span className="text-amber-400 font-bold">Deslinde Legal:</span> Nexora One y Nexativa News actúan únicamente como plataforma de recepción. Los reportes anónimos serán sometidos a verificación previa.
           </div>
 
           {/* Success Message */}
@@ -1034,7 +1034,7 @@ export default function CorresponsalMovilPage() {
 
         {/* Footer Credit Signature */}
         <footer className="text-center py-4 text-[10px] text-gray-500 space-y-1">
-          <div>Desarrollado por <strong>MyJNexoraVisual</strong> para Nexativa News</div>
+          <div>Desarrollado por <strong>Nexora One</strong> para Nexativa News</div>
           <div>© Todos los derechos reservados</div>
         </footer>
       </main>

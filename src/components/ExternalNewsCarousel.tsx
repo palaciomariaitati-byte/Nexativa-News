@@ -31,20 +31,26 @@ export default function ExternalNewsCarousel() {
 
         // Fetch from all sources
         for (const feed of DEFAULT_FEEDS) {
-          const res = await fetch(`${RSS_PROXY}${encodeURIComponent(feed.url)}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data.items) {
-              // Get top 5 from each to not overwhelm
-              data.items.slice(0, 5).forEach((item: {title: string, link: string, pubDate: string}) => {
-                allNews.push({
-                  title: item.title,
-                  link: item.link,
-                  pubDate: item.pubDate,
-                  source: feed.name,
+          try {
+            const res = await fetch(`${RSS_PROXY}${encodeURIComponent(feed.url)}`, { cache: 'no-store' });
+            if (res.ok) {
+              const data = await res.json();
+              if (data?.items && Array.isArray(data.items)) {
+                // Get top 5 from each to not overwhelm
+                data.items.slice(0, 5).forEach((item: {title?: string, link?: string, pubDate?: string}) => {
+                  if (item?.title) {
+                    allNews.push({
+                      title: item.title,
+                      link: item.link || '#',
+                      pubDate: item.pubDate || new Date().toISOString(),
+                      source: feed.name,
+                    });
+                  }
                 });
-              });
+              }
             }
+          } catch {
+            // Silently ignore single feed network failures
           }
         }
 

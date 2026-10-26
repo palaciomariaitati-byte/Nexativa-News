@@ -12,6 +12,14 @@ export default function GlobalRealtimeListener() {
     let channel: any = null;
     let reconnectTimeout: NodeJS.Timeout;
 
+    let refreshTimer: NodeJS.Timeout | null = null;
+    const safeRefresh = () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => {
+        router.refresh();
+      }, 1000);
+    };
+
     const connectRealtime = () => {
       // 1. Limpieza explícita: evitar canales duplicados o fugas de memoria
       if (channel) {
@@ -25,19 +33,19 @@ export default function GlobalRealtimeListener() {
           { event: "*", schema: "public" },
           (payload) => {
             console.log(`Cambio detectado en tabla: ${payload.table} (${payload.eventType})`);
-            router.refresh();
+            safeRefresh();
           }
         )
         .subscribe((status, err) => {
           if (status === 'SUBSCRIBED') {
             console.log("Global Realtime conectado");
           } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || err) {
-            console.log("Global Realtime desconectado/error. Reconectando en 3s...");
+            console.log("Global Realtime desconectado/error. Reconectando en 5s...");
             // 3. Reconexión automática por caída de red
             clearTimeout(reconnectTimeout);
             reconnectTimeout = setTimeout(() => {
               connectRealtime();
-            }, 3000);
+            }, 5000);
           }
         });
     };
@@ -48,7 +56,7 @@ export default function GlobalRealtimeListener() {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         console.log("Pestaña visible: reconectando Global Realtime...");
-        router.refresh(); // Forzar update por si nos perdimos algo
+        safeRefresh();
         connectRealtime();
       }
     };

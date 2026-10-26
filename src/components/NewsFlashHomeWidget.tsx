@@ -31,7 +31,7 @@ export default function NewsFlashHomeWidget({ flashes }: { flashes: Flash[] }) {
               🔴 Flash Noticioso (1 a 5 min)
             </h3>
             <p className="text-xs text-gray-400">
-              Síntesis informativa producida en tiempo real con Inteligencia Artificial Nora por <strong>MyJNexoraVisual</strong>.
+              Síntesis informativa producida en tiempo real con Inteligencia Artificial Nora por <strong>Nexora One</strong>.
             </p>
           </div>
         </div>

@@ -4,7 +4,7 @@
  * Ubicación: /src/lib/nora/phoneticNormalizer.ts
  * 
  * Propósito:
- * 1. Pronunciación perfecta de marcas y siglas (MyJNexoraVisual -> "Eme y Jota Néxora Visual").
+ * 1. Pronunciación perfecta de marcas y siglas (Nexora One -> "Eme y Jota Néxora Visual").
  * 2. Erradicar pausas robóticas eliminando viñetas, markdown y saltos de línea abruptos.
  * 3. Garantizar cadencia y respiración natural en el habla.
  * ========================================================================
@@ -20,9 +20,9 @@ export function normalizePhoneticTextForSpeech(rawText: string): string {
 
   // 1. Reemplazos Fonéticos de Marca y Acrónimos Clave
   text = text
-    .replace(/\bMyJNexoraVisual\b/gi, "Eme y Jota Néxora Visual")
+    .replace(/\bNexora One\b/gi, "Eme y Jota Néxora Visual")
     .replace(/\bMyJNexora\b/gi, "Eme y Jota Néxora")
-    .replace(/\bNexoraVisual\b/gi, "Néxora Visual")
+    .replace(/\bNexora One\b/gi, "Néxora Visual")
     .replace(/\bNexora\b/gi, "Néxora")
     .replace(/\bNoraItu\b/gi, "Nora Itu")
     .replace(/\bItuzaingó\b/g, "Ituzaingó")

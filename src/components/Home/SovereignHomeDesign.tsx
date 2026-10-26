@@ -408,24 +408,24 @@ export default function SovereignHomeDesign({
   // 5. Resolve Commercial Providers (Stores + Sponsors with Sovereign Fallback)
   const realStoresProviders = (stores && stores.length > 0)
     ? stores.map((st: any) => ({
-        id: String(st.id),
-        category: (st.category || 'COMERCIO HABILITADO').toUpperCase(),
-        name: st.name || 'Comercio Registrado',
-        description: st.description || st.slogan || 'Comercio formal verificado en la Guía Comercial de Ituzaingó.',
+        id: String(st?.id || Math.random()),
+        category: String(st?.category || 'COMERCIO HABILITADO').toUpperCase(),
+        name: String(st?.name || 'Comercio Registrado'),
+        description: String(st?.description || st?.slogan || 'Comercio formal verificado en la Guía Comercial de Ituzaingó.'),
         contactText: 'Ver en Guía',
         verified: true,
-        phone: st.whatsapp || st.phone || undefined,
+        phone: st?.whatsapp || st?.phone || undefined,
       }))
     : [];
 
   const realSponsorsProviders = sponsors.map((sp) => ({
-    id: sp.id,
-    category: (sp.category || 'COMERCIO DESTACADO').toUpperCase(),
-    name: sp.name,
-    description: sp.slogan || 'Comercio auspiciante oficial de Nexativa News en el corredor del Litoral.',
+    id: sp?.id || String(Math.random()),
+    category: String(sp?.category || 'COMERCIO DESTACADO').toUpperCase(),
+    name: String(sp?.name || 'Comercio Auspiciante'),
+    description: String(sp?.slogan || (sp as any)?.description || 'Comercio auspiciante oficial de Nexativa News en el corredor del Litoral.'),
     contactText: 'Contactar Comercio',
     verified: true,
-    phone: sp.whatsapp || undefined,
+    phone: sp?.whatsapp || undefined,
   }));
 
   const allRealProviders = [...realStoresProviders, ...realSponsorsProviders];
@@ -1356,11 +1356,12 @@ export default function SovereignHomeDesign({
           <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-4 no-scrollbar -mx-2 px-2 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-6">
             {(activeCategory === 'Todos'
               ? combinedProviders
-              : combinedProviders.filter(
-                  (p) =>
-                    p.category.toLowerCase().includes(activeCategory.toLowerCase()) ||
-                    p.name.toLowerCase().includes(activeCategory.toLowerCase())
-                )
+              : combinedProviders.filter((p) => {
+                  const cat = (p?.category || '').toLowerCase();
+                  const name = (p?.name || '').toLowerCase();
+                  const target = (activeCategory || '').toLowerCase();
+                  return cat.includes(target) || name.includes(target);
+                })
             ).map((prov) => (
               <div
                 key={prov.id}
@@ -1449,12 +1450,12 @@ export default function SovereignHomeDesign({
                       <img src={p.image_url} alt={p.title} className="w-full h-full object-cover" />
                     </div>
                   )}
-                  <h4 className="font-bold text-sm text-gray-100 line-clamp-1">{p.title}</h4>
-                  <p className="text-xs text-gray-400 line-clamp-2 mt-1">{p.description}</p>
+                  <h4 className="font-bold text-sm text-gray-100 line-clamp-1">{p?.title || 'Producto'}</h4>
+                  <p className="text-xs text-gray-400 line-clamp-2 mt-1">{p?.description || ''}</p>
                   <div className="mt-3 pt-2 border-t border-gray-800 flex items-center justify-between">
-                    <span className="text-amber-400 font-bold text-sm">${Number(p.price).toFixed(2)}</span>
+                    <span className="text-amber-400 font-bold text-sm">${Number(p?.price || 0).toFixed(2)}</span>
                     <Link
-                      href={`/product/${p.id}`}
+                      href={`/product/${p?.id || '#'}`}
                       className="px-2.5 py-1 rounded bg-amber-500 hover:bg-amber-400 text-black font-bold text-[11px]"
                     >
                       Ver
@@ -1665,7 +1666,11 @@ export default function SovereignHomeDesign({
 
           <div className="pt-8 border-t border-gray-800/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-gray-500">
             <p>© 2024–2026 Nexativa Multimedia Group S.A. Todos los derechos reservados.</p>
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-4">
+              <span>
+                Desarrollado por <strong className="text-amber-400 font-semibold">Nexora One</strong>
+              </span>
+              <span className="hidden sm:inline text-gray-700">•</span>
               <Link href="/legal-and-ip/terminos" className="hover:underline">
                 Términos del Servicio
               </Link>
