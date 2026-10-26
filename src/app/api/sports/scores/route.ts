@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 
-export const revalidate = 300; // Cache 5 minutes
+export const dynamic = "force-dynamic";
+export const revalidate = 60; // 60 segundos para mantener marcadores al minuto
 
 const LEAGUES = [
-  { id: "argentina", name: "Liga Profesional AR", flag: "AR", code: "arg.1" },
-  { id: "espana", name: "LaLiga ES", flag: "ES", code: "esp.1" },
-  { id: "inglaterra", name: "Premier League UK", flag: "UK", code: "eng.1" },
-  { id: "italia", name: "Serie A IT", flag: "IT", code: "ita.1" },
-  { id: "champions", name: "Champions League EU", flag: "EU", code: "uefa.champions" },
+  { id: "argentina", name: "Liga Profesional 🇦🇷", flag: "🇦🇷", code: "arg.1" },
+  { id: "espana", name: "LaLiga 🇪🇸", flag: "🇪🇸", code: "esp.1" },
+  { id: "inglaterra", name: "Premier League 🏴󠁧󠁢󠁥󠁮󠁧󠁿", flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", code: "eng.1" },
+  { id: "italia", name: "Serie A 🇮🇹", flag: "🇮🇹", code: "ita.1" },
+  { id: "champions", name: "Champions League 🏆", flag: "🏆", code: "uefa.champions" },
 ];
 
 export async function GET() {
@@ -18,13 +19,13 @@ export async function GET() {
       LEAGUES.map(async (league) => {
         try {
           const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${league.code}/scoreboard`;
-          const res = await fetch(url, { next: { revalidate: 300 } });
+          const res = await fetch(url, { headers: { 'User-Agent': 'NexativaNews/1.0' }, cache: 'no-store' });
           if (!res.ok) return;
 
           const data = await res.json();
           const events = data.events || [];
 
-          events.slice(0, 3).forEach((evt: any) => {
+          events.slice(0, 4).forEach((evt: any) => {
             const comp = evt.competitions?.[0];
             if (!comp) return;
 
@@ -46,10 +47,10 @@ export async function GET() {
               leagueName: league.name,
               flag: league.flag,
               homeTeam: home.team?.shortDisplayName || home.team?.name || "Local",
-              homeLogo: home.team?.logo || "soccer",
+              homeLogo: home.team?.logo || "",
               homeScore: parseInt(home.score || "0", 10),
               awayTeam: away.team?.shortDisplayName || away.team?.name || "Visitante",
-              awayLogo: away.team?.logo || "soccer",
+              awayLogo: away.team?.logo || "",
               awayScore: parseInt(away.score || "0", 10),
               status,
               minute: evt.status?.displayClock ? `${evt.status.displayClock}'` : undefined,
@@ -63,7 +64,13 @@ export async function GET() {
       })
     );
 
-    return NextResponse.json({ success: true, matches: allMatches });
+    // Ordenar: primero EN VIVO, luego PRÓXIMO (hoy), luego FINALIZADO
+    allMatches.sort((a, b) => {
+      const order: Record<string, number> = { "EN VIVO": 0, "PRÓXIMO": 1, "FINALIZADO": 2 };
+      return (order[a.status] ?? 3) - (order[b.status] ?? 3);
+    });
+
+    return NextResponse.json({ success: true, matches: allMatches, timestamp: new Date().toISOString() });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

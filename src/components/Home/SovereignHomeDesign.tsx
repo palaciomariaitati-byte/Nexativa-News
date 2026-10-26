@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Search,
@@ -57,7 +57,7 @@ interface SportsMatch {
   awayTeam: string;
   homeScore: number;
   awayScore: number;
-  status: 'LIVE' | 'FINISHED';
+  status: 'LIVE' | 'FINISHED' | 'SCHEDULED';
   timeInfo: string;
 }
 
@@ -301,6 +301,40 @@ export default function SovereignHomeDesign({
   const [commentInput, setCommentInput] = useState<string>('');
   const [palpitoSent, setPalpitoSent] = useState<boolean>(false);
   const [activeCategory, setActiveCategory] = useState<string>('Todos');
+  const [sportsMatches, setSportsMatches] = useState<SportsMatch[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadScores() {
+      try {
+        const res = await fetch('/api/sports/scores');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.matches) && json.matches.length > 0) {
+            const mapped: SportsMatch[] = json.matches.map((m: any) => ({
+              id: m.id || String(Math.random()),
+              league: m.leagueName || 'Fútbol',
+              homeTeam: m.homeTeam || 'Local',
+              awayTeam: m.awayTeam || 'Visitante',
+              homeScore: typeof m.homeScore === 'number' ? m.homeScore : 0,
+              awayScore: typeof m.awayScore === 'number' ? m.awayScore : 0,
+              status: m.status === 'EN VIVO' ? 'LIVE' : m.status === 'FINALIZADO' ? 'FINISHED' : 'SCHEDULED',
+              timeInfo: m.status === 'EN VIVO' ? (m.minute || 'EN DIRECTO') : m.status === 'FINALIZADO' ? 'FINALIZADO' : m.time ? `${m.time} HS` : 'HOY',
+            }));
+            if (isMounted) setSportsMatches(mapped);
+          }
+        }
+      } catch (e) {
+        console.error('Error fetching live sports:', e);
+      }
+    }
+    loadScores();
+    const timer = setInterval(loadScores, 60000);
+    return () => {
+      isMounted = false;
+      clearInterval(timer);
+    };
+  }, []);
 
   const toggleTheme = () => setDarkMode(!darkMode);
 
@@ -450,14 +484,16 @@ export default function SovereignHomeDesign({
 
         {/* Match list */}
         <div className="divide-y divide-gray-800/60 mt-3">
-          {MOCK_SPORTS.map((match) => (
+          {(sportsMatches.length > 0 ? sportsMatches : MOCK_SPORTS).slice(0, 5).map((match) => (
             <div key={match.id} className="py-3.5 space-y-1.5">
               <div className="flex items-center justify-between text-[11px] text-gray-400 font-medium">
-                <span>{match.league}</span>
+                <span className="font-semibold text-amber-500/90">{match.league}</span>
                 <span
                   className={`font-mono px-1.5 py-0.5 rounded text-[10px] ${
                     match.status === 'LIVE'
-                      ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800'
+                      ? 'bg-rose-950/80 text-rose-400 border border-rose-800 animate-pulse font-bold'
+                      : match.status === 'SCHEDULED'
+                      ? 'bg-blue-950/80 text-blue-300 border border-blue-800'
                       : 'bg-gray-800 text-gray-300'
                   }`}
                 >
@@ -465,13 +501,13 @@ export default function SovereignHomeDesign({
                 </span>
               </div>
               <div className="flex items-center justify-between text-sm font-semibold">
-                <div className="flex flex-col">
-                  <span>{match.homeTeam}</span>
-                  <span>{match.awayTeam}</span>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-white/95 truncate max-w-[170px]">{match.homeTeam}</span>
+                  <span className="text-white/80 truncate max-w-[170px]">{match.awayTeam}</span>
                 </div>
-                <div className="font-mono text-base font-bold bg-[#131923] px-2.5 py-1 rounded border border-gray-800 flex flex-col items-center">
-                  <span className="text-amber-400">{match.homeScore}</span>
-                  <span className="text-gray-400">{match.awayScore}</span>
+                <div className="font-mono text-base font-bold bg-[#131923] px-2.5 py-1 rounded border border-gray-800 flex flex-col items-center min-w-[36px]">
+                  <span className="text-amber-400">{match.status === 'SCHEDULED' ? '-' : match.homeScore}</span>
+                  <span className="text-gray-400">{match.status === 'SCHEDULED' ? '-' : match.awayScore}</span>
                 </div>
               </div>
             </div>
@@ -480,80 +516,89 @@ export default function SovereignHomeDesign({
       </div>
 
       {/* Pálpito de la Fecha Interactive Widget */}
-      <div
-        className={`rounded-2xl border p-6 ${
-          darkMode ? 'bg-[#0f141b] border-[#1e2633]' : 'bg-white border-slate-200 shadow-sm'
-        }`}
-      >
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-bold text-amber-500 uppercase tracking-wider">Pálpito de la Fecha</span>
-          <span className="text-[11px] text-gray-400">1.842 votos</span>
-        </div>
-        <h4 className="text-sm font-semibold mb-4">Pronosticá el Superclásico con la peña</h4>
+      {(() => {
+        const featuredMatch = sportsMatches.find(m => m.status === 'SCHEDULED' || m.status === 'LIVE') || sportsMatches[0];
+        const teamA = featuredMatch ? featuredMatch.homeTeam : 'Boca Juniors';
+        const teamB = featuredMatch ? featuredMatch.awayTeam : 'River Plate';
+        const leagueTitle = featuredMatch ? featuredMatch.league : 'Liga Profesional';
 
-        <div className="flex items-center justify-around bg-[#131923] p-4 rounded-xl border border-gray-800 mb-4">
-          <div className="flex flex-col items-center">
-            <span className="text-xs font-bold text-blue-400 mb-1">Boca Juniors</span>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setPalpitoBoca(Math.max(0, palpitoBoca - 1))}
-                className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-white font-bold flex items-center justify-center text-sm cursor-pointer"
-              >
-                -
-              </button>
-              <span className="font-mono text-xl font-bold text-amber-400 w-6 text-center">{palpitoBoca}</span>
-              <button
-                onClick={() => setPalpitoBoca(palpitoBoca + 1)}
-                className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-white font-bold flex items-center justify-center text-sm cursor-pointer"
-              >
-                +
-              </button>
+        return (
+          <div
+            className={`rounded-2xl border p-6 ${
+              darkMode ? 'bg-[#0f141b] border-[#1e2633]' : 'bg-white border-slate-200 shadow-sm'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-amber-500 uppercase tracking-wider">Pálpito de la Fecha ({leagueTitle})</span>
+              <span className="text-[11px] text-gray-400">1.842 votos</span>
             </div>
-          </div>
+            <h4 className="text-sm font-semibold mb-4">Pronosticá el partido de hoy con la peña</h4>
 
-          <span className="text-gray-500 font-bold text-xs uppercase">VS</span>
+            <div className="flex items-center justify-around bg-[#131923] p-4 rounded-xl border border-gray-800 mb-4">
+              <div className="flex flex-col items-center">
+                <span className="text-xs font-bold text-blue-400 mb-1 truncate max-w-[110px] text-center">{teamA}</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPalpitoBoca(Math.max(0, palpitoBoca - 1))}
+                    className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-white font-bold flex items-center justify-center text-sm cursor-pointer"
+                  >
+                    -
+                  </button>
+                  <span className="font-mono text-xl font-bold text-amber-400 w-6 text-center">{palpitoBoca}</span>
+                  <button
+                    onClick={() => setPalpitoBoca(palpitoBoca + 1)}
+                    className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-white font-bold flex items-center justify-center text-sm cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
 
-          <div className="flex flex-col items-center">
-            <span className="text-xs font-bold text-rose-400 mb-1">River Plate</span>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setPalpitoRiver(Math.max(0, palpitoRiver - 1))}
-                className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-white font-bold flex items-center justify-center text-sm cursor-pointer"
-              >
-                -
-              </button>
-              <span className="font-mono text-xl font-bold text-amber-400 w-6 text-center">{palpitoRiver}</span>
-              <button
-                onClick={() => setPalpitoRiver(palpitoRiver + 1)}
-                className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-white font-bold flex items-center justify-center text-sm cursor-pointer"
-              >
-                +
-              </button>
+              <span className="text-gray-500 font-bold text-xs uppercase">VS</span>
+
+              <div className="flex flex-col items-center">
+                <span className="text-xs font-bold text-rose-400 mb-1 truncate max-w-[110px] text-center">{teamB}</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPalpitoRiver(Math.max(0, palpitoRiver - 1))}
+                    className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-white font-bold flex items-center justify-center text-sm cursor-pointer"
+                  >
+                    -
+                  </button>
+                  <span className="font-mono text-xl font-bold text-amber-400 w-6 text-center">{palpitoRiver}</span>
+                  <button
+                    onClick={() => setPalpitoRiver(palpitoRiver + 1)}
+                    className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-white font-bold flex items-center justify-center text-sm cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
 
-        <button
-          onClick={() => {
-            setPalpitoSent(true);
-            setTimeout(() => setPalpitoSent(false), 3000);
-          }}
-          disabled={palpitoSent}
-          className={`w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-2 ${
-            palpitoSent
-              ? 'bg-emerald-600 text-white'
-              : 'bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20'
-          }`}
-        >
-          {palpitoSent ? (
-            <>
-              <CheckCircle2 className="w-4 h-4" /> ¡Pálpito Registrado!
-            </>
-          ) : (
-            'Enviar Pronóstico'
-          )}
-        </button>
-      </div>
+            <button
+              onClick={() => {
+                setPalpitoSent(true);
+                setTimeout(() => setPalpitoSent(false), 3000);
+              }}
+              disabled={palpitoSent}
+              className={`w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-2 ${
+                palpitoSent
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20'
+              }`}
+            >
+              {palpitoSent ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4" /> ¡Pálpito Registrado!
+                </>
+              ) : (
+                'Enviar Pronóstico'
+              )}
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Community Debate Live Card */}
       <div

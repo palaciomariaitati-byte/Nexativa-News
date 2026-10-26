@@ -214,7 +214,7 @@ function parseRssXml(xmlText: string) {
     const pubDateStr = cleanCdata(pubDateMatch ? pubDateMatch[2] : '');
 
     if (title && link) {
-      // 1. POLÍTICA ESTRICTA DE NOTICIAS ACTUALES (Rechazar artículos antiguos > 48 horas)
+      // 1. POLÍTICA ESTRICTA DE NOTICIAS ACTUALES: Solo noticias de las últimas 8 horas (margen de actualidad inmediata)
       let itemDate = new Date();
       if (pubDateStr) {
         const parsedDate = new Date(pubDateStr);
@@ -226,14 +226,14 @@ function parseRssXml(xmlText: string) {
       const now = new Date();
       const hoursDiff = (now.getTime() - itemDate.getTime()) / (1000 * 60 * 60);
 
-      // Descartar si tiene más de 48 horas de antigüedad
-      if (hoursDiff > 48) {
-        console.log(`[Auto-Fetch] ⛔ Rechazada noticia antigua (${itemDate.toISOString().slice(0, 10)}): ${title}`);
+      // Descartar si tiene más de 8 horas de antigüedad para mantener rigurosamente la ventana de 6 horas de actualidad
+      if (hoursDiff > 8 || hoursDiff < -1) {
+        console.log(`[Auto-Fetch] ⛔ Descartada noticia no actual (${hoursDiff.toFixed(1)}h): ${title}`);
         continue;
       }
 
-      // Descartar si la URL contiene patrones de fechas pasadas (ej: /2026-5-1- o /2025/ o /2024/)
-      if (link.match(/\/(202[0-5]|2026-[1-7])-/i)) {
+      // Descartar si la URL contiene patrones de fechas pasadas
+      if (link.match(/\/(201\d|202[0-5]|2026-0?[1-9])-/i)) {
         console.log(`[Auto-Fetch] ⛔ Rechazada noticia con URL fechada en el pasado: ${link}`);
         continue;
       }
