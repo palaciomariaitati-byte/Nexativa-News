@@ -109,8 +109,8 @@ export default function RootLayout({
             <FloatingShortcuts />
             <MobileBottomNav />
             <CartButton />
-            <NoraAgent />
           </ModernLayoutWrapper>
+          <NoraAgent />
         </Providers>
       </body>
     </html>

@@ -1,280 +1,30 @@
 /* src/app/page.tsx */
 export const dynamic = 'force-dynamic';
-import Image from "next/image";
-import Link from "next/link";
-import React, { Suspense } from "react";
-import { getPublishedArticles, getProducts, getSponsors, getActiveCampaigns, getLatestNewsFlashes } from "@/lib/supabase/serverQueries";
-import type { Product, Sponsor } from "@/lib/types";
-import NewsTabs from "@/components/NewsTabs/NewsTabs";
-import VideoSection from "@/components/VideoSection";
-import SubscriptionTiers from "@/components/SubscriptionTiers";
-import SponsorsMarquee from "@/components/SponsorsMarquee";
-import TopBusBar from "@/components/TopBusBar";
-import SponsorTabs from "@/components/SponsorTabs";
-import AlientoPatrio from "@/components/AlientoPatrio";
-import NewsFlashHomeWidget from "@/components/NewsFlashHomeWidget";
-import { Sparkles } from "lucide-react";
-// -----------------------------------------------------------------
-// Mock data (static) — kept for non-news columns
-// -----------------------------------------------------------------
-const banners = [
-  {
-    id: 1,
-    image: "/banner-nexativa.jpg",
-    alt: "Nexativa – Lo nuestro para el mundo",
-    link: "#",
-  },
-];// -----------------------------------------------------------------
-// Helper components (Server Components — zero client JS)
-// -----------------------------------------------------------------
-function Banner() {
-  return (
-    <section className="w-full px-2 sm:px-4 lg:px-8 mt-4">
-      {banners.map((b) => (
-        <Link key={b.id} href={b.link} className="block w-full max-w-[1400px] mx-auto">
-          <Image
-            src={b.image}
-            alt={b.alt}
-            width={1920}
-            height={600}
-            className="w-full h-auto object-contain rounded-xl shadow-2xl border border-white/5 pointer-events-none"
-            draggable={false}
-            priority
-          />
-        </Link>
-      ))}
-    </section>
-  );
-}
 
-function ProductCard({ product }: { product: Product }) {
-  return (
-    <div data-nora-product={product.title} className="glass-panel p-3 sm:p-4 flex flex-col h-full hover:-translate-y-1 hover:shadow-[0_0_20px_var(--color-brand-accent)] transition-all duration-300 group min-w-[200px] sm:min-w-0 flex-shrink-0 snap-center">
-      {product.image_url && (
-        <div className="overflow-hidden rounded-xl h-40 w-full mb-3 relative">
-          <Image src={product.image_url} alt={product.title} width={200} height={200} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 pointer-events-none" draggable={false} />
-        </div>
-      )}
-      <h5 className="mt-2 font-bold text-gray-100 text-lg line-clamp-1">{product.title}</h5>
-      {product.description && <p className="text-sm text-gray-400 mt-1 line-clamp-2">{product.description}</p>}
-      <div className="mt-auto pt-4 flex items-center justify-between">
-        <p className="text-[var(--color-brand-accent)] font-bold text-xl">${Number(product.price).toFixed(2)}</p>
-        <Link href={`/product/${product.id}`} className="bg-[var(--color-brand-accent)] text-black font-bold px-4 py-2 rounded-lg hover:bg-white transition-colors relative z-10">
-          Ver Detalles
-        </Link>
-      </div>
-    </div>
-  );
-}
+import React from "react";
+import {
+  getPublishedArticles,
+  getProducts,
+  getSponsors,
+  getLatestNewsFlashes
+} from "@/lib/supabase/serverQueries";
+import SovereignHomeDesign from "@/components/Home/SovereignHomeDesign";
 
-
-
-// Skeleton for the NewsTabs while loading on the server
-function NewsTabsSkeleton() {
-  return (
-    <div className="glass-panel overflow-hidden animate-pulse">
-      <div className="flex border-b border-white/10 bg-black/20">
-        {["Nacional", "Internacional", "Local"].map((label) => (
-          <div key={label} className="flex-1 px-4 py-3 text-sm font-bold text-gray-500 text-center">
-            {label}
-          </div>
-        ))}
-      </div>
-      <div className="p-4 space-y-4">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="space-y-3">
-            <div className="h-5 bg-white/10 rounded w-3/4" />
-            <div className="h-4 bg-white/5 rounded w-full" />
-            <div className="h-px bg-white/10 mt-3" />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// -----------------------------------------------------------------
-// Main page (Server Component — async, fetches data on the server)
-// -----------------------------------------------------------------
 export default async function HomePage() {
-  // Fetch everything in parallel on the server
-  const [initialArticles, products, sponsors, activeCampaigns, newsFlashes] = await Promise.all([
+  // Fetch real data in parallel on the server
+  const [initialArticles, products, sponsors, newsFlashes] = await Promise.all([
     getPublishedArticles("nacional"),
     getProducts(),
     getSponsors(),
-    getActiveCampaigns(),
     getLatestNewsFlashes(5),
   ]);
 
-  // Sticky video logic moved to <StickyVideo /> client component
-
   return (
-    <main className="w-full flex flex-col items-center pb-24 overflow-x-hidden relative">
-      {/* 1️⃣ Banner principal */}
-      <div className="w-full">
-        <Banner />
-      </div>
-
-      {/* 🚌 Barra Modo Bus (Atajos y Redes Sociales) */}
-      <TopBusBar />
-
-      {/* 🌟 Cinta Animada de Patrocinadores */}
-      {sponsors.length > 0 && (
-        <div className="w-full mt-6">
-          <SponsorsMarquee sponsors={sponsors} />
-        </div>
-      )}
-
-      <div className="w-full max-w-7xl px-2 sm:px-4 lg:px-8 mt-8 sm:mt-12 space-y-10 sm:space-y-16 relative">
-        {/* ⚽ Central de Resultados & Fútbol Mundial */}
-        <AlientoPatrio />
-
-        {/* 🏡 BANNER DESTACADO: PORTAL INMOBILIARIO & ALQUILERES VERIFICADOS */}
-        <section className="w-full bg-gradient-to-r from-slate-900 via-rose-950/40 to-slate-900 border border-rose-500/30 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="space-y-3 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-black">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>SISTEMA DE SEGURIDAD & CALENDARIO GARANTIZADO</span>
-            </div>
-            <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              Alquileres Temporarios & Inmuebles <span className="text-rose-400 underline">Verificados</span>
-            </h3>
-            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              Propiedades en Ituzaingó con **Calendario de Disponibilidad 100% Declarado**. Garantizamos veracidad y aplicamos el régimen de protección al inquilino y sanciones a propietarios en caso de inconsistencia.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3 shrink-0 w-full md:w-auto">
-            <Link
-              href="/guia/inmuebles"
-              className="px-6 py-3.5 rounded-2xl font-black bg-rose-500 hover:bg-rose-400 text-slate-950 text-xs sm:text-sm transition-all shadow-lg shadow-rose-500/20 text-center"
-            >
-              🔍 Buscar Alquiler Verificado
-            </Link>
-            <Link
-              href="/guia/inmuebles/registro"
-              className="px-6 py-3.5 rounded-2xl font-black bg-slate-900 border border-rose-500/40 hover:bg-slate-800 text-rose-200 text-xs sm:text-sm transition-all text-center"
-            >
-              ➕ Publicar Mi Inmueble
-            </Link>
-          </div>
-        </section>
-
-        {/* 🔴 Flash Noticioso Widget (Solo visible si hay noticieros publicados) */}
-        {newsFlashes && newsFlashes.length > 0 && (
-          <NewsFlashHomeWidget flashes={newsFlashes} />
-        )}
-
-        {/* 2️⃣ Streaming (Prominent at top) */}
-        <section className="w-full relative">
-          <h3 className="text-white text-xl sm:text-2xl font-bold mb-4 border-b border-[var(--color-brand-accent)] pb-2 flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-red-600 animate-pulse"></span> En Vivo
-          </h3>
-          <div className="w-full max-w-4xl mx-auto rounded-2xl shadow-2xl border border-white/10 relative">
-            <VideoSection />
-          </div>
-        </section>
-
-        {/* 3️⃣ Prensa (Horizontal Full Width) */}
-        <section className="w-full">
-          <h3 className="text-white text-xl sm:text-2xl font-bold mb-4 border-b border-white/10 pb-2">Últimas Noticias</h3>
-          <Suspense fallback={<NewsTabsSkeleton />}>
-            <div className="w-full max-w-[1200px] mx-auto">
-              <NewsTabs
-                initialArticles={initialArticles}
-                initialTab="Nacional"
-              />
-            </div>
-          </Suspense>
-        </section>
-
-        {/* 📢 Campañas / Spots Publicitarios Activos */}
-        {activeCampaigns && activeCampaigns.length > 0 && (
-          <section className="w-full">
-            <h3 className="text-white text-xl sm:text-2xl font-bold mb-6 border-b border-purple-500/20 pb-2 flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-purple-400 animate-pulse" /> Campañas & Lanzamientos Destacados
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {activeCampaigns.slice(0, 4).map((camp) => (
-                <div key={camp.id} className="relative group overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-purple-950/20 to-black p-6 flex flex-col justify-between hover:border-purple-500/40 transition-all duration-300">
-                  <div className="absolute top-0 right-0 bg-purple-500/20 text-purple-300 text-[9px] uppercase font-black tracking-widest px-3 py-1 rounded-bl-xl border-l border-b border-purple-500/20">
-                    Patrocinado por {camp.client_name}
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3">
-                      <div className="bg-purple-500/10 p-2.5 rounded-lg text-purple-400 font-extrabold text-xs uppercase tracking-wider">
-                        {camp.client_name.substring(0, 2)}
-                      </div>
-                      <div>
-                        <h4 className="text-white font-black text-lg group-hover:text-purple-300 transition-colors">{camp.campaign_name}</h4>
-                        <p className="text-[10px] text-gray-500 uppercase tracking-wider">Espacio Patrocinado</p>
-                      </div>
-                    </div>
-                    
-                    <p className="text-gray-300 text-sm leading-relaxed line-clamp-3">{camp.content}</p>
-                    
-                    {camp.image_url && (
-                      <div className="aspect-video rounded-xl overflow-hidden border border-white/5 bg-black/40 relative">
-                        {camp.image_url.match(/\.(mp4|webm|ogg)$/i) ? (
-                          <video 
-                            src={camp.image_url} 
-                            autoPlay 
-                            loop 
-                            muted 
-                            playsInline 
-                            className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500" 
-                          />
-                        ) : (
-                          <img 
-                            src={camp.image_url} 
-                            alt={camp.campaign_name} 
-                            className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500" 
-                          />
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* 4️⃣ Tienda (Grid o Carrusel Horizontal Móvil) */}
-        <section className="w-full">
-          <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-2">
-            <h3 className="text-white text-xl sm:text-2xl font-bold">Nuestros Productos</h3>
-            <Link href="/store" className="text-[var(--color-brand-accent)] hover:text-white transition-colors font-bold text-sm">Ver Todo &rarr;</Link>
-          </div>
-          <div className="overflow-hidden w-full relative">
-            {products.length > 0 ? (
-              <div 
-                className="flex w-max animate-marquee-shop hover:[animation-play-state:paused] gap-4 pb-4"
-              >
-                {products.map((p) => (
-                  <ProductCard key={p.id} product={p} />
-                ))}
-                {/* Duplicado para crear el efecto infinito sin cortes */}
-                {products.map((p) => (
-                  <ProductCard key={p.id + "-clone"} product={p} />
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500 w-full text-center">No hay productos disponibles.</p>
-            )}
-          </div>
-        </section>
-      </div>
-
-      {/* 5️⃣ Sponsors / Adhered Businesses (Tabs) */}
-      <div className="w-full max-w-[1200px] px-2 sm:px-4 lg:px-8 mt-10 sm:mt-16" id="sponsors-section-wrapper">
-        <SponsorTabs sponsors={sponsors} />
-      </div>
-
-      <div className="w-full mt-16">
-        <SubscriptionTiers />
-      </div>
-    </main>
+    <SovereignHomeDesign
+      initialArticles={initialArticles}
+      sponsors={sponsors}
+      newsFlashes={newsFlashes}
+      products={products}
+    />
   );
 }

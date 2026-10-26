@@ -31,6 +31,12 @@ export default function NoraAgent() {
     if (dismissed === "true") {
       setShowPill(false);
     }
+
+    const handleCustomOpen = () => setIsChatOpen(true);
+    window.addEventListener("open-nora-chat", handleCustomOpen);
+    return () => {
+      window.removeEventListener("open-nora-chat", handleCustomOpen);
+    };
   }, []);
 
   const handleDismissPill = (e: React.MouseEvent) => {
