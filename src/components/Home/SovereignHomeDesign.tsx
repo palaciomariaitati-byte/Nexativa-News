@@ -650,18 +650,18 @@ export default function SovereignHomeDesign({
             </span>
             {MOCK_TICKERS.map((t, idx) => (
               <div key={idx} className="flex items-center gap-1.5 shrink-0">
-                <span className="font-medium text-gray-400">{t.symbol}</span>
-                <span className="font-semibold text-gray-200">{t.value}</span>
-                <span className={t.isPositive ? 'text-emerald-400 font-mono' : 'text-rose-400 font-mono'}>
+                <span className={`font-medium ${darkMode ? 'text-gray-400' : 'text-slate-600'}`}>{t.symbol}</span>
+                <span className={`font-semibold ${darkMode ? 'text-gray-100' : 'text-slate-950'}`}>{t.value}</span>
+                <span className={t.isPositive ? 'text-emerald-500 font-mono font-bold' : 'text-rose-500 font-mono font-bold'}>
                   {t.change}
                 </span>
-                {idx < MOCK_TICKERS.length - 1 && <span className="text-gray-700 mx-1">•</span>}
+                {idx < MOCK_TICKERS.length - 1 && <span className={darkMode ? 'text-gray-700 mx-1' : 'text-slate-300 mx-1'}>•</span>}
               </div>
             ))}
           </div>
 
           <div className="flex items-center gap-4 shrink-0 ml-auto">
-            <span className="hidden md:inline-block text-gray-400">
+            <span className={`hidden md:inline-block ${darkMode ? 'text-gray-400' : 'text-slate-600 font-medium'}`}>
               Edición Soberana 2026 • Litoral & Global
             </span>
             <button
@@ -689,82 +689,138 @@ export default function SovereignHomeDesign({
       {/* 2. PRIMARY NAVBAR & MASTHEAD (CON ACCESO DIRECTO A TODOS LOS PORTALES) */}
       <nav
         className={`sticky top-0 z-40 backdrop-blur-md border-b transition-colors ${
-          darkMode ? 'bg-[#0a0e14]/90 border-[#1e2633]' : 'bg-white/95 border-slate-200'
+          darkMode ? 'bg-[#0a0e14]/95 border-[#1e2633]' : 'bg-white/95 border-slate-200 shadow-sm'
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-20">
+          <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-y-3 py-3 min-h-[5.5rem]">
             {/* Mobile menu trigger */}
             <div className="flex items-center gap-3 lg:hidden">
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="p-2 rounded-lg text-gray-400 hover:text-white"
+                className={`p-2 rounded-lg transition ${
+                  darkMode ? 'text-gray-300 hover:text-white hover:bg-gray-800' : 'text-slate-700 hover:text-black hover:bg-slate-100'
+                }`}
                 aria-label="Menú móvil"
               >
                 {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
               </button>
-              <Link href="/news" className="p-2 text-gray-400 hover:text-white">
+              <Link
+                href="/news"
+                className={`p-2 rounded-lg transition ${
+                  darkMode ? 'text-gray-300 hover:text-white hover:bg-gray-800' : 'text-slate-700 hover:text-black hover:bg-slate-100'
+                }`}
+              >
                 <Search className="w-5 h-5" />
               </Link>
             </div>
 
             {/* Editorial Brand Masthead */}
-            <div className="flex flex-col items-center justify-center flex-1 lg:flex-initial">
-              <Link href="/" className="flex flex-col items-center group">
+            <div className="flex flex-col items-center justify-center flex-1 lg:flex-initial py-1">
+              <Link href="/" className="flex flex-col items-center group text-center px-1">
                 <span
-                  className="text-2xl sm:text-3xl lg:text-4xl font-serif font-black tracking-tight tracking-wider"
+                  className="text-2xl sm:text-3xl lg:text-4xl font-serif font-black tracking-tight leading-none"
                   style={{ fontFamily: 'Georgia, serif' }}
                 >
-                  <span className={darkMode ? 'text-white' : 'text-slate-900'}>NEXATIVA </span>
-                  <span className="text-[#e5b242] italic">NEWS</span>
+                  <span className={darkMode ? 'text-white' : 'text-slate-950 font-black'}>NEXATIVA </span>
+                  <span className="text-[#e5b242] italic font-black">NEWS</span>
                 </span>
-                <span className="text-[9px] sm:text-[10px] uppercase tracking-[0.25em] font-sans text-gray-400 group-hover:text-amber-500 transition">
+                <span
+                  className={`text-[8.5px] sm:text-[9.5px] uppercase tracking-[0.2em] font-sans font-semibold mt-1 leading-snug line-clamp-1 transition ${
+                    darkMode ? 'text-gray-400 group-hover:text-amber-400' : 'text-slate-600 group-hover:text-amber-700'
+                  }`}
+                >
                   Investigación Rigurosa & Inteligencia Institucional
                 </span>
               </Link>
             </div>
 
-            {/* Desktop Navigation Links (TODOS LOS PORTALES CLAVE) */}
-            <div className="hidden lg:flex items-center space-x-4 text-xs font-bold uppercase tracking-wider">
-              <Link href="/" className="text-[#e5b242] border-b-2 border-[#e5b242] py-1">
+            {/* Desktop Navigation Links (TODOS LOS PORTALES CLAVE CON CONTRASTE ALTO) */}
+            <div className="hidden lg:flex items-center space-x-3 text-xs font-bold uppercase tracking-wider">
+              <Link
+                href="/"
+                className="text-[#e5b242] border-b-2 border-[#e5b242] pb-0.5 font-black"
+              >
                 Inicio
               </Link>
-              <Link href="/noticias" className="text-gray-300 hover:text-white transition-colors py-1">
+              <Link
+                href="/noticias"
+                className={`py-1 transition-colors ${
+                  darkMode ? 'text-gray-300 hover:text-white' : 'text-slate-800 hover:text-black font-extrabold'
+                }`}
+              >
                 Noticias
               </Link>
               <Link
                 href="/empleos"
-                className="text-emerald-400 hover:text-emerald-300 transition-colors py-1 flex items-center gap-1 bg-emerald-950/40 px-2.5 rounded-full border border-emerald-500/30"
+                className={`py-1 px-3 rounded-full text-xs font-black tracking-wider transition-all flex items-center gap-1.5 border shadow-sm ${
+                  darkMode
+                    ? 'bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border-emerald-500/50'
+                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border-emerald-400 font-black'
+                }`}
+                title="Bolsa Laboral & Prestadores de Oficios"
               >
-                <Briefcase className="w-3 h-3 text-emerald-400" />
-                Empleos
+                <Briefcase className="w-3.5 h-3.5 text-emerald-500" />
+                <span>EMPLEOS</span>
               </Link>
               <Link
                 href="/guia/inmuebles"
-                className="text-rose-400 hover:text-rose-300 transition-colors py-1 flex items-center gap-1 bg-rose-950/40 px-2.5 rounded-full border border-rose-500/30"
+                className={`py-1 px-3 rounded-full text-xs font-black tracking-wider transition-all flex items-center gap-1.5 border shadow-sm ${
+                  darkMode
+                    ? 'bg-rose-950/80 hover:bg-rose-900 text-rose-300 border-rose-500/50'
+                    : 'bg-rose-50 hover:bg-rose-100 text-rose-900 border-rose-400 font-black'
+                }`}
+                title="Alquileres Temporarios Verificados"
               >
-                <Building className="w-3 h-3 text-rose-400" />
-                Inmuebles
+                <Building className="w-3.5 h-3.5 text-rose-500" />
+                <span>INMUEBLES</span>
               </Link>
               <Link
                 href="/guia"
-                className="text-cyan-400 hover:text-cyan-300 transition-colors py-1 flex items-center gap-1 bg-cyan-950/40 px-2.5 rounded-full border border-cyan-500/30"
+                className={`py-1 px-3 rounded-full text-xs font-black tracking-wider transition-all flex items-center gap-1.5 border shadow-sm ${
+                  darkMode
+                    ? 'bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 border-cyan-500/50'
+                    : 'bg-cyan-50 hover:bg-cyan-100 text-cyan-900 border-cyan-400 font-black'
+                }`}
+                title="Guía Comercial de Comercios & Servicios"
               >
-                <CheckCircle2 className="w-3 h-3 text-cyan-400" />
-                Guía
+                <CheckCircle2 className="w-3.5 h-3.5 text-cyan-500" />
+                <span>GUÍA</span>
               </Link>
-              <Link href="/cultura" className="text-gray-300 hover:text-white transition-colors py-1">
+              <Link
+                href="/cultura"
+                className={`py-1 transition-colors ${
+                  darkMode ? 'text-gray-300 hover:text-white' : 'text-slate-800 hover:text-black font-extrabold'
+                }`}
+              >
                 Cultura
               </Link>
-              <Link href="/clasificados" className="text-amber-300 hover:text-amber-200 transition-colors py-1">
+              <Link
+                href="/clasificados"
+                className={`py-1 transition-colors ${
+                  darkMode ? 'text-amber-300 hover:text-amber-200' : 'text-amber-800 hover:text-amber-950 font-extrabold'
+                }`}
+              >
                 Clasificados
               </Link>
-              <Link href="/noticias?categoria=Deportes" className="text-gray-300 hover:text-white transition-colors py-1">
+              <Link
+                href="/noticias?categoria=Deportes"
+                className={`py-1 transition-colors ${
+                  darkMode ? 'text-gray-300 hover:text-white' : 'text-slate-800 hover:text-black font-extrabold'
+                }`}
+              >
                 Deportes
               </Link>
-              <Link href="/#streaming" className="text-red-400 hover:text-red-300 transition-colors py-1 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
-                En Vivo
+              <Link
+                href="/#streaming"
+                className={`py-1 px-2.5 rounded-full text-xs font-black tracking-wider transition-all flex items-center gap-1.5 border shadow-sm ${
+                  darkMode
+                    ? 'bg-red-950/80 text-red-300 border-red-500/50 hover:bg-red-900'
+                    : 'bg-red-50 text-red-900 border-red-400 hover:bg-red-100'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
+                <span>EN VIVO</span>
               </Link>
             </div>
 
@@ -772,19 +828,23 @@ export default function SovereignHomeDesign({
             <div className="hidden lg:flex items-center gap-3">
               <Link
                 href="/news"
-                className={`relative flex items-center rounded-full border px-3 py-1.5 text-xs ${
-                  darkMode ? 'bg-[#131923] border-[#222d3d] text-gray-300' : 'bg-slate-100 border-slate-300 text-slate-700'
+                className={`relative flex items-center rounded-full border px-3.5 py-1.5 text-xs transition shadow-sm ${
+                  darkMode
+                    ? 'bg-[#131923] border-[#222d3d] text-gray-300 hover:border-gray-500'
+                    : 'bg-white border-slate-300 text-slate-800 hover:border-slate-500'
                 }`}
               >
                 <Search className="w-3.5 h-3.5 mr-2 text-gray-400" />
-                <span className="text-gray-400 text-xs">Buscar notas, dossiers...</span>
+                <span className={darkMode ? 'text-gray-400 text-xs' : 'text-slate-500 text-xs font-medium'}>
+                  Buscar notas, dossiers...
+                </span>
               </Link>
               <button
                 onClick={handleOpenNora}
-                className={`p-2 rounded-full border transition cursor-pointer ${
+                className={`p-2 rounded-full border transition cursor-pointer shadow-sm ${
                   darkMode
                     ? 'border-[#222d3d] text-[#e5b242] hover:text-white hover:bg-[#161f2c]'
-                    : 'border-slate-300 text-amber-700 hover:bg-slate-100'
+                    : 'border-amber-400/60 text-amber-800 bg-amber-50 hover:bg-amber-100'
                 }`}
                 title="Hablar con Nora IA"
               >
@@ -794,31 +854,37 @@ export default function SovereignHomeDesign({
           </div>
         </div>
 
-        {/* Mobile Navigation Drawer con rutas reales dinámicas */}
+        {/* Mobile Navigation Drawer con rutas reales dinámicas y autogestión */}
         {mobileMenuOpen && (
           <div
-            className={`lg:hidden border-b px-6 py-4 space-y-2.5 ${
-              darkMode ? 'bg-[#0f141b] border-[#1e2633]' : 'bg-white border-slate-200'
+            className={`lg:hidden border-b px-5 py-4 space-y-2 ${
+              darkMode ? 'bg-[#0f141b] border-[#1e2633]' : 'bg-white border-slate-200 shadow-xl'
             }`}
           >
             {[
               { label: 'Portada Principal', href: '/' },
-              { label: '📰 Prensa & Noticias Dinámicas', href: '/noticias' },
-              { label: '💼 Portal de Empleos & Oficios', href: '/empleos', highlight: 'text-emerald-400' },
-              { label: '🏠 Inmuebles Verificados Ituzaingó', href: '/guia/inmuebles', highlight: 'text-rose-400' },
-              { label: '📖 Guía Comercial & Catálogo', href: '/guia', highlight: 'text-cyan-400' },
+              { label: '📰 Prensa & Archivo Noticioso', href: '/noticias' },
+              { label: '💼 Portal de Empleos & Oficios (Buscar)', href: '/empleos', highlight: darkMode ? 'text-emerald-400 font-bold' : 'text-emerald-800 font-extrabold' },
+              { label: '🛠️ Mi Perfil de Oficio / CV (Autogestión)', href: '/prestadores', highlight: darkMode ? 'text-emerald-300 font-black bg-emerald-950/70 border border-emerald-500/40 px-2.5 py-1 rounded-lg' : 'text-emerald-950 font-black bg-emerald-100 border border-emerald-300 px-2.5 py-1 rounded-lg' },
+              { label: '🏠 Alquileres Verificados Ituzaingó', href: '/guia/inmuebles', highlight: darkMode ? 'text-rose-400 font-bold' : 'text-rose-800 font-extrabold' },
+              { label: '🔑 Panel de Propietario (Autogestión)', href: '/guia/inmuebles/propietario', highlight: darkMode ? 'text-rose-300 font-black bg-rose-950/70 border border-rose-500/40 px-2.5 py-1 rounded-lg' : 'text-rose-950 font-black bg-rose-100 border border-rose-300 px-2.5 py-1 rounded-lg' },
+              { label: '📑 Mis Reservas / Inquilino', href: '/guia/inmuebles/inquilino', highlight: darkMode ? 'text-gray-300' : 'text-slate-700' },
+              { label: '📖 Guía Comercial de Ituzaingó', href: '/guia', highlight: darkMode ? 'text-cyan-400 font-bold' : 'text-cyan-800 font-extrabold' },
+              { label: '🏪 Registrar Comercio en la Guía', href: '/guia/registro', highlight: darkMode ? 'text-cyan-300 font-black bg-cyan-950/70 border border-cyan-500/40 px-2.5 py-1 rounded-lg' : 'text-cyan-950 font-black bg-cyan-100 border border-cyan-300 px-2.5 py-1 rounded-lg' },
               { label: '🎨 Espacio Cultural Regional', href: '/cultura' },
               { label: '🏷️ Avisos Clasificados', href: '/clasificados' },
               { label: '⚽ Central Deportiva', href: '/noticias?categoria=Deportes' },
-              { label: '📺 Transmisión Streaming En Vivo', href: '/#streaming', highlight: 'text-red-400' },
-              { label: '👑 Planes de Membresía VIP', href: '/checkout?tier=oro', highlight: 'text-amber-400' },
+              { label: '📺 Transmisión Streaming En Vivo', href: '/#streaming', highlight: 'text-red-500 font-black' },
+              { label: '👑 Planes de Membresía VIP', href: '/checkout?tier=oro', highlight: 'text-amber-500 font-black' },
             ].map((link, i) => (
               <Link
                 key={i}
                 href={link.href}
                 onClick={() => setMobileMenuOpen(false)}
-                className={`block text-sm font-semibold py-2 border-b border-gray-800/60 ${
-                  link.highlight || (darkMode ? 'text-gray-300 hover:text-[#e5b242]' : 'text-slate-700')
+                className={`block text-xs sm:text-sm font-semibold py-2 border-b transition ${
+                  darkMode ? 'border-gray-800/60' : 'border-slate-100'
+                } ${
+                  link.highlight || (darkMode ? 'text-gray-300 hover:text-[#e5b242]' : 'text-slate-800 hover:text-black')
                 }`}
               >
                 {link.label}
@@ -828,18 +894,19 @@ export default function SovereignHomeDesign({
         )}
       </nav>
 
-      {/* 3. BREAKING NEWS TICKER */}
+      {/* 3. BREAKING NEWS TICKER (LIMPIO Y SIN SOLAPAMIENTO) */}
       <div
-        className={`border-b text-xs ${
-          darkMode ? 'bg-[#131a24] border-[#1e2633]' : 'bg-amber-50/70 border-amber-200/60'
+        className={`border-b text-xs relative z-20 transition-colors shadow-sm ${
+          darkMode ? 'bg-[#131a24] border-[#1e2633]' : 'bg-amber-50/95 border-amber-200 text-slate-800'
         }`}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center gap-3">
-          <span className="bg-[#b45309] text-white px-2 py-0.5 rounded text-[10px] font-bold tracking-wider shrink-0 uppercase animate-pulse">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex items-center gap-3">
+          <span className="bg-[#b45309] text-white px-2.5 py-0.5 rounded text-[10px] font-black tracking-wider shrink-0 uppercase animate-pulse shadow-sm">
             ÚLTIMA HORA
           </span>
-          <p className="truncate text-gray-300 text-xs">
-            <span className="font-semibold text-amber-500">FLASH INFORMATIVO:</span> {breakingNewsText}
+          <p className="truncate text-xs">
+            <span className={darkMode ? 'font-bold text-amber-400' : 'font-extrabold text-amber-800'}>FLASH INFORMATIVO:</span>{' '}
+            <span className={darkMode ? 'text-gray-300' : 'text-slate-800 font-medium'}>{breakingNewsText}</span>
           </p>
         </div>
       </div>
@@ -852,48 +919,58 @@ export default function SovereignHomeDesign({
       )}
 
       {/* 5. SOVEREIGN MOBILE ACTION PILLS (STICKY JUMP BAR) */}
-      <div className="lg:hidden sticky top-0 z-30 bg-[#0a0e14]/95 backdrop-blur-md border-b border-gray-800/80 py-2 px-3 overflow-x-auto no-scrollbar flex items-center gap-2 shadow-lg">
+      <div className={`lg:hidden sticky top-0 z-30 backdrop-blur-md border-b py-2.5 px-3 overflow-x-auto no-scrollbar flex items-center gap-2 shadow-lg transition-colors ${
+        darkMode ? 'bg-[#0a0e14]/95 border-gray-800/90' : 'bg-white/95 border-slate-300'
+      }`}>
         <Link
           href="#noticias-panel"
-          className="shrink-0 px-3 py-1.5 rounded-full bg-slate-900 border border-gray-700 text-[11px] font-bold text-slate-200 active:scale-95 transition"
+          className="shrink-0 px-3 py-1.5 rounded-full bg-slate-900 border border-gray-700 text-[11px] font-bold text-slate-100 active:scale-95 transition"
         >
           📰 Prensa
         </Link>
         <Link
-          href="#streaming"
-          className="shrink-0 px-3 py-1.5 rounded-full bg-red-950/60 border border-red-500/40 text-[11px] font-bold text-red-300 flex items-center gap-1.5 active:scale-95 transition"
-        >
-          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> En Vivo
-        </Link>
-        <Link
-          href="#empleos"
-          className="shrink-0 px-3 py-1.5 rounded-full bg-emerald-950/60 border border-emerald-500/40 text-[11px] font-bold text-emerald-300 active:scale-95 transition"
+          href="/empleos"
+          className="shrink-0 px-3 py-1.5 rounded-full bg-emerald-950/90 border border-emerald-500/70 text-[11px] font-black text-emerald-200 active:scale-95 transition"
         >
           💼 Empleos
         </Link>
         <Link
-          href="#inmuebles"
-          className="shrink-0 px-3 py-1.5 rounded-full bg-rose-950/60 border border-rose-500/40 text-[11px] font-bold text-rose-300 active:scale-95 transition"
+          href="/prestadores"
+          className="shrink-0 px-3 py-1.5 rounded-full bg-emerald-600 text-slate-950 text-[11px] font-black active:scale-95 transition shadow-sm"
+          title="Autogestionar perfil de prestador"
+        >
+          🛠️ Mi Perfil
+        </Link>
+        <Link
+          href="/guia/inmuebles"
+          className="shrink-0 px-3 py-1.5 rounded-full bg-rose-950/90 border border-rose-500/70 text-[11px] font-black text-rose-200 active:scale-95 transition"
         >
           🏠 Inmuebles
         </Link>
         <Link
-          href="#guia"
-          className="shrink-0 px-3 py-1.5 rounded-full bg-cyan-950/60 border border-cyan-500/40 text-[11px] font-bold text-cyan-300 active:scale-95 transition"
+          href="/guia/inmuebles/propietario"
+          className="shrink-0 px-3 py-1.5 rounded-full bg-rose-600 text-slate-950 text-[11px] font-black active:scale-95 transition shadow-sm"
+          title="Panel de Propietario para autogestionar inmuebles"
+        >
+          🔑 Propietario
+        </Link>
+        <Link
+          href="/guia"
+          className="shrink-0 px-3 py-1.5 rounded-full bg-cyan-950/90 border border-cyan-500/70 text-[11px] font-black text-cyan-200 active:scale-95 transition"
         >
           📖 Guía
         </Link>
         {products.length > 0 && (
           <Link
             href="#tienda"
-            className="shrink-0 px-3 py-1.5 rounded-full bg-amber-950/60 border border-amber-500/40 text-[11px] font-bold text-amber-300 active:scale-95 transition"
+            className="shrink-0 px-3 py-1.5 rounded-full bg-amber-950/90 border border-amber-500/70 text-[11px] font-black text-amber-200 active:scale-95 transition"
           >
             🛍️ Tienda
           </Link>
         )}
         <Link
           href="#membresias"
-          className="shrink-0 px-3 py-1.5 rounded-full bg-yellow-950/60 border border-yellow-500/40 text-[11px] font-bold text-yellow-300 active:scale-95 transition"
+          className="shrink-0 px-3 py-1.5 rounded-full bg-yellow-950/90 border border-yellow-500/70 text-[11px] font-black text-yellow-200 active:scale-95 transition"
         >
           👑 Club VIP
         </Link>
@@ -1162,18 +1239,26 @@ export default function SovereignHomeDesign({
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-3 shrink-0 w-full md:w-auto">
+            <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 shrink-0 w-full md:w-auto">
               <Link
                 href="/empleos"
-                className="px-6 py-3.5 rounded-2xl font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs sm:text-sm transition-all shadow-lg shadow-emerald-500/20 text-center flex items-center justify-center gap-1.5"
+                className="px-5 py-3 rounded-2xl font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs sm:text-sm transition-all shadow-lg shadow-emerald-500/20 text-center flex items-center justify-center gap-1.5"
               >
-                <Search className="w-4 h-4" /> Buscar Trabajo / Oficio
+                <Search className="w-4 h-4" /> Buscar Trabajo
               </Link>
               <Link
                 href="/empleos"
-                className="px-6 py-3.5 rounded-2xl font-black bg-slate-900 border border-emerald-500/40 hover:bg-slate-800 text-emerald-200 text-xs sm:text-sm transition-all text-center flex items-center justify-center gap-1.5"
+                className="px-5 py-3 rounded-2xl font-black bg-slate-900 border border-emerald-500/50 hover:bg-slate-800 text-emerald-300 text-xs sm:text-sm transition-all text-center flex items-center justify-center gap-1.5"
               >
                 <UserCheck className="w-4 h-4" /> Publicar Búsqueda
+              </Link>
+              <Link
+                href="/prestadores"
+                className="px-5 py-3 rounded-2xl font-black bg-emerald-950/90 border border-emerald-400 hover:bg-emerald-900 text-emerald-200 text-xs sm:text-sm transition-all text-center flex items-center justify-center gap-1.5 shadow-md hover:scale-[1.02]"
+                title="Accedé a tu panel móvil para activar disponibilidad, subir CV y compartir tu QR"
+              >
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                <span>Mi Perfil (Autogestión)</span>
               </Link>
             </div>
           </div>
@@ -1207,18 +1292,41 @@ export default function SovereignHomeDesign({
                   mediante firma digital respaldada por Nexativa Trust Engine.
                 </p>
               </div>
-              <div className="flex items-center gap-3 shrink-0">
+              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
                 <Link
                   href="/guia/inmuebles"
-                  className="px-4 py-2 text-xs font-semibold rounded-lg border border-gray-700 hover:border-amber-400 transition flex items-center gap-1.5"
+                  className={`px-3.5 py-2 text-xs font-semibold rounded-lg border transition flex items-center gap-1.5 ${
+                    darkMode
+                      ? 'border-gray-700 bg-gray-900/60 hover:border-amber-400 text-gray-200'
+                      : 'border-slate-300 bg-slate-100 hover:border-slate-400 text-slate-800 shadow-sm'
+                  }`}
                 >
-                  <SlidersHorizontal className="w-3.5 h-3.5" /> Filtrar Disponibilidad
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-amber-400" /> Ver Disponibilidad
                 </Link>
                 <Link
                   href="/guia/inmuebles/registro"
-                  className="px-4 py-2 text-xs font-bold rounded-lg bg-rose-500 hover:bg-rose-400 text-slate-950 transition"
+                  className="px-3.5 py-2 text-xs font-black rounded-lg bg-rose-500 hover:bg-rose-400 text-slate-950 transition shadow-sm flex items-center gap-1"
                 >
-                  Publicar Propiedad
+                  <Building className="w-3.5 h-3.5" /> Adherir Propiedad
+                </Link>
+                <Link
+                  href="/guia/inmuebles/propietario"
+                  className="px-3.5 py-2 text-xs font-black rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition shadow-sm flex items-center gap-1.5 hover:scale-[1.02]"
+                  title="Panel de Propietario para autogestionar tarifas, fotos y reservas desde el móvil"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Panel Propietario (Autogestión)</span>
+                </Link>
+                <Link
+                  href="/guia/inmuebles/inquilino"
+                  className={`px-3 py-2 text-xs font-bold rounded-lg border transition ${
+                    darkMode
+                      ? 'border-gray-800 text-gray-400 hover:text-white'
+                      : 'border-slate-300 text-slate-700 hover:text-black bg-white shadow-sm'
+                  }`}
+                  title="Consultá tus reservas y contratos"
+                >
+                  Inquilino
                 </Link>
               </div>
             </div>
