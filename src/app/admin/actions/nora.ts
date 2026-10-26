@@ -2,6 +2,7 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { executeGroqChat } from "@/lib/nora/groqClient";
 
 export async function getBrandGuidelines(): Promise<string> {
   try {
@@ -29,15 +30,41 @@ export async function saveBrandGuidelines(content: string): Promise<{ success: b
 }
 
 /**
- * Motor Autónomo Híbrido de Nora AI
- * Trata primero el enjambre de llaves Gemini, y si fallan o están ausentes,
- * conmuta AUTOMÁTICAMENTE a nuestro servidor propio en la nube (Hugging Face / Ollama Worker).
+ * Motor Autónomo Híbrido Soberano de Nora AI
+ * 1. Prioridad: Groq SDK soberano (Llama 3.3 70B) - Ultra veloz (< 300ms) sin límites caídos.
+ * 2. Segundo intento: Enjambre de claves Gemini (si estuvieran disponibles).
+ * 3. Tercer intento: Servidor autónomo propio en la nube (HF Worker / Ollama).
  */
 async function dispatchToNoraAI(
   userPromptText: string,
   systemPromptText: string = "",
   forceJson: boolean = false
 ): Promise<string> {
+  // 1. Intento primario: Groq Llama 3.3 70B (motor soberano instantáneo)
+  try {
+    const messages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [];
+    if (systemPromptText) {
+      messages.push({
+        role: 'system',
+        content: systemPromptText + (forceJson ? "\nIMPORTANTE: Responde EXCLUSIVAMENTE con un JSON válido sin texto introductorio ni markdown." : "")
+      });
+    }
+    messages.push({ role: 'user', content: userPromptText });
+
+    const groqRes = await executeGroqChat(messages, {
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.5,
+      maxTokens: 1800,
+      responseFormat: forceJson ? { type: 'json_object' } : undefined
+    });
+
+    if (groqRes?.text && groqRes.text.trim().length > 0) {
+      return groqRes.text.trim();
+    }
+  } catch (groqErr: any) {
+    console.warn("[NORA AI ENGINE WARNING] Groq no respondió o excedió cuota temporal, intentando fallbacks:", groqErr?.message || groqErr);
+  }
+
   const keysPool = [
     process.env.GEMINI_API_KEY,
     process.env.GEMINI_API_KEY_FALLBACK,
@@ -48,7 +75,7 @@ async function dispatchToNoraAI(
   const validModels = ["gemini-flash-latest", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.1-pro-preview"];
   const fullPrompt = systemPromptText ? `SISTEMA: ${systemPromptText}\n\nMENSAJE: ${userPromptText}` : userPromptText;
 
-  // 1. Intento con el enjambre de llaves Gemini
+  // 2. Intento con el enjambre de llaves Gemini
   if (keysPool.length > 0) {
     for (const currentKey of keysPool) {
       for (const currentModel of validModels) {
@@ -68,10 +95,10 @@ async function dispatchToNoraAI(
     }
   }
 
-  // 2. Conmutación Automática a nuestro Servidor Propio Autónomo en la Nube (Ollama / HF Worker)
+  // 3. Conmutación a Servidor Propio Autónomo en la Nube (Ollama / HF Worker)
   const hfWorkerUrl = process.env.HUGGINGFACE_NORA_WORKER_URL || "https://noranexora-nora-ia-worker.hf.space";
   try {
-    console.log("[NORA AI ENGINE] Conectando con servidor autónomo propio:", hfWorkerUrl);
+    console.log("[NORA AI ENGINE] Conectando con servidor autónomo de contingencia:", hfWorkerUrl);
     const res = await fetch(`${hfWorkerUrl.replace(/\/$/, '')}/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

@@ -2,25 +2,61 @@
 
 import React, { useState, useRef } from "react";
 import { askNoraCreativeDirector, type CreativeDirectorResult } from "@/app/admin/actions/nora";
-import { Sparkles, RefreshCw, CheckCircle, AlertCircle, Loader2, MessageSquare, Video, Image as ImageIcon, Film, Download } from "lucide-react";
+import { 
+  Sparkles, 
+  RefreshCw, 
+  CheckCircle, 
+  AlertCircle, 
+  Loader2, 
+  MessageSquare, 
+  Image as ImageIcon, 
+  Download, 
+  Copy, 
+  Send, 
+  Zap, 
+  Check, 
+  Layers
+} from "lucide-react";
 
-// --- Types & Constants ---
+// --- Tipos & Constantes de Estilo ---
 const STYLES = [
-  { id: "surreal_urban", label: "🏙️ Gigantismo Urbano", desc: "Objeto monumental en la ciudad" },
-  { id: "surreal_magic", label: "✨ Historia Mágica", desc: "Irrupción mágica en escena cotidiana" },
-  { id: "cinematic", label: "🎬 Spot Cinematográfico", desc: "Ángulo dramático, luz de película" },
-  { id: "luxury", label: "💎 Lujo & Gala", desc: "Escultura de alto diseño editorial" },
-  { id: "anamorphic", label: "🌐 Anamórfico 3D", desc: "Ilusión de pantalla LED gigante" },
+  { id: "surreal_urban", label: "🏙️ Gigantismo Urbano", desc: "Producto monumental 3D en la avenida principal" },
+  { id: "surreal_magic", label: "✨ Impacto Mágico", desc: "Irrupción visual surrealista en la vida cotidiana" },
+  { id: "cinematic", label: "🎬 Spot Cinematográfico", desc: "Iluminación de película, atardecer dorado y reflejos" },
+  { id: "luxury", label: "💎 Lujo & Gala Editorial", desc: "Estética sofisticada, vidrio, metales y luces de estudio" },
+  { id: "anamorphic", label: "🌐 Pantalla LED 3D", desc: "Efecto anamórfico que parece salir de la pantalla" },
 ] as const;
 
 const FORMATS = [
-  { id: "9:16", label: "📱 9:16 Vertical", sub: "Reels / TikTok / Stories" },
-  { id: "1:1", label: "🟦 1:1 Cuadrado", sub: "Instagram / Feed FB" },
-  { id: "16:9", label: "🖥️ 16:9 Horizontal", sub: "Banners / YouTube" },
-  { id: "3:1", label: "🏙️ 3:1 Megabanner", sub: "Cabeceras / Gigantografías" },
+  { id: "9:16", label: "📱 9:16 Vertical", sub: "Stories / Reels / WhatsApp Status (Recomendado)" },
+  { id: "1:1", label: "🟦 1:1 Cuadrado", sub: "Feed Instagram / Facebook" },
+  { id: "16:9", label: "🖥️ 16:9 Horizontal", sub: "Banners Web / Pantallas LED" },
+  { id: "3:1", label: "🏙️ 3:1 Megabanner", sub: "Cabeceras de Diario y Gigantografías" },
 ] as const;
 
-type OutputType = "video" | "image";
+const PRESETS = [
+  {
+    title: "🍔 Gastronomía",
+    brief: "Hamburguesa monumental de 15 metros con queso cheddar derretido y panceta crujiente flotando sobre la avenida principal, transeúntes asombrados mirando hacia arriba, luz solar dorada fotorrealista."
+  },
+  {
+    title: "🏡 Cabañas / Alquileres",
+    brief: "Cabaña de diseño moderno en madera nativa y cristal con piscina infinita frente a las playas del río Paraná en Ituzaingó al atardecer, vista de dron cinematográfica de ultra lujo."
+  },
+  {
+    title: "☕ Café & Bar",
+    brief: "Taza de café capuchino gigante humeante con arte latte flotando sobre la plaza central, granos de café cayendo como lluvia suave en cámara lenta, estética comercial de primer nivel."
+  },
+  {
+    title: "🚗 Taller / Autos",
+    brief: "Camioneta 4x4 todoterreno potente saliendo de un portal de luz holográfico 3D en el centro de la ciudad, chispas de energía y asfalto mojado con reflejos de neón."
+  },
+  {
+    title: "👗 Moda & Calzado",
+    brief: "Calzado deportivo de última generación a escala monumental suspendido en el aire con iluminación de pasarela de alta costura, reflejos dorados y fondo urbano futurista."
+  }
+];
+
 type GenerationPhase = "idle" | "consulting-nora" | "waiting-answer" | "generating" | "uploading" | "done" | "error";
 
 interface ConversationMessage {
@@ -35,37 +71,6 @@ interface CreativeStudioProps {
   onOpenVideoCreator?: (url: string, copyAida: string) => void;
 }
 
-// --- Helper: Phase progress bar ---
-function PhaseIndicator({ phase, outputType }: { phase: GenerationPhase; outputType: OutputType }) {
-  const phases: { key: GenerationPhase; label: string }[] = [
-    { key: "consulting-nora", label: "🧠 Nora interpreta el brief..." },
-    { key: "generating", label: outputType === "video" ? "🎬 Motor de Video Faux-CGI (Wan 2.1 GPU) procesando fotogramas..." : "🎨 Motor de Imagen IA activo..." },
-    { key: "uploading", label: "☁️ Guardando el MP4 en tu servidor..." },
-    { key: "done", label: "✅ ¡Spot de Video Listo!" },
-  ];
-
-  if (phase === "idle" || phase === "waiting-answer" || phase === "error") return null;
-
-  const currentIndex = phases.findIndex((p) => p.key === phase);
-  const current = phases[Math.max(0, currentIndex)];
-
-  return (
-    <div className="flex items-center gap-3 bg-black/60 border border-pink-500/40 rounded-xl px-4 py-3.5 mt-4 shadow-lg animate-pulse">
-      <Loader2 className={`w-5 h-5 text-pink-400 shrink-0 ${phase !== "done" ? "animate-spin" : ""}`} />
-      <div className="flex-1">
-        <p className="text-xs font-black text-pink-300 uppercase tracking-wider">{current?.label}</p>
-        <div className="mt-2 h-1.5 bg-white/10 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-amber-400 rounded-full transition-all duration-700"
-            style={{ width: `${((currentIndex + 1) / phases.length) * 100}%` }}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// --- Main Component ---
 export default function CreativeStudio({ 
   brandName, 
   clientLogoUrl, 
@@ -73,18 +78,16 @@ export default function CreativeStudio({
   onOpenVideoCreator
 }: CreativeStudioProps) {
   const [brief, setBrief] = useState("");
-  const [outputType, setOutputType] = useState<OutputType>("video"); // Default to Video for maximum impact
   const [style, setStyle] = useState<string>("surreal_urban");
-  const [format, setFormat] = useState<string>("9:16"); // Default to Reels format
+  const [format, setFormat] = useState<string>("9:16");
   const [phase, setPhase] = useState<GenerationPhase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [noraResult, setNoraResult] = useState<CreativeDirectorResult | null>(null);
   const [pendingAnswer, setPendingAnswer] = useState("");
   const [conversation, setConversation] = useState<ConversationMessage[]>([]);
   const [generatedMediaUrl, setGeneratedMediaUrl] = useState<string | null>(null);
-  const [proVideoUrl, setProVideoUrl] = useState<string | null>(null);
-  const [isRenderingPro, setIsRenderingPro] = useState(false);
   const [mediaSource, setMediaSource] = useState<string>("");
+  const [copiedPitch, setCopiedPitch] = useState(false);
   const lastSeed = useRef<number | null>(null);
 
   const resetSession = () => {
@@ -95,48 +98,9 @@ export default function CreativeStudio({
     setPendingAnswer("");
     setConversation([]);
     setGeneratedMediaUrl(null);
-    setProVideoUrl(null);
-    setIsRenderingPro(false);
     setMediaSource("");
+    setCopiedPitch(false);
     lastSeed.current = null;
-  };
-
-  const handleRenderProVideo = async () => {
-    if (!generatedMediaUrl) return;
-    setIsRenderingPro(true);
-    setError(null);
-
-    try {
-      const res = await fetch("/api/creative-studio/render-pro-video", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          imageUrl: generatedMediaUrl,
-          title: brandName ? `${brandName.toUpperCase()}` : "EXPERIENCIA EXCLUSIVA",
-          subtitle: noraResult?.copy_aida || "Calidad y excelencia garantizada",
-          brandName: brandName || "Nexativa Spot",
-          clientLogoUrl: clientLogoUrl || "",
-          format: format === "16:9" ? "horizontal" : "vertical",
-          ctaText: "¡Contactanos por WhatsApp!",
-        }),
-      });
-
-      const data = await res.json();
-      if (res.ok && data.success && data.videoUrl) {
-        setProVideoUrl(data.videoUrl);
-        onImageGenerated(data.videoUrl, noraResult?.copy_aida || "");
-      } else {
-        throw new Error(data.error || "Microservicio remoto no accesible");
-      }
-    } catch (err: any) {
-      console.warn("Conectando con el editor audiovisual integrado...", err);
-      // Fallback fluido al editor interactivo con música y animación
-      if (onOpenVideoCreator) {
-        onOpenVideoCreator(generatedMediaUrl, noraResult?.copy_aida || "");
-      }
-    } finally {
-      setIsRenderingPro(false);
-    }
   };
 
   const handleConsultNora = async (userMessage: string, history: ConversationMessage[]) => {
@@ -147,59 +111,69 @@ export default function CreativeStudio({
     const newHistory: ConversationMessage[] = [...history, { role: "user", content: userMessage }];
     setConversation(newHistory);
 
-    const result = await askNoraCreativeDirector(
-      userMessage,
-      "Operador",
-      history.map((m) => ({ role: m.role, content: m.content }))
-    );
+    try {
+      const result = await askNoraCreativeDirector(
+        userMessage,
+        "Director Comercial",
+        history.map((m) => ({ role: m.role, content: m.content }))
+      );
 
-    if ("error" in result) {
-      setError(result.error);
-      setPhase("error");
-      return;
-    }
+      if ("error" in result) {
+        setError(result.error);
+        setPhase("error");
+        return;
+      }
 
-    const data = result.data;
-    setNoraResult(data);
+      const data = result.data;
+      setNoraResult(data);
 
-    if (data.brief.style && STYLES.find((s) => s.id === data.brief.style)) {
-      setStyle(data.brief.style);
-    }
+      if (data.brief.style && STYLES.find((s) => s.id === data.brief.style)) {
+        setStyle(data.brief.style);
+      }
 
-    const updatedHistory: ConversationMessage[] = [...newHistory, { role: "nora", content: data.htmlForPanel }];
-    setConversation(updatedHistory);
+      const updatedHistory: ConversationMessage[] = [...newHistory, { role: "nora", content: data.htmlForPanel }];
+      setConversation(updatedHistory);
 
-    if (data.missing_critical) {
-      setPhase("waiting-answer");
-    } else {
-      await handleGenerate(data.surrealismPrompt, data.brief.style || style, format, outputType);
+      if (data.missing_critical) {
+        setPhase("waiting-answer");
+      } else {
+        await handleGenerate(data.surrealismPrompt, data.brief.style || style, format);
+      }
+    } catch (err: any) {
+      console.error("[CreativeStudio] Error al consultar a Nora:", err);
+      // Fallback a generación directa inmediata
+      await handleGenerate(userMessage, style, format);
     }
   };
 
-  const handleGenerate = async (prompt: string, selectedStyle: string, selectedFormat: string, targetType: OutputType) => {
+  const handleGenerate = async (prompt: string, selectedStyle: string, selectedFormat: string) => {
     setPhase("generating");
     setGeneratedMediaUrl(null);
+    setError(null);
 
     try {
       const seed = Math.floor(Math.random() * 1_000_000);
       lastSeed.current = seed;
 
-      const endpoint = targetType === "video" ? "/api/creative-studio/generate-video" : "/api/creative-studio/generate";
-
-      const res = await fetch(endpoint, {
+      const res = await fetch("/api/creative-studio/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, style: selectedStyle, aspectRatio: selectedFormat, seed }),
+        body: JSON.stringify({ 
+          prompt, 
+          style: selectedStyle, 
+          aspectRatio: selectedFormat, 
+          seed 
+        }),
       });
 
       setPhase("uploading");
       const data = await res.json();
 
-      if (!res.ok || data.error) throw new Error(data.error || "Error al generar material creativo");
+      if (!res.ok || data.error) throw new Error(data.error || "Error al generar pieza publicitaria");
 
-      const url = data.videoUrl || data.imageUrl;
+      const url = data.imageUrl;
       setGeneratedMediaUrl(url);
-      setMediaSource(data.source);
+      setMediaSource(data.source || "pollinations-flux-3d");
       setPhase("done");
     } catch (err: any) {
       setError(err.message);
@@ -208,41 +182,69 @@ export default function CreativeStudio({
   };
 
   const handleRegenerate = async () => {
-    if (!noraResult?.surrealismPrompt) return;
-    await handleGenerate(noraResult.surrealismPrompt, style, format, outputType);
+    const promptToUse = noraResult?.surrealismPrompt || brief;
+    if (!promptToUse) return;
+    await handleGenerate(promptToUse, style, format);
   };
 
   const handleUseMedia = () => {
-    if (!generatedMediaUrl || !noraResult) return;
-    onImageGenerated(generatedMediaUrl, noraResult.copy_aida || "");
+    if (!generatedMediaUrl) return;
+    onImageGenerated(generatedMediaUrl, noraResult?.copy_aida || "");
   };
 
   const handleAnswerQuestion = async () => {
-    if (!pendingAnswer.trim() || !noraResult) return;
+    if (!pendingAnswer.trim()) return;
     const answer = pendingAnswer.trim();
     setPendingAnswer("");
     await handleConsultNora(answer, conversation);
   };
 
+  const copyPitchToClipboard = () => {
+    const textToCopy = noraResult?.copy_aida 
+      ? `${noraResult.copy_aida.replace(/<[^>]*>?/gm, '')}\n\nMirá la pieza que diseñamos para vos:\n${generatedMediaUrl || ''}`
+      : `¡Hola! Diseñamos una pieza publicitaria 3D exclusiva para tu negocio en Nexativa News:\n${generatedMediaUrl || ''}`;
+    
+    navigator.clipboard.writeText(textToCopy);
+    setCopiedPitch(true);
+    setTimeout(() => setCopiedPitch(false), 3000);
+  };
+
+  const sendDirectWhatsApp = () => {
+    const text = encodeURIComponent(
+      noraResult?.copy_aida 
+        ? `${noraResult.copy_aida.replace(/<[^>]*>?/gm, '')}\n\nAcá podés ver el anuncio publicitario 3D en alta resolución:\n${generatedMediaUrl || ''}`
+        : `¡Hola! Te comparto la pieza publicitaria 3D de alto impacto creada para tu comercio en Nexativa News:\n${generatedMediaUrl || ''}`
+    );
+    window.open(`https://api.whatsapp.com/send?text=${text}`, "_blank");
+  };
+
   return (
-    <div className="bg-gradient-to-br from-purple-950/40 via-pink-950/20 to-black/80 border border-purple-500/40 rounded-2xl p-5 space-y-5 shadow-2xl">
+    <div className="bg-gradient-to-br from-purple-950/50 via-slate-900/90 to-black border border-purple-500/40 rounded-2xl p-5 space-y-5 shadow-2xl text-white">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-4">
-        <div className="flex items-center gap-2">
-          <Film className="w-5 h-5 text-pink-400 animate-pulse" />
-          <span className="text-xs uppercase font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-pink-400 to-purple-300">
-            Estudio Faux-CGI 3D & Videos Surrealistas · Nora AI
-          </span>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-pink-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/30">
+            <Zap className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <span className="text-xs uppercase font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-pink-400 to-purple-300 block">
+              Estudio Creativo 3D · Flyers & Banners Caza-Clientes
+            </span>
+            <span className="text-[10px] text-gray-400 font-medium">
+              Motor Soberano Nora AI (Groq Llama 3.3 70B) & Pollinations Flux 3D · En 2 segundos
+            </span>
+          </div>
         </div>
+
         {brandName && (
-          <div className="flex items-center gap-2 bg-purple-500/10 border border-purple-500/30 px-2.5 py-1 rounded-lg">
+          <div className="flex items-center gap-2 bg-purple-500/10 border border-purple-500/30 px-3 py-1 rounded-lg">
             {clientLogoUrl && <img src={clientLogoUrl} alt="Logo" className="w-4 h-4 object-contain rounded" />}
-            <span className="text-[10px] text-purple-300 font-bold uppercase">{brandName}</span>
+            <span className="text-[11px] text-purple-300 font-bold uppercase">{brandName}</span>
           </div>
         )}
       </div>
 
-      {/* Conversation History */}
+      {/* Historial de conversación con Nora */}
       {conversation.length > 0 && (
         <div className="space-y-3 max-h-48 overflow-y-auto pr-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
           {conversation.map((msg, i) => (
@@ -254,15 +256,15 @@ export default function CreativeStudio({
                     : "bg-purple-500/20 text-purple-300 border border-purple-500/40"
                 }`}
               >
-                {msg.role === "nora" ? "N" : "V"}
+                {msg.role === "nora" ? "N" : "T"}
               </div>
               {msg.role === "nora" ? (
                 <div
-                  className="flex-1 text-xs text-white/80 bg-white/5 rounded-xl px-3 py-2 leading-relaxed nora-html-panel"
+                  className="flex-1 text-xs text-white/90 bg-white/5 rounded-xl px-3 py-2 leading-relaxed"
                   dangerouslySetInnerHTML={{ __html: msg.content }}
                 />
               ) : (
-                <div className="flex-1 text-xs text-white/70 bg-purple-900/20 rounded-xl px-3 py-2 leading-relaxed text-right">
+                <div className="flex-1 text-xs text-white/80 bg-purple-900/30 rounded-xl px-3 py-2 leading-relaxed text-right border border-purple-500/20">
                   {msg.content}
                 </div>
               )}
@@ -271,68 +273,47 @@ export default function CreativeStudio({
         </div>
       )}
 
-      {/* Brief Input (initial state) */}
+      {/* Entrada del brief (Estado Inicial) */}
       {phase === "idle" && (
         <div className="space-y-4">
           
-          {/* Selector de Formato de Salida: Video MP4 vs Imagen Fija */}
+          {/* Presets Rápidos Caza-Clientes */}
           <div>
-            <label className="text-[11px] font-extrabold text-pink-300 uppercase tracking-wider block mb-2 flex items-center gap-1.5">
-              <Video className="w-4 h-4 text-pink-400" />
-              Tipo de Producción Publicitaria:
+            <label className="text-[11px] font-bold text-gray-300 uppercase tracking-wide block mb-2 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              Plantillas Rápidas para Atraer Sponsors Comerciales:
             </label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setOutputType("video")}
-                className={`p-3 rounded-xl border flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                  outputType === "video"
-                    ? "bg-gradient-to-r from-pink-600 to-purple-600 text-white font-black border-pink-400 shadow-lg shadow-pink-500/30 scale-[1.02]"
-                    : "bg-black/50 text-gray-300 border-white/10 hover:bg-white/5"
-                }`}
-              >
-                <Video className="w-4 h-4" />
-                <div className="text-left">
-                  <span className="text-xs font-black block">🎥 Video Spot Faux-CGI (.mp4)</span>
-                  <span className="text-[9px] opacity-80 block font-normal">Ideal para Reels, TikTok y YouTube Shorts</span>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setOutputType("image")}
-                className={`p-3 rounded-xl border flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                  outputType === "image"
-                    ? "bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-black border-amber-400 shadow-lg shadow-amber-500/30 scale-[1.02]"
-                    : "bg-black/50 text-gray-300 border-white/10 hover:bg-white/5"
-                }`}
-              >
-                <ImageIcon className="w-4 h-4" />
-                <div className="text-left">
-                  <span className="text-xs font-black block">🖼️ Imagen Gigantografía Fija</span>
-                  <span className="text-[9px] opacity-80 block font-normal">Para banners estáticos e impresión</span>
-                </div>
-              </button>
+            <div className="flex flex-wrap gap-2">
+              {PRESETS.map((p, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setBrief(p.brief)}
+                  className="text-xs bg-white/5 hover:bg-purple-500/20 border border-white/10 hover:border-purple-400/40 px-3 py-1.5 rounded-lg transition-all text-gray-300 hover:text-white cursor-pointer"
+                >
+                  {p.title}
+                </button>
+              ))}
             </div>
           </div>
 
           <div className="space-y-2">
             <label className="text-[11px] font-bold text-gray-300 uppercase tracking-wide block">
-              <MessageSquare className="inline w-3 h-3 mr-1" />
-              Escribe el brief o idea creativa para el spot:
+              <MessageSquare className="inline w-3 h-3 mr-1 text-pink-400" />
+              Escribe la idea o producto del cliente que queremos captar:
             </label>
             <textarea
               value={brief}
               onChange={(e) => setBrief(e.target.value)}
               rows={3}
-              placeholder="Ej: &quot;Quiero un gato gigante caminando sobre los edificios de la avenida principal, luego salta y vuelve a su tamaño real frente a un plato de comida.&quot;"
+              placeholder="Ej: 'Cabaña de troncos y vidrio con piscina infinita frente al río en Ituzaingó al atardecer, super cálida y elegante para alquilar los fines de semana.'"
               className="w-full bg-black/60 border border-white/15 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-pink-500 resize-none placeholder:text-white/30 leading-relaxed"
             />
           </div>
 
-          {/* Style Selector */}
+          {/* Selector de Estilo */}
           <div>
-            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wide block mb-2">Estilo Visual Surrealista:</label>
+            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wide block mb-2">Estilo de Impacto Visual:</label>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
               {STYLES.map((s) => (
                 <button
@@ -352,9 +333,9 @@ export default function CreativeStudio({
             </div>
           </div>
 
-          {/* Format Selector */}
+          {/* Selector de Formato */}
           <div>
-            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wide block mb-2">Formato de Video / Pantalla:</label>
+            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wide block mb-2">Formato de la Pieza Gráfica:</label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {FORMATS.map((f) => (
                 <button
@@ -378,19 +359,19 @@ export default function CreativeStudio({
             type="button"
             disabled={!brief.trim()}
             onClick={() => handleConsultNora(brief, [])}
-            className="w-full bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-600 hover:from-pink-400 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-sm px-6 py-3.5 rounded-xl transition-all shadow-xl flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-600 hover:from-pink-400 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-sm px-6 py-4 rounded-xl transition-all shadow-xl flex items-center justify-center gap-2 cursor-pointer"
           >
-            {outputType === "video" ? <Video className="w-5 h-5 animate-bounce" /> : <Sparkles className="w-5 h-5" />}
-            {outputType === "video" ? "Generar Spot de Video Faux-CGI (.mp4) 🎬" : "Crear Gigantografía Fija ✨"}
+            <Sparkles className="w-5 h-5 text-amber-300" />
+            <span>Diseñar Flyer 3D & Guión Caza-Clientes en 2 Segundos 🚀</span>
           </button>
         </div>
       )}
 
-      {/* Nora is waiting for an answer */}
+      {/* Fase de Espera / Pregunta de Nora */}
       {phase === "waiting-answer" && noraResult?.missing_critical && (
         <div className="space-y-3">
           <div className="bg-pink-500/10 border border-pink-500/40 rounded-xl px-4 py-3">
-            <p className="text-xs font-bold text-pink-300 mb-1 uppercase tracking-wider">Nora necesita saber:</p>
+            <p className="text-xs font-bold text-pink-300 mb-1 uppercase tracking-wider">Nora necesita afinar un detalle:</p>
             <p className="text-sm text-white/90">{noraResult.missing_critical}</p>
           </div>
           <div className="flex gap-2">
@@ -399,7 +380,7 @@ export default function CreativeStudio({
               value={pendingAnswer}
               onChange={(e) => setPendingAnswer(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleAnswerQuestion()}
-              placeholder="Tu respuesta..."
+              placeholder="Escribe tu aclaración..."
               className="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 py-2 text-sm text-white outline-none focus:border-pink-500"
             />
             <button
@@ -414,211 +395,163 @@ export default function CreativeStudio({
         </div>
       )}
 
-      {/* Phase Indicator */}
-      <PhaseIndicator phase={phase} outputType={outputType} />
+      {/* Barra de Progreso en Generación */}
+      {(phase === "consulting-nora" || phase === "generating" || phase === "uploading") && (
+        <div className="flex items-center gap-3 bg-black/60 border border-pink-500/40 rounded-xl px-4 py-4 mt-4 shadow-lg animate-pulse">
+          <Loader2 className="w-5 h-5 text-pink-400 shrink-0 animate-spin" />
+          <div className="flex-1">
+            <p className="text-xs font-black text-pink-300 uppercase tracking-wider">
+              {phase === "consulting-nora" && "🧠 Nora interpreta el brief y redacta el copy AIDA con Groq..."}
+              {phase === "generating" && "🎨 Motor Pollinations Flux 3D renderizando escena fotorrealista..."}
+              {phase === "uploading" && "☁️ Optimizando y guardando pieza en la nube..."}
+            </p>
+            <div className="mt-2 h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-amber-400 rounded-full transition-all duration-700"
+                style={{ 
+                  width: phase === "consulting-nora" ? "35%" : phase === "generating" ? "75%" : "95%" 
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* Error State */}
+      {/* Manejo de Error */}
       {phase === "error" && error && (
         <div className="flex items-start gap-2 bg-red-950/40 border border-red-500/40 rounded-xl px-4 py-3">
           <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="text-xs font-bold text-red-300 uppercase tracking-wider mb-1">Error</p>
+            <p className="text-xs font-bold text-red-300 uppercase tracking-wider mb-1">Aviso</p>
             <p className="text-xs text-red-200/80">{error}</p>
             <button
               type="button"
               onClick={resetSession}
               className="mt-2 text-[10px] uppercase font-bold text-red-300 hover:text-red-200 underline cursor-pointer"
             >
-              Empezar de nuevo
+              Intentar de nuevo
             </button>
           </div>
         </div>
       )}
 
-      {/* Done State — Video / Image Preview */}
-      {phase === "done" && generatedMediaUrl && (() => {
-        const isActualVideo = Boolean(
-          (generatedMediaUrl.match(/\.(mp4|webm|ogg)$/i) || generatedMediaUrl.includes("video-proxy")) &&
-          !generatedMediaUrl.match(/\.(jpg|jpeg|png|webp)$/i)
-        );
-        const videoSrc = (isActualVideo && generatedMediaUrl.startsWith("http") && !generatedMediaUrl.includes("/api/video-proxy"))
-          ? `/api/video-proxy?url=${encodeURIComponent(generatedMediaUrl)}`
-          : generatedMediaUrl;
+      {/* Estado Terminado: Visualización HD + Copy AIDA + Acciones de Caza-Clientes */}
+      {phase === "done" && generatedMediaUrl && (
+        <div className="space-y-4 animate-in fade-in duration-300">
+          
+          {/* Contenedor Visual de la Pieza Gráfica */}
+          <div className="relative rounded-2xl overflow-hidden border border-pink-500/50 bg-black shadow-2xl group max-h-[560px] flex items-center justify-center">
+            <img 
+              src={generatedMediaUrl} 
+              alt="Pieza Publicitaria 3D Caza-Clientes" 
+              className="max-h-[560px] w-auto object-contain mx-auto transition-transform duration-700 hover:scale-[1.02]"
+            />
 
-        return (
-          <div className="space-y-4 animate-in fade-in duration-300">
-            {/* Selector de Duración del Spot */}
-            <div className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl p-3">
-              <span className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
-                ⏱️ Duración del Spot Comercial:
-              </span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setFormat("15s")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    format !== "30s" ? "bg-pink-600 text-white shadow-md" : "bg-white/10 text-gray-400 hover:text-white"
-                  }`}
-                >
-                  15 Segundos
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFormat("30s")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
-                    format === "30s" ? "bg-gradient-to-r from-amber-500 to-pink-600 text-white shadow-lg scale-105" : "bg-white/10 text-gray-400 hover:text-white"
-                  }`}
-                >
-                  30 Segundos ⭐ (TV & Reels)
-                </button>
+            {/* Badges superiores */}
+            <div className="absolute top-3 right-3 flex items-center gap-2">
+              <div className="bg-black/85 backdrop-blur-md text-[10px] uppercase font-black text-emerald-300 px-3 py-1 rounded-full border border-emerald-500/50 shadow-lg flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                <span>Flyer 3D Listo</span>
               </div>
             </div>
 
-            {/* Contenedor Visual Cinemático */}
-            <div className="relative rounded-2xl overflow-hidden border border-pink-500/50 bg-black shadow-2xl group">
-              {proVideoUrl ? (
-                /* REPRODUCTOR DE VIDEO REAL CON AUDIO Y LOCUCIÓN */
-                <div className="relative aspect-video max-h-[520px] w-full bg-black flex items-center justify-center">
-                  <video 
-                    src={proVideoUrl} 
-                    controls 
-                    autoPlay 
-                    playsInline 
-                    className="w-full h-full object-cover" 
-                  />
-                  <div className="absolute top-3 left-3 bg-emerald-600/90 backdrop-blur-md text-white text-[10px] uppercase font-black px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-white animate-ping" />
-                    <span>Video MP4 1080p Listo con Audio</span>
-                  </div>
-                </div>
-              ) : (
-                /* VISTA PREVIA LIMPIA EN ALTA RESOLUCIÓN */
-                <div className="relative overflow-hidden aspect-video max-h-[480px] w-full bg-slate-950 flex items-center justify-center">
-                  <img 
-                    src={generatedMediaUrl} 
-                    alt="Spot Faux-CGI 3D" 
-                    className="w-full h-full object-cover transition-all duration-1000"
-                    style={{
-                      animation: "cinematicMotion 8s ease-in-out infinite alternate"
-                    }}
-                  />
-
-                  {/* Capa sutil de resplandor cinematográfico */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/20 pointer-events-none" />
-
-                  {/* Badge de Estado Superior */}
-                  <div className="absolute top-3 right-3 flex items-center gap-2">
-                    <div className="bg-black/85 backdrop-blur-md text-[10px] uppercase font-black text-pink-300 px-3 py-1 rounded-full border border-pink-500/50 shadow-lg flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-pink-500 animate-ping" />
-                      <span>Concepto 3D Listo</span>
-                    </div>
-                  </div>
-
-                  {brandName && (
-                    <div className="absolute top-3 left-3 bg-black/85 backdrop-blur-md px-3 py-1 rounded-lg border border-white/20 text-[11px] font-bold text-white flex items-center gap-2">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                      <span>{brandName}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Estilos CSS para el movimiento de cámara Dron 3D constante */}
-              <style jsx>{`
-                @keyframes cinematicMotion {
-                  0% {
-                    transform: scale(1) translate(0%, 0%);
-                  }
-                  50% {
-                    transform: scale(1.08) translate(-1%, -1%);
-                  }
-                  100% {
-                    transform: scale(1.04) translate(1%, 1%);
-                  }
-                }
-              `}</style>
-            </div>
-
-            {/* Guión Publicitario AIDA (Ubicado de forma elegante y limpia debajo del video) */}
-            {noraResult?.copy_aida && (
-              <div className="bg-black/40 border border-white/10 rounded-xl p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-extrabold uppercase text-pink-400 flex items-center gap-1.5 tracking-wider">
-                    📝 Guión de Locución Comercial (AIDA)
-                  </span>
-                  <span className="text-[10px] text-gray-400 font-bold">
-                    Duración: {format === "30s" ? "30 Segundos" : "15 Segundos"}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-300 leading-relaxed font-sans">
-                  {noraResult.copy_aida.replace(/<[^>]*>?/gm, '')}
-                </p>
+            {brandName && (
+              <div className="absolute top-3 left-3 bg-black/85 backdrop-blur-md px-3 py-1 rounded-lg border border-white/20 text-[11px] font-bold text-white flex items-center gap-2">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>{brandName}</span>
               </div>
             )}
+          </div>
 
-            {/* Barra de Acciones y Renderizado */}
-            <div className="flex flex-col sm:flex-row gap-2">
-              <button
-                type="button"
-                onClick={handleRegenerate}
-                className="bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-bold px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                Regenerar Imagen
-              </button>
-
-              <button
-                type="button"
-                disabled={isRenderingPro}
-                onClick={handleRenderProVideo}
-                className="flex-1 bg-gradient-to-r from-amber-500 via-pink-600 to-purple-600 hover:from-amber-400 hover:to-purple-500 text-white font-black text-xs px-5 py-3 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xl disabled:opacity-50 animate-pulse"
-              >
-                {isRenderingPro ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Renderizando Spot de 30s con Voz y Audio...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 text-amber-300" />
-                    <span>Exportar Video MP4 1080p con Locución y Música (30s) 🚀</span>
-                  </>
-                )}
-              </button>
-
-              {proVideoUrl && (
-                <a
-                  href={proVideoUrl}
-                  download="spot_comercial_30s.mp4"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs px-4 py-3 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-lg"
-                >
-                  <Download className="w-4 h-4" />
-                  Descargar MP4
-                </a>
-              )}
-
-              <button
-                type="button"
-                onClick={handleUseMedia}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs px-4 py-3 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-lg"
-              >
-                <CheckCircle className="w-3.5 h-3.5" />
-                Usar en Campaña ✓
-              </button>
+          {/* Guión y Pitch Comercial AIDA para Mandarle al Comerciante */}
+          {noraResult?.copy_aida && (
+            <div className="bg-purple-950/30 border border-purple-500/30 rounded-xl p-4 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-extrabold uppercase text-amber-300 flex items-center gap-1.5 tracking-wider">
+                  <MessageSquare className="w-3.5 h-3.5 text-amber-400" />
+                  Pitch y Copy de Prospección Comercial (Fórmula AIDA)
+                </span>
+                <span className="text-[10px] text-gray-400">
+                  Formato: {format === "9:16" ? "Vertical (Stories/WhatsApp)" : format}
+                </span>
+              </div>
+              <p className="text-xs text-gray-200 leading-relaxed font-sans whitespace-pre-line bg-black/40 p-3 rounded-lg border border-white/5">
+                {noraResult.copy_aida.replace(/<[^>]*>?/gm, '')}
+              </p>
             </div>
+          )}
+
+          {/* Barra de Acciones y Caza de Clientes */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            
+            {/* 1. Copiar Pitch para WhatsApp */}
+            <button
+              type="button"
+              onClick={copyPitchToClipboard}
+              className={`px-3 py-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md ${
+                copiedPitch 
+                  ? "bg-emerald-600 text-white" 
+                  : "bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold"
+              }`}
+            >
+              {copiedPitch ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              <span>{copiedPitch ? "¡Pitch Copiado!" : "Copiar Pitch WhatsApp"}</span>
+            </button>
+
+            {/* 2. Enviar Directo a WhatsApp */}
+            <button
+              type="button"
+              onClick={sendDirectWhatsApp}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs px-3 py-3 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
+            >
+              <Send className="w-4 h-4" />
+              <span>Enviar por WhatsApp</span>
+            </button>
+
+            {/* 3. Descargar Flyer HD */}
+            <a
+              href={generatedMediaUrl}
+              download="flyer_publicitario_3d.jpg"
+              target="_blank"
+              rel="noreferrer"
+              className="bg-white/10 hover:bg-white/20 border border-white/10 text-white font-bold text-xs px-3 py-3 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Download className="w-4 h-4" />
+              <span>Descargar Imagen HD</span>
+            </a>
+
+            {/* 4. Asignar a Campaña / Auspiciante en Diario */}
+            <button
+              type="button"
+              onClick={handleUseMedia}
+              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-black text-xs px-3 py-3 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-lg"
+            >
+              <CheckCircle className="w-4 h-4" />
+              <span>Fijar en Campaña ✓</span>
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between pt-2 border-t border-white/5">
+            <button
+              type="button"
+              onClick={handleRegenerate}
+              className="text-xs text-gray-400 hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Regenerar otra variación 3D</span>
+            </button>
 
             <button
               type="button"
               onClick={resetSession}
-              className="w-full text-[10px] uppercase font-bold text-white/40 hover:text-white/80 transition-colors cursor-pointer pt-2"
+              className="text-[10px] uppercase font-bold text-pink-400 hover:text-pink-300 transition-colors cursor-pointer"
             >
-              Crear nueva campaña audiovisual
+              + Diseñar otra pieza comercial
             </button>
           </div>
-        );
-      })()}
+
+        </div>
+      )}
     </div>
   );
 }

@@ -67,27 +67,28 @@ async function tryGeminiImage(prompt: string, dims: { width: number; height: num
   }
 }
 
-async function tryPollinationsPro(prompt: string, dims: { width: number; height: number }, seed: number): Promise<Blob> {
+async function tryPollinationsFlux(prompt: string, dims: { width: number; height: number }, seed: number): Promise<{ blob: Blob; directUrl: string }> {
   const encoded = encodeURIComponent(prompt);
-  const url = `https://image.pollinations.ai/prompt/${encoded}?model=flux-pro&width=${dims.width}&height=${dims.height}&enhance=true&nologo=true&seed=${seed}`;
-  const response = await fetch(url, { signal: AbortSignal.timeout(50000) });
-  if (!response.ok) throw new Error(`Pollinations respondio con ${response.status}`);
-  return await response.blob();
+  const directUrl = `https://image.pollinations.ai/prompt/${encoded}?model=flux&width=${dims.width}&height=${dims.height}&nologo=true&seed=${seed}`;
+  const response = await fetch(directUrl, { signal: AbortSignal.timeout(35000) });
+  if (!response.ok) throw new Error(`Pollinations respondió con estado ${response.status}`);
+  const blob = await response.blob();
+  return { blob, directUrl };
 }
 
 export async function POST(req: Request) {
   try {
-    const { prompt, aspectRatio = "16:9", seed, style } = await req.json();
+    const { prompt, aspectRatio = "9:16", seed, style } = await req.json();
 
     if (!prompt || typeof prompt !== "string") {
-      return NextResponse.json({ error: "Se requiere un prompt valido." }, { status: 400 });
+      return NextResponse.json({ error: "Se requiere un brief o prompt válido." }, { status: 400 });
     }
 
-    const dims = RATIO_DIMENSIONS[aspectRatio] || RATIO_DIMENSIONS["16:9"];
+    const dims = RATIO_DIMENSIONS[aspectRatio] || RATIO_DIMENSIONS["9:16"];
     const finalSeed = seed ?? Math.floor(Math.random() * 1_000_000);
-    const fileName = `campaigns/creative_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.jpg`;
+    const fileName = `campaigns/flyer_3d_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.jpg`;
 
-    // Step 1: Optimize prompt via Nora
+    // Paso 1: Optimizar prompt comercial via Nora
     let refinedPrompt = prompt;
     try {
       refinedPrompt = await optimizeImagePrompt(prompt, style);
@@ -95,22 +96,33 @@ export async function POST(req: Request) {
       // Non-blocking
     }
 
-    // Step 2: Try Gemini image generation (highest quality)
-    let imageBlob: Blob | null = await tryGeminiImage(refinedPrompt, dims);
-    let source = "gemini";
+    let imageUrl = "";
+    let source = "pollinations-flux-3d";
 
-    // Step 3: Fallback to Pollinations flux-pro
-    if (!imageBlob) {
-      source = "pollinations-flux-pro";
-      imageBlob = await tryPollinationsPro(refinedPrompt, dims, finalSeed);
+    // Paso 2: Generar imagen fotorrealista 3D
+    try {
+      const { blob, directUrl } = await tryPollinationsFlux(refinedPrompt, dims, finalSeed);
+      try {
+        imageUrl = await uploadBlobToSupabase(blob, fileName);
+      } catch (uploadErr) {
+        console.warn("[creative-studio/generate] Advertencia subiendo a Supabase, usando URL directa:", uploadErr);
+        imageUrl = directUrl;
+      }
+    } catch (pollErr: any) {
+      console.warn("[creative-studio/generate] Fallback secundario directo:", pollErr);
+      const encoded = encodeURIComponent(refinedPrompt);
+      imageUrl = `https://image.pollinations.ai/prompt/${encoded}?model=flux&width=${dims.width}&height=${dims.height}&nologo=true&seed=${finalSeed}`;
     }
 
-    // Step 4: Upload to Supabase
-    const imageUrl = await uploadBlobToSupabase(imageBlob, fileName);
-
-    return NextResponse.json({ imageUrl, source, promptUsed: refinedPrompt, seed: finalSeed });
+    return NextResponse.json({ 
+      imageUrl, 
+      source, 
+      promptUsed: refinedPrompt, 
+      seed: finalSeed,
+      aspectRatio 
+    });
   } catch (error: any) {
-    console.error("[creative-studio/generate] Error:", error);
-    return NextResponse.json({ error: "Error al generar la imagen: " + error.message }, { status: 500 });
+    console.error("[creative-studio/generate] Error crítico:", error);
+    return NextResponse.json({ error: "Error al generar la pieza publicitaria: " + error.message }, { status: 500 });
   }
 }
