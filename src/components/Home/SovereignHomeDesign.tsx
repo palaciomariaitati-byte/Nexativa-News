@@ -6,7 +6,6 @@ import {
   Search,
   Menu,
   X,
-  Bell,
   Sun,
   Moon,
   TrendingUp,
@@ -24,9 +23,18 @@ import {
   Clock,
   Send,
   CheckCircle2,
-  Phone
+  Phone,
+  Briefcase,
+  Tv,
+  ShoppingBag,
+  Building,
+  FileText,
+  UserCheck
 } from 'lucide-react';
 import type { Article, Sponsor, Product } from '@/lib/types';
+import NewsTabs from '@/components/NewsTabs/NewsTabs';
+import SponsorsMarquee from '@/components/SponsorsMarquee';
+import VideoSection from '@/components/VideoSection';
 
 // ==========================================
 // MOCK DATA CONTRACTS & INTERFACES
@@ -275,6 +283,7 @@ export default function SovereignHomeDesign({
   initialArticles = [],
   sponsors = [],
   newsFlashes = [],
+  products = [],
 }: SovereignHomeDesignProps) {
   const [darkMode, setDarkMode] = useState<boolean>(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
@@ -298,7 +307,8 @@ export default function SovereignHomeDesign({
     id: realMain ? String(realMain.id) : 'art-01',
     badge: realMain?.category?.toUpperCase() || 'POLÍTICA & DESARROLLO REGIONAL',
     headline: realMain?.title || 'Acuerdo Estratégico en el Alto Paraná y Proyecciones Económicas 2026',
-    lead: realMain?.excerpt ||
+    lead:
+      realMain?.excerpt ||
       (realMain?.content ? realMain.content.slice(0, 240) + '...' : null) ||
       'Las comitivas binacionales ratificaron las pautas de inversión hidroeléctrica, la ampliación portuaria comercial en Ituzaingó y el nuevo marco tributario para el transporte fluvial regional. Análisis exclusivo sobre el impacto crediticio y la reactivación inmobiliaria costera.',
     author: {
@@ -307,8 +317,12 @@ export default function SovereignHomeDesign({
       avatarInitials: 'NX',
     },
     readTime: '6 min de lectura',
-    imageUrl: realMain?.image_url || 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?auto=format&fit=crop&w=1400&q=80',
-    imageCaption: realMain?.title ? `Cobertura especial de Nexativa: ${realMain.title}` : 'Firma de memorándum de entendimiento trilateral para el dragado de la Hidrovía Paraná-Paraguay.',
+    imageUrl:
+      realMain?.image_url ||
+      'https://images.unsplash.com/photo-1541872703-74c5e44368f9?auto=format&fit=crop&w=1400&q=80',
+    imageCaption: realMain?.title
+      ? `Cobertura especial de Nexativa: ${realMain.title}`
+      : 'Firma de memorándum de entendimiento trilateral para el dragado de la Hidrovía Paraná-Paraguay.',
     href: realMain ? `/noticias/${realMain.id}` : '#dossier',
   };
 
@@ -319,27 +333,42 @@ export default function SovereignHomeDesign({
       id: realSecondary[0] ? String(realSecondary[0].id) : 'art-02',
       category: realSecondary[0]?.category?.toUpperCase() || 'FINANZAS & DÓLAR',
       title: realSecondary[0]?.title || 'El Banco Central flexibiliza cuotas para bienes durables de importación directa',
-      summary: realSecondary[0]?.excerpt || (realSecondary[0]?.content ? realSecondary[0].content.slice(0, 140) + '...' : null) || 'Las PyMEs del sector metalmecánico proyectan ajustes en inventarios ante la recalibración de tasas pasivas del tesoro.',
+      summary:
+        realSecondary[0]?.excerpt ||
+        (realSecondary[0]?.content ? realSecondary[0].content.slice(0, 140) + '...' : null) ||
+        'Las PyMEs del sector metalmecánico proyectan ajustes en inventarios ante la recalibración de tasas pasivas del tesoro.',
       readTime: '4 min',
-      imageUrl: realSecondary[0]?.image_url || 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&w=600&q=80',
+      imageUrl:
+        realSecondary[0]?.image_url ||
+        'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&w=600&q=80',
       href: realSecondary[0] ? `/noticias/${realSecondary[0].id}` : '#',
     },
     {
       id: realSecondary[1] ? String(realSecondary[1].id) : 'art-03',
       category: realSecondary[1]?.category?.toUpperCase() || 'ECOTURISMO ESTEROS',
       title: realSecondary[1]?.title || 'El Iberá registra reserva récord para el corredor Ituzaingó–Carlos Pellegrini',
-      summary: realSecondary[1]?.excerpt || (realSecondary[1]?.content ? realSecondary[1].content.slice(0, 140) + '...' : null) || 'La inversión hotelera sustentable triplica la demanda de turismo extranjero con base en el portal norte.',
+      summary:
+        realSecondary[1]?.excerpt ||
+        (realSecondary[1]?.content ? realSecondary[1].content.slice(0, 140) + '...' : null) ||
+        'La inversión hotelera sustentable triplica la demanda de turismo extranjero con base en el portal norte.',
       readTime: '3 min',
-      imageUrl: realSecondary[1]?.image_url || 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?auto=format&fit=crop&w=600&q=80',
+      imageUrl:
+        realSecondary[1]?.image_url ||
+        'https://images.unsplash.com/photo-1518495973542-4542c06a5843?auto=format&fit=crop&w=600&q=80',
       href: realSecondary[1] ? `/noticias/${realSecondary[1].id}` : '#',
     },
     {
       id: realSecondary[2] ? String(realSecondary[2].id) : 'art-04',
       category: realSecondary[2]?.category?.toUpperCase() || 'TRANSPORTE & LOGÍSTICA',
       title: realSecondary[2]?.title || 'Obras del Parque Industrial Ituzaingó incorporan enlace a Ruta Nacional 12',
-      summary: realSecondary[2]?.excerpt || (realSecondary[2]?.content ? realSecondary[2].content.slice(0, 140) + '...' : null) || 'El nuevo ramal directo al puerto metropolitano reduce un 22% los fletes en la zona del corredor forestoindustrial.',
+      summary:
+        realSecondary[2]?.excerpt ||
+        (realSecondary[2]?.content ? realSecondary[2].content.slice(0, 140) + '...' : null) ||
+        'El nuevo ramal directo al puerto metropolitano reduce un 22% los fletes en la zona del corredor forestoindustrial.',
       readTime: '5 min',
-      imageUrl: realSecondary[2]?.image_url || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=600&q=80',
+      imageUrl:
+        realSecondary[2]?.image_url ||
+        'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=600&q=80',
       href: realSecondary[2] ? `/noticias/${realSecondary[2].id}` : '#',
     },
   ];
@@ -351,17 +380,18 @@ export default function SovereignHomeDesign({
     : 'Ituzaingó Norte licita nuevo polo biotecnológico sobre Autopista del Oeste con inversión privada garantizada.';
 
   // 4. Resolve Providers (combine sponsors with preset providers)
-  const combinedProviders: CommercialProvider[] = sponsors.length > 0
-    ? sponsors.slice(0, 4).map((sp) => ({
-        id: sp.id,
-        category: (sp.category || 'COMERCIO DESTACADO').toUpperCase(),
-        name: sp.name,
-        description: sp.slogan || 'Comercio auspiciante oficial de Nexativa News en el corredor del Litoral.',
-        contactText: 'Contactar Comercio',
-        verified: true,
-        phone: sp.whatsapp || undefined,
-      }))
-    : MOCK_PROVIDERS;
+  const combinedProviders: CommercialProvider[] =
+    sponsors.length > 0
+      ? sponsors.slice(0, 4).map((sp) => ({
+          id: sp.id,
+          category: (sp.category || 'COMERCIO DESTACADO').toUpperCase(),
+          name: sp.name,
+          description: sp.slogan || 'Comercio auspiciante oficial de Nexativa News en el corredor del Litoral.',
+          contactText: 'Contactar Comercio',
+          verified: true,
+          phone: sp.whatsapp || undefined,
+        }))
+      : MOCK_PROVIDERS;
 
   return (
     <div
@@ -423,7 +453,7 @@ export default function SovereignHomeDesign({
         </div>
       </header>
 
-      {/* 2. PRIMARY NAVBAR & MASTHEAD */}
+      {/* 2. PRIMARY NAVBAR & MASTHEAD (CON ACCESO DIRECTO A TODOS LOS PORTALES) */}
       <nav
         className={`sticky top-0 z-40 backdrop-blur-md border-b transition-colors ${
           darkMode ? 'bg-[#0a0e14]/90 border-[#1e2633]' : 'bg-white/95 border-slate-200'
@@ -461,32 +491,51 @@ export default function SovereignHomeDesign({
               </Link>
             </div>
 
-            {/* Desktop Navigation Links */}
-            <div className="hidden lg:flex items-center space-x-6 text-sm font-medium">
-              {[
-                { label: 'Portada', href: '/', active: true },
-                { label: 'Central Deportiva', href: '#deportes' },
-                { label: 'Inmuebles Ituzaingó', href: '#inmuebles' },
-                { label: 'Guía Comercial', href: '#guia' },
-                { label: 'Dossiers VIP', href: '#membresias' },
-              ].map((link, i) => (
-                <a
-                  key={i}
-                  href={link.href}
-                  className={`transition-colors py-1 ${
-                    link.active
-                      ? 'text-[#e5b242] border-b-2 border-[#e5b242] font-semibold'
-                      : darkMode
-                      ? 'text-gray-300 hover:text-white'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {link.label}
-                </a>
-              ))}
+            {/* Desktop Navigation Links (TODOS LOS PORTALES CLAVE) */}
+            <div className="hidden lg:flex items-center space-x-4 text-xs font-bold uppercase tracking-wider">
+              <Link href="/" className="text-[#e5b242] border-b-2 border-[#e5b242] py-1">
+                Inicio
+              </Link>
+              <a href="#noticias-panel" className="text-gray-300 hover:text-white transition-colors py-1">
+                Noticias
+              </a>
+              <Link
+                href="/empleos"
+                className="text-emerald-400 hover:text-emerald-300 transition-colors py-1 flex items-center gap-1 bg-emerald-950/40 px-2.5 rounded-full border border-emerald-500/30"
+              >
+                <Briefcase className="w-3 h-3 text-emerald-400" />
+                Empleos
+              </Link>
+              <Link
+                href="/guia/inmuebles"
+                className="text-rose-400 hover:text-rose-300 transition-colors py-1 flex items-center gap-1 bg-rose-950/40 px-2.5 rounded-full border border-rose-500/30"
+              >
+                <Building className="w-3 h-3 text-rose-400" />
+                Inmuebles
+              </Link>
+              <Link
+                href="/guia"
+                className="text-cyan-400 hover:text-cyan-300 transition-colors py-1 flex items-center gap-1 bg-cyan-950/40 px-2.5 rounded-full border border-cyan-500/30"
+              >
+                <CheckCircle2 className="w-3 h-3 text-cyan-400" />
+                Guía
+              </Link>
+              <Link href="/cultura" className="text-gray-300 hover:text-white transition-colors py-1">
+                Cultura
+              </Link>
+              <Link href="/clasificados" className="text-amber-300 hover:text-amber-200 transition-colors py-1">
+                Clasificados
+              </Link>
+              <a href="#deportes" className="text-gray-300 hover:text-white transition-colors py-1">
+                Deportes
+              </a>
+              <a href="#streaming" className="text-red-400 hover:text-red-300 transition-colors py-1 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+                En Vivo
+              </a>
             </div>
 
-            {/* Actions / Search */}
+            {/* Actions / Search & Nora */}
             <div className="hidden lg:flex items-center gap-3">
               <Link
                 href="/news"
@@ -515,23 +564,29 @@ export default function SovereignHomeDesign({
         {/* Mobile Navigation Drawer */}
         {mobileMenuOpen && (
           <div
-            className={`lg:hidden border-b px-6 py-4 space-y-3 ${
+            className={`lg:hidden border-b px-6 py-4 space-y-2.5 ${
               darkMode ? 'bg-[#0f141b] border-[#1e2633]' : 'bg-white border-slate-200'
             }`}
           >
             {[
               { label: 'Portada', href: '/' },
-              { label: 'Noticias & Archivo', href: '/news' },
-              { label: 'Central Deportiva', href: '#deportes' },
-              { label: 'Inmuebles Ituzaingó', href: '#inmuebles' },
-              { label: 'Guía Comercial & Catálogo', href: '#guia' },
-              { label: 'Planes de Membresía VIP', href: '#membresias' },
+              { label: 'Prensa & Noticias (Filtros)', href: '#noticias-panel' },
+              { label: '💼 Portal de Empleos & Oficios', href: '/empleos', highlight: 'text-emerald-400' },
+              { label: '🏠 Inmuebles Verificados Ituzaingó', href: '/guia/inmuebles', highlight: 'text-rose-400' },
+              { label: '📖 Guía Comercial & Catálogo', href: '/guia', highlight: 'text-cyan-400' },
+              { label: '🎨 Espacio Cultural Regional', href: '/cultura' },
+              { label: '🏷️ Avisos Clasificados', href: '/clasificados' },
+              { label: '⚽ Central Deportiva & Pálpito', href: '#deportes' },
+              { label: '📺 Transmisión En Vivo', href: '#streaming', highlight: 'text-red-400' },
+              { label: '👑 Planes de Membresía VIP', href: '#membresias', highlight: 'text-amber-400' },
             ].map((link, i) => (
               <a
                 key={i}
                 href={link.href}
                 onClick={() => setMobileMenuOpen(false)}
-                className="block text-base font-medium py-2 border-b border-gray-800 text-gray-300 hover:text-[#e5b242]"
+                className={`block text-sm font-semibold py-2 border-b border-gray-800/60 ${
+                  link.highlight || (darkMode ? 'text-gray-300 hover:text-[#e5b242]' : 'text-slate-700')
+                }`}
               >
                 {link.label}
               </a>
@@ -556,10 +611,17 @@ export default function SovereignHomeDesign({
         </div>
       </div>
 
+      {/* 4. CINTA ANIMADA DE PATROCINADORES OFICIALES */}
+      {sponsors.length > 0 && (
+        <div className="w-full">
+          <SponsorsMarquee sponsors={sponsors} />
+        </div>
+      )}
+
       {/* MAIN CONTAINER */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-16">
         {/* ====================================================
-            SECTION: HERO EDITORIAL (8 COLS) + SPORTS SIDEBAR (4 COLS)
+            SECTION 1: HERO EDITORIAL (8 COLS) + SPORTS SIDEBAR (4 COLS)
            ==================================================== */}
         <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* LEFT 8 COLUMNS: MAIN ARTICLE & REGIONAL DOSSIERS */}
@@ -855,9 +917,85 @@ export default function SovereignHomeDesign({
         </section>
 
         {/* ====================================================
-            SECTION: REAL ESTATE & VERIFIED RENTALS (ITUZAINGÓ)
+            SECTION 2: GRAN PANEL DE PRENSA & NOTICIAS (NEWSTABS)
            ==================================================== */}
-        <section id="inmuebles" className="space-y-6">
+        <section id="noticias-panel" className="space-y-4 pt-4 border-t border-gray-800/60">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-xs font-bold tracking-widest uppercase text-amber-500">
+                REDACCIÓN DIGITAL DE NEXATIVA
+              </span>
+              <h2
+                className="text-2xl sm:text-3xl font-serif font-bold tracking-tight mt-0.5"
+                style={{ fontFamily: 'Georgia, serif' }}
+              >
+                Prensa & Archivo Noticioso
+              </h2>
+            </div>
+            <Link
+              href="/news"
+              className="text-xs font-bold text-[#e5b242] hover:underline flex items-center gap-1"
+            >
+              Ver Todas las Noticias &rarr;
+            </Link>
+          </div>
+
+          <div className="w-full rounded-2xl border border-white/10 overflow-hidden bg-[#0f141b] shadow-xl">
+            <NewsTabs initialArticles={initialArticles} initialTab="Nacional" />
+          </div>
+        </section>
+
+        {/* ====================================================
+            SECTION 3: PORTAL DE EMPLEOS & OFICIOS REGIONAL
+           ==================================================== */}
+        <section id="empleos" className="space-y-6 pt-4 border-t border-gray-800/60">
+          <div className="w-full bg-gradient-to-r from-slate-950 via-emerald-950/40 to-slate-950 border border-emerald-500/30 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="space-y-3 max-w-2xl">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-black">
+                <Briefcase className="w-3.5 h-3.5" />
+                <span>RED DE EMPLEO & OFICIOS CALIFICADOS DE ITUZAINGÓ</span>
+              </div>
+              <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                Bolsa Laboral & Prestadores de <span className="text-emerald-400 underline">Oficios</span>
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                Conectamos a profesionales, técnicos, trabajadores de oficios y comerciantes con vecinos y empresas del
+                Litoral. Perfiles verificados, calificaciones comunitarias y contacto directo sin comisiones abusivas.
+              </p>
+              <div className="flex flex-wrap items-center gap-4 text-xs text-gray-400 pt-1">
+                <span className="flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Carga de CV digital
+                </span>
+                <span className="flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Búsquedas laborales activas
+                </span>
+                <span className="flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Sistema de reseñas comunitarias
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 shrink-0 w-full md:w-auto">
+              <Link
+                href="/empleos"
+                className="px-6 py-3.5 rounded-2xl font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs sm:text-sm transition-all shadow-lg shadow-emerald-500/20 text-center flex items-center justify-center gap-1.5"
+              >
+                <Search className="w-4 h-4" /> Buscar Trabajo / Oficio
+              </Link>
+              <Link
+                href="/empleos"
+                className="px-6 py-3.5 rounded-2xl font-black bg-slate-900 border border-emerald-500/40 hover:bg-slate-800 text-emerald-200 text-xs sm:text-sm transition-all text-center flex items-center justify-center gap-1.5"
+              >
+                <UserCheck className="w-4 h-4" /> Publicar Búsqueda
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* ====================================================
+            SECTION 4: REAL ESTATE & VERIFIED RENTALS (ITUZAINGÓ)
+           ==================================================== */}
+        <section id="inmuebles" className="space-y-6 pt-4 border-t border-gray-800/60">
           <div
             className={`rounded-2xl border p-6 sm:p-8 ${
               darkMode ? 'bg-gradient-to-r from-[#0d131a] to-[#121a24] border-[#1e2633]' : 'bg-white border-slate-200 shadow-sm'
@@ -890,8 +1028,8 @@ export default function SovereignHomeDesign({
                   <SlidersHorizontal className="w-3.5 h-3.5" /> Filtrar Disponibilidad
                 </Link>
                 <Link
-                  href="/admin/inmuebles"
-                  className="px-4 py-2 text-xs font-bold rounded-lg bg-amber-500 text-black hover:brightness-110 transition"
+                  href="/guia/inmuebles/registro"
+                  className="px-4 py-2 text-xs font-bold rounded-lg bg-rose-500 hover:bg-rose-400 text-slate-950 transition"
                 >
                   Publicar Propiedad
                 </Link>
@@ -975,9 +1113,9 @@ export default function SovereignHomeDesign({
         </section>
 
         {/* ====================================================
-            SECTION: COMMERCIAL DIRECTORY & QUALIFIED PROVIDERS
+            SECTION 5: COMMERCIAL DIRECTORY & QUALIFIED PROVIDERS
            ==================================================== */}
-        <section id="guia" className="space-y-6">
+        <section id="guia" className="space-y-6 pt-4 border-t border-gray-800/60">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div>
               <span className="text-xs font-bold tracking-widest uppercase text-amber-500">
@@ -991,6 +1129,12 @@ export default function SovereignHomeDesign({
               </h2>
             </div>
             <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+              <Link
+                href="/guia"
+                className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-cyan-500 text-black shrink-0 hover:bg-cyan-400 transition"
+              >
+                Ver Toda la Guía &rarr;
+              </Link>
               {['Todos', 'Arquitectura', 'Bienestar & Estética', 'Joyería de Autor', 'Editorial'].map((cat, i) => (
                 <button
                   key={i}
@@ -1041,12 +1185,86 @@ export default function SovereignHomeDesign({
               </div>
             ))}
           </div>
+
+          <div className="flex justify-center pt-2">
+            <Link
+              href="/guia/registro"
+              className="px-6 py-2.5 rounded-xl border border-cyan-500/40 bg-cyan-950/20 text-cyan-300 hover:bg-cyan-900/30 font-bold text-xs uppercase tracking-wider transition"
+            >
+              ➕ ¿Tenés un comercio o servicio? Sumate a la Guía Oficial
+            </Link>
+          </div>
         </section>
 
         {/* ====================================================
-            SECTION: VIP SUBSCRIPTION TIERS (MEMBRESIAS)
+            SECTION 6: TRANSMISIÓN STREAMING EN VIVO
            ==================================================== */}
-        <section id="membresias" className="space-y-8 pt-6">
+        <section id="streaming" className="space-y-4 pt-4 border-t border-gray-800/60">
+          <div className="flex items-center justify-between">
+            <h3 className="text-white text-xl sm:text-2xl font-bold flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-red-600 animate-pulse"></span>
+              <span>Transmisión & Streaming En Vivo</span>
+            </h3>
+            <span className="text-xs font-mono text-red-400 font-bold bg-red-950/40 px-2.5 py-1 rounded-full border border-red-500/30">
+              SEÑAL DIRECTA
+            </span>
+          </div>
+          <div className="w-full max-w-4xl mx-auto rounded-2xl shadow-2xl border border-white/10 overflow-hidden bg-black/80">
+            <VideoSection />
+          </div>
+        </section>
+
+        {/* ====================================================
+            SECTION 7: TIENDA & PRODUCTOS LOCALES
+           ==================================================== */}
+        {products.length > 0 && (
+          <section id="tienda" className="space-y-4 pt-4 border-t border-gray-800/60">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-xs font-bold tracking-widest uppercase text-amber-500">
+                  MARKETPLACE REGIONAL
+                </span>
+                <h3 className="text-white text-xl sm:text-2xl font-bold mt-0.5">Nuestros Productos</h3>
+              </div>
+              <Link
+                href="/store"
+                className="text-[var(--color-brand-accent)] hover:text-white transition-colors font-bold text-xs uppercase tracking-wider flex items-center gap-1"
+              >
+                Ver Tienda Completa &rarr;
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {products.slice(0, 4).map((p) => (
+                <div
+                  key={p.id}
+                  className="rounded-xl border border-white/10 bg-[#0f141b] p-3 flex flex-col justify-between hover:border-amber-500/40 transition"
+                >
+                  {p.image_url && (
+                    <div className="h-32 rounded-lg overflow-hidden mb-2">
+                      <img src={p.image_url} alt={p.title} className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                  <h4 className="font-bold text-sm text-gray-100 line-clamp-1">{p.title}</h4>
+                  <p className="text-xs text-gray-400 line-clamp-2 mt-1">{p.description}</p>
+                  <div className="mt-3 pt-2 border-t border-gray-800 flex items-center justify-between">
+                    <span className="text-amber-400 font-bold text-sm">${Number(p.price).toFixed(2)}</span>
+                    <Link
+                      href={`/product/${p.id}`}
+                      className="px-2.5 py-1 rounded bg-amber-500 hover:bg-amber-400 text-black font-bold text-[11px]"
+                    >
+                      Ver
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ====================================================
+            SECTION 8: VIP SUBSCRIPTION TIERS (MEMBRESIAS)
+           ==================================================== */}
+        <section id="membresias" className="space-y-8 pt-6 border-t border-gray-800/60">
           <div className="text-center max-w-2xl mx-auto space-y-2">
             <span className="text-xs font-bold uppercase tracking-widest text-amber-500">
               ACCESO IRRESTRICTO AL PERIODISMO RIGUROSO
@@ -1136,7 +1354,7 @@ export default function SovereignHomeDesign({
           <p className="text-xs font-bold text-white flex items-center gap-1">
             Nora Asistente <Sparkles className="w-3 h-3 text-amber-400" />
           </p>
-          <p className="text-[10px] text-gray-400">¿Buscás un alquiler en Ituzaingó o publicar?</p>
+          <p className="text-[10px] text-gray-400">¿Buscás trabajo, alquiler o publicar en Ituzaingó?</p>
         </div>
         <button
           onClick={handleOpenNora}
@@ -1162,8 +1380,8 @@ export default function SovereignHomeDesign({
                 NEXATIVA <span className="text-[#e5b242] italic">NEWS</span>
               </span>
               <p className="text-xs leading-relaxed text-gray-400">
-                Periodismo independiente, análisis financiero de alta fidelidad, centro de transmisiones deportivas y la
-                red de alquileres garantizados más selecta del litoral y la región.
+                Periodismo independiente, análisis financiero de alta fidelidad, portal de empleo y oficios, centro de
+                transmisiones deportivas y la red de alquileres garantizados de la región.
               </p>
               <div className="text-[11px] text-gray-500">
                 <span>ISSN 2953-481X</span> • <span>DNDA En trámite</span>
@@ -1172,7 +1390,7 @@ export default function SovereignHomeDesign({
 
             {/* Column 1: Secciones */}
             <div className="space-y-2">
-              <h5 className="font-bold text-white uppercase text-[11px] tracking-wider">Secciones Clave</h5>
+              <h5 className="font-bold text-white uppercase text-[11px] tracking-wider">Portales Principales</h5>
               <ul className="space-y-1.5">
                 <li>
                   <Link href="/" className="hover:text-amber-400">
@@ -1180,24 +1398,34 @@ export default function SovereignHomeDesign({
                   </Link>
                 </li>
                 <li>
-                  <a href="#deportes" className="hover:text-amber-400">
-                    Central Deportiva & Pálpito
-                  </a>
+                  <Link href="/news" className="hover:text-amber-400">
+                    Prensa & Noticias
+                  </Link>
                 </li>
                 <li>
-                  <a href="#inmuebles" className="hover:text-amber-400">
-                    Inmuebles Verificados Ituzaingó
-                  </a>
+                  <Link href="/empleos" className="text-emerald-400 hover:text-emerald-300 font-semibold">
+                    💼 Portal de Empleos & Oficios
+                  </Link>
                 </li>
                 <li>
-                  <a href="#guia" className="hover:text-amber-400">
-                    Guía Comercial de Proveedores
-                  </a>
+                  <Link href="/guia/inmuebles" className="text-rose-400 hover:text-rose-300 font-semibold">
+                    🏠 Inmuebles Verificados Ituzaingó
+                  </Link>
                 </li>
                 <li>
-                  <a href="#membresias" className="hover:text-amber-400">
-                    Suscripciones & Membresías
-                  </a>
+                  <Link href="/guia" className="text-cyan-400 hover:text-cyan-300 font-semibold">
+                    📖 Guía Comercial de Proveedores
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/cultura" className="hover:text-amber-400">
+                    🎨 Espacio Cultural
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/clasificados" className="hover:text-amber-400">
+                    🏷️ Clasificados
+                  </Link>
                 </li>
               </ul>
             </div>
@@ -1212,18 +1440,18 @@ export default function SovereignHomeDesign({
                   </Link>
                 </li>
                 <li>
-                  <Link href="/admin/inmuebles" className="hover:text-amber-400">
+                  <Link href="/guia/inmuebles/registro" className="hover:text-amber-400">
                     Publicar Inmueble con Verificación
                   </Link>
                 </li>
                 <li>
-                  <a href="#membresias" className="hover:text-amber-400">
-                    Dossiers de Hidrovía & Macroeconomía
-                  </a>
+                  <Link href="/guia/registro" className="hover:text-amber-400">
+                    Sumar Comercio a la Guía
+                  </Link>
                 </li>
                 <li>
-                  <Link href="/guia" className="hover:text-amber-400">
-                    Pauta Comercial & Nexora Store
+                  <Link href="/empleos" className="hover:text-amber-400">
+                    Publicar Aviso de Empleo
                   </Link>
                 </li>
               </ul>
