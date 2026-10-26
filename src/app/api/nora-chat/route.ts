@@ -35,32 +35,52 @@ Tu misión es CONVERTIR cada interacción en una oportunidad de crecimiento, cap
 - Eres una consultora de negocios que sabe exactamente cómo ayudar a una empresa o vecino a ganar más clientes y facturar más.
 - Cierres de acción: Siempre deja un llamado a la acción concreto (ej: "¿Te gustaría que activemos tu espacio comercial hoy?", "¿Querés publicar tu cabaña en el mapa verificado?").
 - Si detectas reclamos legales, deriva respetuosamente a legales@nexativanews.com.ar o al Libro de Quejas.
+
+<LEGAL_AND_PRIVACY_SHIELD>
+1. PRIVACIDAD Y PROTECCIÓN DE DATOS (Ley Arg 25.326 y RGPD):
+   - Queda estrictamente prohibido solicitar contraseñas, números de tarjeta de crédito/débito, códigos CBU/CVU o datos bancarios sensibles.
+   - Cualquier dato de contacto brindado por el usuario (WhatsApp o nombre) se utiliza exclusivamente para coordinar el asesoramiento comercial de Nexativa y nunca será cedido a terceros.
+2. DEFENSA DEL CONSUMIDOR Y TRANSPARENCIA (Ley Arg 24.240):
+   - Toda información sobre precios, planes y pruebas gratuitas (ej: "15 días gratis en Guía Comercial") es transparente, veraz y sin costos ocultos de permanencia.
+3. PROPIEDAD INTELECTUAL (Ley Arg 11.723 y Convenio de Berna):
+   - Queda prohibido reproducir artículos protegidos de terceros de forma idéntica; siempre se debe resumir o parafrasear con atribución periodística.
+4. ANTI-DIFAMACIÓN Y CONDUCTA ÉTICA:
+   - No emitas acusaciones, juicios de valor injuriosos ni calumnias contra personas, comercios o instituciones. Ante disputas, mantén neutralidad institucional.
+</LEGAL_AND_PRIVACY_SHIELD>
 `;
 };
 
+export const maxDuration = 60;
+
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NoraUnifiedResponseSchema } from "@/lib/nora/schemas";
+
+// Cache en memoria para deduplicación instantánea en 0ms
+const recentMessageIds = new Set<string>();
 
 export async function POST(req: Request) {
   try {
     const { message, history, contextData, image, message_id } = await req.json();
 
-    // 1. Interceptor de Duplicados Concurrentes (Blindaje Atomic Supabase)
+    // 1. Interceptor de Duplicados Concurrentes (Memoria + Supabase no bloqueante)
     const incomingMsgId = message_id || req.headers.get("x-message-id");
     if (incomingMsgId) {
-      try {
-        const supabase = createServerSupabaseClient();
-        const { error: webhookError } = await supabase
-          .from('processed_webhooks')
-          .insert([{ message_id: incomingMsgId }]);
-
-        if (webhookError && webhookError.code === '23505') {
-          console.warn(`🛑 Duplicación de Webhook frenada para ID: ${incomingMsgId}`);
-          return NextResponse.json({ status: 'already_processed' }, { status: 200 });
-        }
-      } catch (dbErr) {
-        console.warn("[NORA Webhook Shield Warning] No se pudo verificar la deduplicación:", dbErr);
+      if (recentMessageIds.has(incomingMsgId)) {
+        return NextResponse.json({ status: 'already_processed' }, { status: 200 });
       }
+      recentMessageIds.add(incomingMsgId);
+      if (recentMessageIds.size > 2000) {
+        const first = recentMessageIds.values().next().value;
+        if (first) recentMessageIds.delete(first);
+      }
+
+      // Registro en Supabase asíncrono no bloqueante en background
+      (async () => {
+        try {
+          const supabase = createServerSupabaseClient();
+          await supabase.from('processed_webhooks').insert([{ message_id: incomingMsgId }]);
+        } catch {}
+      })();
     }
 
     const keysPool = [
