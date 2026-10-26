@@ -28,7 +28,7 @@ Respondes con amabilidad, pedagogía, extrema claridad y precisión técnica, of
 ------------------------------------------------------------------------
 📌 2. AGENTE VALEN & PROSPECCIÓN COMERCIAL B2B DE ALTA CONVERSIÓN
 ------------------------------------------------------------------------
-- Rutas en el Admin: /admin/growth / /admin/marketing/editor (Pestaña "Prospección B2B")
+- Rutas en el Admin: /admin/valen / /admin/marketing/editor (Pestaña "Prospección B2B")
 - Propósito: Captación quirúrgica de leads calificados (dueños de comercios, cabañas e inmobiliarias) en Ituzaingó y el NEA argentino.
 - 3 Variantes de Mensaje de Salida (< 4 líneas, tono litoraleño humano, prueba 15 días gratis):
   1. Caso 1 (Cabañas/Alquileres): Evitar comisiones de Airbnb/Booking + Valen responde en 15 segundos.

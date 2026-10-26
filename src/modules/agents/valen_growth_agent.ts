@@ -253,7 +253,7 @@ export async function chatWithValen(
       };
     }
 
-    const validModels = ["gemini-flash-latest", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.1-pro-preview"];
+    const validModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.5-pro"];
     const envModel = process.env.GEMINI_MODEL;
     const modelsPool = (envModel && validModels.includes(envModel))
       ? [envModel, ...validModels.filter(m => m !== envModel)]

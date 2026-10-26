@@ -43,7 +43,7 @@ export async function POST(req: Request) {
       process.env.GEMINI_API_KEY_TERTIARY,
     ].filter(Boolean) as string[];
 
-    const validModels = ["gemini-flash-latest", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.1-pro-preview"];
+    const validModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.5-pro"];
     const systemPromptText = `
 ${NORA_SYSTEM_MAP}
 
@@ -58,7 +58,7 @@ ${NORA_SYSTEM_MAP}
 - Cuando el operador pregunte cómo realizar una tarea o tenga un problema:
   1. Explica brevemente qué herramienta utilizar.
   2. Proporciona la guía paso a paso (1-2-3) bien estructurada y clara.
-  3. Menciona la ruta exacta del Admin donde debe ingresar (ej. /admin/marketing/editor, /admin/growth).
+  3. Menciona la ruta exacta del Admin donde debe ingresar (ej. /admin/marketing/editor, /admin/valen).
   4. Si se trata de un error, brinda el diagnóstico exacto y la solución en 1 paso.
 - Mantén siempre un tono respetuoso, pedagógico, alentador y sumamente claro.
 `;
@@ -120,15 +120,15 @@ Ya he registrado tu perfil de operador individual en mi memoria. A partir de est
       } else if (promptLower.includes("valen") || promptLower.includes("cazar") || promptLower.includes("inmueble") || promptLower.includes("lead")) {
         replyText = `**🕵️ Guía para ${canonicalName} - Agente VALEN (Growth Officer):**
 
-1. Ingresa a **/admin/growth** para ver la consola de prospección.
-2. VALEN escanea automáticamente Facebook Marketplace, Instagram y clasificados en busca de alquileres y comercios locales.
-3. Registra las oportunidades en la tabla *valen_leads* para su seguimiento.`;
+1. Ingresa a **/admin/valen** para ver la consola de prospección y estrategia ejecutiva.
+2. VALEN escanea y organiza oportunidades de negocio, sponsors y métricas del ecosistema.
+3. Registra las oportunidades en la tabla *valen_global_leads* para su seguimiento comercial.`;
       } else {
         replyText = `**¡Hola ${canonicalName}! Soy Nora Instructora Master y Copiloto Técnico.**
 
 Estoy lista para acompañarte paso a paso:
 - **🎨 Estudio Surrealista Faux-CGI:** /admin/marketing/editor
-- **🕵️ Agente VALEN Hunter:** /admin/growth
+- **🕵️ Agente VALEN Executive:** /admin/valen
 - **📰 Fact-Checker de Noticias:** /admin/news
 
 ¿Qué tarea te gustaría realizar ahora mismo, ${canonicalName}?`;

@@ -200,7 +200,7 @@ export default function NoraAdminCopilot() {
             <Link href="/admin/marketing/editor" onClick={() => setIsOpen(false)} className="px-2.5 py-1 bg-purple-900/40 hover:bg-purple-800/60 border border-purple-500/30 rounded-lg flex items-center gap-1 text-purple-300 whitespace-nowrap transition-colors">
               🎨 Estudio Faux-CGI
             </Link>
-            <Link href="/admin/growth" onClick={() => setIsOpen(false)} className="px-2.5 py-1 bg-cyan-900/40 hover:bg-cyan-800/60 border border-cyan-500/30 rounded-lg flex items-center gap-1 text-cyan-300 whitespace-nowrap transition-colors">
+            <Link href="/admin/valen" onClick={() => setIsOpen(false)} className="px-2.5 py-1 bg-cyan-900/40 hover:bg-cyan-800/60 border border-cyan-500/30 rounded-lg flex items-center gap-1 text-cyan-300 whitespace-nowrap transition-colors">
               🕵️ Agente VALEN
             </Link>
             <Link href="/admin/news" onClick={() => setIsOpen(false)} className="px-2.5 py-1 bg-blue-900/40 hover:bg-blue-800/60 border border-blue-500/30 rounded-lg flex items-center gap-1 text-blue-300 whitespace-nowrap transition-colors">
