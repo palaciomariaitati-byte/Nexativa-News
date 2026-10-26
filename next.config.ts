@@ -45,6 +45,16 @@ const nextConfig: NextConfig = {
         destination: '/admin/settings',
         permanent: true,
       },
+      {
+        source: '/inmuebles',
+        destination: '/guia/inmuebles',
+        permanent: true,
+      },
+      {
+        source: '/guia-comercial',
+        destination: '/guia',
+        permanent: true,
+      },
     ];
   },
 };

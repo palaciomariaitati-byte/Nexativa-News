@@ -58,16 +58,16 @@ export default function NoraAgent() {
         contextData={{ mode: "asistencia_amigable", pathname }}
       />
 
-      {/* Solapita Flotante Discreta y Elegante */}
+      {/* Solapita Flotante Discreta y Elegante - Unificada en bottom-6 right-6 */}
       {!isChatOpen && (
-        <div className="fixed bottom-20 left-4 sm:bottom-6 sm:left-6 z-40 flex items-center gap-2.5 group">
+        <div className="fixed bottom-6 right-6 z-40 flex flex-row-reverse items-center gap-3 group">
           
-          {/* Botón Circular con Avatar */}
+          {/* Botón Circular Único con Avatar */}
           <button
             onClick={() => setIsChatOpen(true)}
-            className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full p-0.5 bg-gradient-to-tr from-purple-600 via-indigo-600 to-pink-500 shadow-xl shadow-purple-500/25 hover:scale-105 active:scale-95 transition-all flex items-center justify-center overflow-hidden border-2 border-white/40 cursor-pointer shrink-0"
-            title="¿Necesitás ayuda? Hablá con Nora"
-            aria-label="Abrir asistente Nora"
+            className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full p-0.5 bg-gradient-to-tr from-amber-500 via-purple-600 to-indigo-600 shadow-2xl shadow-purple-950/50 hover:scale-105 active:scale-95 transition-all flex items-center justify-center overflow-hidden border-2 border-white/50 cursor-pointer shrink-0"
+            title="¿Buscás trabajo, alquiler o publicar en Ituzaingó? Hablá con Nora"
+            aria-label="Abrir asistente virtual Nora"
           >
             <img 
               src="/nora-avatar.jpg?v=2" 
@@ -78,22 +78,22 @@ export default function NoraAgent() {
               }} 
             />
             {/* Punto verde de disponible */}
-            <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-500 border-2 border-slate-950 rounded-full"></span>
+            <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-500 border-2 border-slate-950 rounded-full animate-pulse"></span>
           </button>
 
-          {/* Solapa / Píldora de Anuncio Cordial (No Intrusiva) */}
+          {/* Solapa / Píldora de Anuncio Cordial (No Intrusiva, a la izquierda del botón) */}
           {showPill && (
             <div 
               onClick={() => setIsChatOpen(true)}
-              className="hidden sm:flex items-center gap-2.5 bg-slate-950/90 hover:bg-slate-900 border border-purple-500/40 hover:border-purple-400 py-2 px-3.5 rounded-2xl shadow-2xl backdrop-blur-md cursor-pointer transition-all animate-in fade-in slide-in-from-left-4 duration-300 max-w-xs"
+              className="hidden sm:flex items-center gap-2.5 bg-slate-950/95 hover:bg-slate-900 border border-amber-500/30 hover:border-amber-400/50 py-2 px-3.5 rounded-2xl shadow-2xl backdrop-blur-md cursor-pointer transition-all animate-in fade-in slide-in-from-right-4 duration-300 max-w-xs"
             >
               <div className="flex flex-col text-left">
-                <span className="text-[11px] font-black text-purple-300 flex items-center gap-1 leading-tight">
-                  <Sparkles size={11} className="text-pink-400" />
+                <span className="text-[11px] font-black text-amber-400 flex items-center gap-1 leading-tight">
+                  <Sparkles size={11} className="text-amber-400" />
                   <span>Hola, soy Nora 👋</span>
                 </span>
                 <span className="text-xs text-slate-200 font-medium leading-tight mt-0.5">
-                  ¿Buscás algo o necesitás ayuda? Estoy acá si me precisás.
+                  ¿Buscás trabajo, alquileres o noticias? Te ayudo en 1 clic.
                 </span>
               </div>
 

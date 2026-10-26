@@ -443,12 +443,12 @@ export default function SovereignHomeDesign({
               {darkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
               <span className="hidden sm:inline font-mono">{darkMode ? 'LIGHT' : 'DARK'}</span>
             </button>
-            <a
-              href="#membresias"
+            <Link
+              href="/checkout?tier=oro"
               className="font-semibold text-xs tracking-wider px-2.5 py-1 rounded bg-gradient-to-r from-amber-500 to-amber-600 text-black hover:brightness-110 transition shadow-sm"
             >
               CLUB VIP
-            </a>
+            </Link>
           </div>
         </div>
       </header>
@@ -496,9 +496,9 @@ export default function SovereignHomeDesign({
               <Link href="/" className="text-[#e5b242] border-b-2 border-[#e5b242] py-1">
                 Inicio
               </Link>
-              <a href="#noticias-panel" className="text-gray-300 hover:text-white transition-colors py-1">
+              <Link href="/noticias" className="text-gray-300 hover:text-white transition-colors py-1">
                 Noticias
-              </a>
+              </Link>
               <Link
                 href="/empleos"
                 className="text-emerald-400 hover:text-emerald-300 transition-colors py-1 flex items-center gap-1 bg-emerald-950/40 px-2.5 rounded-full border border-emerald-500/30"
@@ -526,13 +526,13 @@ export default function SovereignHomeDesign({
               <Link href="/clasificados" className="text-amber-300 hover:text-amber-200 transition-colors py-1">
                 Clasificados
               </Link>
-              <a href="#deportes" className="text-gray-300 hover:text-white transition-colors py-1">
+              <Link href="/noticias?categoria=Deportes" className="text-gray-300 hover:text-white transition-colors py-1">
                 Deportes
-              </a>
-              <a href="#streaming" className="text-red-400 hover:text-red-300 transition-colors py-1 flex items-center gap-1">
+              </Link>
+              <Link href="/prensa" className="text-red-400 hover:text-red-300 transition-colors py-1 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
                 En Vivo
-              </a>
+              </Link>
             </div>
 
             {/* Actions / Search & Nora */}
@@ -561,7 +561,7 @@ export default function SovereignHomeDesign({
           </div>
         </div>
 
-        {/* Mobile Navigation Drawer */}
+        {/* Mobile Navigation Drawer con rutas reales dinámicas */}
         {mobileMenuOpen && (
           <div
             className={`lg:hidden border-b px-6 py-4 space-y-2.5 ${
@@ -569,18 +569,18 @@ export default function SovereignHomeDesign({
             }`}
           >
             {[
-              { label: 'Portada', href: '/' },
-              { label: 'Prensa & Noticias (Filtros)', href: '#noticias-panel' },
+              { label: 'Portada Principal', href: '/' },
+              { label: '📰 Prensa & Noticias Dinámicas', href: '/noticias' },
               { label: '💼 Portal de Empleos & Oficios', href: '/empleos', highlight: 'text-emerald-400' },
               { label: '🏠 Inmuebles Verificados Ituzaingó', href: '/guia/inmuebles', highlight: 'text-rose-400' },
               { label: '📖 Guía Comercial & Catálogo', href: '/guia', highlight: 'text-cyan-400' },
               { label: '🎨 Espacio Cultural Regional', href: '/cultura' },
               { label: '🏷️ Avisos Clasificados', href: '/clasificados' },
-              { label: '⚽ Central Deportiva & Pálpito', href: '#deportes' },
-              { label: '📺 Transmisión En Vivo', href: '#streaming', highlight: 'text-red-400' },
-              { label: '👑 Planes de Membresía VIP', href: '#membresias', highlight: 'text-amber-400' },
+              { label: '⚽ Central Deportiva', href: '/noticias?categoria=Deportes' },
+              { label: '📺 Transmisión Streaming En Vivo', href: '/prensa', highlight: 'text-red-400' },
+              { label: '👑 Planes de Membresía VIP', href: '/checkout?tier=oro', highlight: 'text-amber-400' },
             ].map((link, i) => (
-              <a
+              <Link
                 key={i}
                 href={link.href}
                 onClick={() => setMobileMenuOpen(false)}
@@ -589,7 +589,7 @@ export default function SovereignHomeDesign({
                 }`}
               >
                 {link.label}
-              </a>
+              </Link>
             ))}
           </div>
         )}
@@ -632,9 +632,12 @@ export default function SovereignHomeDesign({
               }`}
             >
               <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-                <span className="px-2.5 py-1 rounded text-[11px] font-semibold tracking-wider uppercase bg-amber-500/10 text-[#e5b242] border border-[#e5b242]/30">
+                <Link
+                  href={`/noticias?categoria=${encodeURIComponent(realMain?.category || 'General')}`}
+                  className="px-2.5 py-1 rounded text-[11px] font-semibold tracking-wider uppercase bg-amber-500/10 text-[#e5b242] border border-[#e5b242]/30 hover:bg-amber-500/20 transition cursor-pointer"
+                >
                   {mainArticle.badge}
-                </span>
+                </Link>
                 <div className="flex items-center gap-3 text-xs text-gray-400">
                   <span className="flex items-center gap-1">
                     <Clock className="w-3.5 h-3.5" /> {mainArticle.readTime}
@@ -715,16 +718,21 @@ export default function SovereignHomeDesign({
                   }`}
                 >
                   <div>
-                    <Link href={sec.href} className="block relative h-32 rounded-lg overflow-hidden mb-3 group">
-                      <img
-                        src={sec.imageUrl}
-                        alt={sec.title}
-                        className="w-full h-full object-cover group-hover:scale-110 transition duration-500"
-                      />
-                      <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded bg-black/70 text-amber-400 uppercase tracking-wider backdrop-blur-sm">
+                    <div className="relative h-32 rounded-lg overflow-hidden mb-3 group">
+                      <Link href={sec.href} className="block w-full h-full">
+                        <img
+                          src={sec.imageUrl}
+                          alt={sec.title}
+                          className="w-full h-full object-cover group-hover:scale-110 transition duration-500"
+                        />
+                      </Link>
+                      <Link
+                        href={`/noticias?categoria=${encodeURIComponent(sec.category)}`}
+                        className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded bg-black/80 hover:bg-amber-500 hover:text-black text-amber-400 uppercase tracking-wider backdrop-blur-sm transition z-10"
+                      >
                         {sec.category}
-                      </span>
-                    </Link>
+                      </Link>
+                    </div>
                     <h3 className="font-serif font-bold text-sm leading-snug mb-2 line-clamp-2">
                       <Link href={sec.href} className="hover:text-[#e5b242] transition-colors">
                         {sec.title}
@@ -1067,7 +1075,7 @@ export default function SovereignHomeDesign({
                     darkMode ? 'bg-[#0b1016] border-[#1e2633]' : 'bg-slate-50 border-slate-200'
                   }`}
                 >
-                  <div className="relative h-44 overflow-hidden">
+                  <Link href="/guia/inmuebles" className="block relative h-44 overflow-hidden">
                     <img
                       src={prop.imageUrl}
                       alt={prop.title}
@@ -1079,11 +1087,15 @@ export default function SovereignHomeDesign({
                     <div className="absolute top-2 right-2 px-2 py-0.5 rounded bg-black/80 text-amber-400 text-[10px] font-bold backdrop-blur-sm">
                       ★ {prop.rating}
                     </div>
-                  </div>
+                  </Link>
                   <div className="p-4 space-y-3">
                     <div>
                       <p className="text-[11px] font-mono uppercase text-gray-400">{prop.location}</p>
-                      <h4 className="font-serif font-bold text-sm leading-snug line-clamp-2 mt-0.5">{prop.title}</h4>
+                      <h4 className="font-serif font-bold text-sm leading-snug line-clamp-2 mt-0.5">
+                        <Link href="/guia/inmuebles" className="hover:text-amber-400 transition-colors">
+                          {prop.title}
+                        </Link>
+                      </h4>
                     </div>
                     <div className="flex items-center gap-3 text-[11px] text-gray-400 pt-1 border-t border-gray-800/40">
                       <span>{prop.bedrooms} Dorm.</span>
@@ -1154,7 +1166,14 @@ export default function SovereignHomeDesign({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {combinedProviders.map((prov) => (
+            {(activeCategory === 'Todos'
+              ? combinedProviders
+              : combinedProviders.filter(
+                  (p) =>
+                    p.category.toLowerCase().includes(activeCategory.toLowerCase()) ||
+                    p.name.toLowerCase().includes(activeCategory.toLowerCase())
+                )
+            ).map((prov) => (
               <div
                 key={prov.id}
                 className={`rounded-xl border p-5 flex flex-col justify-between transition hover:-translate-y-1 ${
@@ -1168,7 +1187,15 @@ export default function SovereignHomeDesign({
                     </span>
                     {prov.verified && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
                   </div>
-                  <h4 className="font-serif font-bold text-base mb-2 leading-snug">{prov.name}</h4>
+                  <h4 className="font-serif font-bold text-base mb-2 leading-snug">
+                    <Link
+                      href={prov.phone ? `https://wa.me/${prov.phone}` : '/guia'}
+                      target={prov.phone ? '_blank' : '_self'}
+                      className="hover:text-amber-400 transition-colors"
+                    >
+                      {prov.name}
+                    </Link>
+                  </h4>
                   <p className="text-xs text-gray-400 leading-relaxed mb-4">{prov.description}</p>
                 </div>
                 <div className="pt-3 border-t border-gray-800 flex items-center justify-between">
@@ -1177,7 +1204,7 @@ export default function SovereignHomeDesign({
                     href={prov.phone ? `https://wa.me/${prov.phone}` : '/guia'}
                     target={prov.phone ? '_blank' : '_self'}
                     className="p-1.5 rounded bg-[#161f2c] hover:bg-amber-500 hover:text-black transition"
-                    title="Contactar"
+                    title="Contactar por WhatsApp"
                   >
                     <Phone className="w-3.5 h-3.5" />
                   </Link>
@@ -1337,32 +1364,6 @@ export default function SovereignHomeDesign({
         </section>
       </main>
 
-      {/* ====================================================
-          FLOATING NORA AI ASSISTANT CHAT TRIGGER
-         ==================================================== */}
-      <aside
-        aria-label="Asistente Virtual Nora"
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-[#111823] border border-amber-500/40 p-2.5 pr-4 rounded-full shadow-2xl backdrop-blur-md"
-      >
-        <button
-          onClick={handleOpenNora}
-          className="w-10 h-10 rounded-full bg-gradient-to-tr from-amber-600 to-amber-400 flex items-center justify-center text-black font-black text-sm shadow cursor-pointer hover:scale-105 transition-transform"
-        >
-          N
-        </button>
-        <div className="text-left hidden sm:block">
-          <p className="text-xs font-bold text-white flex items-center gap-1">
-            Nora Asistente <Sparkles className="w-3 h-3 text-amber-400" />
-          </p>
-          <p className="text-[10px] text-gray-400">¿Buscás trabajo, alquiler o publicar en Ituzaingó?</p>
-        </div>
-        <button
-          onClick={handleOpenNora}
-          className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold rounded-full transition ml-1 cursor-pointer"
-        >
-          Consultar
-        </button>
-      </aside>
 
       {/* ====================================================
           FOOTER INSTITUCIONAL
