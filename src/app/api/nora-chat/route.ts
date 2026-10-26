@@ -154,12 +154,18 @@ export async function POST(req: Request) {
         { role: 'user' as const, content: message || 'Hola Nora' },
       ];
 
-      const groqRes = await executeGroqChat(groqMessages, {
+      const groqExecutionPromise = executeGroqChat(groqMessages, {
         model: 'llama-3.3-70b-versatile',
         temperature: isComplaintOrReasoning ? 0.2 : 0.4,
-        maxTokens: 2000,
+        maxTokens: 1200,
         responseFormat: { type: 'json_object' },
       });
+
+      const internalTimeout = new Promise<{ text: string; model: string } | null>((resolve) =>
+        setTimeout(() => resolve(null), 12000)
+      );
+
+      const groqRes = await Promise.race([groqExecutionPromise, internalTimeout]);
 
       if (groqRes && groqRes.text) {
         try {
