@@ -29,9 +29,13 @@ import {
   ShoppingBag,
   Building,
   FileText,
-  UserCheck
+  UserCheck,
+  ChevronDown,
+  ChevronUp,
+  Layers
 } from 'lucide-react';
 import type { Article, Sponsor, Product } from '@/lib/types';
+import type { VerifiedProperty } from '@/lib/supabase/serverQueries';
 import NewsTabs from '@/components/NewsTabs/NewsTabs';
 import SponsorsMarquee from '@/components/SponsorsMarquee';
 import VideoSection from '@/components/VideoSection';
@@ -277,6 +281,8 @@ interface SovereignHomeDesignProps {
   sponsors?: Sponsor[];
   newsFlashes?: Array<{ id: string; title: string; content?: string; created_at?: string }>;
   products?: Product[];
+  properties?: VerifiedProperty[];
+  stores?: any[];
 }
 
 export default function SovereignHomeDesign({
@@ -284,9 +290,12 @@ export default function SovereignHomeDesign({
   sponsors = [],
   newsFlashes = [],
   products = [],
+  properties = [],
+  stores = [],
 }: SovereignHomeDesignProps) {
   const [darkMode, setDarkMode] = useState<boolean>(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
+  const [mobileSportsOpen, setMobileSportsOpen] = useState<boolean>(false);
   const [palpitoBoca, setPalpitoBoca] = useState<number>(2);
   const [palpitoRiver, setPalpitoRiver] = useState<number>(1);
   const [commentInput, setCommentInput] = useState<string>('');
@@ -379,19 +388,243 @@ export default function SovereignHomeDesign({
     ? `${latestFlash.title} — ${latestFlash.content || ''}`
     : 'Ituzaingó Norte licita nuevo polo biotecnológico sobre Autopista del Oeste con inversión privada garantizada.';
 
-  // 4. Resolve Providers (combine sponsors with preset providers)
+  // 4. Resolve Verified Real Estate Properties (From Supabase or Fallback to Sovereign Mock)
+  const resolvedProperties: PropertyListing[] = (properties && properties.length > 0)
+    ? properties.map((p) => ({
+        id: p.id,
+        title: p.title,
+        location: p.location || 'Ituzaingó, Corrientes',
+        pricePerNightUSD: p.pricePerNightUSD || 85,
+        rating: p.rating || 4.95,
+        reviewsCount: p.reviewsCount || 18,
+        bedrooms: p.bedrooms || 2,
+        bathrooms: p.bathrooms || 1,
+        capacity: p.capacity || 4,
+        isVerified: p.isVerified ?? true,
+        imageUrl: p.imageUrl || 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=800&q=80',
+      }))
+    : MOCK_PROPERTIES;
+
+  // 5. Resolve Commercial Providers (Stores + Sponsors with Sovereign Fallback)
+  const realStoresProviders = (stores && stores.length > 0)
+    ? stores.map((st: any) => ({
+        id: String(st.id),
+        category: (st.category || 'COMERCIO HABILITADO').toUpperCase(),
+        name: st.name || 'Comercio Registrado',
+        description: st.description || st.slogan || 'Comercio formal verificado en la Guía Comercial de Ituzaingó.',
+        contactText: 'Ver en Guía',
+        verified: true,
+        phone: st.whatsapp || st.phone || undefined,
+      }))
+    : [];
+
+  const realSponsorsProviders = sponsors.map((sp) => ({
+    id: sp.id,
+    category: (sp.category || 'COMERCIO DESTACADO').toUpperCase(),
+    name: sp.name,
+    description: sp.slogan || 'Comercio auspiciante oficial de Nexativa News en el corredor del Litoral.',
+    contactText: 'Contactar Comercio',
+    verified: true,
+    phone: sp.whatsapp || undefined,
+  }));
+
+  const allRealProviders = [...realStoresProviders, ...realSponsorsProviders];
   const combinedProviders: CommercialProvider[] =
-    sponsors.length > 0
-      ? sponsors.slice(0, 4).map((sp) => ({
-          id: sp.id,
-          category: (sp.category || 'COMERCIO DESTACADO').toUpperCase(),
-          name: sp.name,
-          description: sp.slogan || 'Comercio auspiciante oficial de Nexativa News en el corredor del Litoral.',
-          contactText: 'Contactar Comercio',
-          verified: true,
-          phone: sp.whatsapp || undefined,
-        }))
-      : MOCK_PROVIDERS;
+    allRealProviders.length > 0 ? allRealProviders.slice(0, 8) : MOCK_PROVIDERS;
+
+  const renderSportsContent = () => (
+    <div className="space-y-6">
+      {/* Live Sports Card */}
+      <div
+        className={`rounded-2xl border p-6 ${
+          darkMode ? 'bg-[#0f141b] border-[#1e2633]' : 'bg-white border-slate-200 shadow-sm'
+        }`}
+      >
+        <div className="flex items-center justify-between pb-3 border-b border-gray-800">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+            <h3 className="font-bold text-sm tracking-wide uppercase">Central de Resultados</h3>
+          </div>
+          <span className="text-[11px] text-amber-500 font-mono font-semibold">EN VIVO</span>
+        </div>
+
+        {/* Match list */}
+        <div className="divide-y divide-gray-800/60 mt-3">
+          {MOCK_SPORTS.map((match) => (
+            <div key={match.id} className="py-3.5 space-y-1.5">
+              <div className="flex items-center justify-between text-[11px] text-gray-400 font-medium">
+                <span>{match.league}</span>
+                <span
+                  className={`font-mono px-1.5 py-0.5 rounded text-[10px] ${
+                    match.status === 'LIVE'
+                      ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800'
+                      : 'bg-gray-800 text-gray-300'
+                  }`}
+                >
+                  {match.timeInfo}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm font-semibold">
+                <div className="flex flex-col">
+                  <span>{match.homeTeam}</span>
+                  <span>{match.awayTeam}</span>
+                </div>
+                <div className="font-mono text-base font-bold bg-[#131923] px-2.5 py-1 rounded border border-gray-800 flex flex-col items-center">
+                  <span className="text-amber-400">{match.homeScore}</span>
+                  <span className="text-gray-400">{match.awayScore}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Pálpito de la Fecha Interactive Widget */}
+      <div
+        className={`rounded-2xl border p-6 ${
+          darkMode ? 'bg-[#0f141b] border-[#1e2633]' : 'bg-white border-slate-200 shadow-sm'
+        }`}
+      >
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-bold text-amber-500 uppercase tracking-wider">Pálpito de la Fecha</span>
+          <span className="text-[11px] text-gray-400">1.842 votos</span>
+        </div>
+        <h4 className="text-sm font-semibold mb-4">Pronosticá el Superclásico con la peña</h4>
+
+        <div className="flex items-center justify-around bg-[#131923] p-4 rounded-xl border border-gray-800 mb-4">
+          <div className="flex flex-col items-center">
+            <span className="text-xs font-bold text-blue-400 mb-1">Boca Juniors</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPalpitoBoca(Math.max(0, palpitoBoca - 1))}
+                className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-white font-bold flex items-center justify-center text-sm cursor-pointer"
+              >
+                -
+              </button>
+              <span className="font-mono text-xl font-bold text-amber-400 w-6 text-center">{palpitoBoca}</span>
+              <button
+                onClick={() => setPalpitoBoca(palpitoBoca + 1)}
+                className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-white font-bold flex items-center justify-center text-sm cursor-pointer"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          <span className="text-gray-500 font-bold text-xs uppercase">VS</span>
+
+          <div className="flex flex-col items-center">
+            <span className="text-xs font-bold text-rose-400 mb-1">River Plate</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPalpitoRiver(Math.max(0, palpitoRiver - 1))}
+                className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-white font-bold flex items-center justify-center text-sm cursor-pointer"
+              >
+                -
+              </button>
+              <span className="font-mono text-xl font-bold text-amber-400 w-6 text-center">{palpitoRiver}</span>
+              <button
+                onClick={() => setPalpitoRiver(palpitoRiver + 1)}
+                className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-white font-bold flex items-center justify-center text-sm cursor-pointer"
+              >
+                +
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <button
+          onClick={() => {
+            setPalpitoSent(true);
+            setTimeout(() => setPalpitoSent(false), 3000);
+          }}
+          disabled={palpitoSent}
+          className={`w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-2 ${
+            palpitoSent
+              ? 'bg-emerald-600 text-white'
+              : 'bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20'
+          }`}
+        >
+          {palpitoSent ? (
+            <>
+              <CheckCircle2 className="w-4 h-4" /> ¡Pálpito Registrado!
+            </>
+          ) : (
+            'Enviar Pronóstico'
+          )}
+        </button>
+      </div>
+
+      {/* Community Debate Live Card */}
+      <div
+        className={`rounded-2xl border p-6 ${
+          darkMode ? 'bg-[#0f141b] border-[#1e2633]' : 'bg-white border-slate-200 shadow-sm'
+        }`}
+      >
+        <div className="flex items-center justify-between pb-3 border-b border-gray-800">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="w-4 h-4 text-cyan-400" />
+            <h3 className="font-bold text-sm tracking-wide uppercase">Debate Comunitario</h3>
+          </div>
+          <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800">
+            MODERADO
+          </span>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          <div className="bg-[#121822] p-3 rounded-xl border border-gray-800/80 text-xs space-y-1">
+            <div className="flex items-center justify-between text-[10px] text-gray-400 font-mono">
+              <span className="font-bold text-amber-400">@mariano_ituzaingo</span>
+              <span>Hace 12 min</span>
+            </div>
+            <p className="text-gray-300 leading-relaxed">
+              &quot;Excelente el nuevo muelle sobre el Paraná, era una obra que la ciudad necesitaba hace 15 años.&quot;
+            </p>
+          </div>
+
+          <div className="bg-[#121822] p-3 rounded-xl border border-gray-800/80 text-xs space-y-1">
+            <div className="flex items-center justify-between text-[10px] text-gray-400 font-mono">
+              <span className="font-bold text-amber-400">@laura_posadas</span>
+              <span>Hace 34 min</span>
+            </div>
+            <p className="text-gray-300 leading-relaxed">
+              &quot;¿Cuándo abren las inscripciones para el corredor gastronómico del verano?&quot;
+            </p>
+          </div>
+        </div>
+
+        {/* Input */}
+        <div className="flex items-center gap-2 pt-4">
+          <input
+            type="text"
+            value={commentInput}
+            onChange={(e) => setCommentInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && commentInput.trim()) {
+                alert('¡Comentario enviado a moderación de la peña!');
+                setCommentInput('');
+              }
+            }}
+            placeholder="Dejá tu opinión futbolera..."
+            className={`flex-1 rounded-lg px-3 py-2 text-xs focus:outline-none border ${
+              darkMode ? 'bg-[#121822] border-gray-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+            }`}
+          />
+          <button
+            onClick={() => {
+              if (commentInput.trim()) {
+                alert('¡Comentario enviado a moderación de la peña!');
+                setCommentInput('');
+              }
+            }}
+            className="p-2 rounded-lg bg-amber-500 text-black hover:brightness-110 transition cursor-pointer"
+          >
+            <Send className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div
@@ -618,8 +851,56 @@ export default function SovereignHomeDesign({
         </div>
       )}
 
+      {/* 5. SOVEREIGN MOBILE ACTION PILLS (STICKY JUMP BAR) */}
+      <div className="lg:hidden sticky top-0 z-30 bg-[#0a0e14]/95 backdrop-blur-md border-b border-gray-800/80 py-2 px-3 overflow-x-auto no-scrollbar flex items-center gap-2 shadow-lg">
+        <Link
+          href="#noticias-panel"
+          className="shrink-0 px-3 py-1.5 rounded-full bg-slate-900 border border-gray-700 text-[11px] font-bold text-slate-200 active:scale-95 transition"
+        >
+          📰 Prensa
+        </Link>
+        <Link
+          href="#streaming"
+          className="shrink-0 px-3 py-1.5 rounded-full bg-red-950/60 border border-red-500/40 text-[11px] font-bold text-red-300 flex items-center gap-1.5 active:scale-95 transition"
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> En Vivo
+        </Link>
+        <Link
+          href="#empleos"
+          className="shrink-0 px-3 py-1.5 rounded-full bg-emerald-950/60 border border-emerald-500/40 text-[11px] font-bold text-emerald-300 active:scale-95 transition"
+        >
+          💼 Empleos
+        </Link>
+        <Link
+          href="#inmuebles"
+          className="shrink-0 px-3 py-1.5 rounded-full bg-rose-950/60 border border-rose-500/40 text-[11px] font-bold text-rose-300 active:scale-95 transition"
+        >
+          🏠 Inmuebles
+        </Link>
+        <Link
+          href="#guia"
+          className="shrink-0 px-3 py-1.5 rounded-full bg-cyan-950/60 border border-cyan-500/40 text-[11px] font-bold text-cyan-300 active:scale-95 transition"
+        >
+          📖 Guía
+        </Link>
+        {products.length > 0 && (
+          <Link
+            href="#tienda"
+            className="shrink-0 px-3 py-1.5 rounded-full bg-amber-950/60 border border-amber-500/40 text-[11px] font-bold text-amber-300 active:scale-95 transition"
+          >
+            🛍️ Tienda
+          </Link>
+        )}
+        <Link
+          href="#membresias"
+          className="shrink-0 px-3 py-1.5 rounded-full bg-yellow-950/60 border border-yellow-500/40 text-[11px] font-bold text-yellow-300 active:scale-95 transition"
+        >
+          👑 Club VIP
+        </Link>
+      </div>
+
       {/* MAIN CONTAINER */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-16">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-12 sm:space-y-16">
         {/* ====================================================
             SECTION 1: HERO EDITORIAL (8 COLS) + SPORTS SIDEBAR (4 COLS)
            ==================================================== */}
@@ -752,174 +1033,41 @@ export default function SovereignHomeDesign({
           </div>
 
           {/* RIGHT 4 COLUMNS: CENTRAL DE RESULTADOS & COMMUNITY */}
-          <aside className="lg:col-span-4 space-y-6" id="deportes">
-            {/* Live Sports Card */}
-            <div
-              className={`rounded-2xl border p-6 ${
-                darkMode ? 'bg-[#0f141b] border-[#1e2633]' : 'bg-white border-slate-200 shadow-sm'
-              }`}
-            >
-              <div className="flex items-center justify-between pb-3 border-b border-gray-800">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-                  <h3 className="font-bold text-sm tracking-wide uppercase">Central de Resultados</h3>
-                </div>
-                <span className="text-[11px] text-amber-500 font-mono font-semibold">EN VIVO</span>
-              </div>
-
-              {/* Match list */}
-              <div className="divide-y divide-gray-800/60 mt-3">
-                {MOCK_SPORTS.map((match) => (
-                  <div key={match.id} className="py-3.5 space-y-1.5">
-                    <div className="flex items-center justify-between text-[11px] text-gray-400 font-medium">
-                      <span>{match.league}</span>
-                      <span
-                        className={`font-mono px-1.5 py-0.5 rounded text-[10px] ${
-                          match.status === 'LIVE'
-                            ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800'
-                            : 'bg-gray-800 text-gray-300'
-                        }`}
-                      >
-                        {match.timeInfo}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm font-semibold">
-                      <div className="flex flex-col">
-                        <span>{match.homeTeam}</span>
-                        <span>{match.awayTeam}</span>
-                      </div>
-                      <div className="font-mono text-base font-bold bg-[#131923] px-2.5 py-1 rounded border border-gray-800 flex flex-col items-center">
-                        <span className="text-amber-400">{match.homeScore}</span>
-                        <span className="text-gray-400">{match.awayScore}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Pálpito de la Fecha Interactive Widget */}
-            <div
-              className={`rounded-2xl border p-6 ${
-                darkMode ? 'bg-[#0f141b] border-[#1e2633]' : 'bg-white border-slate-200 shadow-sm'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-amber-500 uppercase tracking-wider">Pálpito de la Fecha</span>
-                <span className="text-[11px] text-gray-400">1.842 votos</span>
-              </div>
-              <h4 className="text-sm font-semibold mb-4">Pronosticá el Superclásico con la peña</h4>
-
-              <div className="flex items-center justify-around bg-[#131923] p-4 rounded-xl border border-gray-800 mb-4">
-                {/* Boca selector */}
-                <div className="flex flex-col items-center">
-                  <span className="text-xs font-bold text-blue-400 mb-1">Boca Juniors</span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setPalpitoBoca(Math.max(0, palpitoBoca - 1))}
-                      className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-white font-bold flex items-center justify-center text-sm cursor-pointer"
-                    >
-                      -
-                    </button>
-                    <span className="font-mono text-xl font-bold text-amber-400 w-6 text-center">{palpitoBoca}</span>
-                    <button
-                      onClick={() => setPalpitoBoca(palpitoBoca + 1)}
-                      className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-white font-bold flex items-center justify-center text-sm cursor-pointer"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-
-                <span className="text-gray-500 font-bold text-xs uppercase">VS</span>
-
-                {/* River selector */}
-                <div className="flex flex-col items-center">
-                  <span className="text-xs font-bold text-rose-400 mb-1">River Plate</span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setPalpitoRiver(Math.max(0, palpitoRiver - 1))}
-                      className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-white font-bold flex items-center justify-center text-sm cursor-pointer"
-                    >
-                      -
-                    </button>
-                    <span className="font-mono text-xl font-bold text-amber-400 w-6 text-center">{palpitoRiver}</span>
-                    <button
-                      onClick={() => setPalpitoRiver(palpitoRiver + 1)}
-                      className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-white font-bold flex items-center justify-center text-sm cursor-pointer"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              </div>
-
+          <aside className="lg:col-span-4" id="deportes">
+            {/* MOBILE COMPACT ACCORDION */}
+            <div className="lg:hidden rounded-2xl border border-gray-800 bg-[#0f141b] p-4 shadow-xl mb-4">
               <button
-                onClick={() => {
-                  setPalpitoSent(true);
-                  setTimeout(() => setPalpitoSent(false), 3000);
-                }}
-                className="w-full py-2.5 rounded-lg font-bold text-xs uppercase tracking-wider bg-gradient-to-r from-amber-500 to-amber-600 text-black hover:brightness-110 transition flex items-center justify-center gap-1.5 shadow cursor-pointer"
+                onClick={() => setMobileSportsOpen(!mobileSportsOpen)}
+                className="w-full flex items-center justify-between text-left cursor-pointer"
+                aria-expanded={mobileSportsOpen}
               >
-                <Share2 className="w-3.5 h-3.5" />
-                {palpitoSent ? '¡Pálpito Registrado! 🏆' : 'Compartir Pálpito Oficial'}
+                <div className="flex items-center gap-3">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block">
+                      CENTRAL DEPORTIVA & COMUNIDAD
+                    </span>
+                    <span className="text-xs sm:text-sm font-semibold text-white">
+                      Resultados En Vivo • Pálpito de la Fecha
+                    </span>
+                  </div>
+                </div>
+                <span className="text-xs font-bold text-amber-400 px-2.5 py-1 rounded bg-amber-500/10 border border-amber-500/30 flex items-center gap-1 shrink-0">
+                  {mobileSportsOpen ? 'Cerrar' : 'Ver Fixture'}{' '}
+                  {mobileSportsOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </span>
               </button>
+
+              {mobileSportsOpen && (
+                <div className="mt-4 pt-4 border-t border-gray-800/80">
+                  {renderSportsContent()}
+                </div>
+              )}
             </div>
 
-            {/* Debate Futbolero Micro-Feed */}
-            <div
-              className={`rounded-2xl border p-5 space-y-3 ${
-                darkMode ? 'bg-[#0f141b] border-[#1e2633]' : 'bg-white border-slate-200 shadow-sm'
-              }`}
-            >
-              <div className="flex items-center justify-between text-xs font-semibold text-gray-400">
-                <span className="flex items-center gap-1.5">
-                  <MessageSquare className="w-3.5 h-3.5 text-amber-400" /> DEBATE FUTBOLERO
-                </span>
-                <span className="text-emerald-400">• 184 opinando</span>
-              </div>
-
-              <div className="space-y-2 text-xs">
-                <div className="bg-[#121822] p-2.5 rounded-lg border border-gray-800/60">
-                  <div className="flex items-center justify-between text-[11px] text-gray-400 mb-1">
-                    <span className="font-bold text-amber-400">@GolazoLitoral</span>
-                    <span>hace 4m</span>
-                  </div>
-                  <p className="text-gray-300">
-                    El segundo tiempo fue pura táctica y sangre en el medio campo. Ganó con oficio de clásico.
-                  </p>
-                </div>
-              </div>
-
-              {/* Input */}
-              <div className="flex items-center gap-2 pt-2">
-                <input
-                  type="text"
-                  value={commentInput}
-                  onChange={(e) => setCommentInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && commentInput.trim()) {
-                      alert('¡Comentario enviado a moderación de la peña!');
-                      setCommentInput('');
-                    }
-                  }}
-                  placeholder="Dejá tu opinión futbolera..."
-                  className={`flex-1 rounded-lg px-3 py-2 text-xs focus:outline-none border ${
-                    darkMode ? 'bg-[#121822] border-gray-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
-                  }`}
-                />
-                <button
-                  onClick={() => {
-                    if (commentInput.trim()) {
-                      alert('¡Comentario enviado a moderación de la peña!');
-                      setCommentInput('');
-                    }
-                  }}
-                  className="p-2 rounded-lg bg-amber-500 text-black hover:brightness-110 transition cursor-pointer"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                </button>
-              </div>
+            {/* DESKTOP FULL SIDEBAR */}
+            <div className="hidden lg:block space-y-6">
+              {renderSportsContent()}
             </div>
           </aside>
         </section>
@@ -1097,12 +1245,12 @@ export default function SovereignHomeDesign({
               </Link>
             </div>
 
-            {/* 4 Cards Showcase */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {MOCK_PROPERTIES.map((prop) => (
+            {/* Responsive Showcase: Mobile Swipe Carousel / Desktop Grid */}
+            <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-4 no-scrollbar -mx-2 px-2 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-6">
+              {resolvedProperties.map((prop) => (
                 <div
                   key={prop.id}
-                  className={`rounded-xl border overflow-hidden transition group hover:-translate-y-1 ${
+                  className={`w-[84vw] max-w-[320px] shrink-0 snap-center sm:w-auto sm:max-w-none rounded-xl border overflow-hidden transition group hover:-translate-y-1 ${
                     darkMode ? 'bg-[#0b1016] border-[#1e2633]' : 'bg-slate-50 border-slate-200'
                   }`}
                 >
@@ -1152,6 +1300,14 @@ export default function SovereignHomeDesign({
                 </div>
               ))}
             </div>
+
+            {/* Mobile swipe helper text */}
+            <div className="sm:hidden flex items-center justify-between text-[11px] text-gray-400 pt-2 px-1">
+              <span>← Deslizá para ver más alojamientos</span>
+              <Link href="/guia/inmuebles" className="text-amber-400 font-bold hover:underline">
+                Ver todos &rarr;
+              </Link>
+            </div>
           </div>
         </section>
 
@@ -1196,7 +1352,8 @@ export default function SovereignHomeDesign({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Responsive Showcase: Mobile Swipe Carousel / Desktop Grid */}
+          <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-4 no-scrollbar -mx-2 px-2 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-6">
             {(activeCategory === 'Todos'
               ? combinedProviders
               : combinedProviders.filter(
@@ -1207,7 +1364,7 @@ export default function SovereignHomeDesign({
             ).map((prov) => (
               <div
                 key={prov.id}
-                className={`rounded-xl border p-5 flex flex-col justify-between transition hover:-translate-y-1 ${
+                className={`w-[78vw] max-w-[290px] shrink-0 snap-center sm:w-auto sm:max-w-none rounded-xl border p-5 flex flex-col justify-between transition hover:-translate-y-1 ${
                   darkMode ? 'bg-[#0f141b] border-[#1e2633]' : 'bg-white border-slate-200 shadow-sm'
                 }`}
               >
@@ -1244,6 +1401,14 @@ export default function SovereignHomeDesign({
             ))}
           </div>
 
+          {/* Mobile swipe helper */}
+          <div className="sm:hidden flex items-center justify-between text-[11px] text-gray-400 px-1">
+            <span>← Deslizá para descubrir más comercios</span>
+            <Link href="/guia" className="text-cyan-400 font-bold hover:underline">
+              Ver Guía ({combinedProviders.length}) &rarr;
+            </Link>
+          </div>
+
           <div className="flex justify-center pt-2">
             <Link
               href="/guia/registro"
@@ -1251,24 +1416,6 @@ export default function SovereignHomeDesign({
             >
               ➕ ¿Tenés un comercio o servicio? Sumate a la Guía Oficial
             </Link>
-          </div>
-        </section>
-
-        {/* ====================================================
-            SECTION 6: TRANSMISIÓN STREAMING EN VIVO
-           ==================================================== */}
-        <section id="streaming" className="space-y-4 pt-4 border-t border-gray-800/60">
-          <div className="flex items-center justify-between">
-            <h3 className="text-white text-xl sm:text-2xl font-bold flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-red-600 animate-pulse"></span>
-              <span>Transmisión & Streaming En Vivo</span>
-            </h3>
-            <span className="text-xs font-mono text-red-400 font-bold bg-red-950/40 px-2.5 py-1 rounded-full border border-red-500/30">
-              SEÑAL DIRECTA
-            </span>
-          </div>
-          <div className="w-full max-w-4xl mx-auto rounded-2xl shadow-2xl border border-white/10 overflow-hidden bg-black/80">
-            <VideoSection />
           </div>
         </section>
 
@@ -1291,11 +1438,11 @@ export default function SovereignHomeDesign({
                 Ver Tienda Completa &rarr;
               </Link>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {products.slice(0, 4).map((p) => (
+            <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-4 no-scrollbar -mx-2 px-2 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 sm:gap-4">
+              {products.slice(0, 8).map((p) => (
                 <div
                   key={p.id}
-                  className="rounded-xl border border-white/10 bg-[#0f141b] p-3 flex flex-col justify-between hover:border-amber-500/40 transition"
+                  className="w-[68vw] max-w-[250px] shrink-0 snap-center sm:w-auto sm:max-w-none rounded-xl border border-white/10 bg-[#0f141b] p-3 flex flex-col justify-between hover:border-amber-500/40 transition"
                 >
                   {p.image_url && (
                     <div className="h-32 rounded-lg overflow-hidden mb-2">
@@ -1315,6 +1462,14 @@ export default function SovereignHomeDesign({
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* Mobile swipe helper text */}
+            <div className="sm:hidden flex items-center justify-between text-[11px] text-gray-400 px-1">
+              <span>← Deslizá para ver más productos</span>
+              <Link href="/store" className="text-amber-400 font-bold hover:underline">
+                Ir a la Tienda &rarr;
+              </Link>
             </div>
           </section>
         )}
@@ -1339,11 +1494,11 @@ export default function SovereignHomeDesign({
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
+          <div className="flex overflow-x-auto snap-x snap-mandatory gap-6 pb-6 no-scrollbar -mx-2 px-2 md:mx-0 md:px-0 md:grid md:grid-cols-3 md:gap-8 items-stretch">
             {MOCK_PLANS.map((plan) => (
               <div
                 key={plan.id}
-                className={`rounded-2xl border p-8 flex flex-col justify-between relative transition duration-300 ${
+                className={`w-[85vw] max-w-[320px] shrink-0 snap-center md:w-auto md:max-w-none rounded-2xl border p-6 sm:p-8 flex flex-col justify-between relative transition duration-300 ${
                   plan.highlighted
                     ? 'border-[#e5b242] bg-gradient-to-b from-[#18212e] to-[#0f141b] shadow-xl md:-translate-y-3'
                     : darkMode
@@ -1391,6 +1546,10 @@ export default function SovereignHomeDesign({
                 </button>
               </div>
             ))}
+          </div>
+
+          <div className="md:hidden text-center text-[11px] text-gray-400">
+            ← Deslizá horizontalmente para comparar planes de membresía →
           </div>
         </section>
       </main>

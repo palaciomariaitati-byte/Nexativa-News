@@ -6,17 +6,21 @@ import {
   getPublishedArticles,
   getProducts,
   getSponsors,
-  getLatestNewsFlashes
+  getLatestNewsFlashes,
+  getVerifiedProperties,
+  getStores,
 } from "@/lib/supabase/serverQueries";
 import SovereignHomeDesign from "@/components/Home/SovereignHomeDesign";
 
 export default async function HomePage() {
   // Fetch real data in parallel on the server
-  const [initialArticles, products, sponsors, newsFlashes] = await Promise.all([
+  const [initialArticles, products, sponsors, newsFlashes, properties, stores] = await Promise.all([
     getPublishedArticles("nacional"),
     getProducts(),
     getSponsors(),
     getLatestNewsFlashes(5),
+    getVerifiedProperties(8),
+    getStores(),
   ]);
 
   return (
@@ -25,6 +29,8 @@ export default async function HomePage() {
       sponsors={sponsors}
       newsFlashes={newsFlashes}
       products={products}
+      properties={properties}
+      stores={stores}
     />
   );
 }

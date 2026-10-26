@@ -170,6 +170,75 @@ export interface MarketingCampaign {
   created_at?: string;
 }
 
+export interface VerifiedProperty {
+  id: string;
+  title: string;
+  location?: string;
+  pricePerNightUSD?: number;
+  rating?: number;
+  reviewsCount?: number;
+  bedrooms?: number;
+  bathrooms?: number;
+  capacity?: number;
+  isVerified?: boolean;
+  imageUrl?: string;
+  propertyType?: string;
+}
+
+export async function getVerifiedProperties(limit = 8): Promise<VerifiedProperty[]> {
+  try {
+    const supabase = createServerSupabaseClient();
+    const { data, error } = await supabase
+      .from("properties_for_rent")
+      .select("*")
+      .not("status", "in", '("BAN_PERMANENT","SUSPENDED_NEGLIGENT")')
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      if (error.code === "42P01") return [];
+      console.warn("Notice fetching properties_for_rent:", error.message);
+      return [];
+    }
+
+    return (data || []).map((p: any) => {
+      let img = p.image_url;
+      if (!img && Array.isArray(p.gallery_images) && p.gallery_images.length > 0) {
+        img = typeof p.gallery_images[0] === "string" ? p.gallery_images[0] : p.gallery_images[0]?.url;
+      }
+      if (!img && p.description && p.description.includes("<!-- GALLERY_DATA:")) {
+        try {
+          const match = p.description.match(/<!-- GALLERY_DATA:(.*?) -->/);
+          if (match && match[1]) {
+            const parsed = JSON.parse(match[1]);
+            img = parsed[0]?.url || parsed[0];
+          }
+        } catch {}
+      }
+
+      const priceVal = Number(p.price_per_day || p.price || 85);
+
+      return {
+        id: String(p.id),
+        title: p.title || "Propiedad en Ituzaingó",
+        location: p.location || "Ituzaingó, Corrientes",
+        pricePerNightUSD: isNaN(priceVal) ? 85 : priceVal,
+        rating: Number(p.rating || 4.95),
+        reviewsCount: Number(p.reviews_count || p.total_reviews || 12),
+        bedrooms: Number(p.bedrooms || 2),
+        bathrooms: Number(p.bathrooms || 1),
+        capacity: Number(p.capacity || p.max_guests || 4),
+        isVerified: p.status !== "pending" && p.status !== "rejected",
+        imageUrl: img || "https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=800&q=80",
+        propertyType: p.property_type || "Alquiler",
+      };
+    });
+  } catch (error) {
+    console.error("Error in getVerifiedProperties:", error);
+    return [];
+  }
+}
+
 export async function getActiveCampaigns(): Promise<MarketingCampaign[]> {
   try {
     const supabase = createServerSupabaseClient();
