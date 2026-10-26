@@ -11,8 +11,6 @@ const DIRECT_MEDIA_FEEDS = [
   'https://www.infobae.com/arc/outboundfeeds/rss/?outputType=xml',
   'https://www.lanacion.com.ar/arc/outboundfeeds/rss/?outputType=xml',
   'https://www.clarin.com/rss/lo-ultimo/',
-  'https://www.tycsports.com/rss/rss.xml',
-  'https://www.ellitoral.com.ar/rss',
   'https://news.google.com/rss/search?q=Ituzaing%C3%B3+Corrientes&hl=es-419&gl=AR&ceid=AR:es-419',
 ];
 
@@ -319,7 +317,9 @@ export async function GET(request: Request) {
       const { data: existingArticles } = await supabase
         .from('articles')
         .select('external_url')
-        .not('external_url', 'is', null);
+        .not('external_url', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(2000);
 
       if (existingArticles) {
         existingUrls = new Set(existingArticles.map((a: any) => a.external_url));
@@ -386,13 +386,14 @@ export async function GET(request: Request) {
       const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
       const { data: oldArticles } = await supabase
         .from('articles')
-        .select('id, title, external_url, created_at')
-        .lt('created_at', twoDaysAgo);
+        .select('id')
+        .lt('created_at', twoDaysAgo)
+        .limit(200);
 
       if (oldArticles && oldArticles.length > 0) {
         const oldIds = oldArticles.map((a: any) => a.id);
         await supabase.from('articles').delete().in('id', oldIds);
-        console.log(`[Auto-Fetch] 🧹 Purgadas ${oldIds.length} noticias de fecha obsoleta de la base de datos.`);
+        console.log(`[Auto-Fetch] 🧹 Purgadas ${oldIds.length} noticias obsoletas en lote de la base de datos.`);
       }
     } catch (purgeErr) {}
 

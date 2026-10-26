@@ -44,11 +44,14 @@ export default function AdminNewsPage() {
 
     const { data, error } = await supabase
       .from("articles")
-      .select("*")
-      .order("created_at", { ascending: false });
+      .select("id, title, category, status, created_at, external_url, image_url, excerpt")
+      .order("created_at", { ascending: false })
+      .limit(100);
 
     if (error) {
       console.error("Error fetching articles:", error);
+      alert("Atención al cargar noticias: " + error.message);
+      setArticles([]);
     } else {
       setArticles(data || []);
     }
