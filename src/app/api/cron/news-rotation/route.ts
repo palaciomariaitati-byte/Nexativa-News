@@ -18,15 +18,15 @@ export async function GET(request: Request) {
 
     const supabase = createServerSupabaseClient();
     
-    // 1. Encontrar noticias publicadas con más de 24 horas de antigüedad
-    const limitDate = new Date();
-    limitDate.setHours(limitDate.getHours() - 24);
+    // 1. POLÍTICA ESTRICTA DE RETENCIÓN DE 15 DÍAS: Autoeliminación de noticias mayores a 15 días
+    const fifteenDaysAgo = new Date();
+    fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
 
     const { data: oldArticles, error: fetchError } = await supabase
       .from('articles')
-      .select('id, title')
-      .eq('status', 'published')
-      .lt('created_at', limitDate.toISOString());
+      .select('id')
+      .lt('created_at', fifteenDaysAgo.toISOString())
+      .limit(500);
 
     if (fetchError) {
       throw new Error(`Error fetching old articles: ${fetchError.message}`);
@@ -34,22 +34,19 @@ export async function GET(request: Request) {
 
     let archivedCount = 0;
 
-    // 2. Eliminar físicamente las noticias viejas para mantener la base de datos limpia y ordenada
+    // 2. Eliminar físicamente en sub-lotes de 50 para respetar los límites de Supabase
     if (oldArticles && oldArticles.length > 0) {
       const oldIds = oldArticles.map(a => a.id);
-      const { error: deleteError } = await supabase
-        .from('articles')
-        .delete()
-        .in('id', oldIds);
-
-      if (deleteError) {
-        throw new Error(`Error deleting old articles: ${deleteError.message}`);
+      const CHUNK_SIZE = 50;
+      for (let i = 0; i < oldIds.length; i += CHUNK_SIZE) {
+        const chunk = oldIds.slice(i, i + CHUNK_SIZE);
+        await supabase.from('articles').delete().in('id', chunk);
       }
 
       archivedCount = oldIds.length;
-      console.log(`[News Rotation] Se eliminaron definitivamente ${archivedCount} noticias antiguas.`);
+      console.log(`[News Rotation] 🧹 Autoeliminadas ${archivedCount} noticias mayores a 15 días.`);
     } else {
-      console.log("[News Rotation] No se encontraron noticias mayores a 24 hs para eliminar.");
+      console.log("[News Rotation] ✅ Base de datos limpia: No hay noticias mayores a 15 días.");
     }
 
     // 3. Generar nuevas noticias si se archivaron noticias, o si hay muy pocas publicadas

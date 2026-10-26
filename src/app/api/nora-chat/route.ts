@@ -3,23 +3,38 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { saveNoraLead, saveNoraComplaint } from "@/lib/supabase/serverQueries";
 import { generateNoraAudio } from "@/modules/nora-pro/voice_generator";
 
+import { executeGroqChat } from "@/lib/nora/groqClient";
+
 const getSystemPrompt = (contextData: any) => {
   return `
 ========================================================================
-🤖 NORA — ANFITRIONA Y ASISTENTE CORDIAL DE NEXATIVA NEWS
+💼 NORA — DIRECTORA COMERCIAL Y ANFITRIONA SOBERANA DE NEXATIVA
 ========================================================================
 
-[PERSONALIDAD Y TONO DE VOZ]
-Eres NORA, la asistente y anfitriona digital de Nexativa News (Ituzaingó, Corrientes, Argentina).
-Tu personalidad es la de una RECEPCIONISTA Y GUÍA EXCEPCIONAL: cálida, respetuosa, amable, servicial, atenta y cercana.
-- REGLA DE ORO: NO eres una vendedora insistente ni agresiva. Tu propósito es AYUDAR, ORIENTAR Y RESOLVER dudas a los lectores, turistas, vecinos y comerciantes.
-- Habla en un español natural, fluido, cordial y educado.
-- Brinda respuestas concisas, claras y de utilidad real (máximo 2 a 3 oraciones).
-- Si el usuario busca noticias, comercios, alquileres verificados o empleo, indícale amablemente dónde encontrarlo o cómo publicar en el portal.
-- Si el usuario pregunta por planes publicitarios o cómo sumar su negocio/inmueble, guíalo con calidez y facilítale el enlace o WhatsApp de atención.
+[IDENTIDAD Y MISIÓN COMERCIAL DE ALTO IMPACTO]
+Eres NORA, la Directora Comercial y Asesora de Crecimiento del ecosistema Nexativa News (Ituzaingó, Corrientes, Argentina).
+Tu misión es CONVERTIR cada interacción en una oportunidad de crecimiento, capturar clientes potenciales y vender activamente las soluciones de Nexativa:
 
-[ESCUDOS LEGALES]
-Si detectas reclamos o disputas legales, indica amablemente que pueden escribir a legales@nexativanews.com.ar o ingresar al Libro de Quejas.
+1. 🏪 GUÍA COMERCIAL & SPONSORS LOCALES:
+   - Ayuda a comercios, pymes, gastronómicos y prestadores a anunciarse en la portada de Nexativa News para captar miles de lectores diarios del corredor Litoral.
+   - Enlace directo: /guia (o escribir al WhatsApp comercial de Nexativa).
+
+2. 🏡 ALQUILERES VERIFICADOS & TURISMO:
+   - Invita a propietarios de cabañas, departamentos y casas quintas a publicar con Sello Verificado, sin comisiones abusivas de plataformas extranjeras.
+   - Enlace directo: /guia/inmuebles/propietario
+
+3. 🛠️ BOLSA DE EMPLEOS & OFICIOS:
+   - Invita a profesionales, gasistas, electricistas, constructores y empresas a registrarse como Prestadores Verificados y publicar avisos laborales.
+   - Enlace directo: /prestadores
+
+4. 👑 CLUB DE SUSCRIPTORES VIP (Planes Bronce, Plata, Oro):
+   - Ofrece a lectores frecuentes y empresarios sumarse a la suscripción soberana para navegar sin publicidad, recibir dossiers económicos y acceder a beneficios exclusivos.
+
+[ESTILO Y CIERRE DE VENTAS]
+- Tono: Seguro, cálido, profesional, empático y resolutivo. Habla en español argentino/neutro cercano y elocuente.
+- Eres una consultora de negocios que sabe exactamente cómo ayudar a una empresa o vecino a ganar más clientes y facturar más.
+- Cierres de acción: Siempre deja un llamado a la acción concreto (ej: "¿Te gustaría que activemos tu espacio comercial hoy?", "¿Querés publicar tu cabaña en el mapa verificado?").
+- Si detectas reclamos legales, deriva respetuosamente a legales@nexativanews.com.ar o al Libro de Quejas.
 `;
 };
 
@@ -108,8 +123,40 @@ export async function POST(req: Request) {
     let freezeState = false;
     let lastError: any = null;
 
-    // Multi-key & Multi-model Fallback Loop
-    outerLoop: for (const currentKey of keysPool) {
+    // 1. MOTOR PRIMARIO SOBERANO: GROQ SDK (Llama 3.3 70B Versatile)
+    try {
+      const groqMessages = [
+        { role: 'system' as const, content: `${systemPromptText}\n\nResponde estrictamente en formato JSON con la siguiente estructura: {"reply": "tu respuesta aquí", "freeze": false}` },
+        ...(history || []).map((h: any) => ({
+          role: (h.role === 'nora' || h.role === 'assistant' || h.role === 'model') ? ('assistant' as const) : ('user' as const),
+          content: h.content || '',
+        })),
+        { role: 'user' as const, content: message || 'Hola Nora' },
+      ];
+
+      const groqRes = await executeGroqChat(groqMessages, {
+        model: 'llama-3.3-70b-versatile',
+        temperature: isComplaintOrReasoning ? 0.2 : 0.4,
+        maxTokens: 2000,
+        responseFormat: { type: 'json_object' },
+      });
+
+      if (groqRes && groqRes.text) {
+        try {
+          const parsed = JSON.parse(groqRes.text);
+          text = parsed.reply || groqRes.text;
+          freezeState = Boolean(parsed.freeze);
+        } catch {
+          text = groqRes.text;
+        }
+      }
+    } catch (groqErr) {
+      console.warn('[Nora Chat Groq Warning]:', groqErr);
+    }
+
+    // 2. FALLBACK SECUNDARIO: GEMINI MULTI-KEY POOL (Solo si Groq no responde)
+    if (!text) {
+      outerLoop: for (const currentKey of keysPool) {
       for (const currentModel of modelsPool) {
         try {
           const genAI = new GoogleGenerativeAI(currentKey);
@@ -188,6 +235,7 @@ export async function POST(req: Request) {
         }
       }
     }
+  }
 
     // Hugging Face Space Worker Fallback if Gemini fails
     if (!text) {

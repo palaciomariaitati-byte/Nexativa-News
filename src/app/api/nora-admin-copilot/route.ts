@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NORA_SYSTEM_MAP } from "@/lib/nora/systemMap";
+import { executeGroqChat } from "@/lib/nora/groqClient";
 
 // Mapeo Inteligente de Alias de Operadores
 function normalizeOperatorName(rawName: string): { canonicalName: string; storageKey: string } {
@@ -65,8 +66,32 @@ ${NORA_SYSTEM_MAP}
 
     let replyText = "";
 
-    // 3. Intento de Generación con IA (Multi-Key & Multi-Model Loop)
-    if (keysPool.length > 0) {
+    // 1. MOTOR PRIMARIO SOBERANO: GROQ SDK (Llama 3.3 70B Versatile)
+    try {
+      const groqMessages = [
+        { role: 'system' as const, content: systemPromptText },
+        ...(history || []).map((h: any) => ({
+          role: (h.role === 'nora' || h.role === 'assistant' || h.role === 'model') ? ('assistant' as const) : ('user' as const),
+          content: h.content || '',
+        })),
+        { role: 'user' as const, content: userPrompt },
+      ];
+
+      const groqRes = await executeGroqChat(groqMessages, {
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.4,
+        maxTokens: 2500,
+      });
+
+      if (groqRes && groqRes.text) {
+        replyText = groqRes.text;
+      }
+    } catch (groqErr) {
+      console.warn('[NORA Admin Copilot Groq Warning]:', groqErr);
+    }
+
+    // 2. FALLBACK SECUNDARIO: GEMINI MULTI-KEY LOOP (Solo si Groq no responde)
+    if (!replyText && keysPool.length > 0) {
       outerLoop: for (const currentKey of keysPool) {
         for (const currentModel of validModels) {
           try {

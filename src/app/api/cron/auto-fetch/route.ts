@@ -381,19 +381,23 @@ export async function GET(request: Request) {
       }
     }
 
-    // 4. Purga y limpieza estricta de noticias antiguas (> 48h o URLs fechadas en el pasado) en la BD
+    // 4. POLÍTICA ESTRICTA DE RETENCIÓN DE 15 DÍAS: Purga automática de noticias que superan los 15 días
     try {
-      const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+      const fifteenDaysAgo = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
       const { data: oldArticles } = await supabase
         .from('articles')
         .select('id')
-        .lt('created_at', twoDaysAgo)
-        .limit(200);
+        .lt('created_at', fifteenDaysAgo)
+        .limit(300);
 
       if (oldArticles && oldArticles.length > 0) {
         const oldIds = oldArticles.map((a: any) => a.id);
-        await supabase.from('articles').delete().in('id', oldIds);
-        console.log(`[Auto-Fetch] 🧹 Purgadas ${oldIds.length} noticias obsoletas en lote de la base de datos.`);
+        const CHUNK_SIZE = 50;
+        for (let i = 0; i < oldIds.length; i += CHUNK_SIZE) {
+          const chunk = oldIds.slice(i, i + CHUNK_SIZE);
+          await supabase.from('articles').delete().in('id', chunk);
+        }
+        console.log(`[Auto-Fetch] 🧹 Autoeliminadas ${oldIds.length} noticias que superaron los 15 días.`);
       }
     } catch (purgeErr) {}
 

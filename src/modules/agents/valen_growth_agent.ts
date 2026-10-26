@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { executeGroqChat } from "@/lib/nora/groqClient";
 
 export interface ValenMemoryItem {
   key: string;
@@ -238,6 +239,35 @@ export async function chatWithValen(
 
     const systemPromptWithContext = `${VALEN_CORE_PROMPT}\nOperador actual: ${operatorName}\n${memoryBlock}${metricsBlock}${kpiBlock}`;
 
+    // 1. MOTOR PRIMARIO SOBERANO: GROQ SDK (Llama 3.3 70B Versatile)
+    try {
+      const groqMessages = [
+        { role: 'system' as const, content: systemPromptWithContext },
+        ...(history || []).map(h => ({
+          role: (h.role === 'assistant' || h.role === 'model') ? ('assistant' as const) : ('user' as const),
+          content: h.content,
+        })),
+        { role: 'user' as const, content: userMessage },
+      ];
+
+      const groqRes = await executeGroqChat(groqMessages, {
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.5,
+        maxTokens: 3000,
+      });
+
+      if (groqRes && groqRes.text) {
+        await logValenTask("GROWTH_DECISION", `Estrategia de ventas generada con Groq Llama 3.3`, { userMessage }, 100);
+        return {
+          text: groqRes.text,
+          kpis,
+        };
+      }
+    } catch (groqErr) {
+      console.warn("[VALEN Groq Fallback Warning]:", groqErr);
+    }
+
+    // 2. FALLBACK SECUNDARIO: GEMINI MULTI-KEY POOL
     const keysPool = [
       process.env.GEMINI_API_KEY,
       process.env.GEMINI_API_KEY_FALLBACK,
@@ -247,7 +277,7 @@ export async function chatWithValen(
 
     if (keysPool.length === 0) {
       return {
-        text: "VALEN está desconectado temporalmente. Por favor verifica las variables de entorno (GEMINI_API_KEY).",
+        text: "VALEN requiere configuración de GROQ_API_KEY o GEMINI_API_KEY en las variables de entorno.",
         kpis: await fetchValenKPIs(),
         error: "Missing API Key"
       };
