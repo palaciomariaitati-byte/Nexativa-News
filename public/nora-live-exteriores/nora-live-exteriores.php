@@ -71,8 +71,14 @@ function nora_live_register_menus() {
 if (!defined('NORA_LIVE_PLUGIN_VERSION')) {
     define('NORA_LIVE_PLUGIN_VERSION', '2.1.0');
 }
+if (!defined('NORA_LIVE_PLUGIN_BASENAME')) {
+    define('NORA_LIVE_PLUGIN_BASENAME', plugin_basename(__FILE__));
+}
+if (!defined('NORA_LIVE_PLUGIN_SLUG')) {
+    define('NORA_LIVE_PLUGIN_SLUG', dirname(plugin_basename(__FILE__)));
+}
 if (!defined('NORA_LIVE_UPDATE_URL')) {
-    define('NORA_LIVE_UPDATE_URL', 'https://www.nexativanews.com.ar/api/plugin-update');
+    define('NORA_LIVE_UPDATE_URL', 'https://www.nexativanews.com.ar/api/plugin-update?slug=' . NORA_LIVE_PLUGIN_SLUG);
 }
 
 // Interceptar chequeo de actualizaciones de plugins de WordPress
@@ -88,11 +94,11 @@ function nora_live_check_for_plugin_update($transient) {
         $info = json_decode(wp_remote_retrieve_body($response));
         if ($info && isset($info->version) && version_compare(NORA_LIVE_PLUGIN_VERSION, $info->version, '<')) {
             $obj = new stdClass();
-            $obj->slug = 'nora-live-exteriores';
-            $obj->plugin = 'nora-live-exteriores/nora-live-exteriores.php';
+            $obj->slug = NORA_LIVE_PLUGIN_SLUG;
+            $obj->plugin = NORA_LIVE_PLUGIN_BASENAME;
             $obj->new_version = $info->version;
             $obj->url = $info->homepage ?? 'https://cadena4.com.ar';
-            $obj->package = $info->package ?? 'https://www.nexativanews.com.ar/nora-live-exteriores.zip';
+            $obj->package = $info->package ?? ('https://www.nexativanews.com.ar/' . NORA_LIVE_PLUGIN_SLUG . '.zip');
             $obj->tested = $info->tested ?? '6.7';
             $obj->requires_php = $info->requires_php ?? '7.4';
 
@@ -105,7 +111,7 @@ function nora_live_check_for_plugin_update($transient) {
 // Modal de información de actualización en el panel de plugins
 add_filter('plugins_api', 'nora_live_plugin_info_popup', 20, 3);
 function nora_live_plugin_info_popup($res, $action, $args) {
-    if ($action !== 'plugin_information' || !isset($args->slug) || $args->slug !== 'nora-live-exteriores') {
+    if ($action !== 'plugin_information' || !isset($args->slug) || ($args->slug !== NORA_LIVE_PLUGIN_SLUG && $args->slug !== 'nora-live-exteriores' && $args->slug !== 'nora-periodismo')) {
         return $res;
     }
 
@@ -125,7 +131,7 @@ function nora_live_plugin_info_popup($res, $action, $args) {
 // Activar auto-actualizaciones desatendidas en segundo plano
 add_filter('auto_update_plugin', 'nora_live_auto_update_filter', 10, 2);
 function nora_live_auto_update_filter($update, $item) {
-    if (isset($item->slug) && $item->slug === 'nora-live-exteriores') {
+    if (isset($item->slug) && ($item->slug === NORA_LIVE_PLUGIN_SLUG || $item->slug === 'nora-live-exteriores' || $item->slug === 'nora-periodismo')) {
         return true;
     }
     return $update;
@@ -149,8 +155,8 @@ function nora_live_ajax_check_update_now() {
 
     $has_update = version_compare(NORA_LIVE_PLUGIN_VERSION, $info['version'], '<');
     $update_url = wp_nonce_url(
-        self_admin_url('update.php?action=upgrade-plugin&plugin=nora-live-exteriores/nora-live-exteriores.php'),
-        'upgrade-plugin_nora-live-exteriores/nora-live-exteriores.php'
+        self_admin_url('update.php?action=upgrade-plugin&plugin=' . urlencode(NORA_LIVE_PLUGIN_BASENAME)),
+        'upgrade-plugin_' . NORA_LIVE_PLUGIN_BASENAME
     );
 
     wp_send_json_success(array(

@@ -13,14 +13,20 @@ export async function OPTIONS() {
 }
 
 export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const requestedSlug = searchParams.get("slug") || "nora-live-exteriores";
+  const slug = requestedSlug.includes("nora-periodismo") ? "nora-periodismo" : "nora-live-exteriores";
+  const pluginFile = `${slug}/${slug}.php`;
+  const zipFile = `${slug}.zip`;
+
   const host = request.headers.get("host") || "www.nexativanews.com.ar";
   const protocol = host.includes("localhost") ? "http" : "https";
   const baseUrl = `${protocol}://${host}`;
 
   const pluginInfo = {
     name: "Nora Periodismo Pro - Cadena 4 & Nexativa",
-    slug: "nora-live-exteriores",
-    plugin: "nora-live-exteriores/nora-live-exteriores.php",
+    slug: slug,
+    plugin: pluginFile,
     version: "2.1.0",
     author: "MyJNexoraVisual & Nexativa News",
     author_profile: "https://www.nexativanews.com.ar",
@@ -28,8 +34,8 @@ export async function GET(request: Request) {
     tested: "6.7",
     requires_php: "7.4",
     last_updated: "2026-10-27 22:00:00",
-    package: `${baseUrl}/nora-live-exteriores.zip`,
-    download_url: `${baseUrl}/nora-live-exteriores.zip`,
+    package: `${baseUrl}/${zipFile}`,
+    download_url: `${baseUrl}/${zipFile}`,
     homepage: "https://cadena4.com.ar",
     sections: {
       description: "Suite completa de periodismo con IA: Nora Live Editor, Auto-Clipper Pro, Flashes Noticiosos de 1-5 min y Móvil de Exteriores PWA para Cadena 4.",
