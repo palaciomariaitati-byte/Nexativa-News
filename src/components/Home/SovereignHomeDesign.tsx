@@ -279,7 +279,7 @@ const MOCK_PLANS: SubscriptionPlan[] = [
 interface SovereignHomeDesignProps {
   initialArticles?: Article[];
   sponsors?: Sponsor[];
-  newsFlashes?: Array<{ id: string; title: string; content?: string; created_at?: string }>;
+  newsFlashes?: Array<{ id: string; title: string; content?: string; summary?: string; video_url?: string; created_at?: string }>;
   products?: Product[];
   properties?: VerifiedProperty[];
   stores?: any[];
@@ -419,7 +419,7 @@ export default function SovereignHomeDesign({
   // 3. Resolve Breaking News Flash
   const latestFlash = newsFlashes[0];
   const breakingNewsText = latestFlash
-    ? `${latestFlash.title} — ${latestFlash.content || ''}`
+    ? `${latestFlash.title} — ${latestFlash.content || latestFlash.summary || ''}`
     : 'Ituzaingó Norte licita nuevo polo biotecnológico sobre Autopista del Oeste con inversión privada garantizada.';
 
   // 4. Resolve Verified Real Estate Properties (From Supabase or Fallback to Sovereign Mock)

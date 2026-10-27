@@ -42,6 +42,23 @@ export default function NewsEditorPage() {
     }
     fetchUser();
 
+    // Precargar si viene de Nora Auto-Clipper
+    const clipTitle = searchParams.get("clip_title") || searchParams.get("title");
+    const clipVideoUrl = searchParams.get("video_url");
+    const clipSummary = searchParams.get("summary") || searchParams.get("excerpt");
+    const clipCategory = searchParams.get("category");
+
+    if (!articleId && (clipTitle || clipVideoUrl)) {
+      setFormData(prev => ({
+        ...prev,
+        title: clipTitle || prev.title,
+        excerpt: clipSummary || prev.excerpt,
+        content: clipSummary ? `${clipSummary}\n\n[Extracto audiovisual procesado por Nora AI]` : prev.content,
+        video_url: clipVideoUrl || prev.video_url,
+        category: clipCategory || prev.category
+      }));
+    }
+
     if (articleId) {
       async function fetchArticle() {
         const { data } = await supabase.from("articles").select("*").eq("id", articleId).single();

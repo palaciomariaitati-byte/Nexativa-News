@@ -1,11 +1,19 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import supabaseAdmin from "@/lib/supabase/admin";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
 };
+
+function getYouTubeId(url?: string): string | null {
+  if (!url) return null;
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  return (match && match[2].length === 11) ? match[2] : null;
+}
 
 export async function OPTIONS() {
   return new NextResponse(null, {
@@ -149,6 +157,67 @@ IMPORTANTE: Responde ÚNICAMENTE con el objeto JSON válido.
         video_url: c.video_url || videoUrlsList[idx % videoUrlsList.length] || videoUrlsList[0],
         source_title: c.source_title || `Programa ${(idx % videoUrlsList.length) + 1}`
       }));
+    }
+
+    // AUTO-PERSISTENCE: Guardar automáticamente los clips en la base de datos de Nexativa
+    try {
+      if (parsedData && Array.isArray(parsedData.clips) && parsedData.clips.length > 0) {
+        const preparedClips = parsedData.clips.map((c: any) => {
+          const ytId = getYouTubeId(c.video_url);
+          const thumb = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null;
+          return {
+            title: c.title || "Clip Informativo",
+            summary: c.summary || "",
+            video_url: c.video_url,
+            source_title: c.source_title || "Programa",
+            start_time_seconds: c.start_time_seconds ?? 0,
+            end_time_seconds: c.end_time_seconds ?? 60,
+            start_timestamp: c.start_timestamp || "00:00",
+            end_timestamp: c.end_timestamp || "01:00",
+            duration_seconds: c.duration_seconds || Math.max(1, (c.end_time_seconds || 60) - (c.start_time_seconds || 0)),
+            impact_score: c.impact_score || 8,
+            category: c.category || "nacional",
+            social_caption: c.social_caption || "",
+            thumbnail_url: thumb,
+            status: "ready",
+            updated_at: new Date().toISOString()
+          };
+        });
+
+        // 1. Guardar en news_clips si la tabla existe
+        try {
+          await supabaseAdmin.from("news_clips").insert(preparedClips);
+        } catch (e: any) {
+          console.warn("[Nora Clip] Inserción en news_clips:", e.message);
+        }
+
+        // 2. Guardar también en news_flashes como respaldo de persistencia inmediata
+        try {
+          const firstClip = preparedClips[0];
+          const ytId = getYouTubeId(firstClip.video_url);
+          const embedUrl = ytId
+            ? `https://www.youtube.com/embed/${ytId}?start=${firstClip.start_time_seconds}&end=${firstClip.end_time_seconds}&autoplay=1`
+            : firstClip.video_url;
+
+          await supabaseAdmin.from("news_flashes").insert([{
+            title: parsedData.suggested_news_flash?.title || `🔴 FLASH DE NOTICIAS: ${videoTitle || "Resumen Periodístico del Día"}`,
+            summary: parsedData.video_summary || preparedClips.map((c: any) => `• [${c.source_title}] ${c.title}: ${c.summary}`).join("\n"),
+            duration_seconds: preparedClips.reduce((acc: number, c: any) => acc + c.duration_seconds, 0),
+            video_url: firstClip.video_url,
+            thumbnail_url: firstClip.thumbnail_url,
+            embed_url: embedUrl,
+            segments: preparedClips,
+            category: firstClip.category || "nacional",
+            partner_visible: true,
+            status: "published",
+            updated_at: new Date().toISOString()
+          }]);
+        } catch (e: any) {
+          console.warn("[Nora Clip] Inserción en news_flashes:", e.message);
+        }
+      }
+    } catch (saveErr: any) {
+      console.warn("[Nora Clip] Error guardando clips automáticamente:", saveErr.message);
     }
 
     return NextResponse.json({

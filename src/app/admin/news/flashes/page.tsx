@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Radio, Play, Clock, Sparkles, Share2, Copy, Check, Eye, ExternalLink, Code, Layers, RefreshCw, ShieldCheck } from "lucide-react";
+import { Radio, Play, Clock, Sparkles, Share2, Copy, Check, Eye, ExternalLink, Code, Layers, RefreshCw, ShieldCheck, Zap } from "lucide-react";
 import CleanFlashPlayer from "@/components/CleanFlashPlayer";
+import Link from "next/link";
 
 type NewsFlash = {
   id: string;
@@ -85,13 +86,21 @@ export default function AdminNewsFlashesPage() {
         </div>
 
         <div className="flex flex-col items-end gap-2">
-          <button
-            onClick={fetchFlashes}
-            disabled={isLoading}
-            className="bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold px-4 py-2 rounded-xl transition-all flex items-center gap-2 text-xs uppercase"
-          >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} /> Refrescar Emisión
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/admin/news/clipper"
+              className="bg-red-600/30 hover:bg-red-600/50 border border-red-500/40 text-red-300 font-bold px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 text-xs uppercase"
+            >
+              <Zap className="w-3.5 h-3.5" /> Nora Auto-Clipper & Clips
+            </Link>
+            <button
+              onClick={fetchFlashes}
+              disabled={isLoading}
+              className="bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 text-xs uppercase"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} /> Refrescar
+            </button>
+          </div>
           <span className="text-[10px] text-gray-400 font-mono">
             Desarrollado por <strong className="text-white">Nexora One</strong>
           </span>
