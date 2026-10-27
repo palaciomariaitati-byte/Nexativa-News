@@ -273,6 +273,39 @@ function nora_live_ajax_publish_handler() {
     }
 }
 
+// 2.C: Almacenamiento local de clips en WordPress (wp_options) - 100% independiente de bases de datos externas
+add_action('wp_ajax_nora_live_save_local_clip', 'nora_live_ajax_save_local_clip');
+function nora_live_ajax_save_local_clip() {
+    check_ajax_referer('nora_live_nonce_action', 'security');
+    $clip_json = isset($_POST['clip']) ? wp_unslash($_POST['clip']) : '';
+    $clip = json_decode($clip_json, true);
+    if (!$clip || !is_array($clip)) {
+        wp_send_json_error(array('message' => 'Clip inválido'));
+    }
+
+    $clips = get_option('nora_cadena4_local_clips', array());
+    if (!is_array($clips)) $clips = array();
+
+    $sig = ($clip['video_url'] ?? '') . '_' . ($clip['start_time_seconds'] ?? 0);
+    $filtered = array_values(array_filter($clips, function($c) use ($sig) {
+        $s = ($c['video_url'] ?? '') . '_' . ($c['start_time_seconds'] ?? 0);
+        return $s !== $sig;
+    }));
+
+    array_unshift($filtered, $clip);
+    $filtered = array_slice($filtered, 0, 100);
+
+    update_option('nora_cadena4_local_clips', $filtered, false);
+    wp_send_json_success(array('clips' => $filtered, 'total' => count($filtered)));
+}
+
+add_action('wp_ajax_nora_live_get_local_clips', 'nora_live_ajax_get_local_clips');
+function nora_live_ajax_get_local_clips() {
+    check_ajax_referer('nora_live_nonce_action', 'security');
+    $clips = get_option('nora_cadena4_local_clips', array());
+    wp_send_json_success(array('clips' => is_array($clips) ? $clips : array()));
+}
+
 // ==============================================================================
 // 3. PÁGINAS DE ADMINISTRACIÓN
 // ==============================================================================
@@ -985,6 +1018,13 @@ function nora_live_render_page_with_tab($initial_tab = 'live') {
                     combinedTitleInput.value = json.data.suggested_news_flash?.title || ('🔴 FLASH DE NOTICIAS: ' + (clipperBatchTitle.value.trim() || 'Resumen del Día'));
 
                     lastGeneratedClips.forEach(clip => {
+                        // Guardar cada clip localmente en la base de datos de WordPress de Cadena 4
+                        const fd = new FormData();
+                        fd.append('action', 'nora_live_save_local_clip');
+                        fd.append('security', wpAjaxNonce);
+                        fd.append('clip', JSON.stringify(clip));
+                        fetch(wpAjaxUrl, { method: 'POST', body: fd }).catch(() => {});
+
                         const card = document.createElement('div');
                         card.className = 'nora-clip-card';
                         card.innerHTML = `
@@ -1107,67 +1147,95 @@ function nora_live_render_page_with_tab($initial_tab = 'live') {
             }
         });
 
-        // Cargar Biblioteca de Clips Guardados
+        // Cargar Biblioteca de Clips Guardados (Híbrido: Local WordPress + Central Nexativa)
         async function loadStoredClips() {
             const container = document.getElementById('storedClipsContainer');
             if (!container) return;
-            container.innerHTML = '<p style="color:#94a3b8; font-style:italic;">Cargando clips...</p>';
+            container.innerHTML = '<p style="color:#94a3b8; font-style:italic;">Cargando biblioteca de clips...</p>';
 
+            let allClips = [];
+
+            // 1. Obtener clips locales almacenados en el WordPress de Cadena 4 (cero dependencia de bases externas)
+            try {
+                const fd = new FormData();
+                fd.append('action', 'nora_live_get_local_clips');
+                fd.append('security', wpAjaxNonce);
+                const localRes = await fetch(wpAjaxUrl, { method: 'POST', body: fd });
+                const localJson = await localRes.json();
+                if (localJson.success && Array.isArray(localJson.data?.clips)) {
+                    allClips = localJson.data.clips;
+                }
+            } catch (errLocal) {
+                console.warn('Clips locales no disponibles:', errLocal);
+            }
+
+            // 2. Obtener clips sincronizados centralmente desde Nexativa
             try {
                 const res = await fetch(clipsApiEndpoint);
                 const json = await res.json();
-                if (json.success && Array.isArray(json.clips) && json.clips.length > 0) {
-                    container.innerHTML = '';
-                    json.clips.forEach(clip => {
-                        const ytId = getYouTubeId(clip.video_url);
-                        const embedUrl = ytId
-                            ? `https://www.youtube.com/embed/${ytId}?start=${clip.start_time_seconds}&end=${clip.end_time_seconds}`
-                            : clip.video_url;
-
-                        const card = document.createElement('div');
-                        card.className = 'nora-clip-card';
-                        card.innerHTML = `
-                            <div>
-                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                                    <span style="font-size:10px; font-weight:800; background:#fee2e2; color:#dc2626; padding:2px 6px; border-radius:4px; text-transform:uppercase;">
-                                        ${clip.category || 'Nacional'}
-                                    </span>
-                                    <span style="font-size:11px; font-mono; font-weight:bold; color:#d97706;">
-                                        ⏱️ ${clip.start_timestamp} - ${clip.end_timestamp} (${clip.duration_seconds}s)
-                                    </span>
-                                </div>
-                                <h4 style="margin:0 0 6px 0; font-size:14px; font-weight:800; color:#0f172a;">${clip.title}</h4>
-                                <p style="font-size:12px; color:#475569; margin:0 0 12px 0; line-height:1.4;">${clip.summary}</p>
-                                <div style="aspect-ratio:16/9; background:#000; border-radius:8px; overflow:hidden; margin-bottom:12px;">
-                                    <iframe width="100%" height="160" src="${embedUrl}" frameborder="0" allowfullscreen></iframe>
-                                </div>
-                            </div>
-
-                            <div style="display:flex; gap:6px; flex-direction:column;">
-                                <button type="button" class="nora-btn-publish btnPublishSingleClip" style="width:100%;" data-title="${encodeURIComponent(clip.title)}" data-summary="${encodeURIComponent(clip.summary)}" data-video="${encodeURIComponent(clip.video_url)}" data-start="${clip.start_time_seconds}" data-end="${clip.end_time_seconds}">
-                                    🚀 PUBLICAR EN CADENA 4
-                                </button>
-                                ${clip.social_caption ? `<button type="button" class="button btnCopySocial" style="font-size:11px;" data-social="${encodeURIComponent(clip.social_caption)}">📋 Copiar Texto para Redes</button>` : ''}
-                            </div>
-                        `;
-                        container.appendChild(card);
+                if (json.success && Array.isArray(json.clips)) {
+                    const signatures = new Set(allClips.map(c => (c.video_url || '') + '_' + (c.start_time_seconds || 0)));
+                    json.clips.forEach(remoteClip => {
+                        const sig = (remoteClip.video_url || '') + '_' + (remoteClip.start_time_seconds || 0);
+                        if (!signatures.has(sig)) {
+                            allClips.push(remoteClip);
+                            signatures.add(sig);
+                        }
                     });
-
-                    attachClipPublishEvents();
-
-                    document.querySelectorAll('.btnCopySocial').forEach(b => {
-                        b.addEventListener('click', function() {
-                            const txt = decodeURIComponent(this.getAttribute('data-social'));
-                            navigator.clipboard.writeText(txt);
-                            this.innerText = '¡Copiado! ✓';
-                            setTimeout(() => { this.innerText = '📋 Copiar Texto para Redes'; }, 2000);
-                        });
-                    });
-                } else {
-                    container.innerHTML = '<p style="color:#64748b;">No hay clips guardados en este momento.</p>';
                 }
-            } catch (e) {
-                container.innerHTML = '<p style="color:#dc2626;">Error cargando clips desde Nexativa.</p>';
+            } catch (errRemote) {
+                console.warn('API central de Nexativa en reposo o inaccesible, visualizando clips locales:', errRemote);
+            }
+
+            if (allClips.length > 0) {
+                container.innerHTML = '';
+                allClips.forEach(clip => {
+                    const ytId = getYouTubeId(clip.video_url);
+                    const embedUrl = ytId
+                        ? `https://www.youtube.com/embed/${ytId}?start=${clip.start_time_seconds || 0}&end=${clip.end_time_seconds || 0}`
+                        : clip.video_url;
+
+                    const card = document.createElement('div');
+                    card.className = 'nora-clip-card';
+                    card.innerHTML = `
+                        <div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                                <span style="font-size:10px; font-weight:800; background:#fee2e2; color:#dc2626; padding:2px 6px; border-radius:4px; text-transform:uppercase;">
+                                    ${clip.category || 'Nacional'}
+                                </span>
+                                <span style="font-size:11px; font-mono; font-weight:bold; color:#d97706;">
+                                    ⏱️ ${clip.start_timestamp || '00:00'} - ${clip.end_timestamp || '00:00'} (${clip.duration_seconds || 0}s)
+                                </span>
+                            </div>
+                            <h4 style="margin:0 0 6px 0; font-size:14px; font-weight:800; color:#0f172a;">${clip.title}</h4>
+                            <p style="font-size:12px; color:#475569; margin:0 0 12px 0; line-height:1.4;">${clip.summary}</p>
+                            <div style="aspect-ratio:16/9; background:#000; border-radius:8px; overflow:hidden; margin-bottom:12px;">
+                                <iframe width="100%" height="160" src="${embedUrl}" frameborder="0" allowfullscreen></iframe>
+                            </div>
+                        </div>
+
+                        <div style="display:flex; gap:6px; flex-direction:column;">
+                            <button type="button" class="nora-btn-publish btnPublishSingleClip" style="width:100%;" data-title="${encodeURIComponent(clip.title)}" data-summary="${encodeURIComponent(clip.summary)}" data-video="${encodeURIComponent(clip.video_url)}" data-start="${clip.start_time_seconds || 0}" data-end="${clip.end_time_seconds || 0}">
+                                🚀 PUBLICAR EN CADENA 4
+                            </button>
+                            ${clip.social_caption ? `<button type="button" class="button btnCopySocial" style="font-size:11px;" data-social="${encodeURIComponent(clip.social_caption)}">📋 Copiar Texto para Redes</button>` : ''}
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+
+                attachClipPublishEvents();
+
+                document.querySelectorAll('.btnCopySocial').forEach(b => {
+                    b.addEventListener('click', function() {
+                        const txt = decodeURIComponent(this.getAttribute('data-social'));
+                        navigator.clipboard.writeText(txt);
+                        this.innerText = '¡Copiado! ✓';
+                        setTimeout(() => { this.innerText = '📋 Copiar Texto para Redes'; }, 2000);
+                    });
+                });
+            } else {
+                container.innerHTML = '<p style="color:#64748b;">No hay clips guardados aún. Pega un video de YouTube arriba para generar y almacenar tus primeros cortes.</p>';
             }
         }
 
