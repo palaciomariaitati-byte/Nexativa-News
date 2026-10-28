@@ -3,7 +3,7 @@
  * Plugin Name: Nora Periodismo Pro - Cadena 4 & Nexativa
  * Plugin URI: https://cadena4.com.ar
  * Description: Suite completa de periodismo digital con IA: Nora Live Editor, Auto-Clipper Pro, Flashes Noticiosos y Móvil de Exteriores PWA para Cadena 4 y Nexativa News.
- * Version: 2.1.0
+ * Version: 2.2.0
  * Author: MyJNexoraVisual & Nexativa News
  * License: GPLv2 or later
  */
@@ -71,7 +71,7 @@ function nora_live_register_menus() {
 // 2. SISTEMA DE AUTO-ACTUALIZACIÓN AUTOMÁTICA REMOTA DESDE NEXATIVA
 // ==============================================================================
 if (!defined('NORA_LIVE_PLUGIN_VERSION')) {
-    define('NORA_LIVE_PLUGIN_VERSION', '2.1.0');
+    define('NORA_LIVE_PLUGIN_VERSION', '2.2.0');
 }
 if (!defined('NORA_LIVE_PLUGIN_BASENAME')) {
     define('NORA_LIVE_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -83,6 +83,27 @@ if (!defined('NORA_LIVE_UPDATE_URL')) {
     define('NORA_LIVE_UPDATE_URL', 'https://www.nexativanews.com.ar/api/plugin-update?slug=' . NORA_LIVE_PLUGIN_SLUG);
 }
 
+// Función de consulta redundante a CDN de alta disponibilidad para auto-actualización
+function nora_live_fetch_remote_update_info() {
+    $slug = defined('NORA_LIVE_PLUGIN_SLUG') ? NORA_LIVE_PLUGIN_SLUG : 'nora-periodismo';
+    $endpoints = array(
+        'https://xeheuscrttrbfnojwwqt.supabase.co/storage/v1/object/public/uploads/plugins/update-info.json',
+        'https://www.nexativanews.com.ar/api/plugin-update?slug=' . $slug
+    );
+
+    foreach ($endpoints as $url) {
+        $response = wp_remote_get($url, array('timeout' => 8, 'headers' => array('Accept' => 'application/json')));
+        if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
+            $body = wp_remote_retrieve_body($response);
+            $info = json_decode($body, true);
+            if ($info && isset($info['version'])) {
+                return (object) $info;
+            }
+        }
+    }
+    return false;
+}
+
 // Interceptar chequeo de actualizaciones de plugins de WordPress
 add_filter('pre_set_site_transient_update_plugins', 'nora_live_check_for_plugin_update');
 function nora_live_check_for_plugin_update($transient) {
@@ -90,22 +111,18 @@ function nora_live_check_for_plugin_update($transient) {
         return $transient;
     }
 
-    $response = wp_remote_get(NORA_LIVE_UPDATE_URL, array('timeout' => 8, 'headers' => array('Accept' => 'application/json')));
+    $info = nora_live_fetch_remote_update_info();
+    if ($info && isset($info->version) && version_compare(NORA_LIVE_PLUGIN_VERSION, $info->version, '<')) {
+        $obj = new stdClass();
+        $obj->slug = NORA_LIVE_PLUGIN_SLUG;
+        $obj->plugin = NORA_LIVE_PLUGIN_BASENAME;
+        $obj->new_version = $info->version;
+        $obj->url = $info->homepage ?? 'https://cadena4.com.ar';
+        $obj->package = $info->package ?? ('https://xeheuscrttrbfnojwwqt.supabase.co/storage/v1/object/public/uploads/plugins/' . NORA_LIVE_PLUGIN_SLUG . '.zip');
+        $obj->tested = $info->tested ?? '6.7';
+        $obj->requires_php = $info->requires_php ?? '7.4';
 
-    if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
-        $info = json_decode(wp_remote_retrieve_body($response));
-        if ($info && isset($info->version) && version_compare(NORA_LIVE_PLUGIN_VERSION, $info->version, '<')) {
-            $obj = new stdClass();
-            $obj->slug = NORA_LIVE_PLUGIN_SLUG;
-            $obj->plugin = NORA_LIVE_PLUGIN_BASENAME;
-            $obj->new_version = $info->version;
-            $obj->url = $info->homepage ?? 'https://cadena4.com.ar';
-            $obj->package = $info->package ?? ('https://www.nexativanews.com.ar/' . NORA_LIVE_PLUGIN_SLUG . '.zip');
-            $obj->tested = $info->tested ?? '6.7';
-            $obj->requires_php = $info->requires_php ?? '7.4';
-
-            $transient->response[$obj->plugin] = $obj;
-        }
+        $transient->response[$obj->plugin] = $obj;
     }
     return $transient;
 }
@@ -117,15 +134,11 @@ function nora_live_plugin_info_popup($res, $action, $args) {
         return $res;
     }
 
-    $response = wp_remote_get(NORA_LIVE_UPDATE_URL, array('timeout' => 8, 'headers' => array('Accept' => 'application/json')));
-
-    if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
-        $info = json_decode(wp_remote_retrieve_body($response), true);
-        if ($info) {
-            $res = (object) $info;
-            $res->sections = (array) ($info['sections'] ?? array());
-            return $res;
-        }
+    $info = nora_live_fetch_remote_update_info();
+    if ($info) {
+        $res = $info;
+        $res->sections = (array) ($info->sections ?? array());
+        return $res;
     }
     return $res;
 }
@@ -145,17 +158,12 @@ function nora_live_ajax_check_update_now() {
     check_ajax_referer('nora_live_nonce_action', 'security');
     delete_site_transient('update_plugins');
 
-    $response = wp_remote_get(NORA_LIVE_UPDATE_URL, array('timeout' => 10));
-    if (is_wp_error($response)) {
-        wp_send_json_error(array('message' => 'Error de conexión con Nexativa News.'));
-    }
-
-    $info = json_decode(wp_remote_retrieve_body($response), true);
-    if (!$info || !isset($info['version'])) {
+    $info = nora_live_fetch_remote_update_info();
+    if (!$info || !isset($info->version)) {
         wp_send_json_error(array('message' => 'Respuesta no válida del servidor central.'));
     }
 
-    $has_update = version_compare(NORA_LIVE_PLUGIN_VERSION, $info['version'], '<');
+    $has_update = version_compare(NORA_LIVE_PLUGIN_VERSION, $info->version, '<');
     $update_url = wp_nonce_url(
         self_admin_url('update.php?action=upgrade-plugin&plugin=' . urlencode(NORA_LIVE_PLUGIN_BASENAME)),
         'upgrade-plugin_' . NORA_LIVE_PLUGIN_BASENAME
@@ -163,10 +171,10 @@ function nora_live_ajax_check_update_now() {
 
     wp_send_json_success(array(
         'current_version' => NORA_LIVE_PLUGIN_VERSION,
-        'latest_version'  => $info['version'],
+        'latest_version'  => $info->version,
         'has_update'      => $has_update,
         'update_url'      => $update_url,
-        'changelog'       => $info['sections']['changelog'] ?? ''
+        'changelog'       => $info->sections['changelog'] ?? ''
     ));
 }
 
