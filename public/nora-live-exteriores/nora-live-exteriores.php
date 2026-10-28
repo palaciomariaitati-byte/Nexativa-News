@@ -80,14 +80,19 @@ if (!defined('NORA_LIVE_PLUGIN_SLUG')) {
     define('NORA_LIVE_PLUGIN_SLUG', dirname(plugin_basename(__FILE__)));
 }
 if (!defined('NORA_LIVE_UPDATE_URL')) {
-    define('NORA_LIVE_UPDATE_URL', 'https://www.nexativanews.com.ar/api/plugin-update?slug=' . NORA_LIVE_PLUGIN_SLUG);
+    define('NORA_LIVE_UPDATE_URL', 'https://xeheuscrttrbfnojwwqt.supabase.co/storage/v1/object/public/uploads/plugins/update-info-exteriores.json');
 }
 
 // Función de consulta redundante a CDN de alta disponibilidad para auto-actualización
 function nora_live_fetch_remote_update_info() {
-    $slug = defined('NORA_LIVE_PLUGIN_SLUG') ? NORA_LIVE_PLUGIN_SLUG : 'nora-periodismo';
+    $slug = defined('NORA_LIVE_PLUGIN_SLUG') ? NORA_LIVE_PLUGIN_SLUG : 'nora-live-exteriores';
+    $cdn_info = ($slug === 'nora-live-exteriores')
+        ? 'https://xeheuscrttrbfnojwwqt.supabase.co/storage/v1/object/public/uploads/plugins/update-info-exteriores.json'
+        : 'https://xeheuscrttrbfnojwwqt.supabase.co/storage/v1/object/public/uploads/plugins/update-info.json';
+
     $endpoints = array(
-        'https://xeheuscrttrbfnojwwqt.supabase.co/storage/v1/object/public/uploads/plugins/update-info.json',
+        $cdn_info,
+        NORA_LIVE_UPDATE_URL,
         'https://www.nexativanews.com.ar/api/plugin-update?slug=' . $slug
     );
 

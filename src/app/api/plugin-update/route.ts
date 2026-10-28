@@ -23,24 +23,26 @@ export async function GET(request: Request) {
   const protocol = host.includes("localhost") ? "http" : "https";
   const baseUrl = `${protocol}://${host}`;
 
+  const cdnPackageUrl = `https://xeheuscrttrbfnojwwqt.supabase.co/storage/v1/object/public/uploads/plugins/${slug}.zip`;
+
   const pluginInfo = {
     name: "Nora Periodismo Pro - Cadena 4 & Nexativa",
     slug: slug,
     plugin: pluginFile,
-    version: "2.1.0",
+    version: "2.2.0",
     author: "MyJNexoraVisual & Nexativa News",
     author_profile: "https://www.nexativanews.com.ar",
     requires: "5.6",
     tested: "6.7",
     requires_php: "7.4",
-    last_updated: "2026-10-27 22:00:00",
-    package: `${baseUrl}/${zipFile}`,
-    download_url: `${baseUrl}/${zipFile}`,
+    last_updated: "2026-10-27 22:30:00",
+    package: cdnPackageUrl,
+    download_url: cdnPackageUrl,
     homepage: "https://cadena4.com.ar",
     sections: {
       description: "Suite completa de periodismo con IA: Nora Live Editor, Auto-Clipper Pro, Flashes Noticiosos de 1-5 min y Móvil de Exteriores PWA para Cadena 4.",
       installation: "Instalar vía el panel de administración de WordPress o mediante actualización automática en un clic.",
-      changelog: "<h4>2.1.0</h4><ul><li>Soporte de Auto-Actualizaciones automáticas remotas desde Nexativa News.</li><li>Motor de publicación dual: REST API + admin-ajax.php para garantizar 100% de éxito al publicar.</li><li>Biblioteca de Clips Almacenados en Nexativa con publicación directa a WordPress.</li><li>Soporte de video iframe y miniaturas destacadas.</li><li>Suite de Periodismo completa con Live Editor, Auto-Clipper y Móvil PWA.</li></ul>"
+      changelog: "<h4>2.2.0</h4><ul><li>Auto-actualización automática desatendida vía CDN permanente de alta disponibilidad.</li><li>Motor de redacción en vivo instantáneo de Nora con detección automática de borradores.</li><li>Subida de imágenes con vista previa inmediata y asignación de foto destacada.</li><li>Reproductor limpio para Flashes y clips de hasta 5 minutos sin barra de 2 horas.</li><li>Bandeja en tiempo real de despachos desde la PWA móvil.</li></ul>"
     },
     banners: {
       low: `${baseUrl}/banner-nexativa.jpg`,
