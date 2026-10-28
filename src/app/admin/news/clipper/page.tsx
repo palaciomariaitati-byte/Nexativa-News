@@ -147,7 +147,23 @@ export default function NoraClipperAdminPage() {
     } catch (e) {}
   };
 
+  const switchTab = (tab: "clipper" | "library") => {
+    setActiveTab(tab);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", tab);
+      window.history.replaceState({}, "", url.toString());
+    }
+  };
+
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get("tab");
+      if (tab === "clipper" || tab === "library") {
+        setActiveTab(tab);
+      }
+    }
     fetchSavedClips();
     fetchPartnerVideos();
     fetchQueueVideos();
@@ -405,7 +421,7 @@ export default function NoraClipperAdminPage() {
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setActiveTab("library")}
+            onClick={() => switchTab("library")}
             className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${
               activeTab === "library"
                 ? "bg-red-600 text-white shadow-lg shadow-red-600/30"
@@ -419,7 +435,7 @@ export default function NoraClipperAdminPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab("clipper")}
+            onClick={() => switchTab("clipper")}
             className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${
               activeTab === "clipper"
                 ? "bg-red-600 text-white shadow-lg shadow-red-600/30"

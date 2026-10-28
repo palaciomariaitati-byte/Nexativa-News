@@ -168,12 +168,29 @@ export default function AdminSidebar({ userRole }: AdminSidebarProps) {
             </Link>
 
             <Link
-              href="/admin/news/clipper"
+              href="/admin/news/clipper?tab=library"
+              className={`px-3 py-1.5 rounded-lg font-bold flex items-center justify-between transition-colors ${
+                pathname === "/admin/news/clipper"
+                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                  : "text-amber-300 hover:bg-white/10"
+              }`}
+            >
+              <span className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                📁 Biblioteca de Clips (Almacén)
+              </span>
+              <span className="text-[9px] bg-amber-400/20 text-amber-300 px-1.5 py-0.5 rounded font-black uppercase">
+                Guardados
+              </span>
+            </Link>
+
+            <Link
+              href="/admin/news/clipper?tab=clipper"
               className={`px-3 py-1.5 rounded-lg text-purple-300 font-bold hover:bg-white/10 block transition-colors ${
                 pathname.startsWith("/admin/news/clipper") ? "bg-purple-500/20" : ""
               }`}
             >
-              Nora Auto-Clipper Pro
+              ✂️ Nora Auto-Clipper Pro
             </Link>
 
             <Link

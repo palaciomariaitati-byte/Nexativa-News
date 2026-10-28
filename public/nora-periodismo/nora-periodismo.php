@@ -1085,7 +1085,7 @@ function nora_live_render_page_with_tab($initial_tab = 'live') {
 
                     const ytId = getYouTubeId(videoUrl);
                     const embedUrl = ytId
-                        ? `https://www.youtube.com/embed/${ytId}?start=${start}&end=${end}&autoplay=1`
+                        ? `https://www.youtube.com/embed/${ytId}?start=${start}&autoplay=1&rel=0`
                         : videoUrl;
                     const thumbUrl = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : '';
 
@@ -1124,7 +1124,7 @@ function nora_live_render_page_with_tab($initial_tab = 'live') {
             const firstClip = lastGeneratedClips[0];
             const ytId = getYouTubeId(firstClip.video_url);
             const embedUrl = ytId
-                ? `https://www.youtube.com/embed/${ytId}?start=${firstClip.start_time_seconds}&end=${firstClip.end_time_seconds}&autoplay=1`
+                ? `https://www.youtube.com/embed/${ytId}?start=${firstClip.start_time_seconds}&autoplay=1&rel=0`
                 : firstClip.video_url;
             const thumbUrl = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : '';
 
@@ -1198,7 +1198,7 @@ function nora_live_render_page_with_tab($initial_tab = 'live') {
                 allClips.forEach(clip => {
                     const ytId = getYouTubeId(clip.video_url);
                     const embedUrl = ytId
-                        ? `https://www.youtube.com/embed/${ytId}?start=${clip.start_time_seconds || 0}&end=${clip.end_time_seconds || 0}`
+                        ? `https://www.youtube.com/embed/${ytId}?start=${clip.start_time_seconds || 0}&rel=0`
                         : clip.video_url;
 
                     const card = document.createElement('div');
