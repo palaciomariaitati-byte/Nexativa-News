@@ -22,6 +22,8 @@ export default function AdminSettingsPage() {
     plan_oro_price: "",
     make_webhook_url: "",
     radio_url: "",
+    radio_name: "",
+    radio_logo: "",
   });
 
   const supabase = getSupabaseBrowserClient();
@@ -163,17 +165,44 @@ export default function AdminSettingsPage() {
           </p>
         </div>
 
-        <div className="bg-emerald-900/30 border border-emerald-500/50 p-4 rounded-xl mb-6">
-          <label className="block text-sm font-bold text-emerald-400 mb-2 uppercase">URL de Radio en Vivo</label>
-          <input
-            type="url"
-            name="radio_url"
-            value={settings.radio_url || ""}
-            onChange={handleChange}
-            className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-emerald-500"
-            placeholder="Ej: https://stream.radio.com/envivo.mp3"
-          />
-          <p className="text-xs text-white/50 mt-2">Introduce la URL directa del streaming de audio para habilitar la pestaña de Radio en la página principal.</p>
+        <div className="bg-emerald-900/30 border border-emerald-500/50 p-4 rounded-xl mb-6 space-y-4">
+          <div>
+            <label className="block text-sm font-bold text-emerald-400 mb-2 uppercase">URL de Radio en Vivo (Streaming Directo o Widget)</label>
+            <input
+              type="url"
+              name="radio_url"
+              value={settings.radio_url || ""}
+              onChange={handleChange}
+              className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-emerald-500"
+              placeholder="Ej: https://ohradio.cc/9402/stream o https://stream.radio.com/envivo.mp3"
+            />
+            <p className="text-xs text-white/50 mt-1">Soporta enlaces directos (.mp3, .aac, /stream) y widgets de SonicPanel.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-emerald-300 mb-1 uppercase">Nombre de la Emisora</label>
+              <input
+                type="text"
+                name="radio_name"
+                value={settings.radio_name || ""}
+                onChange={handleChange}
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-emerald-500"
+                placeholder="Ej: Radio Yacyretá 94.1 FM / Cadena 4"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-emerald-300 mb-1 uppercase">URL del Logo / Portada</label>
+              <input
+                type="url"
+                name="radio_logo"
+                value={settings.radio_logo || ""}
+                onChange={handleChange}
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-emerald-500"
+                placeholder="Ej: https://misitio.com/logo-radio.png"
+              />
+            </div>
+          </div>
         </div>
 
         <div className="bg-white/5 border border-white/10 p-4 rounded-xl mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">

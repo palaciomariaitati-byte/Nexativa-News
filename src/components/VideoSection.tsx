@@ -44,6 +44,8 @@ export default function VideoSection() {
   const [isFloating, setIsFloating] = useState(false);
   const [mode, setMode] = useState<"tv" | "radio">("tv");
   const [radioUrl, setRadioUrl] = useState<string | null>(null);
+  const [radioName, setRadioName] = useState<string>("Radio en Vivo");
+  const [radioLogo, setRadioLogo] = useState<string | null>(null);
   const [isRadioPlaying, setIsRadioPlaying] = useState(false);
   const [isRadioBuffering, setIsRadioBuffering] = useState(false);
 
@@ -105,6 +107,12 @@ export default function VideoSection() {
         setIsRadioBuffering(true);
         if (radioUrl) {
           let actualUrl = radioUrl;
+          // Auto-traducción para SonicPanel y widgets de radio comunes (ej: ohradio.cc/cp/widgets/player/dj/?p=9402)
+          const sonicMatch = actualUrl.match(/https?:\/\/([^/]+)\/(?:cp\/)?widgets\/player\/dj\/\?p=([0-9]+)/i);
+          if (sonicMatch) {
+            actualUrl = `https://${sonicMatch[1]}/${sonicMatch[2]}/stream`;
+          }
+
           const lowerUrl = actualUrl.toLowerCase();
           if (lowerUrl.includes("pistarincon") || 
               lowerUrl.includes("xn--pistarinconsoado")) {
@@ -199,7 +207,7 @@ export default function VideoSection() {
 
       if (data) setActiveVideo(data);
 
-      // 2. Fetch Radio Setting
+      // 2. Fetch Radio Settings (URL, Nombre y Logo)
       const { data: settingsData } = await supabase
         .from("settings")
         .select("value")
@@ -207,6 +215,20 @@ export default function VideoSection() {
         .maybeSingle();
 
       if (settingsData?.value) setRadioUrl(settingsData.value);
+
+      const { data: radioNameData } = await supabase
+        .from("settings")
+        .select("value")
+        .eq("key", "radio_name")
+        .maybeSingle();
+      if (radioNameData?.value) setRadioName(radioNameData.value);
+
+      const { data: radioLogoData } = await supabase
+        .from("settings")
+        .select("value")
+        .eq("key", "radio_logo")
+        .maybeSingle();
+      if (radioLogoData?.value) setRadioLogo(radioLogoData.value);
 
       // 3. Fetch Spots de Pauta Publicitaria Activos
       const { data: spots } = await supabase
@@ -384,12 +406,21 @@ export default function VideoSection() {
               ) : mode === "radio" && radioUrl ? (
                 <>
                   <div className="absolute inset-0 flex flex-col items-center justify-center pb-8 z-10 bg-[#0a0a0a]">
-                    <div className="w-32 h-32 sm:w-48 sm:h-48 rounded-2xl flex items-center justify-center mb-6 relative shadow-[0_0_40px_rgba(200,150,100,0.15)] bg-gradient-to-br from-[#2a1a10] to-black p-4 border border-[#cf9e6e]/20">
-                      <img src="https://xn--pistarinconsoado-jub.com.ar/assets/logo.png" alt="Rincón Soñado" className="w-full h-full object-contain drop-shadow-xl" />
+                    <div className="w-32 h-32 sm:w-48 sm:h-48 rounded-2xl flex items-center justify-center mb-6 relative shadow-[0_0_40px_rgba(200,150,100,0.15)] bg-gradient-to-br from-[#1e1b4b] via-[#0f172a] to-black p-4 border border-white/10">
+                      {radioLogo ? (
+                        <img src={radioLogo} alt={radioName} className="w-full h-full object-contain drop-shadow-xl rounded-xl" />
+                      ) : (radioUrl && (radioUrl.includes("pistarincon") || radioUrl.includes("xn--pistarinconsoado"))) ? (
+                        <img src="https://xn--pistarinconsoado-jub.com.ar/assets/logo.png" alt="Rincón Soñado" className="w-full h-full object-contain drop-shadow-xl" />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center text-center">
+                          <span className="text-4xl sm:text-6xl mb-2 animate-bounce">📻</span>
+                          <span className="text-xs font-black uppercase tracking-wider text-[var(--color-brand-accent)]">ON AIR</span>
+                        </div>
+                      )}
                     </div>
                     
                     <h3 className="text-xl sm:text-2xl font-bold text-white mb-2 uppercase tracking-widest drop-shadow-lg text-center px-4">
-                      {isRadioBuffering ? "Conectando..." : isRadioPlaying ? "Radio en Vivo" : "Transmisión Pausada"}
+                      {isRadioBuffering ? "Conectando señal..." : isRadioPlaying ? (radioName || "Radio en Vivo") : "Transmisión Pausada"}
                     </h3>
                     
                     {isRadioPlaying && !isRadioBuffering && (
