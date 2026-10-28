@@ -995,9 +995,10 @@ function nora_live_render_page_with_tab($initial_tab = 'live') {
                     chatEl.scrollTop = chatEl.scrollHeight;
                 }
 
-                if (data.draft) {
-                    draftEl.innerHTML = data.draft;
-                    currentDraftText = data.draft;
+                const draftContent = data.draft || data.newDraft;
+                if (draftContent) {
+                    draftEl.innerHTML = draftContent;
+                    currentDraftText = draftContent;
                 }
             } catch (err) {
                 alert('Error al conectar con Nora IA: ' + err.message);
@@ -1141,9 +1142,8 @@ function nora_live_render_page_with_tab($initial_tab = 'live') {
                     const end = parseInt(this.getAttribute('data-end') || '60', 10);
 
                     const ytId = getYouTubeId(videoUrl);
-                    const embedUrl = ytId
-                        ? `https://www.youtube.com/embed/${ytId}?start=${start}&autoplay=0&rel=0`
-                        : videoUrl;
+                    const cleanPlayerUrl = nexativaBase + '/embed/player?video=' + encodeURIComponent(videoUrl) + '&start=' + start + '&end=' + end + '&title=' + encodeURIComponent(title);
+                    const embedUrl = cleanPlayerUrl;
                     const thumbUrl = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : '';
 
                     const startM = Math.floor(start / 60);
@@ -1214,11 +1214,56 @@ function nora_live_render_page_with_tab($initial_tab = 'live') {
             `;
 
             this.disabled = true;
-            this.innerText = 'Publicando Flash...';
+            this.innerText = 'Mezclando y emitiendo Flash (5 min)...';
 
             try {
-                const result = await publishToWordPressDual(title, content, summaryText.innerText.substring(0, 150), thumbUrl);
-                showNotice('¡Flash de Noticias publicado con éxito en Cadena 4! <a href="' + (result.permalink || '#') + '" target="_blank" style="color:#065f46; text-decoration:underline; font-weight:800;">Ver Noticia</a>');
+                // 1. Guardar Flash en el motor central de Nexativa con todos sus segmentos mezclados
+                let flashEmbedUrl = '';
+                const totalDur = lastGeneratedClips.reduce((acc, c) => acc + (c.duration_seconds || 60), 0);
+                try {
+                    const saveFlashRes = await fetch(flashesApiEndpoint, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            title: title,
+                            summary: summaryText.innerText || title,
+                            duration_seconds: Math.min(300, totalDur),
+                            video_url: firstClip.video_url,
+                            thumbnail_url: thumbUrl,
+                            segments: lastGeneratedClips,
+                            category: 'general'
+                        })
+                    });
+                    const flashJson = await saveFlashRes.json();
+                    if (flashJson.success && flashJson.flash?.id) {
+                        flashEmbedUrl = nexativaBase + '/embed/flash/' + flashJson.flash.id;
+                    }
+                } catch (saveErr) {
+                    console.warn('Fallo al guardar en news_flashes, usando reproductor dinámico:', saveErr);
+                }
+
+                if (!flashEmbedUrl) {
+                    flashEmbedUrl = nexativaBase + '/embed/player?segments=' + encodeURIComponent(JSON.stringify(lastGeneratedClips)) + '&title=' + encodeURIComponent(title);
+                }
+
+                const mixedContent = `
+                    <div style="margin-bottom:18px; border-radius:12px; overflow:hidden;">
+                        <img src="${thumbUrl}" alt="${title}" style="width:100%; height:auto; display:block; border-radius:12px;" />
+                    </div>
+                    <h2>${title}</h2>
+                    <div style="background:#fef2f2; border:1px solid #fecaca; border-left:5px solid #dc2626; padding:12px 16px; border-radius:8px; margin:16px 0; font-family:sans-serif;">
+                        <strong style="color:#dc2626; font-size:13px; text-transform:uppercase;">🔴 NOTICIERO FLASH EXPRÉS (${Math.floor(totalDur/60)} MINUTOS)</strong>
+                        <p style="margin:4px 0 0 0; font-size:12px; color:#334155;">Secuencia periodística multi-segmento procesada por Nora IA. Reproduce de forma continua los momentos clave sin interrupciones.</p>
+                    </div>
+                    <div style="margin:20px 0; border-radius:12px; overflow:hidden; aspect-ratio:16/9; background:#000;">
+                        <iframe width="100%" height="450" src="${flashEmbedUrl}" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+                    </div>
+                    <h3>Síntesis Informativa de la Emisión:</h3>
+                    <ul>${summaryList}</ul>
+                `;
+
+                const result = await publishToWordPressDual(title, mixedContent, summaryText.innerText.substring(0, 150), thumbUrl);
+                showNotice('¡Noticiero Flash mezclado publicado con éxito en Cadena 4! <a href="' + (result.permalink || '#') + '" target="_blank" style="color:#065f46; text-decoration:underline; font-weight:800;">Ver Noticia</a>');
             } catch (e) {
                 alert('Error al publicar Flash: ' + e.message);
             } finally {

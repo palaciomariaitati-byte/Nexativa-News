@@ -189,7 +189,7 @@ ${message || "(No envió mensaje de texto, revisa las imágenes, audios o videos
       }
     }
 
-    return NextResponse.json({ newDraft, reply }, { headers: corsHeaders });
+    return NextResponse.json({ newDraft, draft: newDraft, reply }, { headers: corsHeaders });
   } catch (error: any) {
     console.error("Nora Live API Error:", error);
     const errorMsg = error?.message || "Error desconocido en el servidor";
