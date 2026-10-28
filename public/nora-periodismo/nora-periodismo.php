@@ -3,7 +3,7 @@
  * Plugin Name: Nora Periodismo Pro - Cadena 4 & Nexativa
  * Plugin URI: https://cadena4.com.ar
  * Description: Suite completa de periodismo digital con IA: Nora Live Editor, Auto-Clipper Pro, Flashes Noticiosos y Móvil de Exteriores PWA para Cadena 4 y Nexativa News.
- * Version: 2.2.0
+ * Version: 2.2.1
  * Author: MyJNexoraVisual & Nexativa News
  * License: GPLv2 or later
  */
@@ -71,7 +71,7 @@ function nora_live_register_menus() {
 // 2. SISTEMA DE AUTO-ACTUALIZACIÓN AUTOMÁTICA REMOTA DESDE NEXATIVA
 // ==============================================================================
 if (!defined('NORA_LIVE_PLUGIN_VERSION')) {
-    define('NORA_LIVE_PLUGIN_VERSION', '2.2.0');
+    define('NORA_LIVE_PLUGIN_VERSION', '2.2.1');
 }
 if (!defined('NORA_LIVE_PLUGIN_BASENAME')) {
     define('NORA_LIVE_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -263,7 +263,7 @@ function nora_live_ajax_apply_update_now() {
 // ==============================================================================
 
 // Función central de inserción de posts (compartida por REST y AJAX)
-function nora_live_insert_post_core($title, $content, $excerpt = '', $image_url = '') {
+function nora_live_insert_post_core($title, $content, $excerpt = '', $image_url = '', $file_field = 'image_file') {
     $title = sanitize_text_field(!empty($title) ? $title : '🔴 Cobertura en Vivo Cadena 4');
     $excerpt = sanitize_text_field($excerpt);
 
@@ -309,52 +309,104 @@ function nora_live_insert_post_core($title, $content, $excerpt = '', $image_url 
         return $post_id;
     }
 
-    // Sideload de imagen destacada (URL o Base64)
-    if (!empty($image_url)) {
-        require_once(ABSPATH . 'wp-admin/includes/media.php');
-        require_once(ABSPATH . 'wp-admin/includes/file.php');
-        require_once(ABSPATH . 'wp-admin/includes/image.php');
+    // =========================================================================
+    // PROCESAMIENTO ROBUSTO DE IMAGEN DESTACADA Y CONTENIDO
+    // =========================================================================
+    require_once(ABSPATH . 'wp-admin/includes/media.php');
+    require_once(ABSPATH . 'wp-admin/includes/file.php');
+    require_once(ABSPATH . 'wp-admin/includes/image.php');
 
+    $attachment_id = 0;
+
+    // Caso 1: Archivo subido nativamente vía multipart $_FILES (Máxima fidelidad)
+    if (!empty($_FILES[$file_field]) && !empty($_FILES[$file_field]['tmp_name']) && is_uploaded_file($_FILES[$file_field]['tmp_name'])) {
+        $attachment_id = media_handle_upload($file_field, $post_id);
+        if (is_wp_error($attachment_id)) {
+            $attachment_id = 0;
+        }
+    }
+
+    // Caso 2: Si no hubo archivo nativo, evaluar $image_url (URL remota o Base64)
+    if (!$attachment_id && !empty($image_url)) {
+        // Caso 2.A: URL remota válida
         if (filter_var($image_url, FILTER_VALIDATE_URL)) {
-            $tmp = download_url($image_url, 15);
+            $tmp = download_url($image_url, 20);
             if (!is_wp_error($tmp)) {
+                $ext = pathinfo(parse_url($image_url, PHP_URL_PATH), PATHINFO_EXTENSION);
+                if (empty($ext) || strlen($ext) > 4) $ext = 'jpg';
                 $file_array = array(
-                    'name'     => sanitize_title($title) . '-' . time() . '.jpg',
+                    'name'     => sanitize_title($title) . '-' . time() . '.' . $ext,
                     'tmp_name' => $tmp
                 );
-                $attachment_id = media_handle_sideload($file_array, $post_id, $title);
-                if (!is_wp_error($attachment_id)) {
-                    set_post_thumbnail($post_id, $attachment_id);
+                $att = media_handle_sideload($file_array, $post_id, $title);
+                if (!is_wp_error($att)) {
+                    $attachment_id = $att;
                 }
                 @unlink($tmp);
             }
+        // Caso 2.B: Imagen en Base64 (Data URI)
         } elseif (strpos($image_url, 'data:image') === 0) {
-            $parts = explode(',', $image_url);
+            $parts = explode(',', $image_url, 2);
             if (count($parts) === 2) {
-                $data = base64_decode($parts[1]);
-                $filename = sanitize_title($title) . '-' . time() . '.jpg';
-                $upload = wp_upload_bits($filename, null, $data);
-                if (empty($upload['error'])) {
-                    $attachment = array(
-                        'post_mime_type' => $upload['type'],
-                        'post_title'     => $title,
-                        'post_content'   => '',
-                        'post_status'    => 'inherit'
-                    );
-                    $attach_id = wp_insert_attachment($attachment, $upload['file'], $post_id);
-                    $attach_data = wp_generate_attachment_metadata($attach_id, $upload['file']);
-                    wp_update_attachment_metadata($attach_id, $attach_data);
-                    set_post_thumbnail($post_id, $attach_id);
+                $clean_b64 = str_replace(' ', '+', $parts[1]);
+                $binary_data = base64_decode($clean_b64);
+                if ($binary_data !== false && strlen($binary_data) > 0) {
+                    $ext = 'jpg';
+                    if (preg_match('/data:image\/(png|jpeg|webp|gif)/i', $parts[0], $matches)) {
+                        $ext = strtolower($matches[1]) === 'jpeg' ? 'jpg' : strtolower($matches[1]);
+                    }
+                    $filename = sanitize_title($title) . '-' . time() . '.' . $ext;
+                    $upload = wp_upload_bits($filename, null, $binary_data);
+                    if (empty($upload['error'])) {
+                        $attachment = array(
+                            'post_mime_type' => $upload['type'],
+                            'post_title'     => $title,
+                            'post_content'   => '',
+                            'post_status'    => 'inherit'
+                        );
+                        $att = wp_insert_attachment($attachment, $upload['file'], $post_id);
+                        if (!is_wp_error($att)) {
+                            $attach_data = wp_generate_attachment_metadata($att, $upload['file']);
+                            wp_update_attachment_metadata($att, $attach_data);
+                            $attachment_id = $att;
+                        }
+                    }
                 }
             }
         }
     }
 
+    // Si se generó el attachment, fijarlo como Imagen Destacada Y asegurar URL pública real en el post
+    if ($attachment_id > 0) {
+        set_post_thumbnail($post_id, $attachment_id);
+        $public_img_url = wp_get_attachment_url($attachment_id);
+
+        if (!empty($public_img_url)) {
+            $post_record = get_post($post_id);
+            if ($post_record) {
+                $current_body = $post_record->post_content;
+                // Si el contenido ya tenía un tag de data:image o placeholder, reemplazarlo por la URL real
+                if (strpos($current_body, 'data:image') !== false) {
+                    $current_body = preg_replace('/src="data:image\/[^"]+"/', 'src="' . esc_url($public_img_url) . '"', $current_body);
+                } elseif (strpos($current_body, '<img') === false) {
+                    // Si el tema de WordPress no muestra la imagen destacada automáticamente, insertarla arriba
+                    $img_header = '<div style="margin-bottom:20px; border-radius:12px; overflow:hidden;"><img src="' . esc_url($public_img_url) . '" alt="' . esc_attr($title) . '" style="width:100%; height:auto; display:block; border-radius:12px;" /></div>';
+                    $current_body = $img_header . $current_body;
+                }
+                wp_update_post(array(
+                    'ID'           => $post_id,
+                    'post_content' => $current_body
+                ));
+            }
+        }
+    }
+
     return array(
-        'success'   => true,
-        'post_id'   => $post_id,
-        'permalink' => get_permalink($post_id),
-        'title'     => $title
+        'success'      => true,
+        'post_id'      => $post_id,
+        'permalink'    => get_permalink($post_id),
+        'thumbnail_id' => $attachment_id,
+        'title'        => $title
     );
 }
 
@@ -376,7 +428,7 @@ function nora_live_rest_publish_handler($request) {
     $excerpt = $params['excerpt'] ?? '';
     $image_url = $params['image_url'] ?? '';
 
-    $res = nora_live_insert_post_core($title, $content, $excerpt, $image_url);
+    $res = nora_live_insert_post_core($title, $content, $excerpt, $image_url, 'image_file');
     if (is_wp_error($res)) {
         return new WP_Error('publish_failed', $res->get_error_message(), array('status' => 500));
     }
@@ -398,7 +450,7 @@ function nora_live_ajax_publish_handler() {
     $excerpt = isset($_POST['excerpt']) ? wp_unslash($_POST['excerpt']) : '';
     $image_url = isset($_POST['image_url']) ? wp_unslash($_POST['image_url']) : '';
 
-    $res = nora_live_insert_post_core($title, $content, $excerpt, $image_url);
+    $res = nora_live_insert_post_core($title, $content, $excerpt, $image_url, 'image_file');
     if (is_wp_error($res)) {
         wp_send_json_error(array('message' => $res->get_error_message()));
     } else {
@@ -897,10 +949,38 @@ function nora_live_render_page_with_tab($initial_tab = 'live') {
         // =========================================================================
         // MOTOR DUAL DE PUBLICACIÓN (REST API + FALLBACK AUTOMÁTICO A ADMIN-AJAX)
         // =========================================================================
-        async function publishToWordPressDual(title, content, excerpt = '', imageUrl = '') {
+        async function publishToWordPressDual(title, content, excerpt = '', imageUrl = '', imageFile = null) {
             let lastError = null;
 
-            // Intento 1: REST API
+            // Intento 1: Si hay archivo nativo, usar admin-ajax con multipart/form-data directamente (100% fiable)
+            if (imageFile) {
+                try {
+                    const formData = new FormData();
+                    formData.append('action', 'nora_live_publish');
+                    formData.append('security', wpAjaxNonce);
+                    formData.append('title', title);
+                    formData.append('content', content);
+                    formData.append('excerpt', excerpt);
+                    formData.append('image_file', imageFile);
+                    formData.append('image_url', imageUrl || '');
+
+                    const ajaxRes = await fetch(wpAjaxUrl, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const ajaxData = await ajaxRes.json();
+                    if (ajaxData.success) {
+                        return ajaxData.data || ajaxData;
+                    } else {
+                        throw new Error(ajaxData.data?.message || ajaxData.message || 'Error en admin-ajax');
+                    }
+                } catch (ajaxErr) {
+                    lastError = ajaxErr.message;
+                }
+            }
+
+            // Intento 2: REST API
             try {
                 const res = await fetch(wpRestUrl, {
                     method: 'POST',
@@ -928,7 +1008,7 @@ function nora_live_render_page_with_tab($initial_tab = 'live') {
                 lastError = err.message;
             }
 
-            // Intento 2: Fallback automático e infalible vía admin-ajax.php
+            // Intento 3: Fallback automático e infalible vía admin-ajax.php
             try {
                 const formData = new FormData();
                 formData.append('action', 'nora_live_publish');
@@ -984,6 +1064,7 @@ function nora_live_render_page_with_tab($initial_tab = 'live') {
         const gpsBadge = document.getElementById('noraGpsBadge');
         let currentDraftText = '';
         let attachedImageBase64 = null;
+        let attachedImageFile = null;
         let currentNewsImageUrl = '';
 
         const imageInput = document.getElementById('noraImage');
@@ -1001,6 +1082,7 @@ function nora_live_render_page_with_tab($initial_tab = 'live') {
 
         function hideImagePreview() {
             attachedImageBase64 = null;
+            attachedImageFile = null;
             currentNewsImageUrl = '';
             if (imageInput) imageInput.value = '';
             if (previewContainer) previewContainer.style.display = 'none';
@@ -1018,6 +1100,7 @@ function nora_live_render_page_with_tab($initial_tab = 'live') {
                     return;
                 }
 
+                attachedImageFile = file;
                 const reader = new FileReader();
                 reader.onload = function(evt) {
                     attachedImageBase64 = evt.target.result;
@@ -1115,7 +1198,7 @@ function nora_live_render_page_with_tab($initial_tab = 'live') {
                     finalContent = '<div style="margin-bottom:18px; border-radius:12px; overflow:hidden;"><img src="' + currentNewsImageUrl + '" alt="' + title + '" style="width:100%; height:auto; display:block; border-radius:12px;" /></div>' + rawContent;
                 }
 
-                const result = await publishToWordPressDual(title, finalContent, draftEl.innerText.substring(0, 150), currentNewsImageUrl);
+                const result = await publishToWordPressDual(title, finalContent, draftEl.innerText.substring(0, 150), currentNewsImageUrl, attachedImageFile);
                 showNotice('¡Noticia publicada con éxito en Cadena 4! <a href="' + (result.permalink || '#') + '" target="_blank" style="color:#065f46; text-decoration:underline; font-weight:800;">Ver Noticia en el Portal</a>');
             } catch (err) {
                 alert('Error al publicar noticia: ' + err.message);

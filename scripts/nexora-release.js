@@ -51,7 +51,7 @@ const PRODUCTS = [
     manifest: 'public/update-info.json',
     remoteManifestName: 'update-info.json',
     description: 'Suite completa de periodismo digital con IA: Nora Live Editor, Auto-Clipper Pro, Flashes Noticiosos de 1-5 min y Móvil de Exteriores PWA.',
-    version: '2.2.0'
+    version: '2.2.1'
   },
   {
     slug: 'nora-live-exteriores',
@@ -62,7 +62,7 @@ const PRODUCTS = [
     manifest: 'public/update-info-exteriores.json',
     remoteManifestName: 'update-info-exteriores.json',
     description: 'Suite completa de periodismo digital con IA: Nora Live Editor, Auto-Clipper Pro, Flashes Noticiosos de 1-5 min y Móvil de Exteriores PWA.',
-    version: '2.2.0'
+    version: '2.2.1'
   }
 ];
 
