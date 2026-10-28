@@ -83,26 +83,39 @@ if (!defined('NORA_LIVE_UPDATE_URL')) {
     define('NORA_LIVE_UPDATE_URL', 'https://xeheuscrttrbfnojwwqt.supabase.co/storage/v1/object/public/uploads/plugins/update-info-exteriores.json');
 }
 
-// Función de consulta redundante a CDN de alta disponibilidad para auto-actualización
+// Función de consulta redundante a CDN de alta disponibilidad para auto-actualización (Multi-Tier Infallible Mirrors)
 function nora_live_fetch_remote_update_info() {
     $slug = defined('NORA_LIVE_PLUGIN_SLUG') ? NORA_LIVE_PLUGIN_SLUG : 'nora-live-exteriores';
-    $cdn_info = ($slug === 'nora-live-exteriores')
-        ? 'https://xeheuscrttrbfnojwwqt.supabase.co/storage/v1/object/public/uploads/plugins/update-info-exteriores.json'
-        : 'https://xeheuscrttrbfnojwwqt.supabase.co/storage/v1/object/public/uploads/plugins/update-info.json';
+    $manifest_name = ($slug === 'nora-live-exteriores') ? 'update-info-exteriores.json' : 'update-info.json';
 
     $endpoints = array(
-        $cdn_info,
-        NORA_LIVE_UPDATE_URL,
+        // Mirror 1: CDN Edge Supabase (Ultra-rápido, permanente)
+        'https://xeheuscrttrbfnojwwqt.supabase.co/storage/v1/object/public/uploads/plugins/' . $manifest_name,
+        // Mirror 2: CDN Global GitHub Raw (Fastly Edge Cache, 99.999% SLA)
+        'https://raw.githubusercontent.com/palaciomariaitati-byte/Nexativa-News/main/public/' . $manifest_name,
+        // Mirror 3: Servidor Dinámico Nexativa News
         'https://www.nexativanews.com.ar/api/plugin-update?slug=' . $slug
     );
 
     foreach ($endpoints as $url) {
-        $response = wp_remote_get($url, array('timeout' => 8, 'headers' => array('Accept' => 'application/json')));
+        $response = wp_remote_get($url, array(
+            'timeout' => 6,
+            'headers' => array(
+                'Accept' => 'application/json',
+                'User-Agent' => 'NexoraStorePluginUpdater/2.2.0 (WordPress)'
+            )
+        ));
+
         if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
             $body = wp_remote_retrieve_body($response);
             $info = json_decode($body, true);
             if ($info && isset($info['version'])) {
-                return (object) $info;
+                $obj = (object) $info;
+                // Si el paquete no tiene URL absoluta, asignar CDN permanente
+                if (empty($obj->package) || strpos($obj->package, 'http') !== 0) {
+                    $obj->package = 'https://xeheuscrttrbfnojwwqt.supabase.co/storage/v1/object/public/uploads/plugins/' . $slug . '.zip';
+                }
+                return $obj;
             }
         }
     }
@@ -157,7 +170,7 @@ function nora_live_auto_update_filter($update, $item) {
     return $update;
 }
 
-// Endpoint AJAX para chequear y forzar actualización en 1 clic
+// Endpoint AJAX para chequear actualización en 1 clic
 add_action('wp_ajax_nora_live_check_update_now', 'nora_live_ajax_check_update_now');
 function nora_live_ajax_check_update_now() {
     check_ajax_referer('nora_live_nonce_action', 'security');
@@ -165,7 +178,9 @@ function nora_live_ajax_check_update_now() {
 
     $info = nora_live_fetch_remote_update_info();
     if (!$info || !isset($info->version)) {
-        wp_send_json_error(array('message' => 'Respuesta no válida del servidor central.'));
+        wp_send_json_error(array(
+            'message' => 'Los servidores de actualización no respondieron en este momento. La radio y la suite continúan activas sin interrupción.'
+        ));
     }
 
     $has_update = version_compare(NORA_LIVE_PLUGIN_VERSION, $info->version, '<');
@@ -174,13 +189,73 @@ function nora_live_ajax_check_update_now() {
         'upgrade-plugin_' . NORA_LIVE_PLUGIN_BASENAME
     );
 
+    $changelog = '';
+    if (isset($info->sections)) {
+        if (is_array($info->sections) && isset($info->sections['changelog'])) {
+            $changelog = $info->sections['changelog'];
+        } elseif (is_object($info->sections) && isset($info->sections->changelog)) {
+            $changelog = $info->sections->changelog;
+        }
+    }
+
     wp_send_json_success(array(
         'current_version' => NORA_LIVE_PLUGIN_VERSION,
         'latest_version'  => $info->version,
         'has_update'      => $has_update,
         'update_url'      => $update_url,
-        'changelog'       => $info->sections['changelog'] ?? ''
+        'package_url'     => $info->package ?? '',
+        'changelog'       => $changelog
     ));
+}
+
+// Endpoint AJAX para ejecutar la actualización en 1 clic sin salir del panel
+add_action('wp_ajax_nora_live_apply_update_now', 'nora_live_ajax_apply_update_now');
+function nora_live_ajax_apply_update_now() {
+    check_ajax_referer('nora_live_nonce_action', 'security');
+    if (!current_user_can('update_plugins')) {
+        wp_send_json_error(array('message' => 'Permisos insuficientes para actualizar plugins.'));
+    }
+
+    $info = nora_live_fetch_remote_update_info();
+    if (!$info || !isset($info->version)) {
+        wp_send_json_error(array('message' => 'No se pudo obtener el paquete de actualización de la CDN.'));
+    }
+
+    // Incluir clases requeridas de WordPress
+    require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+    require_once ABSPATH . 'wp-admin/includes/plugin-install.php';
+    require_once ABSPATH . 'wp-admin/includes/file.php';
+    require_once ABSPATH . 'wp-admin/includes/plugin.php';
+
+    // Instanciar el actualizador silencioso
+    $skin = new Automatic_Upgrader_Skin();
+    $upgrader = new Plugin_Upgrader($skin);
+
+    // Limpiar transients para forzar lectura de la nueva versión
+    delete_site_transient('update_plugins');
+
+    // Iniciar actualización
+    $result = $upgrader->upgrade(NORA_LIVE_PLUGIN_BASENAME);
+
+    if (is_wp_error($result)) {
+        wp_send_json_error(array('message' => $result->get_error_message()));
+    }
+
+    if ($result) {
+        // Asegurar reactivación del plugin tras la sobrescritura
+        activate_plugin(NORA_LIVE_PLUGIN_BASENAME);
+        wp_send_json_success(array(
+            'message' => '¡Plugin actualizado y reactivado con éxito a la versión v' . $info->version . '!',
+            'new_version' => $info->version
+        ));
+    } else {
+        // Si el sistema de archivos requería credenciales directas, enviar URL estándar
+        $update_url = wp_nonce_url(
+            self_admin_url('update.php?action=upgrade-plugin&plugin=' . urlencode(NORA_LIVE_PLUGIN_BASENAME)),
+            'upgrade-plugin_' . NORA_LIVE_PLUGIN_BASENAME
+        );
+        wp_send_json_success(array('redirect' => $update_url));
+    }
 }
 
 // ==============================================================================
@@ -1614,14 +1689,43 @@ function nora_live_render_page_with_tab($initial_tab = 'live') {
                     const json = await res.json();
 
                     if (json.success && json.data?.has_update) {
-                        showNotice(`🚀 ¡Hay una nueva versión disponible (v${json.data.latest_version})! <a href="${json.data.update_url}" style="color:#065f46; font-weight:800; text-decoration:underline;">Actualizar Plugin Ahora en 1 Clic</a>`);
+                        showNotice(`🚀 ¡Nueva versión disponible (v${json.data.latest_version})! <button type="button" id="btnApplyUpdateNow" class="button button-primary" style="margin-left:8px; font-weight:800; cursor:pointer;">⚡ Instalar Actualización en 1 Clic</button> <a href="${json.data.update_url}" style="margin-left:8px; color:#065f46; font-size:12px; text-decoration:underline;">(o vía instalador clásico)</a>`);
+
+                        const btnApply = document.getElementById('btnApplyUpdateNow');
+                        if (btnApply) {
+                            btnApply.addEventListener('click', async function() {
+                                this.disabled = true;
+                                this.innerText = 'Instalando desde CDN segura...';
+                                try {
+                                    const fdUp = new FormData();
+                                    fdUp.append('action', 'nora_live_apply_update_now');
+                                    fdUp.append('security', wpAjaxNonce);
+
+                                    const resUp = await fetch(wpAjaxUrl, { method: 'POST', body: fdUp });
+                                    const jsonUp = await resUp.json();
+
+                                    if (jsonUp.success && jsonUp.data?.redirect) {
+                                        window.location.href = jsonUp.data.redirect;
+                                    } else if (jsonUp.success) {
+                                        showNotice('🎉 ' + jsonUp.data.message + ' Recargando panel...', true);
+                                        setTimeout(() => window.location.reload(), 2000);
+                                    } else {
+                                        showNotice(jsonUp.data?.message || 'Error durante la instalación. Redirigiendo a instalador nativo...', false);
+                                        setTimeout(() => { window.location.href = json.data.update_url; }, 2500);
+                                    }
+                                } catch (err) {
+                                    showNotice('Redirigiendo al instalador oficial de WordPress: ' + err.message, false);
+                                    setTimeout(() => { window.location.href = json.data.update_url; }, 2000);
+                                }
+                            });
+                        }
                     } else if (json.success) {
-                        showNotice('✓ El plugin ya está en su versión más reciente (v' + (json.data?.current_version || '2.1.0') + ').');
+                        showNotice('✓ El plugin ya está en su versión más reciente (v' + (json.data?.current_version || '2.2.0') + '). Servidores CDN conectados.');
                     } else {
-                        alert(json.data?.message || 'Error verificando actualizaciones.');
+                        showNotice(json.data?.message || 'Servidores de actualización no disponibles temporalmente.', false);
                     }
                 } catch (e) {
-                    alert('Error al verificar: ' + e.message);
+                    showNotice('No se pudo comprobar la versión en este momento: ' + e.message, false);
                 } finally {
                     this.disabled = false;
                     this.innerText = '🔄 Buscar Actualizaciones';
