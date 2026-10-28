@@ -1,11 +1,8 @@
 {
-  "framework": "nextjs",
-  "buildCommand": "next build",
-  "outputDirectory": ".next",
   "crons": [
     {
       "path": "/api/cron/auto-fetch",
-      "schedule": "0 */6 * * *"
+      "schedule": "0 6 * * *"
     },
     {
       "path": "/api/cron/cleanup-media",
